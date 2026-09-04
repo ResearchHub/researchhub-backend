@@ -7,6 +7,9 @@ from research_ai.services.agent.model_capabilities import _normalized
 from research_ai.services.agent.providers.registry import split_model_ref
 from research_ai.services.agent.types import TurnUsage
 
+# A fixed reference keeps displayed multipliers stable when the catalog changes.
+COST_MULTIPLIER_BASE_MODEL = "openrouter:x-ai/grok-4.6"
+
 
 @dataclass(frozen=True)
 class TokenPricing:
@@ -187,18 +190,19 @@ def cost_microusd(provider: str, model_id: str, usage: TurnUsage) -> int | None:
 
 
 def cost_multiplier(ref: str) -> Decimal | None:
-    """Blended input/output price relative to the cheapest catalog model."""
+    """Estimated relative cost for equal uncached input and output tokens.
+
+    This comparison excludes cache and search charges. Actual credits use each
+    usage bucket's rate, not this rounded multiplier.
+    """
     provider, model_id = split_model_ref(ref)
     pricing = model_pricing(provider, model_id or "")
     if pricing is None:
         return None
-    reviewed = [
-        price
-        for provider_prices in _PROVIDER_PRICING.values()
-        for price in provider_prices.values()
-    ]
-    cheapest = min(
-        price.input_usd_per_mtok + price.output_usd_per_mtok for price in reviewed
-    )
+    base_provider, base_model_id = split_model_ref(COST_MULTIPLIER_BASE_MODEL)
+    base = model_pricing(base_provider, base_model_id or "")
+    if base is None:
+        return None
+    baseline = base.input_usd_per_mtok + base.output_usd_per_mtok
     blended = pricing.input_usd_per_mtok + pricing.output_usd_per_mtok
-    return (blended / cheapest).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+    return (blended / baseline).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)

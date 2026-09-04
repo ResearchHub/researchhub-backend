@@ -11,7 +11,7 @@ from research_ai.models import (
     AgentExecution,
     NoteAgentConversation,
 )
-from research_ai.services.agent.types import StopReason
+from research_ai.services.agent.types import StopReason, TurnUsage
 from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     DatabaseAgentRecorder,
@@ -30,7 +30,7 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
-from research_ai.services.usage_budget import UsageWorkInProgressError
+from research_ai.services.usage_budget import UsageWorkInProgressError, budget_status
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -413,7 +413,7 @@ class NotebookChatServiceTests(TestCase):
         # the row still names the model it was submitted with.
         execution, _delay = self._submit()
         AgentExecution.objects.filter(id=execution.id).update(
-            model="bedrock:pinned-model"
+            model="claude_platform:claude-sonnet-5"
         )
         provider = FakeProvider([text_turn("Done.")])
         service = _make_service()
@@ -427,7 +427,7 @@ class NotebookChatServiceTests(TestCase):
 
         # Assert
         resolver.assert_called_once_with(
-            "bedrock:pinned-model", native_tools=frozenset({"web_search"})
+            "claude_platform:claude-sonnet-5", native_tools=frozenset({"web_search"})
         )
         self.assertEqual(result["final_text"], "Done.")
 
@@ -484,6 +484,57 @@ class NotebookChatServiceTests(TestCase):
         # Assert
         self.assertEqual(result["final_text"], "Done.")
         selected_rfp_toolset.assert_not_called()
+
+    def test_run_turn_continues_past_the_former_model_call_limit(self):
+        # Arrange
+        execution, _delay = self._submit()
+        provider = FakeProvider(
+            [
+                tool_turn(f"t{i}", "read_note", {"note_id": self.note.id})
+                for i in range(31)
+            ]
+            + [text_turn("Done.")]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertIsNone(execution.configuration["max_iterations"])
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(result["final_text"], "Done.")
+        self.assertEqual(result["iterations"], 32)
+        self.assertEqual(len(provider.calls), 32)
+
+    def test_run_turn_records_credit_usage_once(self):
+        # Arrange
+        execution, _delay = self._submit(model_ref="claude_platform:claude-opus-5")
+
+        class UsageReportingProvider(FakeProvider):
+            def complete(self, **kwargs):
+                turn = super().complete(**kwargs)
+                kwargs["on_usage"](turn.usage)
+                return turn
+
+        provider = UsageReportingProvider(
+            [text_turn("Done.", usage=TurnUsage(input_tokens=1000, output_tokens=100))]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        result = service.run_turn(execution.id)
+        service.run_turn(execution.id)  # Redelivery must not charge twice.
+
+        # Assert
+        event = execution.usage_events.get()
+        self.assertEqual(result["final_text"], "Done.")
+        self.assertEqual(event.user, self.user)
+        self.assertEqual(event.feature, "notebook_chat")
+        self.assertEqual(event.cost_microusd, 7500)
+        self.assertEqual(len(provider.calls), 1)
+        self.assertEqual(budget_status(self.user).as_dict()["credits"]["used"], "7.5")
 
     def test_run_turn_honors_the_recorded_iteration_limit(self):
         # Arrange: the turn was submitted with a one-iteration budget; the

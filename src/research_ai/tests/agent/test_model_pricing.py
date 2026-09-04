@@ -1,7 +1,9 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
+from research_ai.services.agent import model_pricing as pricing_module
 from research_ai.services.agent.model_pricing import cost_microusd, cost_multiplier
 from research_ai.services.agent.types import TurnUsage
 
@@ -64,14 +66,34 @@ class ModelPricingTests(SimpleTestCase):
         # Assert
         self.assertEqual(cost, 20_000)
 
-    def test_cheapest_catalog_model_is_one_x(self):
+    def test_baseline_model_is_one_x(self):
+        # Arrange / Act / Assert
         self.assertEqual(
-            cost_multiplier("openrouter:deepseek/deepseek-v4-flash-0731"),
+            cost_multiplier("openrouter:x-ai/grok-4.6"),
             Decimal("1.0"),
         )
 
-    def test_multiplier_is_relative_to_cheapest_catalog_model(self):
+    def test_multiplier_is_relative_to_baseline_model(self):
+        # Arrange / Act / Assert
         self.assertEqual(
             cost_multiplier("openrouter:deepseek/deepseek-v4-pro-0813"),
-            Decimal("12.6"),
+            Decimal("0.33"),
         )
+
+    def test_low_cost_model_multiplier_does_not_round_to_zero(self):
+        # Arrange / Act
+        multiplier = cost_multiplier("openrouter:deepseek/deepseek-v4-flash-0731")
+
+        # Assert
+        self.assertEqual(multiplier, Decimal("0.03"))
+
+    def test_new_cheaper_model_does_not_change_existing_multipliers(self):
+        # Arrange
+        cheaper = pricing_module.ModelPricing(*(Decimal("0.001"),) * 5)
+
+        # Act
+        with patch.dict(pricing_module._OPENROUTER_PRICING, {"new/model": cheaper}):
+            multiplier = cost_multiplier("openrouter:deepseek/deepseek-v4-pro-0813")
+
+        # Assert
+        self.assertEqual(multiplier, Decimal("0.33"))

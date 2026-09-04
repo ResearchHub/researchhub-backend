@@ -1,15 +1,17 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections
-from django.test import TestCase, TransactionTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
+from research_ai.services.agent import AgentService, ProviderError, Toolset
+from research_ai.services.agent.model_catalog import ModelOption
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,
@@ -21,6 +23,9 @@ from research_ai.services.agent.types import (
 from research_ai.services.usage_budget import (
     AgentLoopBudgetRecorder,
     BudgetExceededError,
+    BudgetStatus,
+    ModelNotAllowedError,
+    TierPolicy,
     UsageLimitExceededError,
     UsageWorkInProgressError,
     atomic_turn_admission,
@@ -29,6 +34,8 @@ from research_ai.services.usage_budget import (
     record,
     resolve_ai_tier,
 )
+from research_ai.services.usage_budget import service as usage_budget_service
+from research_ai.tests.agent.test_loop import FakeProvider, _build_text_turn
 from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
@@ -116,6 +123,10 @@ class UsageBudgetTests(TestCase):
         self.assertEqual(status.spent_today_microusd, 1_650)
         self.assertEqual(status.turns_used, 1)
         self.assertEqual(status.remaining_microusd, 248_350)
+        self.assertEqual(
+            status.as_dict()["credits"],
+            {"daily_limit": "250", "used": "1.65", "remaining": "248.35"},
+        )
 
     def test_admission_raises_when_daily_turn_cap_is_spent(self):
         # Arrange
@@ -442,6 +453,88 @@ class AtomicAdmissionTests(TransactionTestCase):
             pass
 
 
+class RequiredModelPricingTests(SimpleTestCase):
+    def setUp(self):
+        self.policy = TierPolicy("privileged", None, None, None, None)
+        self.unpriced_model = "bedrock:us.anthropic.claude-opus-5"
+
+    def test_unlimited_tier_cannot_submit_an_unpriced_model(self):
+        # Arrange / Act / Assert
+        with (
+            patch.object(
+                usage_budget_service, "resolve_ai_tier", return_value=self.policy
+            ),
+            self.assertRaisesMessage(ModelNotAllowedError, "no reviewed pricing"),
+        ):
+            check_turn_admission(object(), self.unpriced_model)
+
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
+    def test_unlimited_tier_default_falls_back_to_a_priced_model(self):
+        # Arrange / Act
+        default = usage_budget_service.resolve_default_model(self.policy)
+
+        # Assert
+        self.assertEqual(default, "claude_platform:claude-opus-5")
+
+    def test_no_priced_model_prevents_default_selection(self):
+        # Arrange / Act / Assert
+        with (
+            patch.object(
+                usage_budget_service,
+                "available_models",
+                return_value=[ModelOption(self.unpriced_model, "Unpriced")],
+            ),
+            self.assertRaisesMessage(ModelNotAllowedError, "No configured model"),
+        ):
+            usage_budget_service.resolve_default_model(self.policy)
+
+    def test_unpriced_execution_is_stopped_before_provider_call(self):
+        # Arrange: no user or admission check is needed to enforce pricing.
+        provider = FakeProvider([_build_text_turn("Must not run")])
+        recorder = AgentLoopBudgetRecorder(
+            user=None,
+            feature="notebook_chat",
+            provider="bedrock",
+            model_id="us.anthropic.claude-opus-5",
+        )
+        agent = AgentService(provider=provider, max_iterations=None).create_agent(
+            Toolset([]), system_prompt="Test", recorder=recorder
+        )
+
+        # Act
+        with self.assertRaisesMessage(ProviderError, "no reviewed pricing") as raised:
+            agent.run("Hello")
+
+        # Assert
+        self.assertEqual(provider.calls, [])
+        self.assertFalse(raised.exception.retryable)
+
+
+class CreditBudgetStatusTests(SimpleTestCase):
+    def test_credit_meter_preserves_unlimited_and_exhausted_budgets(self):
+        # Arrange
+        cases = [
+            (None, None, None),
+            (250_000, "250", "0"),
+        ]
+
+        # Act / Assert
+        for budget, limit, remaining in cases:
+            with self.subTest(budget=budget):
+                meter = BudgetStatus(
+                    tier="default",
+                    daily_budget_microusd=budget,
+                    spent_today_microusd=300_001,
+                    turns_used=12,
+                    turn_cap=None,
+                    resets_at=datetime(2026, 9, 5, tzinfo=UTC),
+                ).as_dict()["credits"]
+                self.assertEqual(
+                    meter,
+                    {"daily_limit": limit, "used": "300.001", "remaining": remaining},
+                )
+
+
 class UsageBudgetAPITests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("budget-api")
@@ -457,6 +550,7 @@ class UsageBudgetAPITests(TestCase):
         self.assertEqual(
             sorted(response.json()),
             [
+                "credits",
                 "daily_budget",
                 "remaining",
                 "resets_at",
@@ -467,3 +561,7 @@ class UsageBudgetAPITests(TestCase):
             ],
         )
         self.assertEqual(response.json()["tier"], "default")
+        self.assertEqual(
+            response.json()["credits"],
+            {"daily_limit": "250", "used": "0", "remaining": "250"},
+        )

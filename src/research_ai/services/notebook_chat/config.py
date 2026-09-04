@@ -21,12 +21,10 @@ _SETTING_OVERRIDES = {
 
 @dataclass(frozen=True)
 class NotebookChatConfig:
-    """Knobs for one bounded notebook chat turn."""
+    """Knobs for one notebook chat turn."""
 
-    # One user turn is research + a handful of note edits, not a day-long
-    # drafting run: enough iterations for read -> search -> edit -> reply
-    # with retries, small enough that a runaway loop stays cheap.
-    max_iterations: int = 30
+    # Let the agent finish or be cancelled without a model-call ceiling.
+    max_iterations: int | None = None
 
     # One model turn's total output budget (thinking + text). None lets the
     # provider spend up to its model's output ceiling (128K on Claude

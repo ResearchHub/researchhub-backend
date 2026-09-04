@@ -4,6 +4,8 @@ import logging
 
 from django.utils import timezone
 
+from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.model_pricing import model_pricing
 from research_ai.services.agent.types import AssistantTurn, Message, TurnUsage
 from research_ai.services.usage_budget.reservation import (
     USAGE_RESERVATION_RENEW_INTERVAL,
@@ -61,6 +63,13 @@ class AgentLoopBudgetRecorder:
         return True if callback is None else callback()
 
     def before_model_call(self) -> None:
+        # Recheck queued/pinned models and fixed-model nested agents at the
+        # point of spend, even if admission happened before a pricing change.
+        if model_pricing(self.provider, self.model_id) is None:
+            raise ProviderError(
+                f"model {self.provider}:{self.model_id} has no reviewed pricing",
+                retryable=False,
+            )
         if self.user is not None:
             ensure_budget_available(self.user)
         now = timezone.now()
