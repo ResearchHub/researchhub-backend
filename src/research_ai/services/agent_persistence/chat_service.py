@@ -20,6 +20,9 @@ from research_ai.services.agent_persistence.conversation_service import (
 from research_ai.services.agent_persistence.execution_service import (
     AgentExecutionService,
 )
+from research_ai.services.agent_persistence.liveness_service import (
+    WORKER_LOST_STOP_REASON,
+)
 from research_ai.services.agent_persistence.recorder import DatabaseAgentRecorder
 from research_ai.services.agent_persistence.replacement import (
     superseded_execution_ids,
@@ -235,6 +238,17 @@ class AgentChatService:
         """
         if not execution.error_type:
             return None
+        if execution.stop_reason == WORKER_LOST_STOP_REASON:
+            # The worker died or lost the database mid-run; nothing about the
+            # request itself failed, so a retry is worth one.
+            return {
+                "code": "agent_failed",
+                "retryable": True,
+                "message": (
+                    "The assistant stopped unexpectedly before it could finish. "
+                    "Try again."
+                ),
+            }
         if execution.status == AgentExecution.Status.INTERRUPTED:
             # The worker observed the user's own stop mid-run -- named for
             # the client, but not offered for retry.

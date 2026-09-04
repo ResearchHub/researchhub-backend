@@ -1,10 +1,19 @@
 """Tests for proposal-draft creation outside the HTTP boundary."""
 
+from datetime import timedelta
 from unittest.mock import Mock
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
-from research_ai.models import Expert, ExpertSearch, ProposalDraft, SearchExpert
+from research_ai.models import (
+    AgentConversation,
+    AgentExecution,
+    Expert,
+    ExpertSearch,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.services.proposal_draft.create_service import (
     ProposalDraftAlreadyActiveError,
     ProposalDraftCreateService,
@@ -87,6 +96,55 @@ class ProposalDraftCreateServiceTests(TestCase):
             )
         self.assertFalse(ProposalDraft.objects.exists())
         enqueue.assert_not_called()
+
+    def test_create_replaces_a_draft_whose_worker_was_lost(self):
+        # Arrange: the expert's last draft is stuck PROCESSING with a lapsed lease.
+        lost = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PROCESSING,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+        enqueue = Mock()
+
+        # Act
+        draft = ProposalDraftCreateService(enqueue=enqueue).create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+        )
+
+        # Assert
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, ProposalDraft.Status.FAILED)
+        self.assertEqual(draft.status, ProposalDraft.Status.PENDING)
+        enqueue.assert_called_once_with(draft.id)
+
+    def test_create_replaces_a_chat_turn_whose_worker_was_lost(self):
+        # Arrange: the user's notebook turn died mid-run; it, too, holds the
+        # user's single budget slot.
+        conversation = AgentConversation.objects.create(
+            user=self.user, workflow="notebook_chat"
+        )
+        lost = AgentExecution.objects.create(
+            conversation=conversation,
+            status=AgentExecution.Status.RUNNING,
+            attempt=1,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+        enqueue = Mock()
+
+        # Act
+        draft = ProposalDraftCreateService(enqueue=enqueue).create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+        )
+
+        # Assert
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, AgentExecution.Status.FAILED)
+        self.assertEqual(lost.stop_reason, "worker_lost")
+        self.assertEqual(draft.status, ProposalDraft.Status.PENDING)
+        enqueue.assert_called_once_with(draft.id)
 
     def test_create_rejects_an_expert_with_active_draft(self):
         # Arrange

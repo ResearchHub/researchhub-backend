@@ -202,6 +202,17 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PAPER_MISC,
         },
     },
+    # Research AI
+    "research-ai-reclaim-lost-agent-runs": {
+        "task": "research_ai.tasks.reclaim_lost_agent_runs",
+        "schedule": crontab(minute="*"),
+        "options": {
+            "priority": 1,
+            "queue": QUEUE_AGENTS,
+            # A sweep that waited a minute behind a backlog is superseded.
+            "expires": 55,
+        },
+    },
     # Paper ingestion tasks
     "paper-fetch-all": {
         "task": "paper.ingestion.pipeline.fetch_all_papers",

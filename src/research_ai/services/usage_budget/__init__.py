@@ -1,4 +1,5 @@
 from .config import TierPolicy, tier_policies
+from .heartbeat import ReservationHeartbeat
 from .recorder import AgentLoopBudgetRecorder
 from .service import (
     BudgetExceededError,
@@ -21,6 +22,7 @@ __all__ = [
     "BudgetExceededError",
     "BudgetStatus",
     "ModelNotAllowedError",
+    "ReservationHeartbeat",
     "TierPolicy",
     "UsageLimitExceededError",
     "UsageWorkInProgressError",

@@ -126,8 +126,11 @@ class _ProposalDraftRunner:
         conversation_service: AgentConversationService | None = None,
         execution_service: AgentExecutionService | None = None,
         note_conversation_service: NoteAgentConversationService | None = None,
+        heartbeat=None,
     ):
         self.search_expert = search_expert
+        # The task's liveness heartbeat on the draft's budget lease, when run by one.
+        self.heartbeat = heartbeat
         self.expert = search_expert.expert
         self.provider = provider
         self.model_ref = model_ref
@@ -439,6 +442,7 @@ class _ProposalDraftRunner:
             recorder=recorder,
             execution=execution,
             reservation_targets=(self.recorder.draft,),
+            heartbeat=self.heartbeat,
         )
 
     def _compose_toolset(self, provider) -> Toolset:
@@ -707,6 +711,7 @@ def run_proposal_draft(
     conversation_service: AgentConversationService | None = None,
     execution_service: AgentExecutionService | None = None,
     note_conversation_service: NoteAgentConversationService | None = None,
+    heartbeat=None,
 ) -> dict:
     """Run a headless proposal-drafting job for one ``SearchExpert``.
 
@@ -774,5 +779,6 @@ def run_proposal_draft(
         conversation_service=conversation_service,
         execution_service=execution_service,
         note_conversation_service=note_conversation_service,
+        heartbeat=heartbeat,
     )
     return runner.run()

@@ -19,7 +19,9 @@ is split across two processes:
   composes the note + research toolset with
   the conversation owner's permissions, and drives
   ``Agent.continue_conversation``. The recorder persists the trace, marks the
-  terminal status, and publishes the assistant's reply to the chat.
+  terminal status, and publishes the assistant's reply to the chat. A
+  heartbeat thread renews the turn's budget lease for as long as the worker
+  is alive; ``reclaim_lost_turns`` fails a turn whose heartbeat stopped.
 
 The agent acts strictly as the conversation's user and only on the
 conversation's note: ``NoteToolset`` enforces note view/edit permissions per
@@ -68,6 +70,7 @@ from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     AgentConversationService,
     AgentExecutionCancelService,
+    AgentExecutionLivenessService,
     NoteAgentConversationService,
 )
 from research_ai.services.agent_persistence.activity import (
@@ -85,6 +88,7 @@ from research_ai.services.notebook_chat.activity import (
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
     TURN_CANCELLED,
+    TURN_FAILED,
     TURN_QUEUED,
     ConversationEventPublisher,
     PublishingRecorder,
@@ -104,12 +108,13 @@ from research_ai.services.notebook_chat.toolset import (
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from research_ai.services.usage_budget import (
     AgentLoopBudgetRecorder,
+    ReservationHeartbeat,
     atomic_turn_admission,
     effective_generation_options,
     resolve_ai_tier,
     resolve_default_model,
 )
-from research_ai.services.usage_budget.reservation import reservation_deadline
+from research_ai.services.usage_budget.reservation import claim_deadline
 from research_ai.services.user_profile_tools import UserProfileToolset
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from utils.openalex import OpenAlex
@@ -199,6 +204,7 @@ class NotebookChatService:
         note_conversation_service: NoteAgentConversationService | None = None,
         context_service: AgentContextService | None = None,
         cancel_service: AgentExecutionCancelService | None = None,
+        liveness_service: AgentExecutionLivenessService | None = None,
         config: NotebookChatConfig | None = None,
         event_publisher: ConversationEventPublisher | None = None,
         stream_store: ExecutionStreamStore | None = None,
@@ -235,6 +241,11 @@ class NotebookChatService:
         )
         self.cancels = (
             AgentExecutionCancelService() if cancel_service is None else cancel_service
+        )
+        self.liveness = (
+            AgentExecutionLivenessService()
+            if liveness_service is None
+            else liveness_service
         )
         self.events = (
             ConversationEventPublisher() if event_publisher is None else event_publisher
@@ -498,6 +509,9 @@ class NotebookChatService:
         # inherit that snapshot even if the configured default or catalog
         # changes, and an explicit attempt to switch is rejected.
         selected_model = validate_model_ref(model_ref)
+        # A turn or draft whose worker died would otherwise hold the busy
+        # checks; its lapsed lease is what lets this request take its place.
+        self.reclaim_lost_work(user=conversation.user)
         with transaction.atomic():
             # Keep model resolution in the same conversation lock as turn
             # preparation. Two first-message requests with different models
@@ -575,7 +589,8 @@ class NotebookChatService:
                     configuration=configuration,
                     system_prompt=self._system_prompt(note, locked_conversation),
                 )
-                prepared.execution.usage_reservation_expires_at = reservation_deadline()
+                # Held until a worker claims the turn and takes over renewal.
+                prepared.execution.usage_reservation_expires_at = claim_deadline()
                 prepared.execution.save(
                     update_fields=["usage_reservation_expires_at", "updated_date"]
                 )
@@ -631,6 +646,37 @@ class NotebookChatService:
         self.events.publish(conversation.id, execution.id, TURN_CANCELLED)
         return execution
 
+    def reclaim_lost_turns(self, *, user=None) -> list[AgentExecution]:
+        """Fail turns whose worker stopped heartbeating, and tell their chats.
+
+        Sealing is the liveness service's; this adds what the worker would have
+        done had it failed the turn itself: drop the transient preview and
+        publish the terminal event.
+        """
+        reclaimed = self.liveness.reclaim_lost(user=user)
+        for execution in reclaimed:
+            try:
+                self.streams.clear(execution.id)
+            except Exception:  # noqa: BLE001 - preview cleanup is optional
+                logger.warning(
+                    "notebook chat stream clear failed while reclaiming turn %s",
+                    execution.id,
+                    exc_info=True,
+                )
+            self.events.publish(execution.conversation_id, execution.id, TURN_FAILED)
+        return reclaimed
+
+    def reclaim_lost_work(self, *, user) -> None:
+        """Fail the user's lost turns and drafts; either kind holds admission."""
+        # Imported here, not at module top: ``proposal_draft`` reclaims turns
+        # through this service, so a top-level import would be a cycle.
+        from research_ai.services.proposal_draft.liveness_service import (
+            ProposalDraftLivenessService,
+        )
+
+        self.reclaim_lost_turns(user=user)
+        ProposalDraftLivenessService().reclaim_lost(user=user)
+
     def _schedule_turn(self, execution_id: int) -> None:
         """Queue the worker turn, failing the execution if the broker refuses.
 
@@ -683,25 +729,30 @@ class NotebookChatService:
         # recorder, so wrapping it here is what pushes the whole turn's
         # progress to subscribed clients.
         recorder = self._publishing_recorder(recorder, execution)
-        try:
-            return self._run_turn(execution, recorder)
-        except Exception as exc:
-            # Terminal safety net: whatever escapes before or around the agent
-            # loop (provider resolution, toolset build, a bug) still lands the
-            # execution in FAILED -- a row stuck RUNNING blocks every later
-            # turn on the conversation.
-            logger.exception("notebook chat turn %s crashed", execution.id)
-            if not recorder.terminal_observed:
-                try:
-                    recorder.on_run_failed(exc)
-                except Exception:  # noqa: BLE001 - keep the original failure
-                    logger.warning(
-                        "could not finalize crashed notebook chat turn",
-                        exc_info=True,
-                    )
-            return {"execution_id": execution.id, "error": str(exc)}
+        # Renews the budget lease from its own thread until the turn returns,
+        # whatever the loop is blocked on; a dead worker's lease simply lapses.
+        with ReservationHeartbeat((execution,)) as heartbeat:
+            try:
+                return self._run_turn(execution, recorder, heartbeat)
+            except Exception as exc:
+                # Terminal safety net: whatever escapes before or around the
+                # agent loop (provider resolution, toolset build, a bug) still
+                # lands the execution in FAILED -- a row stuck RUNNING blocks
+                # every later turn on the conversation.
+                logger.exception("notebook chat turn %s crashed", execution.id)
+                if not recorder.terminal_observed:
+                    try:
+                        recorder.on_run_failed(exc)
+                    except Exception:  # noqa: BLE001 - keep the original failure
+                        logger.warning(
+                            "could not finalize crashed notebook chat turn",
+                            exc_info=True,
+                        )
+                return {"execution_id": execution.id, "error": str(exc)}
 
-    def _run_turn(self, execution: AgentExecution, recorder) -> dict:
+    def _run_turn(
+        self, execution: AgentExecution, recorder, heartbeat: ReservationHeartbeat
+    ) -> dict:
         conversation = execution.conversation
         trigger = execution.trigger_message
         stored_configuration = execution.configuration or {}
@@ -759,6 +810,7 @@ class NotebookChatService:
             model_id=accounting_model or "",
             recorder=recorder,
             execution=execution,
+            heartbeat=heartbeat,
         )
         agent = AgentService(
             provider=provider, max_iterations=config.max_iterations

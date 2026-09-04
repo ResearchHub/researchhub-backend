@@ -8,13 +8,17 @@ from django.db import IntegrityError
 from research_ai.models import ProposalDraft, SearchExpert
 from research_ai.services.agent import split_model_ref
 from research_ai.services.agent.model_capabilities import validate_generation_options
+from research_ai.services.notebook_chat import NotebookChatService
+from research_ai.services.proposal_draft.liveness_service import (
+    ProposalDraftLivenessService,
+)
 from research_ai.services.usage_budget import (
     atomic_turn_admission,
     effective_generation_options,
     resolve_ai_tier,
     resolve_default_model,
 )
-from research_ai.services.usage_budget.reservation import reservation_deadline
+from research_ai.services.usage_budget.reservation import claim_deadline
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +47,18 @@ def _enqueue_proposal_draft(draft_id: int) -> None:
 class ProposalDraftCreateService:
     """Apply policy, reserve budget, persist, and enqueue one proposal draft."""
 
-    def __init__(self, enqueue: Callable[[int], None] | None = None):
+    def __init__(
+        self,
+        enqueue: Callable[[int], None] | None = None,
+        *,
+        liveness_service: ProposalDraftLivenessService | None = None,
+    ):
         self.enqueue = enqueue if enqueue is not None else _enqueue_proposal_draft
+        self.liveness = (
+            ProposalDraftLivenessService()
+            if liveness_service is None
+            else liveness_service
+        )
 
     def create(
         self,
@@ -57,6 +71,9 @@ class ProposalDraftCreateService:
         temperature: float | None = None,
     ) -> ProposalDraft:
         """Create and enqueue a draft, or raise a domain/admission exception."""
+        # A draft or turn whose worker died would otherwise hold the checks below.
+        self.liveness.reclaim_lost(user=created_by)
+        NotebookChatService().reclaim_lost_turns(user=created_by)
         active = self._active_draft_for(search_expert)
         if active is not None:
             raise ProposalDraftAlreadyActiveError(active)
@@ -99,7 +116,8 @@ class ProposalDraftCreateService:
                     step=ProposalDraft.Step.QUEUED,
                     model_ref=effective_model_ref,
                     run_config=run_config,
-                    usage_reservation_expires_at=reservation_deadline(),
+                    # Held until a worker claims the job and takes over renewal.
+                    usage_reservation_expires_at=claim_deadline(),
                 )
         except IntegrityError:
             active = self._active_draft_for(search_expert)
