@@ -31,7 +31,6 @@ from django.utils import timezone
 from research_ai.models import AgentContextMessage, AgentExecution
 from research_ai.services.agent.types import Message, TextBlock
 from research_ai.services.agent_persistence.content import serialize_context_message
-from research_ai.services.usage_budget.reservation import reservation_deadline
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +44,10 @@ class AgentExecutionCancelService:
         """Mark an active execution ``CANCELLED``; report whether it landed.
 
         No error fields are written: a cancellation is the user's own decision,
-        not a failure, and the status alone says so. A queued execution releases
-        its usage reservation here because no provider call started. A running
-        execution keeps a renewable lease until its worker observes the
-        cancellation and unwinds. If the worker died, that lease expires instead
-        of blocking the user forever. Returns ``False`` when the execution already
+        not a failure, and the status alone says so. Cancellation releases the
+        usage reservation immediately so the user can resume without waiting
+        for the worker. Usage from a provider call already in flight is still
+        recorded when it returns. Returns ``False`` when the execution already
         reached a terminal state, which is the ordinary race of cancelling a turn
         that was finishing anyway.
         """
@@ -68,17 +66,11 @@ class AgentExecutionCancelService:
             if locked is None:
                 return False
             now = timezone.now()
-            was_pending = locked.status == AgentExecution.Status.PENDING
             locked.status = AgentExecution.Status.CANCELLED
             locked.stop_reason = CANCELLED_STOP_REASON
             locked.finished_at = now
             locked.last_activity_at = now
-            # Set this from the claimed state rather than preserving the old
-            # value so executions already running during a rolling deployment
-            # receive the same protection as newly admitted work.
-            locked.usage_reservation_expires_at = (
-                None if was_pending else reservation_deadline(now)
-            )
+            locked.usage_reservation_expires_at = None
             if locked.started_at is not None:
                 locked.duration_ms = max(
                     0, round((now - locked.started_at).total_seconds() * 1000)

@@ -6,7 +6,7 @@ from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import BigIntegerField, Count, Q, Sum
+from django.db.models import BigIntegerField, Count, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -239,41 +239,26 @@ def check_budget_admission(user) -> BudgetStatus:
 
 
 def _has_in_flight_work(user) -> bool:
-    """Whether a budgeted user already has spend-producing work reserved."""
-    now = timezone.now()
+    """Whether a budgeted user has an active job blocking admission.
+
+    Cancelled jobs never block a new task, including older rows that still
+    carry a reservation deadline from before cancellation released it.
+    """
     return (
         AgentExecution.objects.filter(
             conversation__user=user,
-        )
-        .filter(
-            Q(
-                status__in=[
-                    AgentExecution.Status.PENDING,
-                    AgentExecution.Status.RUNNING,
-                ]
-            )
-            | Q(
-                status=AgentExecution.Status.CANCELLED,
-                usage_reservation_expires_at__gt=now,
-            )
-        )
-        .exists()
+            status__in=[
+                AgentExecution.Status.PENDING,
+                AgentExecution.Status.RUNNING,
+            ],
+        ).exists()
         or ProposalDraft.objects.filter(
             created_by=user,
-        )
-        .filter(
-            Q(
-                status__in=[
-                    ProposalDraft.Status.PENDING,
-                    ProposalDraft.Status.PROCESSING,
-                ]
-            )
-            | Q(
-                status=ProposalDraft.Status.CANCELLED,
-                usage_reservation_expires_at__gt=now,
-            )
-        )
-        .exists()
+            status__in=[
+                ProposalDraft.Status.PENDING,
+                ProposalDraft.Status.PROCESSING,
+            ],
+        ).exists()
     )
 
 
@@ -289,8 +274,9 @@ def atomic_turn_admission(
 
     The caller must create its pending execution or draft before leaving
     this context. That row is the reservation observed by the next admission.
-    Restricting budgeted users to one in-flight top-level job keeps soft
-    enforcement's overshoot bounded to the currently running provider call.
+    Budgeted users may have one active top-level job. Cancellation releases
+    that slot immediately; any already-started provider call can overlap its
+    replacement while unwinding, and its eventual usage is still charged.
     """
     with transaction.atomic():
         locked_user = type(user)._default_manager.select_for_update().get(pk=user.pk)

@@ -1,8 +1,10 @@
 """Cancelling a queued or in-flight proposal-drafting job."""
 
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
+from django.utils import timezone
 
 from note.tests.helpers import create_note
 from research_ai.models import (
@@ -21,6 +23,7 @@ from research_ai.services.proposal_draft.cancel_service import (
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
 from research_ai.services.proposal_draft.run_state import ProposalRunState
+from research_ai.services.usage_budget import atomic_turn_admission
 from research_ai.services.usage_budget.reservation import reservation_deadline
 from research_ai.tasks import run_proposal_draft_task
 from user.tests.helpers import create_random_default_user
@@ -63,7 +66,7 @@ class ProposalDraftCancelServiceTests(TestCase):
         self.assertEqual(draft.error_message, "")
         self.assertEqual(draft.step, ProposalDraft.Step.JUDGING)
 
-    def test_running_cancellation_reserves_budget_until_worker_unwinds(self):
+    def test_running_cancellation_releases_budget_before_worker_unwinds(self):
         # Arrange
         draft = self._draft()
         draft.usage_reservation_expires_at = reservation_deadline()
@@ -74,9 +77,9 @@ class ProposalDraftCancelServiceTests(TestCase):
         # Act: cancellation lands while provider work is still in flight.
         self.cancels.cancel(draft)
 
-        # Assert: only the worker's cancelled result releases admission.
+        # Assert: no worker acknowledgement is required to release admission.
         draft.refresh_from_db()
-        self.assertIsNotNone(draft.usage_reservation_expires_at)
+        self.assertIsNone(draft.usage_reservation_expires_at)
         recorder.cancelled_result()
         draft.refresh_from_db()
         self.assertIsNone(draft.usage_reservation_expires_at)
@@ -93,6 +96,45 @@ class ProposalDraftCancelServiceTests(TestCase):
         # Assert
         draft.refresh_from_db()
         self.assertIsNone(draft.usage_reservation_expires_at)
+
+    def test_cancelling_running_draft_and_trace_releases_reservations(self):
+        # Arrange: both reservations still have two hours remaining.
+        conversation = AgentConversation.objects.create(
+            user=self.user, workflow="proposal_draft"
+        )
+        draft = self._draft(conversation=conversation)
+        expires_at = timezone.now() + timedelta(hours=2)
+        draft.usage_reservation_expires_at = expires_at
+        draft.save(update_fields=["usage_reservation_expires_at"])
+        execution = AgentExecution.objects.create(
+            conversation=conversation,
+            attempt=1,
+            status=AgentExecution.Status.RUNNING,
+            usage_reservation_expires_at=expires_at,
+        )
+
+        # Act
+        self.cancels.cancel(draft)
+
+        # Assert: neither reservation prevents the user's next task.
+        draft.refresh_from_db()
+        execution.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        self.assertIsNone(draft.usage_reservation_expires_at)
+        self.assertIsNone(execution.usage_reservation_expires_at)
+        with atomic_turn_admission(self.user):
+            pass
+
+    def test_older_cancelled_draft_reservation_does_not_block_admission(self):
+        # Arrange: an earlier deployment left the reservation after cancellation.
+        draft = self._draft(status=ProposalDraft.Status.CANCELLED)
+        draft.usage_reservation_expires_at = reservation_deadline()
+        draft.save(update_fields=["usage_reservation_expires_at"])
+
+        # Act / Assert
+        with atomic_turn_admission(self.user):
+            pass
 
     def test_cancelling_also_stops_the_traced_agent_execution(self):
         # Arrange: a run whose agent trace exists, so the loop has something to

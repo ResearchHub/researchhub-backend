@@ -1,9 +1,11 @@
 import json
+from datetime import timedelta
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 
 from note.tests.helpers import create_note
 from research_ai.models import (
@@ -295,6 +297,55 @@ class NotebookChatServiceTests(TestCase):
         # Act / Assert
         with self.assertRaises(UsageWorkInProgressError):
             self._submit("Different thread", conversation=second)
+
+    def test_cancel_running_turn_allows_resuming_or_starting_another_chat(self):
+        for same_chat in (True, False):
+            with self.subTest(same_chat=same_chat):
+                # Arrange: the running turn has nearly its full lease remaining.
+                conversation = self.service.create_conversation(self.note, self.user)
+                execution, _ = self._submit(conversation=conversation)
+                expires_at = timezone.now() + timedelta(hours=2)
+                AgentExecution.objects.filter(pk=execution.pk).update(
+                    status=AgentExecution.Status.RUNNING,
+                    usage_reservation_expires_at=expires_at,
+                )
+                next_chat = (
+                    conversation
+                    if same_chat
+                    else self.service.create_conversation(self.note, self.user)
+                )
+
+                # Act: cancel without a worker available to release the lease.
+                self.service.cancel_active_turn(conversation)
+                next_execution, delay = self._submit(
+                    "Continue with the second task", conversation=next_chat
+                )
+
+                # Assert: the next task is admitted and scheduled immediately.
+                execution.refresh_from_db()
+                self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+                self.assertIsNone(execution.usage_reservation_expires_at)
+                self.assertEqual(next_execution.status, AgentExecution.Status.PENDING)
+                delay.assert_called_once_with(next_execution.id)
+                if same_chat:
+                    self.assertEqual(next_execution.context_parent_id, execution.id)
+                self.service.cancel_active_turn(next_chat)
+
+    def test_resume_ignores_reservation_from_an_older_cancellation(self):
+        # Arrange: an earlier deployment cancelled the turn but kept its lease.
+        execution, _ = self._submit()
+        expires_at = timezone.now() + timedelta(minutes=5)
+        AgentExecution.objects.filter(pk=execution.pk).update(
+            status=AgentExecution.Status.CANCELLED,
+            usage_reservation_expires_at=expires_at,
+        )
+
+        # Act
+        next_execution, delay = self._submit("Continue")
+
+        # Assert: no second cancellation or wait for expiry is necessary.
+        self.assertEqual(next_execution.status, AgentExecution.Status.PENDING)
+        delay.assert_called_once_with(next_execution.id)
 
     def test_run_turn_edits_note_and_publishes_reply(self):
         # Arrange

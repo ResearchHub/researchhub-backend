@@ -275,7 +275,7 @@ class AgentLoopBudgetRecorderTests(TestCase):
             recorder.before_model_call()
         self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 10)
 
-    def test_stream_activity_renews_a_cancelled_in_flight_lease(self):
+    def test_stream_activity_does_not_renew_a_cancelled_in_flight_lease(self):
         # Arrange
         old_expiry = timezone.now() + timedelta(minutes=1)
         execution = self._execution(
@@ -290,7 +290,30 @@ class AgentLoopBudgetRecorderTests(TestCase):
 
         # Assert
         execution.refresh_from_db()
-        self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
+        self.assertEqual(execution.usage_reservation_expires_at, old_expiry)
+
+    def test_late_usage_is_charged_without_reacquiring_cancelled_reservation(self):
+        # Arrange: cancellation already released this call's reservation.
+        execution = self._execution(
+            status=AgentExecution.Status.CANCELLED,
+            expires_at=None,
+        )
+        recorder = self._recorder(execution)
+
+        # Act: the provider's last stream event and usage arrive after cancel.
+        recorder.record_stream_event(
+            1, TextStreamDelta(block_index=0, text="late result")
+        )
+        recorder.record_usage(TurnUsage(input_tokens=100, output_tokens=50))
+
+        # Assert: spend is accounted for, but cancellation remains authoritative.
+        event = LLMUsageEvent.objects.get(execution=execution)
+        self.assertGreater(event.cost_microusd, 0)
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+        self.assertIsNone(execution.usage_reservation_expires_at)
+        with atomic_turn_admission(self.user):
+            pass
 
     def test_stream_activity_throttles_lease_renewals(self):
         # Arrange
@@ -408,14 +431,14 @@ class AtomicAdmissionTests(TransactionTestCase):
         self.assertEqual(len(errors), 1)
         self.assertIsInstance(errors[0], UsageWorkInProgressError)
 
-    def test_cancelled_call_blocks_admission_until_its_reservation_is_released(self):
+    def test_cancelled_call_does_not_block_admission_with_unexpired_reservation(self):
         # Arrange: cancellation is visible immediately, but the provider call
         # that was already in flight has not returned to its worker yet.
         conversation = AgentConversation.objects.create(
             user=self.user,
             workflow="notebook_chat",
         )
-        execution = AgentExecution.objects.create(
+        AgentExecution.objects.create(
             conversation=conversation,
             status=AgentExecution.Status.CANCELLED,
             attempt=1,
@@ -423,15 +446,6 @@ class AtomicAdmissionTests(TransactionTestCase):
         )
 
         # Act & Assert
-        with (
-            self.assertRaises(UsageWorkInProgressError),
-            atomic_turn_admission(self.user),
-        ):
-            pass
-
-        # The worker releases the separate reservation after the call returns.
-        execution.usage_reservation_expires_at = None
-        execution.save(update_fields=["usage_reservation_expires_at"])
         with atomic_turn_admission(self.user):
             pass
 
