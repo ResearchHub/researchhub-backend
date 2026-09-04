@@ -10,6 +10,8 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
+from research_ai.services.agent import AgentService, ProviderError, Toolset
+from research_ai.services.agent.model_catalog import ModelOption
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,
@@ -22,6 +24,8 @@ from research_ai.services.usage_budget import (
     AgentLoopBudgetRecorder,
     BudgetExceededError,
     BudgetStatus,
+    ModelNotAllowedError,
+    TierPolicy,
     UsageLimitExceededError,
     UsageWorkInProgressError,
     atomic_turn_admission,
@@ -30,6 +34,8 @@ from research_ai.services.usage_budget import (
     record,
     resolve_ai_tier,
 )
+from research_ai.services.usage_budget import service as usage_budget_service
+from research_ai.tests.agent.test_loop import FakeProvider, _build_text_turn
 from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
@@ -445,6 +451,63 @@ class AtomicAdmissionTests(TransactionTestCase):
         # Act / Assert
         with atomic_turn_admission(self.user):
             pass
+
+
+class RequiredModelPricingTests(SimpleTestCase):
+    def setUp(self):
+        self.policy = TierPolicy("privileged", None, None, None, None)
+        self.unpriced_model = "bedrock:us.anthropic.claude-opus-5"
+
+    def test_unlimited_tier_cannot_submit_an_unpriced_model(self):
+        # Arrange / Act / Assert
+        with (
+            patch.object(
+                usage_budget_service, "resolve_ai_tier", return_value=self.policy
+            ),
+            self.assertRaisesMessage(ModelNotAllowedError, "no reviewed pricing"),
+        ):
+            check_turn_admission(object(), self.unpriced_model)
+
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
+    def test_unlimited_tier_default_falls_back_to_a_priced_model(self):
+        # Arrange / Act
+        default = usage_budget_service.resolve_default_model(self.policy)
+
+        # Assert
+        self.assertEqual(default, "claude_platform:claude-opus-5")
+
+    def test_no_priced_model_prevents_default_selection(self):
+        # Arrange / Act / Assert
+        with (
+            patch.object(
+                usage_budget_service,
+                "available_models",
+                return_value=[ModelOption(self.unpriced_model, "Unpriced")],
+            ),
+            self.assertRaisesMessage(ModelNotAllowedError, "No configured model"),
+        ):
+            usage_budget_service.resolve_default_model(self.policy)
+
+    def test_unpriced_execution_is_stopped_before_provider_call(self):
+        # Arrange: no user or admission check is needed to enforce pricing.
+        provider = FakeProvider([_build_text_turn("Must not run")])
+        recorder = AgentLoopBudgetRecorder(
+            user=None,
+            feature="notebook_chat",
+            provider="bedrock",
+            model_id="us.anthropic.claude-opus-5",
+        )
+        agent = AgentService(provider=provider, max_iterations=None).create_agent(
+            Toolset([]), system_prompt="Test", recorder=recorder
+        )
+
+        # Act
+        with self.assertRaisesMessage(ProviderError, "no reviewed pricing") as raised:
+            agent.run("Hello")
+
+        # Assert
+        self.assertEqual(provider.calls, [])
+        self.assertFalse(raised.exception.retryable)
 
 
 class CreditBudgetStatusTests(SimpleTestCase):

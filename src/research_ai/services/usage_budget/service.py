@@ -157,7 +157,7 @@ def _validate_model(policy: TierPolicy, model_ref: str) -> None:
             f"model {model_ref!r} is not allowed for tier {policy.name!r}"
         )
     provider, model_id = split_model_ref(model_ref)
-    if policy.is_budgeted and model_pricing(provider, model_id or "") is None:
+    if model_pricing(provider, model_id or "") is None:
         raise ModelNotAllowedError(f"model {model_ref!r} has no reviewed pricing")
     if model_ref not in {option.ref for option in available_models()}:
         raise ModelNotAllowedError(f"model {model_ref!r} is not configured")
@@ -172,7 +172,7 @@ def resolve_default_model(policy: TierPolicy) -> str:
         )
         provider, model_id = split_model_ref(option.ref)
         priced = model_pricing(provider, model_id or "") is not None
-        if entitled and (not policy.is_budgeted or priced):
+        if entitled and priced:
             candidates.append(option.ref)
 
     preferred = policy.default_model_ref or generator_model_ref()

@@ -76,6 +76,13 @@ conversion to credits. The displayed multiplier is never applied again to the
 charge. Separate tool integrations are not included in these model rates.
 
 An unpriced model has `null` rates and multiplier; render “Pricing unavailable”,
-not zero or free. Usage without reviewed pricing or a provider-reported cost
+not zero or free. Such models have `allowed: false` for every tier, including
+tiers without usage limits, and explicit selection is rejected. An unpriced
+configured default falls back to a priced model; if none is available, admission
+fails. The budget recorder checks pricing again before each model call so queued
+and pinned executions cannot bypass this requirement. A catalog test requires
+reviewed pricing when adding new selectable models.
+
+Historical usage without reviewed pricing or a provider-reported cost
 retains a null cost in the ledger and is excluded from known-spend totals.
 The `allowed` field continues to describe model access.

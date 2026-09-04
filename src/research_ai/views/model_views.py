@@ -67,7 +67,7 @@ class AvailableModelsView(APIView):
             )
             provider, model_id = split_model_ref(option.ref)
             priced = model_pricing(provider, model_id or "") is not None
-            return entitled and (not policy.is_budgeted or priced)
+            return entitled and priced
 
         return Response(
             {

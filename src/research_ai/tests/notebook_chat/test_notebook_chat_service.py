@@ -413,7 +413,7 @@ class NotebookChatServiceTests(TestCase):
         # the row still names the model it was submitted with.
         execution, _delay = self._submit()
         AgentExecution.objects.filter(id=execution.id).update(
-            model="bedrock:pinned-model"
+            model="claude_platform:claude-sonnet-5"
         )
         provider = FakeProvider([text_turn("Done.")])
         service = _make_service()
@@ -427,7 +427,7 @@ class NotebookChatServiceTests(TestCase):
 
         # Assert
         resolver.assert_called_once_with(
-            "bedrock:pinned-model", native_tools=frozenset({"web_search"})
+            "claude_platform:claude-sonnet-5", native_tools=frozenset({"web_search"})
         )
         self.assertEqual(result["final_text"], "Done.")
 
