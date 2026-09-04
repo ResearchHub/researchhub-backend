@@ -8,6 +8,7 @@ from django.db import IntegrityError
 from research_ai.models import ProposalDraft, SearchExpert
 from research_ai.services.agent import split_model_ref
 from research_ai.services.agent.model_capabilities import validate_generation_options
+from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.proposal_draft.liveness_service import (
     ProposalDraftLivenessService,
 )
@@ -70,8 +71,9 @@ class ProposalDraftCreateService:
         temperature: float | None = None,
     ) -> ProposalDraft:
         """Create and enqueue a draft, or raise a domain/admission exception."""
-        # A draft whose worker died would otherwise hold both checks below.
+        # A draft or turn whose worker died would otherwise hold the checks below.
         self.liveness.reclaim_lost(user=created_by)
+        NotebookChatService().reclaim_lost_turns(user=created_by)
         active = self._active_draft_for(search_expert)
         if active is not None:
             raise ProposalDraftAlreadyActiveError(active)

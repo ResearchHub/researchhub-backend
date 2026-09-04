@@ -11,7 +11,11 @@ from note.tests.helpers import create_note
 from research_ai.models import (
     AgentConversation,
     AgentExecution,
+    Expert,
+    ExpertSearch,
     NoteAgentConversation,
+    ProposalDraft,
+    SearchExpert,
 )
 from research_ai.services.agent.types import StopReason, TurnUsage
 from research_ai.services.agent_persistence import (
@@ -337,6 +341,30 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         lost.refresh_from_db()
         self.assertEqual(lost.status, AgentExecution.Status.FAILED)
+
+    def test_submit_message_replaces_a_draft_whose_worker_was_lost(self):
+        # Arrange: the user's proposal draft died mid-run; it, too, holds the
+        # user's single budget slot.
+        search_expert = SearchExpert.objects.create(
+            expert_search=ExpertSearch.objects.create(
+                created_by=self.user, query="protein folding"
+            ),
+            expert=Expert.objects.create(email="jane@example.edu"),
+        )
+        lost = ProposalDraft.objects.create(
+            search_expert=search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PROCESSING,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, ProposalDraft.Status.FAILED)
 
     def test_run_turn_heartbeats_the_turns_lease_while_it_runs(self):
         # Arrange

@@ -509,9 +509,9 @@ class NotebookChatService:
         # inherit that snapshot even if the configured default or catalog
         # changes, and an explicit attempt to switch is rejected.
         selected_model = validate_model_ref(model_ref)
-        # A turn whose worker died would otherwise hold both busy checks; its
-        # lapsed lease is what lets this request take its place.
-        self.reclaim_lost_turns(user=conversation.user)
+        # A turn or draft whose worker died would otherwise hold the busy
+        # checks; its lapsed lease is what lets this request take its place.
+        self.reclaim_lost_work(user=conversation.user)
         with transaction.atomic():
             # Keep model resolution in the same conversation lock as turn
             # preparation. Two first-message requests with different models
@@ -665,6 +665,17 @@ class NotebookChatService:
                 )
             self.events.publish(execution.conversation_id, execution.id, TURN_FAILED)
         return reclaimed
+
+    def reclaim_lost_work(self, *, user) -> None:
+        """Fail the user's lost turns and drafts; either kind holds admission."""
+        # Imported here, not at module top: ``proposal_draft`` reclaims turns
+        # through this service, so a top-level import would be a cycle.
+        from research_ai.services.proposal_draft.liveness_service import (
+            ProposalDraftLivenessService,
+        )
+
+        self.reclaim_lost_turns(user=user)
+        ProposalDraftLivenessService().reclaim_lost(user=user)
 
     def _schedule_turn(self, execution_id: int) -> None:
         """Queue the worker turn, failing the execution if the broker refuses.
