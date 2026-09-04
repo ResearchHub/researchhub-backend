@@ -1,6 +1,7 @@
 """Reclaiming proposal drafts whose worker stopped heartbeating."""
 
 from datetime import timedelta
+from unittest.mock import Mock
 
 from django.test import TestCase
 from django.utils import timezone
@@ -112,6 +113,32 @@ class ProposalDraftLivenessTests(TestCase):
         self.assertEqual(execution.stop_reason, "worker_lost")
         draft.refresh_from_db()
         self.assertEqual(draft.status, ProposalDraft.Status.FAILED)
+
+    def test_a_draft_whose_trace_cannot_be_sealed_waits_for_the_next_sweep(self):
+        # Arrange: releasing the draft while its trace stayed RUNNING would block
+        # admission for good, since the trace holds no lease of its own.
+        conversation = AgentConversation.objects.create(workflow="proposal_draft")
+        draft = self._draft(lease=self.lapsed, conversation=conversation)
+        recorder = AgentExecutionService().start(
+            conversation, provider="fake", model="fake-model-v1"
+        )
+        liveness = ProposalDraftLivenessService(
+            execution_liveness_service=Mock(
+                seal_lost=Mock(side_effect=RuntimeError("database unavailable"))
+            )
+        )
+
+        # Act
+        reclaimed = liveness.reclaim_lost()
+
+        # Assert: nothing landed for this draft, so the lapsed lease still
+        # selects it next time.
+        self.assertEqual(reclaimed, [])
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.PROCESSING)
+        self.assertEqual(draft.usage_reservation_expires_at, self.lapsed)
+        recorder.execution.refresh_from_db()
+        self.assertEqual(recorder.execution.status, AgentExecution.Status.RUNNING)
 
     def test_reclaiming_can_be_scoped_to_one_user(self):
         # Arrange

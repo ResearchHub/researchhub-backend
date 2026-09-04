@@ -35,30 +35,42 @@ class ProposalDraftLivenessService:
         )
         if user is not None:
             candidates = candidates.filter(created_by=user)
-        return [
-            draft
-            for draft in candidates.order_by("id")
-            if self._reclaim(draft, now=current)
-        ]
+        reclaimed = []
+        for draft in candidates.order_by("id"):
+            try:
+                if self._reclaim(draft, now=current):
+                    reclaimed.append(draft)
+            except Exception:  # noqa: BLE001 - one draft must not stop the sweep
+                # Nothing was written for this draft; the next sweep retries it.
+                logger.exception(
+                    "could not reclaim a lost proposal draft",
+                    extra={"draft_id": draft.id},
+                )
+        return reclaimed
 
     def _reclaim(self, draft: ProposalDraft, *, now) -> bool:
-        # Conditional on the lease still being lapsed, like every other write
-        # that moves a draft's status: a slow worker may have renewed since the scan.
+        # One transaction, trace first: a terminal draft whose trace still ran
+        # would block admission with no lease left for any sweep to act on.
         with transaction.atomic():
-            updated = ProposalDraft.objects.filter(
-                id=draft.id,
-                status__in=ACTIVE_STATUSES,
-                usage_reservation_expires_at__lt=now,
-            ).update(
+            locked = (
+                ProposalDraft.objects.select_for_update()
+                .filter(
+                    id=draft.id,
+                    status__in=ACTIVE_STATUSES,
+                    usage_reservation_expires_at__lt=now,
+                )
+                .first()
+            )
+            if locked is None:
+                return False
+            self._seal_execution(locked)
+            ProposalDraft.objects.filter(id=locked.id).update(
                 status=ProposalDraft.Status.FAILED,
                 error_message=WORKER_LOST_MESSAGE,
                 usage_reservation_expires_at=None,
                 updated_date=now,
             )
-        if not updated:
-            return False
         draft.refresh_from_db()
-        self._seal_execution(draft)
         logger.warning(
             "reclaimed a proposal draft whose worker was lost",
             extra={"draft_id": draft.id, "step": draft.step},
@@ -66,26 +78,19 @@ class ProposalDraftLivenessService:
         return True
 
     def _seal_execution(self, draft: ProposalDraft) -> None:
-        """Seal the trace execution too; best-effort, as its creation was."""
+        """Seal the draft's active trace execution, if it has one."""
         conversation = draft.agent_conversation
         if conversation is None:
             return
-        try:
-            execution = (
-                conversation.executions.filter(
-                    status__in=[
-                        AgentExecution.Status.PENDING,
-                        AgentExecution.Status.RUNNING,
-                    ]
-                )
-                .order_by("-attempt")
-                .first()
+        execution = (
+            conversation.executions.filter(
+                status__in=[
+                    AgentExecution.Status.PENDING,
+                    AgentExecution.Status.RUNNING,
+                ]
             )
-            if execution is not None:
-                self.executions.seal_lost(execution)
-        except Exception:  # noqa: BLE001 - the draft is already failed
-            logger.warning(
-                "could not seal the lost proposal draft's agent execution",
-                extra={"draft_id": draft.id},
-                exc_info=True,
-            )
+            .order_by("-attempt")
+            .first()
+        )
+        if execution is not None:
+            self.executions.seal_lost(execution)
