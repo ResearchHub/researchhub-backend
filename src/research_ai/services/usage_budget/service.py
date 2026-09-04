@@ -49,12 +49,6 @@ class UsageWorkInProgressError(RuntimeError):
     code = "usage_work_in_progress"
 
 
-# One cancelled provider call may overlap its immediate replacement. A second
-# outstanding call closes the handoff until either worker unwinds or its lease
-# expires, bounding repeated cancel-and-resubmit cycles to two paid calls.
-MAX_OUTSTANDING_CANCELLED_CALLS = 1
-
-
 @dataclass(frozen=True)
 class BudgetStatus:
     tier: str
@@ -245,47 +239,23 @@ def check_budget_admission(user) -> BudgetStatus:
 
 
 def _has_in_flight_work(user) -> bool:
-    """Whether a budgeted user has an active job blocking admission.
-
-    One cancelled-but-still-unwinding provider call is allowed as a handoff.
-    Active work always blocks, and a second outstanding cancellation blocks
-    another replacement until a worker clears its lease or the lease expires.
-    """
-    now = timezone.now()
-    active_execution = AgentExecution.objects.filter(
-        conversation__user=user,
-        status__in=[
-            AgentExecution.Status.PENDING,
-            AgentExecution.Status.RUNNING,
-        ],
-    ).exists()
-    active_draft = ProposalDraft.objects.filter(
-        created_by=user,
-        status__in=[
-            ProposalDraft.Status.PENDING,
-            ProposalDraft.Status.PROCESSING,
-        ],
-    ).exists()
-    if active_execution or active_draft:
-        return True
-
-    cancelled_executions = (
+    """Whether a budgeted user already has an active top-level job."""
+    return (
         AgentExecution.objects.filter(
             conversation__user=user,
-            status=AgentExecution.Status.CANCELLED,
-            usage_reservation_expires_at__gt=now,
-        )
-        # Proposal drafting reserves its parent draft rather than the optional
-        # trace execution, so counting both would treat one job as two calls.
-        .exclude(conversation__workflow="proposal_draft")
-        .count()
+            status__in=[
+                AgentExecution.Status.PENDING,
+                AgentExecution.Status.RUNNING,
+            ],
+        ).exists()
+        or ProposalDraft.objects.filter(
+            created_by=user,
+            status__in=[
+                ProposalDraft.Status.PENDING,
+                ProposalDraft.Status.PROCESSING,
+            ],
+        ).exists()
     )
-    cancelled_drafts = ProposalDraft.objects.filter(
-        created_by=user,
-        status=ProposalDraft.Status.CANCELLED,
-        usage_reservation_expires_at__gt=now,
-    ).count()
-    return cancelled_executions + cancelled_drafts > MAX_OUTSTANDING_CANCELLED_CALLS
 
 
 @contextmanager
@@ -300,9 +270,9 @@ def atomic_turn_admission(
 
     The caller must create its pending execution or draft before leaving
     this context. That row is the reservation observed by the next admission.
-    Budgeted users may have one active top-level job. One cancelled provider
-    call can overlap its immediate replacement while unwinding; a second
-    cancellation blocks further admission until a lease clears or expires.
+    Provider calls are counted against the daily turn cap before dispatch, so a
+    cancelled job can release this concurrency slot immediately without hiding
+    rapid cancel-and-resubmit attempts from subsequent admission checks.
     """
     with transaction.atomic():
         locked_user = type(user)._default_manager.select_for_update().get(pk=user.pk)
@@ -346,6 +316,46 @@ def record(
         cost_microusd=cost_microusd(provider, model_id, usage),
         execution=execution,
     )
+
+
+def record_call_start(
+    user,
+    feature: str,
+    provider: str,
+    model_id: str,
+    *,
+    execution=None,
+) -> LLMUsageEvent:
+    """Persist a provider-call attempt before dispatch so it counts immediately."""
+    return LLMUsageEvent.objects.create(
+        user=user,
+        feature=feature,
+        provider=provider,
+        model=model_id,
+        execution=execution,
+    )
+
+
+def settle_call(event: LLMUsageEvent, usage: TurnUsage) -> LLMUsageEvent:
+    """Fill a call-attempt row with the exact usage returned by its provider."""
+    event.input_tokens = usage.input_tokens
+    event.output_tokens = usage.output_tokens
+    event.cache_read_tokens = usage.cache_read_tokens
+    event.cache_write_tokens = usage.cache_write_tokens
+    event.web_search_requests = usage.web_search_requests
+    event.cost_microusd = cost_microusd(event.provider, event.model, usage)
+    event.save(
+        update_fields=[
+            "input_tokens",
+            "output_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+            "web_search_requests",
+            "cost_microusd",
+            "updated_date",
+        ]
+    )
+    return event
 
 
 def ensure_budget_available(user) -> None:

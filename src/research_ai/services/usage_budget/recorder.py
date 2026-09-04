@@ -12,7 +12,12 @@ from research_ai.services.usage_budget.reservation import (
     renew_active_reservation,
     renew_live_reservation,
 )
-from research_ai.services.usage_budget.service import ensure_budget_available, record
+from research_ai.services.usage_budget.service import (
+    ensure_budget_available,
+    record,
+    record_call_start,
+    settle_call,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +54,7 @@ class AgentLoopBudgetRecorder:
         )
         self._reservation_targets = tuple(target for target in targets if target)
         self._next_reservation_renewal_at = None
+        self._pending_usage_event = None
         # Losing a usage row would silently reopen budget that was actually
         # spent, so accounting writes are required even without a transcript.
         self.requires_durable_usage = True
@@ -80,17 +86,29 @@ class AgentLoopBudgetRecorder:
         callback = getattr(self._recorder, "before_model_call", None)
         if callback is not None:
             callback()
-
-    def record_usage(self, usage: TurnUsage) -> None:
         if self.user is not None:
-            record(
+            self._pending_usage_event = record_call_start(
                 self.user,
                 self.feature,
                 self.provider,
                 self.model_id,
-                usage,
                 execution=self.execution,
             )
+
+    def record_usage(self, usage: TurnUsage) -> None:
+        if self.user is not None:
+            if self._pending_usage_event is None:
+                record(
+                    self.user,
+                    self.feature,
+                    self.provider,
+                    self.model_id,
+                    usage,
+                    execution=self.execution,
+                )
+            else:
+                settle_call(self._pending_usage_event, usage)
+                self._pending_usage_event = None
         callback = getattr(self._recorder, "record_usage", None)
         if callback is not None:
             callback(usage)

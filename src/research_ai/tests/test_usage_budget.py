@@ -275,7 +275,7 @@ class AgentLoopBudgetRecorderTests(TestCase):
             recorder.before_model_call()
         self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 10)
 
-    def test_stream_activity_renews_a_cancelled_in_flight_lease(self):
+    def test_stream_activity_does_not_renew_cancelled_concurrency_lease(self):
         # Arrange
         old_expiry = timezone.now() + timedelta(minutes=1)
         execution = self._execution(
@@ -290,15 +290,41 @@ class AgentLoopBudgetRecorderTests(TestCase):
 
         # Assert
         execution.refresh_from_db()
-        self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
+        self.assertEqual(execution.usage_reservation_expires_at, old_expiry)
 
-    def test_late_usage_is_charged_without_reacquiring_cancelled_reservation(self):
-        # Arrange: cancellation already released this call's reservation.
+    def test_model_call_counts_toward_turn_cap_before_provider_returns(self):
+        # Arrange
         execution = self._execution(
-            status=AgentExecution.Status.CANCELLED,
-            expires_at=None,
+            status=AgentExecution.Status.RUNNING,
+            expires_at=timezone.now() + timedelta(minutes=1),
         )
         recorder = self._recorder(execution)
+
+        # Act: this runs immediately before provider dispatch.
+        recorder.before_model_call()
+
+        # Assert: admission sees the attempt while its exact cost is pending.
+        event = LLMUsageEvent.objects.get(execution=execution)
+        self.assertIsNone(event.cost_microusd)
+        self.assertEqual(budget_status(self.user).turns_used, 1)
+
+        recorder.record_usage(TurnUsage(input_tokens=100, output_tokens=50))
+        event.refresh_from_db()
+        self.assertGreater(event.cost_microusd, 0)
+        self.assertEqual(budget_status(self.user).turns_used, 1)
+
+    def test_late_usage_is_charged_without_reacquiring_cancelled_reservation(self):
+        # Arrange: record the call start, then cancel while the provider runs.
+        execution = self._execution(
+            status=AgentExecution.Status.RUNNING,
+            expires_at=timezone.now() + timedelta(minutes=1),
+        )
+        recorder = self._recorder(execution)
+        recorder.before_model_call()
+        AgentExecution.objects.filter(pk=execution.pk).update(
+            status=AgentExecution.Status.CANCELLED,
+            usage_reservation_expires_at=None,
+        )
 
         # Act: the provider's last stream event and usage arrive after cancel.
         recorder.record_stream_event(
@@ -431,7 +457,7 @@ class AtomicAdmissionTests(TransactionTestCase):
         self.assertEqual(len(errors), 1)
         self.assertIsInstance(errors[0], UsageWorkInProgressError)
 
-    def test_one_cancelled_call_allows_replacement_handoff(self):
+    def test_cancelled_call_does_not_block_admission(self):
         # Arrange: cancellation is visible immediately, but the provider call
         # that was already in flight has not returned to its worker yet.
         conversation = AgentConversation.objects.create(
@@ -449,13 +475,13 @@ class AtomicAdmissionTests(TransactionTestCase):
         with atomic_turn_admission(self.user):
             pass
 
-    def test_second_cancelled_call_blocks_until_a_lease_expires(self):
-        # Arrange: two provider calls have been cancelled while in flight.
+    def test_multiple_cancelled_calls_do_not_block_admission(self):
+        # Arrange: provider starts are accounted through usage-event rows.
         conversation = AgentConversation.objects.create(
             user=self.user,
             workflow="notebook_chat",
         )
-        executions = AgentExecution.objects.bulk_create(
+        AgentExecution.objects.bulk_create(
             [
                 AgentExecution(
                     conversation=conversation,
@@ -467,18 +493,7 @@ class AtomicAdmissionTests(TransactionTestCase):
             ]
         )
 
-        # Act / Assert: a third call is refused while both are outstanding.
-        with (
-            self.assertRaises(UsageWorkInProgressError),
-            atomic_turn_admission(self.user),
-        ):
-            pass
-
-        # A dead worker cannot hold admission forever: its lease expires.
-        executions[0].usage_reservation_expires_at = timezone.now() - timedelta(
-            seconds=1
-        )
-        executions[0].save(update_fields=["usage_reservation_expires_at"])
+        # Act / Assert
         with atomic_turn_admission(self.user):
             pass
 

@@ -84,15 +84,15 @@ class AgentCancellationTests(TestCase):
         self.assertEqual(execution.error_type, "")
         self.assertIsNotNone(execution.finished_at)
 
-    def test_running_cancellation_reserves_budget_until_worker_unwinds(self):
+    def test_running_cancellation_releases_concurrency_reservation(self):
         # Arrange: this execution owns the budgeted user's single-flight slot.
         recorder = self._running()
         # Act: the request reports cancellation before the provider call returns.
         self.cancels.cancel(recorder.execution)
 
-        # Assert: the lease tracks the in-flight call until its worker returns.
+        # Assert: its call attempt is accounted separately, so this lock can go.
         execution = AgentExecution.objects.get(id=recorder.execution.id)
-        self.assertIsNotNone(execution.usage_reservation_expires_at)
+        self.assertIsNone(execution.usage_reservation_expires_at)
         self.assertFalse(recorder.on_run_failed(InterruptedError("cancelled")))
         execution.refresh_from_db()
         self.assertIsNone(execution.usage_reservation_expires_at)

@@ -4,7 +4,7 @@ from utils.models import DefaultModel
 
 
 class LLMUsageEvent(DefaultModel):
-    """Immutable accounting row for one provider model call."""
+    """Accounting row created before one provider model call is dispatched."""
 
     user = models.ForeignKey(
         "user.User",

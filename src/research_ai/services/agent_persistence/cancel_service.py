@@ -31,7 +31,6 @@ from django.utils import timezone
 from research_ai.models import AgentContextMessage, AgentExecution
 from research_ai.services.agent.types import Message, TextBlock
 from research_ai.services.agent_persistence.content import serialize_context_message
-from research_ai.services.usage_budget.reservation import reservation_deadline
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +44,10 @@ class AgentExecutionCancelService:
         """Mark an active execution ``CANCELLED``; report whether it landed.
 
         No error fields are written: a cancellation is the user's own decision,
-        not a failure, and the status alone says so. A queued execution releases
-        its reservation immediately. A running one keeps a renewable lease until
-        its worker unwinds, while admission permits one replacement handoff.
-        Returns ``False`` when the execution already
+        not a failure, and the status alone says so. Cancellation releases the
+        execution's concurrency reservation immediately; provider-call attempts
+        are recorded separately before spend begins. Returns ``False`` when the
+        execution already
         reached a terminal state, which is the ordinary race of cancelling a turn
         that was finishing anyway.
         """
@@ -67,14 +66,11 @@ class AgentExecutionCancelService:
             if locked is None:
                 return False
             now = timezone.now()
-            was_pending = locked.status == AgentExecution.Status.PENDING
             locked.status = AgentExecution.Status.CANCELLED
             locked.stop_reason = CANCELLED_STOP_REASON
             locked.finished_at = now
             locked.last_activity_at = now
-            locked.usage_reservation_expires_at = (
-                None if was_pending else reservation_deadline(now)
-            )
+            locked.usage_reservation_expires_at = None
             if locked.started_at is not None:
                 locked.duration_ms = max(
                     0, round((now - locked.started_at).total_seconds() * 1000)

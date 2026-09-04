@@ -324,18 +324,15 @@ class NotebookChatServiceTests(TestCase):
                 # Assert: the next task is admitted and scheduled immediately.
                 execution.refresh_from_db()
                 self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
-                self.assertGreater(execution.usage_reservation_expires_at, expires_at)
+                self.assertIsNone(execution.usage_reservation_expires_at)
                 self.assertEqual(next_execution.status, AgentExecution.Status.PENDING)
                 delay.assert_called_once_with(next_execution.id)
                 if same_chat:
                     self.assertEqual(next_execution.context_parent_id, execution.id)
                 self.service.cancel_active_turn(next_chat)
-                AgentExecution.objects.filter(pk=execution.pk).update(
-                    usage_reservation_expires_at=None
-                )
 
-    def test_one_outstanding_cancellation_allows_immediate_handoff(self):
-        # Arrange: a cancelled provider call is still unwinding.
+    def test_old_cancelled_reservations_do_not_block_resuming(self):
+        # Arrange: an earlier deployment left a lease on a cancelled turn.
         execution, _ = self._submit()
         expires_at = timezone.now() + timedelta(minutes=5)
         AgentExecution.objects.filter(pk=execution.pk).update(
@@ -350,8 +347,8 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(next_execution.status, AgentExecution.Status.PENDING)
         delay.assert_called_once_with(next_execution.id)
 
-    def test_two_outstanding_cancellations_block_another_handoff(self):
-        # Arrange: two paid calls are still unwinding after cancellation.
+    def test_multiple_cancelled_reservations_do_not_lock_conversation(self):
+        # Arrange: call starts already count through their usage-event rows.
         for attempt in (1, 2):
             AgentExecution.objects.create(
                 conversation=self.conversation,
@@ -361,8 +358,9 @@ class NotebookChatServiceTests(TestCase):
             )
 
         # Act / Assert
-        with self.assertRaises(UsageWorkInProgressError):
-            self._submit("Try a third call")
+        next_execution, delay = self._submit("Try another call")
+        self.assertEqual(next_execution.status, AgentExecution.Status.PENDING)
+        delay.assert_called_once_with(next_execution.id)
 
     def test_run_turn_edits_note_and_publishes_reply(self):
         # Arrange
