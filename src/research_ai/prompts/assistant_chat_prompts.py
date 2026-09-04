@@ -9,6 +9,10 @@ assistant plus ``create_note``.
 from collections.abc import Iterable
 
 from research_ai.prompts._loader import load_template
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 
 _NO_NOTES = (
     "This chat has not created any notes yet. You have no access to the "
@@ -18,11 +22,16 @@ _NOTES_HEADER = (
     "This chat has created the notes below; they are the only notes you can "
     "read or edit. Use these ids with read_note and edit_note."
 )
+_KIND_LABELS = {PREREGISTRATION: "preregistration", GRANT: "grant"}
 
 
 def build_assistant_chat_system_prompt(notes: Iterable) -> str:
     """The system prompt for a conversation with ``notes`` created so far."""
     template = load_template("assistant_chat_system.txt")
-    lines = [f'- note {note.id} ("{note.title or "Untitled"}")' for note in notes]
+    lines = [
+        f'- note {note.id} ("{note.title or "Untitled"}"), '
+        f"{_KIND_LABELS.get(note.document_type, 'note')}"
+        for note in notes
+    ]
     section = f"{_NOTES_HEADER}\n\n" + "\n".join(lines) if lines else _NO_NOTES
     return template.replace("{{NOTES_SECTION}}", section)

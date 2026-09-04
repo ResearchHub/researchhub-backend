@@ -79,7 +79,7 @@ class AssistantChatService:
         """The notebook chat projection plus the notes this chat created."""
         data = self.engine.representation(conversation, activity_scope=activity_scope)
         data["notes"] = [
-            {"id": note.id, "title": note.title}
+            {"id": note.id, "title": note.title, "document_type": note.document_type}
             for note in self.engine._linked_notes(conversation)
         ]
         return data

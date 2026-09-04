@@ -368,6 +368,42 @@ class SelectedRFPToolsetTests(TestCase):
         self.assertFalse(stop)
         return result
 
+    def test_requires_exactly_one_of_note_or_scope(self):
+        # Act / Assert
+        with self.assertRaises(ValueError):
+            SelectedRFPToolset(user=self.user)
+        with self.assertRaises(ValueError):
+            SelectedRFPToolset(user=self.user, note=self.note, note_scope=set)
+
+    def test_scoped_tools_require_a_note_id_within_the_scope(self):
+        # Arrange: the scope is re-read per call, so a note admitted later
+        # becomes reachable without rebuilding the toolset.
+        grant = self._grant()
+        scope = set()
+        toolset = SelectedRFPToolset(
+            user=self.user, note_scope=lambda: scope
+        ).as_toolset()
+        tools = {tool.name: tool for tool in toolset.tools}
+        self.assertIn("note_id", tools[SET_SELECTED_RFP].input_schema["required"])
+        self.assertIn("note_id", tools[READ_SELECTED_RFP].input_schema["required"])
+
+        # Act
+        before, _ = toolset.dispatch(
+            SET_SELECTED_RFP, {"note_id": self.note.id, "grant_id": grant.id}
+        )
+        scope.add(self.note.id)
+        after, _ = toolset.dispatch(
+            SET_SELECTED_RFP, {"note_id": self.note.id, "grant_id": grant.id}
+        )
+        read, _ = toolset.dispatch(READ_SELECTED_RFP, {"note_id": self.note.id})
+        missing, _ = toolset.dispatch(READ_SELECTED_RFP, {})
+
+        # Assert
+        self.assertIn("error", before)
+        self.assertTrue(after["saved"])
+        self.assertEqual(read["id"], grant.id)
+        self.assertIn("error", missing)
+
     def test_reads_selected_rfp_full_text_and_terms(self):
         # Arrange
         grant = self._grant()

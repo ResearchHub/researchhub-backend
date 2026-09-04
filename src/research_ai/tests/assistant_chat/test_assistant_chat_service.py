@@ -1,11 +1,15 @@
 import json
+from datetime import timedelta
+from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from note.models import Note
 from note.tests.helpers import create_note
+from purchase.models import Grant
 from research_ai.models import AgentExecution
 from research_ai.services.agent.types import TurnUsage
 from research_ai.services.assistant_chat import WORKFLOW, AssistantChatService
@@ -17,6 +21,11 @@ from research_ai.tests.agent.persistence_test_helpers import (
     tool_turn,
 )
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 
 MODEL_SETTINGS = {
     "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
@@ -113,7 +122,11 @@ class AssistantChatServiceTests(TestCase):
         result = self._run(
             execution,
             [
-                tool_turn("t1", "create_note", {"title": "  Proposal   outline "}),
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {"title": "  Proposal   outline ", "kind": "preregistration"},
+                ),
                 edit_the_new_note,
                 text_turn("I drafted the outline into a new note."),
             ],
@@ -124,6 +137,7 @@ class AssistantChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
         self.assertEqual(result["final_text"], "I drafted the outline into a new note.")
         note = Note.objects.get(title="Proposal outline")
+        self.assertEqual(note.document_type, PREREGISTRATION)
         self.assertEqual(note.created_by, self.user)
         self.assertEqual(note.organization, self.user.organization)
         self.assertEqual(json.loads(note.latest_version.json)["type"], "doc")
@@ -138,7 +152,14 @@ class AssistantChatServiceTests(TestCase):
         self.assertTrue(self.conversation.note_links.filter(note=note).exists())
         representation = self.service.representation(self.conversation)
         self.assertEqual(
-            representation["notes"], [{"id": note.id, "title": "Proposal outline"}]
+            representation["notes"],
+            [
+                {
+                    "id": note.id,
+                    "title": "Proposal outline",
+                    "document_type": PREREGISTRATION,
+                }
+            ],
         )
         created = [
             event for event in self._activity(0) if event.get("tool") == "create_note"
@@ -146,11 +167,139 @@ class AssistantChatServiceTests(TestCase):
         self.assertEqual(created[0]["label"], "Created a note")
         self.assertEqual(created[0]["note_id"], note.id)
         self.assertEqual(created[0]["note_title"], "Proposal outline")
+        self.assertEqual(created[0]["note_document_type"], PREREGISTRATION)
+
+    def test_run_turn_can_create_a_grant_note(self):
+        # Arrange
+        execution, _delay = self._submit("Draft an RFP for soil research.")
+
+        # Act
+        self._run(
+            execution,
+            [
+                tool_turn("t1", "create_note", {"title": "Soil RFP", "kind": "grant"}),
+                text_turn("Created the RFP note."),
+            ],
+        )
+
+        # Assert
+        note = self.conversation.note_links.get().note
+        self.assertEqual(note.document_type, GRANT)
+        self.assertEqual(note.title, "Soil RFP")
+
+    def test_run_turn_can_select_an_rfp_on_a_created_preregistration(self):
+        # Arrange: an open grant the user can see, and a preregistration the
+        # chat creates in the same turn it selects the RFP on.
+        grant = self._open_grant()
+        execution, _delay = self._submit("Apply to the reproducibility RFP.")
+
+        def select_on_the_new_note():
+            note = Note.objects.get(title="Reproducibility proposal")
+            return tool_turn(
+                "t2",
+                "set_selected_rfp",
+                {"note_id": note.id, "grant_id": grant.id},
+            )
+
+        def read_from_the_new_note():
+            note = Note.objects.get(title="Reproducibility proposal")
+            return tool_turn("t3", "read_selected_rfp", {"note_id": note.id})
+
+        # Act
+        result = self._run(
+            execution,
+            [
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {"title": "Reproducibility proposal", "kind": "preregistration"},
+                ),
+                select_on_the_new_note,
+                read_from_the_new_note,
+                text_turn("The proposal now applies to the reproducibility RFP."),
+            ],
+        )
+
+        # Assert
+        self.assertEqual(
+            result["final_text"],
+            "The proposal now applies to the reproducibility RFP.",
+        )
+        note = Note.objects.get(title="Reproducibility proposal")
+        self.assertEqual(note.selected_grant, grant)
+        statuses = [
+            (event["tool"], event["status"])
+            for event in self._activity(0)
+            if event["type"] == "tool_call"
+        ]
+        self.assertEqual(
+            statuses,
+            [
+                ("create_note", "succeeded"),
+                ("set_selected_rfp", "succeeded"),
+                ("read_selected_rfp", "succeeded"),
+            ],
+        )
+
+    def test_rfp_tools_refuse_notes_outside_the_chat(self):
+        # Arrange: a preregistration the user owns but did not create here.
+        grant = self._open_grant()
+        outside, _content = create_note(self.user, organization=None)
+        outside.document_type = PREREGISTRATION
+        outside.save(update_fields=["document_type"])
+        execution, _delay = self._submit("Apply with my other proposal.")
+
+        # Act
+        self._run(
+            execution,
+            [
+                tool_turn(
+                    "t1",
+                    "set_selected_rfp",
+                    {"note_id": outside.id, "grant_id": grant.id},
+                ),
+                text_turn("Could not."),
+            ],
+        )
+
+        # Assert
+        outside.refresh_from_db()
+        self.assertIsNone(outside.selected_grant)
+        (selection,) = [
+            event
+            for event in self._activity(0)
+            if event.get("tool") == "set_selected_rfp"
+        ]
+        self.assertEqual(selection["status"], "failed")
+
+    def _open_grant(self):
+        post = create_post(
+            created_by=self.user,
+            document_type=GRANT,
+            title="Reproducibility RFP",
+            renderable_text="Applicants must publish their methods.",
+        )
+        post.unified_document.is_public = True
+        post.unified_document.save(update_fields=["is_public"])
+        return Grant.objects.create(
+            created_by=self.user,
+            unified_document=post.unified_document,
+            short_title="Reproducibility RFP",
+            organization="Research Foundation",
+            description="Funding for reproducible research.",
+            amount=Decimal("75000.00"),
+            currency="USD",
+            status=Grant.OPEN,
+            end_date=timezone.now() + timedelta(days=30),
+        )
 
     def test_later_turns_see_the_created_notes_and_nothing_else(self):
         # Arrange: one note created by this chat, one the user owns otherwise.
         execution, _delay = self._submit()
-        self._run(execution, [tool_turn("t1", "create_note", {"title": "Mine"})])
+        self._run(
+            execution,
+            [tool_turn("t1", "create_note", {"title": "Mine", "kind": "grant"})],
+        )
         own_note = self.conversation.note_links.get().note
         other_note, _content = create_note(self.user, organization=None)
 
@@ -167,7 +316,7 @@ class AssistantChatServiceTests(TestCase):
 
         # Assert: the prompt names the created note; the other note is
         # invisible even though the user could open it in the notebook.
-        self.assertIn(f"note {own_note.id}", second.system_prompt)
+        self.assertIn(f'note {own_note.id} ("Mine"), grant', second.system_prompt)
         self.assertNotIn(f"note {other_note.id}", second.system_prompt)
         self.assertEqual(result["final_text"], "Done.")
         reads = [
@@ -178,7 +327,10 @@ class AssistantChatServiceTests(TestCase):
     def test_created_note_does_not_list_the_assistant_chat_on_the_note(self):
         # Arrange
         execution, _delay = self._submit()
-        self._run(execution, [tool_turn("t1", "create_note", {"title": "Mine"})])
+        self._run(
+            execution,
+            [tool_turn("t1", "create_note", {"title": "Mine", "kind": "grant"})],
+        )
         note = self.conversation.note_links.get().note
 
         # Act

@@ -246,6 +246,7 @@ def _public_tool_call(event: ToolCallEvent, execution_active: bool) -> dict:
         if isinstance(note_id, int):
             public["note_id"] = note_id
             public["note_title"] = str(result.get("title") or "")
+            public["note_document_type"] = str(result.get("document_type") or "")
     if succeeded:
         sources = _sources(event)
         if sources:

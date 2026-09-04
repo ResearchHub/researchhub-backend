@@ -15,6 +15,10 @@ from research_ai.services.note_tools import (
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 
 # A two-block document the way the frontend editor stores it (defaults spelled
 # out), used to seed notes with structured content.
@@ -538,8 +542,10 @@ class NoteToolsetCreateNoteTests(TestCase):
         )
         self.created = []
 
-        def creator(title):
+        def creator(title, document_type):
             note, _content = create_note(self.owner, organization=None, title=title)
+            note.document_type = document_type
+            note.save(update_fields=["document_type"])
             Permission.objects.create(
                 access_type=ADMIN,
                 content_type=ContentType.objects.get_for_model(
@@ -569,35 +575,51 @@ class NoteToolsetCreateNoteTests(TestCase):
         outside, _content = create_note(self.owner, organization=None)
 
         # Act
-        result = self.tools[CREATE_NOTE].handler({"title": "  New   idea "})
+        result = self.tools[CREATE_NOTE].handler(
+            {"title": "  New   idea ", "kind": "preregistration"}
+        )
         read = self.tools[READ_NOTE].handler({"note_id": result["note_id"]})
         outside_read = self.tools[READ_NOTE].handler({"note_id": outside.id})
 
         # Assert
         self.assertEqual(result["title"], "New idea")
         self.assertEqual(result["note_id"], self.created[0].id)
+        self.assertEqual(result["kind"], "preregistration")
+        self.assertEqual(result["document_type"], PREREGISTRATION)
         self.assertIsNone(result["version_id"])
         self.assertEqual(read["title"], "New idea")
         self.assertIn("error", outside_read)
 
     def test_create_note_rejects_a_blank_title(self):
         # Act
-        result = self.tools[CREATE_NOTE].handler({"title": "   "})
+        result = self.tools[CREATE_NOTE].handler({"title": "   ", "kind": "grant"})
 
         # Assert
         self.assertIn("error", result)
         self.assertEqual(self.created, [])
 
+    def test_create_note_requires_a_supported_kind(self):
+        # Act
+        missing = self.tools[CREATE_NOTE].handler({"title": "Idea"})
+        unknown = self.tools[CREATE_NOTE].handler({"title": "Idea", "kind": "note"})
+        grant = self.tools[CREATE_NOTE].handler({"title": "Call", "kind": "grant"})
+
+        # Assert
+        self.assertIn("error", missing)
+        self.assertIn("error", unknown)
+        self.assertEqual(grant["document_type"], GRANT)
+        self.assertEqual(len(self.created), 1)
+
     def test_create_note_reports_creator_failures_to_the_model(self):
         # Arrange
-        def failing(title):
+        def failing(title, document_type):
             raise RuntimeError("database is away")
 
         toolset = NoteToolset(user=self.owner, note_ids=set(), note_creator=failing)
         create = {tool.name: tool for tool in toolset.build_tools()}[CREATE_NOTE]
 
         # Act
-        result = create.handler({"title": "Anything"})
+        result = create.handler({"title": "Anything", "kind": "grant"})
 
         # Assert
         self.assertIn("database is away", result["error"])

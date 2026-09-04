@@ -40,6 +40,10 @@ from research_ai.services.note_block_edits import (
     check_block_edits,
     parse_block_edits,
 )
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
 
 logger = logging.getLogger(__name__)
@@ -49,6 +53,9 @@ EDIT_NOTE = "edit_note"
 CREATE_NOTE = "create_note"
 _MAX_BLOCKS_PER_READ = 50
 _MAX_TITLE_CHARS = 255
+# The kinds of note the notebook UI can create, by the name the model uses.
+NOTE_KINDS = {"preregistration": PREREGISTRATION, "grant": GRANT}
+_KIND_NAMES = {document_type: kind for kind, document_type in NOTE_KINDS.items()}
 
 _BLOCK_FORMAT = (
     "Blocks use a compact Tiptap form: a bare string at block level is a "
@@ -62,8 +69,9 @@ class NoteToolset:
 
     ``note_ids``, when given, restricts every tool to those notes regardless
     of what else the user could access. ``note_creator``, when given, adds a
-    ``create_note`` tool: it is called with the title and must return the new
-    ``Note`` (owned by ``user``); the toolset widens ``note_ids`` to include it.
+    ``create_note`` tool: it is called with the title and document type and
+    must return the new ``Note`` (owned by ``user``); the toolset widens
+    ``note_ids`` to include it.
 
     Best-effort contract: handlers never raise; failures come back to the
     model as ``{"error": ...}`` so a bad note id or a stale edit is a turn
@@ -76,7 +84,7 @@ class NoteToolset:
         user,
         service: NoteContentService | None = None,
         note_ids: Collection[int] | None = None,
-        note_creator: Callable[[str], Note] | None = None,
+        note_creator: Callable[[str, str], Note] | None = None,
     ):
         self._user = user
         self._service = service or NoteContentService()
@@ -96,8 +104,12 @@ class NoteToolset:
                         "and return its note_id. Use it when the user wants "
                         "something drafted, saved, or kept as a document "
                         "rather than answered in chat, and no suitable note "
-                        "exists yet. The note has no content: populate it "
-                        "with an edit_note insert (expected_version_id null)."
+                        "exists yet. kind is 'preregistration' for a research "
+                        "proposal or funding application the user will "
+                        "submit, and 'grant' for a funding call (RFP) the "
+                        "user is publishing. The note has no content: "
+                        "populate it with an edit_note insert "
+                        "(expected_version_id null)."
                     ),
                     input_schema={
                         "type": "object",
@@ -105,9 +117,18 @@ class NoteToolset:
                             "title": {
                                 "type": "string",
                                 "description": "A short title for the note.",
-                            }
+                            },
+                            "kind": {
+                                "type": "string",
+                                "enum": sorted(NOTE_KINDS),
+                                "description": (
+                                    "'preregistration' for a proposal the "
+                                    "user will submit; 'grant' for an RFP the "
+                                    "user is publishing."
+                                ),
+                            },
                         },
-                        "required": ["title"],
+                        "required": ["title", "kind"],
                     },
                     handler=self._create_note,
                 )
@@ -259,8 +280,11 @@ class NoteToolset:
         title = " ".join(title.split())
         if len(title) > _MAX_TITLE_CHARS:
             return {"error": f"title must be at most {_MAX_TITLE_CHARS} characters"}
+        kind = input.get("kind")
+        if kind not in NOTE_KINDS:
+            return {"error": f"kind must be one of {', '.join(sorted(NOTE_KINDS))}"}
         try:
-            note = self._note_creator(title)
+            note = self._note_creator(title, NOTE_KINDS[kind])
         except Exception as exc:  # noqa: BLE001 - reported to the model
             logger.exception("create_note failed for user %s", self._user.id)
             return {"error": f"could not create the note: {exc}"}
@@ -269,6 +293,8 @@ class NoteToolset:
         return {
             "note_id": note.id,
             "title": note.title,
+            "kind": _KIND_NAMES.get(note.document_type, kind),
+            "document_type": note.document_type,
             "version_id": None,
             "created": True,
         }

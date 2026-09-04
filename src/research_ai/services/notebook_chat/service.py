@@ -739,11 +739,7 @@ class NotebookChatService:
                 user=conversation.user
             ),
             grant_toolset=self._grant_toolset_factory(user=conversation.user),
-            selected_rfp_toolset=(
-                SelectedRFPToolset(note=note, user=conversation.user)
-                if note is not None and note.document_type == PREREGISTRATION
-                else None
-            ),
+            selected_rfp_toolset=self._selected_rfp_toolset(conversation, note),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
             native_tool_names=provider.native_tool_names,
@@ -853,13 +849,40 @@ class NotebookChatService:
         return NoteToolset(
             user=conversation.user,
             note_ids={linked.id for linked in self._linked_notes(conversation)},
-            note_creator=lambda title: self._create_note(conversation, title),
+            note_creator=lambda title, document_type: self._create_note(
+                conversation, title, document_type
+            ),
         )
 
-    def _create_note(self, conversation: AgentConversation, title: str) -> Note:
+    def _selected_rfp_toolset(
+        self, conversation: AgentConversation, note: Note | None
+    ) -> SelectedRFPToolset | None:
+        """RFP selection for the routed preregistration, or for any the chat made.
+
+        A note-less turn cannot know up front whether it will create a
+        preregistration, so its tools resolve the note per call against the
+        chat's links, which a ``create_note`` earlier in the turn has already
+        extended.
+        """
+        if note is not None:
+            if note.document_type != PREREGISTRATION:
+                return None
+            return SelectedRFPToolset(note=note, user=conversation.user)
+        return SelectedRFPToolset(
+            user=conversation.user,
+            note_scope=lambda: set(
+                conversation.note_links.values_list("note_id", flat=True)
+            ),
+        )
+
+    def _create_note(
+        self, conversation: AgentConversation, title: str, document_type: str
+    ) -> Note:
         with transaction.atomic():
             note = self.note_creation.create_private_note(
-                created_by=conversation.user, title=title
+                created_by=conversation.user,
+                title=title,
+                document_type=document_type,
             )
             self.note_conversations.attach(conversation, note)
         return note

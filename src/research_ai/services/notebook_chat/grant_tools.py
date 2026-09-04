@@ -1,6 +1,7 @@
 """Grant discovery tools for the notebook chat agent."""
 
 import logging
+from collections.abc import Callable, Collection
 
 from note.models import Note
 from note.services.grant_selection_service import (
@@ -347,31 +348,69 @@ def _parse_rfp_page_bounds(args: dict) -> tuple[tuple[int, int] | None, dict | N
 
 
 class SelectedRFPToolset:
-    """Read and set the RFP one preregistration note applies to."""
+    """Read and set the RFP a preregistration note applies to.
 
-    def __init__(self, *, note: Note, user):
-        self._note_id = note.id
+    Built with ``note``, the tools act on that one note and take no note id.
+    Built with ``note_scope`` -- a callable returning the note ids currently
+    in reach, re-evaluated per call so notes created earlier in the turn
+    count -- the tools require a ``note_id`` input within that scope.
+    """
+
+    def __init__(
+        self,
+        *,
+        user,
+        note: Note | None = None,
+        note_scope: Callable[[], Collection[int]] | None = None,
+    ):
+        if (note is None) == (note_scope is None):
+            raise ValueError("pass exactly one of note or note_scope")
+        self._note_id = None if note is None else note.id
+        self._note_scope = note_scope
         self._user = user
 
+    @property
+    def _scoped(self) -> bool:
+        return self._note_scope is not None
+
     def build_tools(self) -> list[Tool]:
+        note_id_property = {
+            "note_id": {
+                "type": "integer",
+                "description": "Id of the preregistration note.",
+            }
+        }
+        subject = (
+            "the preregistration note note_id"
+            if self._scoped
+            else "this preregistration note"
+        )
         return [
             Tool(
                 name=READ_SELECTED_RFP,
                 description=(
-                    "Read the selected RFP for this preregistration note. "
+                    f"Read the selected RFP for {subject}. "
                     "Use it before evaluating fit, requirements, budget, "
                     "deadline, or revising the note for the selected funding "
                     "opportunity. Returns structured grant terms and a bounded "
                     "call-text page. If next_start_char is returned, continue "
                     "with get_grant_details using the returned id and offset."
                 ),
-                input_schema=_EMPTY_INPUT_SCHEMA,
+                input_schema=(
+                    {
+                        "type": "object",
+                        "properties": note_id_property,
+                        "required": ["note_id"],
+                    }
+                    if self._scoped
+                    else _EMPTY_INPUT_SCHEMA
+                ),
                 handler=self._read_selected_rfp,
             ),
             Tool(
                 name=SET_SELECTED_RFP,
                 description=(
-                    "Select the RFP this preregistration applies to, replacing "
+                    f"Select the RFP {subject} applies to, replacing "
                     "any current selection, or pass null to clear it. Only use "
                     "it when the user asks to apply to, switch to, or drop a "
                     "funding opportunity -- never to record one you merely "
@@ -382,15 +421,16 @@ class SelectedRFPToolset:
                 input_schema={
                     "type": "object",
                     "properties": {
+                        **(note_id_property if self._scoped else {}),
                         "grant_id": {
                             "type": ["integer", "null"],
                             "description": (
                                 "Id of the grant to select, from search_grants, "
                                 "or null to clear the current selection."
                             ),
-                        }
+                        },
                     },
-                    "required": ["grant_id"],
+                    "required": (["note_id"] if self._scoped else []) + ["grant_id"],
                 },
                 handler=self._set_selected_rfp,
             ),
@@ -401,12 +441,12 @@ class SelectedRFPToolset:
 
     # -- handlers ---------------------------------------------------------
 
-    def _read_selected_rfp(self, _args: dict) -> dict:
+    def _read_selected_rfp(self, args: dict) -> dict:
         if self._user is None or not getattr(self._user, "is_authenticated", False):
             return {"error": _SELECTED_RFP_NOT_ACCESSIBLE}
 
         try:
-            note = self._readable_note()
+            note = self._readable_note(args)
             if note is None:
                 return {"error": _SELECTED_RFP_NOT_ACCESSIBLE}
 
@@ -430,7 +470,7 @@ class SelectedRFPToolset:
         try:
             # Access before arguments: an unreachable note is answered the same
             # way whatever the model asked for.
-            note, error = self._editable_note()
+            note, error = self._editable_note(args)
             if error is not None:
                 return error
             grant_id, error = _parse_grant_id(args)
@@ -454,11 +494,11 @@ class SelectedRFPToolset:
             logger.exception("selected RFP write failed for note %s", self._note_id)
             return {"error": "selecting an RFP is temporarily unavailable"}
 
-    def _editable_note(self) -> tuple[Note | None, dict | None]:
-        """This toolset's note when the user may change its RFP."""
+    def _editable_note(self, args: dict) -> tuple[Note | None, dict | None]:
+        """The addressed note when the user may change its RFP."""
         if self._user is None or not getattr(self._user, "is_authenticated", False):
             return None, {"error": _NOTE_NOT_ACCESSIBLE}
-        note = self._readable_note()
+        note = self._readable_note(args)
         if note is None:
             return None, {"error": _NOTE_NOT_ACCESSIBLE}
         permissions = note.permissions
@@ -506,8 +546,20 @@ class SelectedRFPToolset:
                 "could not publish note update after an RFP selection", exc_info=True
             )
 
-    def _readable_note(self) -> Note | None:
-        """This toolset's note, or ``None`` when the user cannot reach it."""
+    def _target_note_id(self, args: dict) -> int | None:
+        """The pinned note, or the in-scope ``note_id`` the model named."""
+        if not self._scoped:
+            return self._note_id
+        note_id = (args or {}).get("note_id")
+        if isinstance(note_id, bool) or not isinstance(note_id, int):
+            return None
+        return note_id if note_id in self._note_scope() else None
+
+    def _readable_note(self, args: dict) -> Note | None:
+        """The addressed note, or ``None`` when the user cannot reach it."""
+        note_id = self._target_note_id(args)
+        if note_id is None:
+            return None
         try:
             note = (
                 Note.objects.select_related(
@@ -515,7 +567,7 @@ class SelectedRFPToolset:
                 )
                 .prefetch_related("selected_grant__unified_document__posts")
                 .get(
-                    id=self._note_id,
+                    id=note_id,
                     document_type=PREREGISTRATION,
                     unified_document__is_removed=False,
                 )
