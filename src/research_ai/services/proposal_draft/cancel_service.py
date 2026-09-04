@@ -34,6 +34,7 @@ from django.db import transaction
 
 from research_ai.models import AgentExecution, ProposalDraft
 from research_ai.services.agent_persistence import AgentExecutionCancelService
+from research_ai.services.usage_budget.reservation import reservation_deadline
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +88,21 @@ class ProposalDraftCancelService:
                 # writing a failure string for a deliberate stop is what
                 # CANCELLED exists to avoid. ``step`` is left where the run got
                 # to, so the record still shows how far it had gone.
+                was_pending = locked.status == ProposalDraft.Status.PENDING
                 locked.status = ProposalDraft.Status.CANCELLED
-                locked.save(update_fields=["status", "updated_date"])
+                # A queued job has no worker/provider call to wait for. Set the
+                # processing case explicitly so jobs already running during a
+                # rolling deployment gain a bounded reservation too.
+                locked.usage_reservation_expires_at = (
+                    None if was_pending else reservation_deadline()
+                )
+                locked.save(
+                    update_fields=[
+                        "status",
+                        "usage_reservation_expires_at",
+                        "updated_date",
+                    ]
+                )
         draft.refresh_from_db()
         if already_terminal:
             # Only for a draft someone already cancelled: a COMPLETED or FAILED

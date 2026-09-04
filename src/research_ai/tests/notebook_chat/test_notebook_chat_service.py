@@ -30,6 +30,7 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
+from research_ai.services.usage_budget import UsageWorkInProgressError
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -44,6 +45,11 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 # edit_note input: block operations in the compact dialect (a bare string
 # block is a paragraph).
 EDIT_NOTE_EDITS = [{"op": "insert", "at": 0, "blocks": ["Edited by the assistant"]}]
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
+}
 
 
 def _make_service(provider=None, **kwargs):
@@ -67,6 +73,7 @@ class CapturingProvider(FakeProvider):
         return super().complete(**kwargs)
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatServiceTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -74,6 +81,7 @@ class NotebookChatServiceTests(TestCase):
             username="owner@researchhub_test.com",
             password="password",
             email="owner@researchhub_test.com",
+            is_staff=True,
         )
         self.note, self.content = create_note(self.user, organization=None)
         Permission.objects.create(
@@ -279,17 +287,14 @@ class NotebookChatServiceTests(TestCase):
         with self.assertRaises(AgentConversationBusyError):
             self.service.submit_message(self.note, self.conversation, "again")
 
-    def test_busy_chat_does_not_block_the_users_other_chats(self):
+    def test_busy_chat_blocks_the_users_other_chats_while_budgeted(self):
         # Arrange: a turn is pending on the first chat.
         self._submit()
         second = self.service.create_conversation(self.note, self.user)
 
-        # Act
-        execution, _delay = self._submit("Different thread", conversation=second)
-
-        # Assert: each chat serializes its own turns independently.
-        self.assertEqual(execution.conversation_id, second.id)
-        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        # Act / Assert
+        with self.assertRaises(UsageWorkInProgressError):
+            self._submit("Different thread", conversation=second)
 
     def test_run_turn_edits_note_and_publishes_reply(self):
         # Arrange
@@ -722,6 +727,7 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(AgentConversation.objects.filter(user=self.user).count(), 1)
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatTitleTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -804,6 +810,7 @@ class NotebookChatTitleTests(TestCase):
         self.assertEqual(self.conversation.title, "Literature review")
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatResolutionTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -897,6 +904,7 @@ class CancellingProvider(FakeProvider):
         return super().complete(**kwargs)
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatEventEmissionTests(TestCase):
     """Where the service nudges the chat's WebSocket group.
 
@@ -1157,6 +1165,7 @@ class NotebookChatEventEmissionTests(TestCase):
         self.publisher.publish.assert_not_called()
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatEventSendOrderTests(TransactionTestCase):
     """Send order under autocommit, where ``on_commit`` runs immediately.
 

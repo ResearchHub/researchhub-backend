@@ -1,8 +1,11 @@
+from datetime import timedelta
 from threading import Event, Thread
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections
 from django.test import TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -12,6 +15,7 @@ from research_ai.services.agent.types import (
     Message,
     StopReason,
     TextBlock,
+    TextStreamDelta,
     TurnUsage,
 )
 from research_ai.services.usage_budget import (
@@ -195,6 +199,138 @@ class AgentLoopBudgetRecorderTests(TestCase):
         with self.assertRaisesMessage(BudgetExceededError, "access is blocked"):
             recorder.before_model_call()
 
+    def _execution(self, *, status, expires_at):
+        conversation = AgentConversation.objects.create(
+            user=self.user,
+            workflow="notebook_chat",
+        )
+        return AgentExecution.objects.create(
+            conversation=conversation,
+            status=status,
+            attempt=1,
+            usage_reservation_expires_at=expires_at,
+        )
+
+    def _recorder(self, execution):
+        return AgentLoopBudgetRecorder(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model_id="deepseek/deepseek-v4-pro-0813",
+            execution=execution,
+        )
+
+    def test_before_model_call_renews_an_active_worker_lease(self):
+        # Arrange
+        old_expiry = timezone.now() + timedelta(minutes=1)
+        execution = self._execution(
+            status=AgentExecution.Status.RUNNING,
+            expires_at=old_expiry,
+        )
+
+        # Act
+        self._recorder(execution).before_model_call()
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
+
+    def test_discarded_attempt_is_charged_before_retry_admission(self):
+        # Arrange: nine earlier calls leave one turn in the default tier.
+        LLMUsageEvent.objects.bulk_create(
+            [
+                LLMUsageEvent(
+                    user=self.user,
+                    feature="notebook_chat",
+                    provider="openrouter",
+                    model="deepseek/deepseek-v4-pro-0813",
+                    cost_microusd=1,
+                )
+                for _ in range(9)
+            ]
+        )
+        execution = self._execution(
+            status=AgentExecution.Status.RUNNING,
+            expires_at=timezone.now() + timedelta(minutes=1),
+        )
+        recorder = self._recorder(execution)
+
+        # Act: the completed first attempt consumes the last turn before the
+        # provider asks whether it may make its internal retry.
+        recorder.record_usage(TurnUsage(input_tokens=10, output_tokens=2))
+
+        # Assert
+        with self.assertRaises(BudgetExceededError):
+            recorder.before_model_call()
+        self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 10)
+
+    def test_stream_activity_renews_a_cancelled_in_flight_lease(self):
+        # Arrange
+        old_expiry = timezone.now() + timedelta(minutes=1)
+        execution = self._execution(
+            status=AgentExecution.Status.CANCELLED,
+            expires_at=old_expiry,
+        )
+
+        # Act
+        self._recorder(execution).record_stream_event(
+            1, TextStreamDelta(block_index=0, text="still running")
+        )
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
+
+    def test_stream_activity_throttles_lease_renewals(self):
+        # Arrange
+        execution = self._execution(
+            status=AgentExecution.Status.RUNNING,
+            expires_at=timezone.now() + timedelta(minutes=1),
+        )
+        recorder = self._recorder(execution)
+
+        # Act
+        with patch(
+            "research_ai.services.usage_budget.recorder.renew_live_reservation"
+        ) as renew:
+            recorder.record_stream_event(
+                1, TextStreamDelta(block_index=0, text="first event")
+            )
+            recorder.record_stream_event(
+                1, TextStreamDelta(block_index=0, text="second event")
+            )
+
+        # Assert
+        renew.assert_called_once()
+
+    def test_expired_lease_cannot_be_resurrected_by_a_zombie_worker(self):
+        # Arrange
+        old_expiry = timezone.now() - timedelta(seconds=1)
+        execution = self._execution(
+            status=AgentExecution.Status.CANCELLED,
+            expires_at=old_expiry,
+        )
+
+        # Act
+        self._recorder(execution).record_stream_event(
+            1, TextStreamDelta(block_index=0, text="late event")
+        )
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertEqual(execution.usage_reservation_expires_at, old_expiry)
+
+    def test_cancelled_owner_cannot_start_another_model_call(self):
+        # Arrange
+        execution = self._execution(
+            status=AgentExecution.Status.CANCELLED,
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        # Act / Assert
+        with self.assertRaises(InterruptedError):
+            self._recorder(execution).before_model_call()
+
 
 class AtomicAdmissionTests(TransactionTestCase):
     def setUp(self):
@@ -260,6 +396,50 @@ class AtomicAdmissionTests(TransactionTestCase):
         self.assertEqual(admissions, [])
         self.assertEqual(len(errors), 1)
         self.assertIsInstance(errors[0], UsageWorkInProgressError)
+
+    def test_cancelled_call_blocks_admission_until_its_reservation_is_released(self):
+        # Arrange: cancellation is visible immediately, but the provider call
+        # that was already in flight has not returned to its worker yet.
+        conversation = AgentConversation.objects.create(
+            user=self.user,
+            workflow="notebook_chat",
+        )
+        execution = AgentExecution.objects.create(
+            conversation=conversation,
+            status=AgentExecution.Status.CANCELLED,
+            attempt=1,
+            usage_reservation_expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        # Act & Assert
+        with (
+            self.assertRaises(UsageWorkInProgressError),
+            atomic_turn_admission(self.user),
+        ):
+            pass
+
+        # The worker releases the separate reservation after the call returns.
+        execution.usage_reservation_expires_at = None
+        execution.save(update_fields=["usage_reservation_expires_at"])
+        with atomic_turn_admission(self.user):
+            pass
+
+    def test_expired_cancelled_call_does_not_block_admission(self):
+        # Arrange: the worker died and stopped renewing this lease.
+        conversation = AgentConversation.objects.create(
+            user=self.user,
+            workflow="notebook_chat",
+        )
+        AgentExecution.objects.create(
+            conversation=conversation,
+            status=AgentExecution.Status.CANCELLED,
+            attempt=1,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        # Act / Assert
+        with atomic_turn_admission(self.user):
+            pass
 
 
 class UsageBudgetAPITests(TestCase):

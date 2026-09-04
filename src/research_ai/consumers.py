@@ -28,6 +28,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from note.related_models.note_model import Note
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.notebook_chat.events import conversation_group
+from research_ai.services.usage_budget import resolve_ai_tier
 
 # Private-use WebSocket close codes (4000-4999), mapped to the REST statuses
 # the same request would have received.
@@ -40,11 +41,12 @@ CLOSE_NOT_FOUND = 4404
 def _rejection_code(user, note_id: int, conversation_id: int) -> int | None:
     """Why ``user`` may not watch this chat, or ``None`` to admit them.
 
-    One database hop covering the REST permission stack: the rollout gate
-    (``UserIsEditor | IsModerator``; ``ResearchAIPermission`` is the
-    authentication check the caller already made), then note visibility and
+    One database hop covering the REST permission stack: the Research AI tier
+    and editor-or-moderator rollout gates, then note visibility and
     conversation ownership exactly as the views resolve them.
     """
+    if resolve_ai_tier(user).name == "blocked":
+        return CLOSE_FORBIDDEN
     if not (user.moderator or user.is_hub_editor()):
         return CLOSE_FORBIDDEN
     note = Note.objects.filter(id=note_id, unified_document__is_removed=False).first()
