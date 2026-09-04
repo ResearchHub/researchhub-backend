@@ -127,11 +127,30 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(result["distributed_funds"]["rsc"], 170.0)
         self.assertAlmostEqual(result["distributed_funds"]["rsc_usd_snapshot"], 30.0)
 
-    def test_matched_funds_tracks_others_contributions(self):
+    def test_matched_funds_tracks_only_contributions_to_user_funded_proposals(
+        self,
+    ) -> None:
+        """Matched funds include co-funding only for proposals the user has funded."""
         # Arrange
-        _, _, fundraise, _ = self._create_grant_with_proposal()
-        other_user = create_random_authenticated_user("other")
-        self._contribute(other_user, fundraise, rsc=200, usd_cents=10000)
+        applicant = create_random_authenticated_user("standalone_applicant")
+        standalone_proposal = create_post(
+            created_by=applicant, document_type=PREREGISTRATION
+        )
+        user_funded_fundraise = Fundraise.objects.create(
+            created_by=applicant,
+            unified_document=standalone_proposal.unified_document,
+            goal_amount=Decimal(1000),
+            goal_currency="USD",
+        )
+        _, _, grant_linked_fundraise, _ = self._create_grant_with_proposal()
+        community_member = create_random_authenticated_user("community_member")
+        self._contribute(self.user, user_funded_fundraise, rsc=50)
+        self._contribute(
+            community_member, user_funded_fundraise, rsc=200, usd_cents=10000
+        )
+        self._contribute(
+            community_member, grant_linked_fundraise, rsc=400, usd_cents=20000
+        )
 
         # Act
         result = self.service.get_funding_overview(self.user)
@@ -139,13 +158,15 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(result["matched_funds"]["rsc"], 200.0)
         self.assertEqual(result["matched_funds"]["usd"], 100.0)
-        # No rsc_usd_rate captured -> falls back to current rate (0.5): 200 * 0.5 = 100
+        # Missing captured rate falls back to the current $0.50 rate.
         self.assertAlmostEqual(result["matched_funds"]["rsc_usd_snapshot"], 100.0)
 
-    def test_matched_funds_uses_captured_rsc_usd_rate_for_snapshot(self):
+    def test_matched_funds_uses_captured_rsc_usd_rate_for_snapshot(self) -> None:
+        """Matched funds preserve captured rates for qualifying contributions."""
         # Arrange
         _, _, fundraise, _ = self._create_grant_with_proposal()
         other_user = create_random_authenticated_user("other")
+        self._contribute(self.user, fundraise, rsc=1)
         # 200 RSC at $0.05 -> $10 snapshot
         self._contribute(other_user, fundraise, rsc=200, rsc_usd_rate=0.05)
         # 100 RSC at $0.20 -> $20 snapshot
