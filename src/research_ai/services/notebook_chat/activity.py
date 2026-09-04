@@ -3,7 +3,8 @@
 A curated projection of :func:`conversation_activity_events` into fixed public
 shapes. Tool calls carry tool, label, status and timestamps, plus the
 enrichments the frontend renders: the note version an edit produced, so an open
-editor knows to reload, a human detail line (the search query or author searched
+editor knows to reload, the id and title of a note the turn created so the
+client can link to it, a human detail line (the search query or author searched
 for), and title/url ``sources`` for citations. Sources come from every tool that
 yields citable items -- web search and the scholarly tools alike -- in one
 shape, so the frontend renders one citation list. Narration events carry the
@@ -29,7 +30,7 @@ from research_ai.services.agent_persistence.activity import (
     ThinkingEvent,
     ToolCallEvent,
 )
-from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
+from research_ai.services.note_tools import CREATE_NOTE, EDIT_NOTE, READ_NOTE
 from research_ai.services.notebook_chat.grant_tools import (
     GET_GRANT_DETAILS,
     READ_SELECTED_RFP,
@@ -52,6 +53,7 @@ GET_AUTHOR = "get_author"
 GET_AUTHOR_WORKS = "get_author_works"
 
 _LABELS = {
+    CREATE_NOTE: "Created a note",
     READ_NOTE: "Read the note",
     EDIT_NOTE: "Edited the note",
     WEB_SEARCH: "Searched the web",
@@ -71,6 +73,7 @@ _LABELS = {
 # What each tool is doing while the call is still open, for the live phase.
 # Distinct from _LABELS, which reads as a completed step.
 _ACTIVE_LABELS = {
+    CREATE_NOTE: "Creating a note",
     READ_NOTE: "Reading the note",
     EDIT_NOTE: "Editing the note",
     WEB_SEARCH: "Searching the web",
@@ -237,6 +240,12 @@ def _public_tool_call(event: ToolCallEvent, execution_active: bool) -> dict:
         version_id = (event.result or {}).get("version_id")
         if isinstance(version_id, int):
             public["note_version_id"] = version_id
+    if succeeded and event.tool == CREATE_NOTE:
+        result = event.result or {}
+        note_id = result.get("note_id")
+        if isinstance(note_id, int):
+            public["note_id"] = note_id
+            public["note_title"] = str(result.get("title") or "")
     if succeeded:
         sources = _sources(event)
         if sources:

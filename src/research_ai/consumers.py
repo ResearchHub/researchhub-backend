@@ -1,7 +1,9 @@
 """WebSocket consumers for research AI features.
 
 ``NotebookChatConsumer`` subscribes one client to one chat's turn events
-(``ws/notebook/notes/<note_id>/chats/<conversation_id>/``). Lifecycle events
+(``ws/notebook/notes/<note_id>/chats/<conversation_id>/``);
+``AssistantChatConsumer`` does the same for a note-less assistant chat
+(``ws/assistant/chats/<conversation_id>/``). Lifecycle events
 are small refetch nudges; ``stream_delta`` events append transient text or
 readable thinking to the matching active execution. The payload is forwarded
 verbatim. The ``?activity=live`` projection remains the recovery path: it
@@ -26,6 +28,7 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from note.related_models.note_model import Note
+from research_ai.services.assistant_chat import AssistantChatService
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.notebook_chat.events import conversation_group
 from research_ai.services.usage_budget import resolve_ai_tier
@@ -37,18 +40,25 @@ CLOSE_FORBIDDEN = 4403
 CLOSE_NOT_FOUND = 4404
 
 
-@database_sync_to_async
-def _rejection_code(user, note_id: int, conversation_id: int) -> int | None:
-    """Why ``user`` may not watch this chat, or ``None`` to admit them.
-
-    One database hop covering the REST permission stack: the Research AI tier
-    and editor-or-moderator rollout gates, then note visibility and
-    conversation ownership exactly as the views resolve them.
-    """
+def _gate_rejection_code(user) -> int | None:
+    """The Research AI tier and editor-or-moderator rollout gates."""
     if resolve_ai_tier(user).name == "blocked":
         return CLOSE_FORBIDDEN
     if not (user.moderator or user.is_hub_editor()):
         return CLOSE_FORBIDDEN
+    return None
+
+
+@database_sync_to_async
+def _notebook_rejection_code(user, note_id: int, conversation_id: int) -> int | None:
+    """Why ``user`` may not watch this notebook chat, or ``None`` to admit them.
+
+    One database hop covering the REST permission stack: the gates, then note
+    visibility and conversation ownership exactly as the views resolve them.
+    """
+    rejection = _gate_rejection_code(user)
+    if rejection is not None:
+        return rejection
     note = Note.objects.filter(id=note_id, unified_document__is_removed=False).first()
     if note is None or not note.permissions.has_user(user):
         return CLOSE_NOT_FOUND
@@ -58,7 +68,23 @@ def _rejection_code(user, note_id: int, conversation_id: int) -> int | None:
     return None
 
 
-class NotebookChatConsumer(AsyncWebsocketConsumer):
+@database_sync_to_async
+def _assistant_rejection_code(user, conversation_id: int) -> int | None:
+    """Why ``user`` may not watch this assistant chat, or ``None`` to admit them."""
+    rejection = _gate_rejection_code(user)
+    if rejection is not None:
+        return rejection
+    if AssistantChatService().get_conversation(user, conversation_id) is None:
+        return CLOSE_NOT_FOUND
+    return None
+
+
+class _ConversationConsumer(AsyncWebsocketConsumer):
+    """Admit the owner of one chat and forward its turn events."""
+
+    async def rejection_code(self, user, kwargs: dict) -> int | None:
+        raise NotImplementedError
+
     async def connect(self):
         user = self.scope.get("user")
         # ``is_active`` alongside ``is_anonymous``: deactivating an account
@@ -68,19 +94,18 @@ class NotebookChatConsumer(AsyncWebsocketConsumer):
             await self.close(code=CLOSE_UNAUTHENTICATED)
             return
 
-        kwargs = self.scope["url_route"]["kwargs"]
-        # The route constrains both to digits; the casts normalize away
+        # The routes constrain ids to digits; the casts normalize away
         # artifacts like leading zeros so the group name always matches the
         # one the publisher derives from model ids.
-        note_id = int(kwargs["note_id"])
-        conversation_id = int(kwargs["conversation_id"])
-
-        rejection = await _rejection_code(user, note_id, conversation_id)
+        kwargs = {
+            key: int(value) for key, value in self.scope["url_route"]["kwargs"].items()
+        }
+        rejection = await self.rejection_code(user, kwargs)
         if rejection is not None:
             await self.close(code=rejection)
             return
 
-        self.group_name = conversation_group(conversation_id)
+        self.group_name = conversation_group(kwargs["conversation_id"])
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         # The client offers ("Token", <key>) as subprotocols for
         # TokenAuthMiddleware; echo the name back like the other consumers.
@@ -93,3 +118,15 @@ class NotebookChatConsumer(AsyncWebsocketConsumer):
     async def notebook_chat_event(self, event):
         """Forward one published turn event to the client."""
         await self.send(text_data=json.dumps(event["data"]))
+
+
+class NotebookChatConsumer(_ConversationConsumer):
+    async def rejection_code(self, user, kwargs: dict) -> int | None:
+        return await _notebook_rejection_code(
+            user, kwargs["note_id"], kwargs["conversation_id"]
+        )
+
+
+class AssistantChatConsumer(_ConversationConsumer):
+    async def rejection_code(self, user, kwargs: dict) -> int | None:
+        return await _assistant_rejection_code(user, kwargs["conversation_id"])
