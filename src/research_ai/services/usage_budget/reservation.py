@@ -48,15 +48,16 @@ def renew_live_reservation(
 ) -> bool:
     """Extend an unexpired lease while an already-started call emits activity.
 
-    Only active rows can renew: late stream events must not revive a cancelled
-    reservation. An expired lease likewise cannot be revived by stream activity.
+    This deliberately permits a cancelled row: streaming after cancellation is
+    proof that its worker and paid provider call are still alive. Requiring the
+    old lease to remain current prevents a delayed zombie worker from reviving a
+    reservation after admission has already treated it as expired.
     """
     current = now or timezone.now()
     return bool(
         type(target)
         .objects.filter(
             id=target.id,
-            status__in=_ACTIVE_STATUSES[type(target)],
             usage_reservation_expires_at__gt=current,
         )
         .update(usage_reservation_expires_at=reservation_deadline(current))

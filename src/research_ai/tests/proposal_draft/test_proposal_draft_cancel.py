@@ -66,7 +66,7 @@ class ProposalDraftCancelServiceTests(TestCase):
         self.assertEqual(draft.error_message, "")
         self.assertEqual(draft.step, ProposalDraft.Step.JUDGING)
 
-    def test_running_cancellation_releases_budget_before_worker_unwinds(self):
+    def test_running_cancellation_reserves_budget_until_worker_unwinds(self):
         # Arrange
         draft = self._draft()
         draft.usage_reservation_expires_at = reservation_deadline()
@@ -77,9 +77,9 @@ class ProposalDraftCancelServiceTests(TestCase):
         # Act: cancellation lands while provider work is still in flight.
         self.cancels.cancel(draft)
 
-        # Assert: no worker acknowledgement is required to release admission.
+        # Assert: the lease remains until the worker acknowledges cancellation.
         draft.refresh_from_db()
-        self.assertIsNone(draft.usage_reservation_expires_at)
+        self.assertIsNotNone(draft.usage_reservation_expires_at)
         recorder.cancelled_result()
         draft.refresh_from_db()
         self.assertIsNone(draft.usage_reservation_expires_at)
@@ -97,7 +97,7 @@ class ProposalDraftCancelServiceTests(TestCase):
         draft.refresh_from_db()
         self.assertIsNone(draft.usage_reservation_expires_at)
 
-    def test_cancelling_running_draft_and_trace_releases_reservations(self):
+    def test_cancelling_running_draft_allows_one_replacement_handoff(self):
         # Arrange: both reservations still have two hours remaining.
         conversation = AgentConversation.objects.create(
             user=self.user, workflow="proposal_draft"
@@ -116,18 +116,18 @@ class ProposalDraftCancelServiceTests(TestCase):
         # Act
         self.cancels.cancel(draft)
 
-        # Assert: neither reservation prevents the user's next task.
+        # Assert: the trace is part of the same job, so this is one handoff.
         draft.refresh_from_db()
         execution.refresh_from_db()
         self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
         self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
-        self.assertIsNone(draft.usage_reservation_expires_at)
-        self.assertIsNone(execution.usage_reservation_expires_at)
+        self.assertGreater(draft.usage_reservation_expires_at, expires_at)
+        self.assertGreater(execution.usage_reservation_expires_at, expires_at)
         with atomic_turn_admission(self.user):
             pass
 
-    def test_older_cancelled_draft_reservation_does_not_block_admission(self):
-        # Arrange: an earlier deployment left the reservation after cancellation.
+    def test_one_cancelled_draft_reservation_allows_handoff(self):
+        # Arrange: one cancelled draft is still unwinding.
         draft = self._draft(status=ProposalDraft.Status.CANCELLED)
         draft.usage_reservation_expires_at = reservation_deadline()
         draft.save(update_fields=["usage_reservation_expires_at"])

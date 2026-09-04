@@ -49,6 +49,12 @@ class UsageWorkInProgressError(RuntimeError):
     code = "usage_work_in_progress"
 
 
+# One cancelled provider call may overlap its immediate replacement. A second
+# outstanding call closes the handoff until either worker unwinds or its lease
+# expires, bounding repeated cancel-and-resubmit cycles to two paid calls.
+MAX_OUTSTANDING_CANCELLED_CALLS = 1
+
+
 @dataclass(frozen=True)
 class BudgetStatus:
     tier: str
@@ -241,25 +247,45 @@ def check_budget_admission(user) -> BudgetStatus:
 def _has_in_flight_work(user) -> bool:
     """Whether a budgeted user has an active job blocking admission.
 
-    Cancelled jobs never block a new task, including older rows that still
-    carry a reservation deadline from before cancellation released it.
+    One cancelled-but-still-unwinding provider call is allowed as a handoff.
+    Active work always blocks, and a second outstanding cancellation blocks
+    another replacement until a worker clears its lease or the lease expires.
     """
-    return (
+    now = timezone.now()
+    active_execution = AgentExecution.objects.filter(
+        conversation__user=user,
+        status__in=[
+            AgentExecution.Status.PENDING,
+            AgentExecution.Status.RUNNING,
+        ],
+    ).exists()
+    active_draft = ProposalDraft.objects.filter(
+        created_by=user,
+        status__in=[
+            ProposalDraft.Status.PENDING,
+            ProposalDraft.Status.PROCESSING,
+        ],
+    ).exists()
+    if active_execution or active_draft:
+        return True
+
+    cancelled_executions = (
         AgentExecution.objects.filter(
             conversation__user=user,
-            status__in=[
-                AgentExecution.Status.PENDING,
-                AgentExecution.Status.RUNNING,
-            ],
-        ).exists()
-        or ProposalDraft.objects.filter(
-            created_by=user,
-            status__in=[
-                ProposalDraft.Status.PENDING,
-                ProposalDraft.Status.PROCESSING,
-            ],
-        ).exists()
+            status=AgentExecution.Status.CANCELLED,
+            usage_reservation_expires_at__gt=now,
+        )
+        # Proposal drafting reserves its parent draft rather than the optional
+        # trace execution, so counting both would treat one job as two calls.
+        .exclude(conversation__workflow="proposal_draft")
+        .count()
     )
+    cancelled_drafts = ProposalDraft.objects.filter(
+        created_by=user,
+        status=ProposalDraft.Status.CANCELLED,
+        usage_reservation_expires_at__gt=now,
+    ).count()
+    return cancelled_executions + cancelled_drafts > MAX_OUTSTANDING_CANCELLED_CALLS
 
 
 @contextmanager
@@ -274,9 +300,9 @@ def atomic_turn_admission(
 
     The caller must create its pending execution or draft before leaving
     this context. That row is the reservation observed by the next admission.
-    Budgeted users may have one active top-level job. Cancellation releases
-    that slot immediately; any already-started provider call can overlap its
-    replacement while unwinding, and its eventual usage is still charged.
+    Budgeted users may have one active top-level job. One cancelled provider
+    call can overlap its immediate replacement while unwinding; a second
+    cancellation blocks further admission until a lease clears or expires.
     """
     with transaction.atomic():
         locked_user = type(user)._default_manager.select_for_update().get(pk=user.pk)
