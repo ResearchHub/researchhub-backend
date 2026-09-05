@@ -18,7 +18,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
-from hub.models import Hub
 from invite.models import NoteInvitation
 from invite.serializers import DynamicNoteInvitationSerializer
 from invite.services import NoteInvitationExpiredError, NoteInvitationService
@@ -62,7 +61,6 @@ DRAFT_FIELDS = frozenset(
     {
         "author_ids",
         "grant_settings",
-        "hub_ids",
         "image",
         "preregistration_settings",
         "preview_img",
@@ -99,7 +97,6 @@ class NoteViewSet(ModelViewSet):
                 "grant_settings__contacts",
                 # The selected grant's image lives on its post.
                 "selected_grant__unified_document__posts",
-                "unified_document__hubs",
             )
             .distinct()
             .order_by("-created_date")
@@ -207,7 +204,7 @@ class NoteViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
-            unified_doc = self._create_unified_doc(request)
+            unified_doc = self._create_unified_doc()
             self._create_permission(user, organization, unified_doc, grouping)
             note = serializer.save(
                 created_by=user,
@@ -218,13 +215,9 @@ class NoteViewSet(ModelViewSet):
         note.notify_note_created()
         return Response(serializer.data, status=200)
 
-    def _create_unified_doc(self, request):
-        data = request.data
-        hubs = Hub.objects.filter(id__in=data.get("hubs", [])).all()
-        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type=NOTE)
-        unified_doc.hubs.add(*hubs)
-        unified_doc.save()
-        return unified_doc
+    def _create_unified_doc(self) -> ResearchhubUnifiedDocument:
+        """Create the unified document that owns a notebook note."""
+        return ResearchhubUnifiedDocument.objects.create(document_type=NOTE)
 
     def _create_permission(self, creator, organization, unified_document, grouping):
         content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)

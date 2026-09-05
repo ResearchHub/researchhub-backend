@@ -10,8 +10,6 @@ from rest_framework.serializers import (
     ValidationError,
 )
 
-from hub.models import Hub
-from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from note.models import GrantSettings, Note, NoteContent, PreregistrationSettings
 from note.services.grant_selection_service import (
     GrantSelectionError,
@@ -162,20 +160,6 @@ class NoteSerializer(ModelSerializer):
         _include_fields=["first_name", "id", "last_name", "profile_image", "user"],
     )
     grant_settings = GrantSettingsSerializer(required=False)
-    hub_ids = PrimaryKeyRelatedField(
-        many=True,
-        queryset=Hub.objects.all(),
-        required=False,
-        write_only=True,
-    )
-    # Topic chips need names, not the editor permission groups SimpleHubSerializer
-    # queries and serializes per hub.
-    hubs = DynamicHubSerializer(
-        many=True,
-        read_only=True,
-        source="unified_document.hubs",
-        _include_fields=["id", "name", "slug"],
-    )
     # Version lineage and workspace are owned by the content signal and the
     # view's organization_slug resolution, never by a note payload.
     latest_version = NoteContentSerializer(read_only=True)
@@ -282,7 +266,6 @@ class NoteSerializer(ModelSerializer):
         """Remove the related draft values, which the draft service writes itself."""
         return {
             "authors": validated_data.pop("author_ids", None),
-            "hubs": validated_data.pop("hub_ids", None),
             "grant_settings": validated_data.pop("grant_settings", None),
             "preregistration_settings": validated_data.pop(
                 "preregistration_settings", None
@@ -346,12 +329,6 @@ class NoteSerializer(ModelSerializer):
                     "user",
                 ]
             },
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                ]
-            },
             "doc_dps_get_unified_document": {"_include_fields": ["fundraise", "grant"]},
             "doc_duds_get_fundraise": {
                 "_include_fields": [
@@ -396,7 +373,6 @@ class NoteSerializer(ModelSerializer):
             _include_fields=[
                 "authors",
                 "doi",
-                "hubs",
                 "id",
                 "image_url",
                 "slug",
@@ -507,12 +483,6 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "user",
                 ]
             },
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                ]
-            },
             "doc_dps_get_unified_document": {"_include_fields": ["fundraise", "grant"]},
             "doc_duds_get_fundraise": {
                 "_include_fields": [
@@ -557,7 +527,6 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
             _include_fields=[
                 "authors",
                 "doi",
-                "hubs",
                 "id",
                 "image_url",
                 "slug",
@@ -598,9 +567,6 @@ def build_registered_report_prefill(
     if not authors and note.created_by is not None:
         authors = [note.created_by.author_profile]
         author_ids = [note.created_by.author_profile.id]
-    hubs = note.unified_document.hubs.all()
-    hub_ids = list(hubs.values_list("id", flat=True))
-    hub_data = SimpleHubSerializer(hubs, context=context, many=True).data
     image, preview_img = _get_registered_report_images(metadata)
     if image:
         preview_img = default_storage.url(image)
@@ -615,8 +581,6 @@ def build_registered_report_prefill(
         "image": image,
         "preview_img": preview_img,
         "proposal_id": metadata.get("proposal_id"),
-        "hub_ids": hub_ids,
-        "hubs": hub_data,
     }
 
 

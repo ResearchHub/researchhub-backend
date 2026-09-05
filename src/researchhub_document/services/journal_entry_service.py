@@ -235,7 +235,6 @@ class JournalEntryService:
         unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=NOTE,
         )
-        unified_document.hubs.set(proposal.unified_document.hubs.all())
         note = Note.objects.create(
             created_by=creator,
             document_type=REGISTERED_REPORT,

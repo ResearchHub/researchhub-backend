@@ -4,7 +4,6 @@ Nothing here creates a live ``Grant``, ``Fundraise``, escrow, application, or
 nonprofit link; those remain publish-time concerns.
 """
 
-from hub.models import Hub
 from note.models import GrantSettings, Note, PreregistrationSettings
 from user.models import Author
 
@@ -13,15 +12,12 @@ def save_note_draft_details(
     note: Note,
     *,
     authors: list[Author] | None,
-    hubs: list[Hub] | None,
     grant_settings: dict | None,
     preregistration_settings: dict | None,
 ) -> None:
     """Write every supplied relationship, leaving omitted ones untouched."""
     if authors is not None:
         note.reset_note_authors([author.id for author in authors])
-    if hubs is not None:
-        note.unified_document.hubs.set(hubs)
     if grant_settings is not None:
         _save_grant_settings(note, grant_settings)
     if preregistration_settings is not None:
