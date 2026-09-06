@@ -127,9 +127,7 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(result["distributed_funds"]["rsc"], 170.0)
         self.assertAlmostEqual(result["distributed_funds"]["rsc_usd_snapshot"], 30.0)
 
-    def test_matched_funds_tracks_only_contributions_to_user_funded_proposals(
-        self,
-    ) -> None:
+    def test_proposal_cofunded_counts_towards_matched_fund_stat(self) -> None:
         """Matched funds include co-funding only for proposals the user has funded."""
         # Arrange
         applicant = create_random_authenticated_user("standalone_applicant")
@@ -179,7 +177,10 @@ class TestFundingOverviewService(TestCase):
         self.assertEqual(result["matched_funds"]["rsc"], 300.0)
         self.assertAlmostEqual(result["matched_funds"]["rsc_usd_snapshot"], 30.0)
 
-    def test_matched_funds_excludes_funder_contributions(self):
+    def test_proposal_not_cofunded_does_not_count_towards_matched_fund_stat(
+        self,
+    ) -> None:
+        """A proposal funded only by the user does not add matched funds."""
         # Arrange
         _, _, fundraise, _ = self._create_grant_with_proposal()
         self._contribute(self.user, fundraise, rsc=100, rsc_usd_rate=0.10)
