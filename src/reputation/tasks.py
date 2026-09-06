@@ -19,7 +19,6 @@ from reputation.lib import (
     check_pending_withdrawal,
 )
 from reputation.models import Bounty, BountySolution, Contribution, Withdrawal
-from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.related_models.score import Score
 from reputation.services.staking_yield_service import StakingYieldService
@@ -457,40 +456,6 @@ def find_qualified_users_and_notify(
             notifications_sent.append(notification)
 
     return notifications_sent
-
-
-@app.task
-def find_bounties_for_user_and_notify(user_id) -> Notification | None:
-    user = User.objects.get(id=user_id)
-    bounties: list[AnnotatedBounty] = Bounty.find_bounties_for_user(user)
-
-    for bounty in bounties:
-        notification = Notification.objects.filter(
-            object_id=bounty.id,
-            content_type=ContentType.objects.get_for_model(Bounty),
-            recipient=user,
-        )
-
-        if not notification.exists():
-            hub = Hub.objects.get(id=bounty.matching_hub_id)
-
-            notification = Notification.objects.create(
-                item=bounty,
-                recipient=user,
-                action_user=user,
-                unified_document=bounty.unified_document,
-                notification_type=Notification.BOUNTY_FOR_YOU,
-                extra={
-                    "bounty_id": bounty.id,
-                    "amount": bounty.amount,
-                    "bounty_type": bounty.bounty_type,
-                    "bounty_expiration_date": bounty.expiration_date,
-                    "user_hub_score": bounty.user_hub_score,
-                    "hub_details": json.dumps({"name": hub.name, "slug": hub.slug}),
-                },
-            )
-            notification.send_notification()
-            return notification
 
 
 @app.task(queue=QUEUE_PURCHASES)

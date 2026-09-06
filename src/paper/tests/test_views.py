@@ -1,5 +1,3 @@
-import json
-from pathlib import Path
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -8,159 +6,14 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from paper.models import Paper
-from paper.related_models.authorship_model import Authorship
 from paper.tests.helpers import create_paper
-from paper.views.paper_views import PaperViewSet
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import (
     create_random_authenticated_user,
-    create_user,
 )
-from utils.openalex import OpenAlex
 from utils.test_helpers import create_test_user
-
-fixtures_dir = Path(__file__).parent / "fixtures"
-
-
-class PaperApiTests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-
-    @patch.object(OpenAlex, "get_data_from_doi")
-    @patch.object(OpenAlex, "get_works")
-    def test_fetches_author_works_by_doi_if_name_matches(
-        self, mock_get_works, mock_get_data_from_doi
-    ):
-        with (
-            open(fixtures_dir / "openalex_author_works.json") as works_file,
-            open(fixtures_dir / "openalex_single_work.json") as single_work_file,
-        ):
-            # Set up a user that has a matching name to the one in the mocked response
-            user_with_published_works = create_user(
-                first_name="Yang",
-                last_name="Wang",
-                email="random_author@researchhub.com",
-            )
-            self.client.force_authenticate(user_with_published_works)
-
-            # Mock responses for OpenAlex API calls
-            mock_data = json.load(works_file)
-            mock_get_works.return_value = (mock_data["results"], None)
-            mock_get_data_from_doi.return_value = json.load(single_work_file)
-
-            response = self.client.get(
-                "/api/paper/fetch_publications_by_doi/?doi=10.1371/journal.pone.0305345",
-            )
-
-            self.assertGreater(len(response.data["works"]), 0)
-
-    @patch.object(OpenAlex, "get_data_from_doi")
-    @patch.object(OpenAlex, "get_works")
-    def test_cannot_fetch_author_works_by_doi_if_name_mismatch(
-        self, mock_get_works, mock_get_data_from_doi
-    ):
-        with (
-            open(fixtures_dir / "openalex_author_works.json") as works_file,
-            open(fixtures_dir / "openalex_single_work.json") as single_work_file,
-        ):
-            # Set up a user that has a matching name to the one in the mocked response
-            user_with_published_works = create_user(
-                first_name="Name",
-                last_name="Mismatch",
-                email="random_author@researchhub.com",
-            )
-            self.client.force_authenticate(user_with_published_works)
-
-            # Mock responses for OpenAlex API calls
-            mock_data = json.load(works_file)
-            mock_get_works.return_value = (mock_data["results"], None)
-            mock_get_data_from_doi.return_value = json.load(single_work_file)
-
-            response = self.client.get(
-                "/api/paper/fetch_publications_by_doi/?doi=10.1371/journal.pone.0305345",
-            )
-
-            self.assertEqual(len(response.data["works"]), 0)
-            self.assertGreater(len(response.data["available_authors"]), 0)
-
-    @patch.object(OpenAlex, "get_data_from_doi")
-    @patch.object(OpenAlex, "get_works")
-    def test_fetch_author_works_by_doi_can_accept_optional_author_id(
-        self, mock_get_works, mock_get_data_from_doi
-    ):
-        with (
-            open(fixtures_dir / "openalex_author_works.json") as works_file,
-            open(fixtures_dir / "openalex_single_work.json") as single_work_file,
-        ):
-            # Set up a user that has a matching name to the one in the mocked response
-            user_with_published_works = create_user(
-                first_name="Name",
-                last_name="Mismatch",
-                email="random_author@researchhub.com",
-            )
-            self.client.force_authenticate(user_with_published_works)
-
-            # Mock responses for OpenAlex API calls
-            mock_data = json.load(works_file)
-            mock_get_works.return_value = (mock_data["results"], None)
-            mock_get_data_from_doi.return_value = json.load(single_work_file)
-
-            # Override author guessing by explicilty providing author_id
-            author_id = "A5075662890"
-
-            response = self.client.get(
-                f"/api/paper/fetch_publications_by_doi/?doi=10.1371/journal.pone.0305345&author_id={author_id}",
-            )
-
-            self.assertEqual(response.data["selected_author_id"], author_id)
-
-    def test_filter_unclaimed_works(self):
-        # Arrange
-        author = create_user(first_name="test_unclaimed_works").author_profile
-        openalex_works = [{"id": "openalex1"}, {"id": "openalex2"}, {"id": "openalex3"}]
-
-        paper = Paper.objects.create(openalex_id="openalex2")
-        Authorship.objects.create(author=author, paper=paper)
-
-        # Act
-        unclaimed_works = PaperViewSet()._filter_unclaimed_works(author, openalex_works)
-
-        # Assert
-        self.assertEqual(len(unclaimed_works), 2)
-        self.assertEqual(unclaimed_works, [{"id": "openalex1"}, {"id": "openalex3"}])
-
-    def test_filter_unclaimed_works_all_claimed(self):
-        # Arrange
-        author = create_user(first_name="test_unclaimed_works").author_profile
-        openalex_works = [{"id": "openalex1"}, {"id": "openalex2"}, {"id": "openalex3"}]
-
-        paper1 = Paper.objects.create(openalex_id="openalex1")
-        paper2 = Paper.objects.create(openalex_id="openalex2")
-        paper3 = Paper.objects.create(openalex_id="openalex3")
-
-        Authorship.objects.create(author=author, paper=paper1)
-        Authorship.objects.create(author=author, paper=paper2)
-        Authorship.objects.create(author=author, paper=paper3)
-
-        # Act
-        unclaimed_works = PaperViewSet()._filter_unclaimed_works(author, openalex_works)
-
-        # Assert
-        self.assertEqual(unclaimed_works, [])
-
-    def test_filter_unclaimed_works_none_claimed(self):
-        # Arrange
-        author = create_user(first_name="test_unclaimed_works").author_profile
-        openalex_works = [{"id": "openalex1"}, {"id": "openalex2"}, {"id": "openalex3"}]
-
-        # Act
-        unclaimed_works = PaperViewSet()._filter_unclaimed_works(author, openalex_works)
-
-        # Assert
-        self.assertEqual(len(unclaimed_works), 3)
-        self.assertEqual(unclaimed_works, openalex_works)
 
 
 class PaperDOITests(TestCase):

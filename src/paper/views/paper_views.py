@@ -5,22 +5,18 @@ from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import (
     AllowAny,
-    IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
 from rest_framework.response import Response
 
 from discussion.views import ReactionViewActionMixin
-from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from paper.permissions import UpdatePaper
-from paper.related_models.authorship_model import Authorship
 from paper.serializers import (
     DynamicPaperSerializer,
     PaperSerializer,
 )
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.openalex import OpenAlex
@@ -232,102 +228,6 @@ class PaperViewSet(
         paper = super().get_object()
         serializer_data = self._serialize_paper(paper, request)
         return Response(serializer_data)
-
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
-    def fetch_publications_by_doi(self, request):
-        doi_string = request.query_params.get("doi", "")
-        rh_author = request.user.author_profile
-
-        # Client has the ability (optional) to specify explicilty which OpenAlex ID it
-        # wants works for
-        openalex_author_id = request.query_params.get("author_id", None)
-
-        if doi_string is None:
-            return Response(status=400)
-
-        try:
-            # Sometimes user may pass in a doi as doi.org url.
-            doi_string = doi_string.replace("https://doi.org/", "").strip()
-
-            try:
-                # Fetch data from OpenAlex
-                open_alex_api = OpenAlex()
-                work = open_alex_api.get_data_from_doi(doi_string)
-            except DOINotFoundError:
-                return Response(status=404)
-
-            # Next we want to try and guess the author in the list of authors associated
-            # with the work.
-            # The guess doesn't have to be precise since the user will have the ability
-            # to select the correct author.
-            # In case we can't guess the author, we will return an error.
-            if not openalex_author_id:
-                for authorship in work.get("authorships", []):
-                    found_openalex_author = None
-                    openalex_author = authorship.get("author", {})
-                    openalex_author_name = (
-                        openalex_author.get("display_name", "").lower().split(" ")
-                    )
-
-                    rh_author_first_name = (rh_author.first_name or "").lower()
-                    rh_author_last_name = (rh_author.last_name or "").lower()
-
-                    if (
-                        (
-                            rh_author_first_name == openalex_author_name[0]
-                            and rh_author_last_name == openalex_author_name[-1]
-                        )
-                        or (
-                            found_openalex_author is None
-                            and rh_author_last_name == openalex_author_name[0]
-                        )
-                        or (
-                            found_openalex_author is None
-                            and rh_author_first_name == openalex_author_name[-1]
-                        )
-                    ):
-                        found_openalex_author = openalex_author
-
-                    if found_openalex_author:
-                        openalex_author_id = found_openalex_author.get("id", "")
-
-            # Fetch author works
-            author_works = []
-            if openalex_author_id:
-                openalex_author_id = openalex_author_id.split("/")[-1]
-                author_works, _ = open_alex_api.get_works(
-                    openalex_author_id=openalex_author_id, batch_size=200
-                )
-            unclaimed_works = self._filter_unclaimed_works(rh_author, author_works)
-
-            response = {
-                "works": unclaimed_works,
-                "selected_author_id": openalex_author_id,
-                "available_authors": [
-                    authorship.get("author")
-                    for authorship in work.get("authorships", [])
-                ],
-            }
-
-            return Response(response, status=200)
-        except Exception:
-            logger.exception(
-                "Error fetching publications by DOI", extra={"doi": doi_string}
-            )
-            return Response(status=500)
-
-    def _filter_unclaimed_works(self, author: Author, openalex_works: list) -> list:
-        """
-        Returns a list of works that the author has not claimed yet.
-        """
-        authorships = Authorship.objects.filter(author=author)
-        claimed_works = Paper.objects.filter(
-            id__in=authorships.values_list("paper_id", flat=True)
-        ).values_list("openalex_id", flat=True)
-        unclaimed_works = list(
-            filter(lambda work: work["id"] not in claimed_works, openalex_works)
-        )
-        return unclaimed_works
 
     @action(
         detail=False,

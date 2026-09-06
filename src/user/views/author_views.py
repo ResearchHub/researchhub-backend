@@ -1,4 +1,3 @@
-from celery import chain
 from django.core.cache import cache
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -10,9 +9,7 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-from paper.openalex_tasks import pull_openalex_author_works_batch
 from paper.related_models.authorship_model import Authorship
-from researchhub.settings import TESTING
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -31,7 +28,6 @@ from user.serializers import (
 )
 from user.services.profile_deletion_service import ProfileDeletionService
 from user.tasks import invalidate_author_profile_caches
-from user.utils import AuthorClaimError, claim_openalex_author_profile
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
@@ -178,42 +174,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
-
-    @action(
-        detail=True,
-        permission_classes=[IsAuthenticated, IsVerifiedUser],
-    )
-    @publications.mapping.post
-    def add_publications(self, request, pk=None):
-        author = request.user.author_profile
-        openalex_ids = request.data.get("openalex_ids", [])
-        openalex_author_id = request.data.get("openalex_author_id", None)
-
-        # Ensure the openalex author id is a full url since it is the format stored in
-        # our system
-        if "openalex.org" not in openalex_author_id:
-            openalex_author_id = f"https://openalex.org/authors/{openalex_author_id}"
-
-        # Attempt to associate the openalex author id with the RH author
-        try:
-            claim_openalex_author_profile(author.id, openalex_author_id)
-        except AuthorClaimError:
-            pass
-        except Exception:
-            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        if len(openalex_ids) > 0:
-            # if True:
-            if TESTING:
-                pull_openalex_author_works_batch(openalex_ids, request.user.id)
-                invalidate_author_profile_caches(None, author.id)
-            else:
-                chain(
-                    pull_openalex_author_works_batch.s(openalex_ids, request.user.id),
-                    invalidate_author_profile_caches.s(author.id),
-                ).apply_async(priority=1)
-
-        return Response(status=status.HTTP_200_OK)
 
     @action(
         detail=True,
