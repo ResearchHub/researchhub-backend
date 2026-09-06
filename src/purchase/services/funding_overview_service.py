@@ -10,37 +10,24 @@ from user.models import User
 
 
 class FundingOverviewService(OverviewMixin):
-    """Funding portfolio dashboard metrics for grant creators."""
+    """Funding portfolio dashboard metrics for funders."""
 
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
-        grant_fundraise_ids = self._grant_fundraise_ids(user)
-        all_funded_ids = list(get_funded_fundraise_ids(user.id))
+        funded_fundraise_ids = list(get_funded_fundraise_ids(user.id))
 
         return {
             "matched_funds": self._matched_contributions_breakdown(
-                user.id, grant_fundraise_ids
+                user.id, funded_fundraise_ids
             ),
             "distributed_funds": self._user_contributions_breakdown(
-                user.id, all_funded_ids
+                user.id, funded_fundraise_ids
             ),
-            "supported_proposals": self._supported_proposals(user.id, all_funded_ids),
-            "supported_nonprofits": self._supported_nonprofits(all_funded_ids),
+            "supported_proposals": self._supported_proposals(
+                user.id, funded_fundraise_ids
+            ),
+            "supported_nonprofits": self._supported_nonprofits(funded_fundraise_ids),
         }
-
-    def _grant_fundraise_ids(self, user: User) -> list[int]:
-        """Fundraise IDs for proposals that applied to this user's grants."""
-        return list(
-            GrantApplication.objects.for_user_grants(user)
-            .exclude(
-                preregistration_post__unified_document__fundraises__id__isnull=True
-            )
-            .values_list(
-                "preregistration_post__unified_document__fundraises__id",
-                flat=True,
-            )
-            .distinct()
-        )
 
     def _supported_proposals(
         self, user_id: int, funded_fundraise_ids: list[int]
