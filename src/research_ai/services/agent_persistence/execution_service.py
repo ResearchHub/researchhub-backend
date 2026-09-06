@@ -13,6 +13,7 @@ from research_ai.models import (
     AgentExecutionMessage,
 )
 from research_ai.services.agent_persistence.recorder import DatabaseAgentRecorder
+from research_ai.services.usage_budget.reservation import reservation_deadline
 
 RecorderFactory = Callable[..., DatabaseAgentRecorder]
 
@@ -222,6 +223,8 @@ class AgentExecutionService:
             "started_at": now,
             "last_activity_at": now,
         }
+        if execution.usage_reservation_expires_at is not None:
+            updates["usage_reservation_expires_at"] = reservation_deadline(now)
         if publish_assistant_message is not None:
             updates["publish_output_to_chat"] = publish_assistant_message
         claimed = AgentExecution.objects.filter(

@@ -1,8 +1,4 @@
-"""API tests for the proposal-draft endpoints.
-
-The Celery task is patched at the view boundary; running the actual
-drafting loop is covered by ``test_proposal_draft_service``.
-"""
+"""API tests for the proposal-draft endpoints."""
 
 from unittest.mock import patch
 
@@ -11,11 +7,21 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from research_ai.models import Expert, ExpertSearch, ProposalDraft, SearchExpert
+from research_ai.services.proposal_draft.create_service import (
+    ProposalDraftAlreadyActiveError,
+    ProposalDraftEnqueueError,
+)
 from user.tests.helpers import create_random_authenticated_user
 
 BASE_URL = "/api/research_ai/expert-finder/proposal-drafts/"
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
+}
 
 
+@override_settings(**MODEL_SETTINGS)
 class ProposalDraftCreateViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
@@ -30,22 +36,39 @@ class ProposalDraftCreateViewTests(APITestCase):
             expert=self.expert,
         )
 
-    def test_create_requires_editor_or_moderator(self):
+    @patch("research_ai.views.proposal_draft_views.ProposalDraftCreateService.create")
+    def test_default_tier_user_cannot_create(self, mock_create):
         # Arrange
+        own_search = ExpertSearch.objects.create(
+            created_by=self.user,
+            query="protein folding",
+        )
+        own_search_expert = SearchExpert.objects.create(
+            expert_search=own_search,
+            expert=self.expert,
+        )
         self.client.force_authenticate(self.user)
 
         # Act
         response = self.client.post(
-            BASE_URL, {"search_expert_id": self.search_expert.id}, format="json"
+            BASE_URL, {"search_expert_id": own_search_expert.id}, format="json"
         )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        mock_create.assert_not_called()
 
-    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
-    def test_create_returns_201_and_enqueues_task(self, mock_delay):
+    @patch("research_ai.views.proposal_draft_views.ProposalDraftCreateService.create")
+    def test_create_returns_201_and_forwards_validated_input(self, mock_create):
         # Arrange
         self.client.force_authenticate(self.moderator)
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.moderator,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        mock_create.return_value = draft
 
         # Act
         response = self.client.post(
@@ -55,67 +78,59 @@ class ProposalDraftCreateViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         data = response.json()
-        draft = ProposalDraft.objects.get(id=data["id"])
-        self.assertEqual(draft.search_expert_id, self.search_expert.id)
-        self.assertEqual(draft.created_by, self.moderator)
-        self.assertEqual(draft.status, ProposalDraft.Status.PENDING)
-        self.assertEqual(draft.step, ProposalDraft.Step.QUEUED)
+        self.assertEqual(data["id"], draft.id)
         self.assertEqual(data["status"], ProposalDraft.Status.PENDING)
-        mock_delay.assert_called_once_with(draft.id)
+        mock_create.assert_called_once_with(
+            search_expert=self.search_expert,
+            created_by=self.moderator,
+            model_ref="",
+            effort=None,
+            thinking=None,
+            temperature=None,
+        )
 
-    @override_settings(
-        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
-    )
-    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
-    def test_create_records_a_selected_model(self, mock_delay):
+    @patch("research_ai.views.proposal_draft_views.ProposalDraftCreateService.create")
+    def test_enqueue_failure_returns_503(self, mock_create):
         # Arrange
         self.client.force_authenticate(self.moderator)
+        mock_create.side_effect = ProposalDraftEnqueueError(
+            "Could not queue proposal drafting task"
+        )
+
+        # Act
+        response = self.client.post(
+            BASE_URL, {"search_expert_id": self.search_expert.id}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.json()["code"], "proposal_draft_enqueue_failed")
+
+    @patch("research_ai.views.proposal_draft_views.ProposalDraftCreateService.create")
+    def test_invalid_generation_options_return_400(self, mock_create):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+        mock_create.side_effect = ValueError(
+            "model 'claude_platform:claude-opus-5' does not support temperature"
+        )
 
         # Act
         response = self.client.post(
             BASE_URL,
             {
                 "search_expert_id": self.search_expert.id,
-                "model": "claude_platform:claude-sonnet-5",
+                "model": "claude_platform:claude-opus-5",
+                "temperature": 0.4,
             },
             format="json",
         )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        data = response.json()
-        draft = ProposalDraft.objects.get(id=data["id"])
-        self.assertEqual(draft.model_ref, "claude_platform:claude-sonnet-5")
-        self.assertEqual(data["model_ref"], "claude_platform:claude-sonnet-5")
-        mock_delay.assert_called_once_with(draft.id)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("does not support temperature", response.json()["detail"])
 
-    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
-    def test_create_records_generation_options_for_the_worker(self, mock_delay):
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.post(
-            BASE_URL,
-            {
-                "search_expert_id": self.search_expert.id,
-                "effort": "high",
-                "thinking": "disabled",
-            },
-            format="json",
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        draft = ProposalDraft.objects.get(id=response.json()["id"])
-        self.assertEqual(
-            draft.run_config,
-            {"effort": "high", "thinking": "disabled"},
-        )
-        mock_delay.assert_called_once_with(draft.id)
-
-    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
-    def test_create_with_unknown_model_returns_400(self, mock_delay):
+    @patch("research_ai.views.proposal_draft_views.ProposalDraftCreateService.create")
+    def test_create_with_unknown_model_returns_400(self, mock_create):
         # Arrange
         self.client.force_authenticate(self.moderator)
 
@@ -132,8 +147,7 @@ class ProposalDraftCreateViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("model", response.json())
-        self.assertFalse(ProposalDraft.objects.exists())
-        mock_delay.assert_not_called()
+        mock_create.assert_not_called()
 
     def test_create_without_search_expert_id_returns_400(self):
         # Arrange
@@ -157,14 +171,15 @@ class ProposalDraftCreateViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @patch("research_ai.views.proposal_draft_views.run_proposal_draft_task.delay")
-    def test_create_with_active_draft_returns_409(self, mock_delay):
+    @patch("research_ai.views.proposal_draft_views.ProposalDraftCreateService.create")
+    def test_create_with_active_draft_returns_409(self, mock_create):
         # Arrange
         draft = ProposalDraft.objects.create(
             search_expert=self.search_expert,
             status=ProposalDraft.Status.PROCESSING,
         )
         self.client.force_authenticate(self.moderator)
+        mock_create.side_effect = ProposalDraftAlreadyActiveError(draft)
 
         # Act
         response = self.client.post(
@@ -173,11 +188,10 @@ class ProposalDraftCreateViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertEqual(ProposalDraft.objects.count(), 1)
-        mock_delay.assert_not_called()
         self.assertEqual(response.json()["proposal_draft_id"], draft.id)
 
 
+@override_settings(**MODEL_SETTINGS)
 class ProposalDraftDetailViewTests(APITestCase):
     def setUp(self):
         # Arrange
@@ -201,8 +215,10 @@ class ProposalDraftDetailViewTests(APITestCase):
             error_message="gates not cleared within 2 rounds",
         )
 
-    def test_detail_requires_editor_or_moderator(self):
+    def test_default_tier_user_cannot_read_own_detail(self):
         # Arrange
+        self.draft.created_by = self.user
+        self.draft.save(update_fields=["created_by"])
         self.client.force_authenticate(self.user)
 
         # Act
@@ -240,6 +256,7 @@ class ProposalDraftDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+@override_settings(**MODEL_SETTINGS)
 class ProposalDraftCancelViewTests(APITestCase):
     def setUp(self):
         # Arrange
@@ -264,14 +281,16 @@ class ProposalDraftCancelViewTests(APITestCase):
     def _cancel(self, draft_id=None):
         return self.client.post(f"{BASE_URL}{draft_id or self.draft.id}/cancel/")
 
-    def test_cancel_requires_editor_or_moderator(self):
+    def test_default_tier_user_cannot_cancel_own_draft(self):
         # Arrange
+        self.draft.created_by = self.user
+        self.draft.save(update_fields=["created_by"])
         self.client.force_authenticate(self.user)
 
         # Act
         response = self._cancel()
 
-        # Assert: drafting is a privileged operation, and so is stopping one.
+        # Assert
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.draft.refresh_from_db()
         self.assertEqual(self.draft.status, ProposalDraft.Status.PROCESSING)

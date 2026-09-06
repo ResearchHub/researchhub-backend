@@ -146,7 +146,7 @@ class Agent:
         toolset: Toolset,
         *,
         system_prompt: str,
-        max_iterations: int,
+        max_iterations: int | None,
         max_tokens: int | None,
         temperature: float,
         recorder: AgentRecorder | None = None,
@@ -381,11 +381,13 @@ class Agent:
     def _loop(self, messages: list[Message]) -> AgentResult:
         rendered_tools = self.toolset.render_specs(self.provider)
         logger.info(
-            "agent run start: tools=[%s] max_iterations=%d",
+            "agent run start: tools=[%s] max_iterations=%s",
             ", ".join(self.toolset.names),
             self.max_iterations,
         )
-        for iteration in range(1, self.max_iterations + 1):
+        iteration = 0
+        while self.max_iterations is None or iteration < self.max_iterations:
+            iteration += 1
             # Before spending on the model, not only before a tool: a provider
             # call is the most expensive thing an iteration does and can hold the
             # worker for the vendor SDK's whole retry budget, so a run that was
@@ -424,9 +426,9 @@ class Agent:
                 # calls and handed the turn back mid-flight. Nothing is owed in
                 # reply: sending the conversation back with this turn appended
                 # and no user turn after it resumes where it left off. It counts
-                # as an iteration, which is what bounds a pathological pause
-                # loop. (A paused turn that *also* called a client tool falls
-                # through to the dispatch below -- those results resume it too.)
+                # as an iteration toward any configured limit. A paused turn
+                # that also called a client tool falls through to the dispatch
+                # below -- those results resume it too.
                 logger.info("iter %d pause_turn: resuming server-side work", iteration)
                 continue
             if not turn.tool_calls:

@@ -136,6 +136,14 @@ class AgentExecution(DefaultModel):
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     last_activity_at = models.DateTimeField(null=True, blank=True)
+    usage_reservation_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment=(
+            "Renewable lease reserving the user's Research AI budget slot while "
+            "this execution may still be producing spend."
+        ),
+    )
     next_message_sequence = models.PositiveIntegerField(default=1)
     next_context_sequence = models.PositiveIntegerField(default=1)
     publish_output_to_chat = models.BooleanField(

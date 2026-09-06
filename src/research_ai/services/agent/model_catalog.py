@@ -18,7 +18,8 @@ Celery workers that execute turns, not on the API process that serves this
 listing, so checking them here would hide models that run fine; each provider
 raises on missing credentials where they are actually used. The configured
 generator default is listed too, even when it falls outside the catalog,
-because it is what runs when the user picks nothing.
+so a misconfigured default remains visible. All selections require reviewed
+pricing; tier-aware default resolution falls back to a priced model.
 """
 
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from research_ai.services.agent.model_capabilities import (
     ModelCapabilities,
     model_capabilities,
 )
+from research_ai.services.agent.model_pricing import model_pricing
 from research_ai.services.agent.providers.registry import (
     CLAUDE_PLATFORM,
     OPENROUTER,
@@ -113,11 +115,11 @@ _CATALOG: tuple[ModelOption, ...] = (
 
 
 def available_models() -> list[ModelOption]:
-    """The models a user may select, generator default first-class.
+    """The model listing, including the configured generator default.
 
     The configured generator default is prepended when the catalog does not
-    already carry it, so "what runs by default" is always also a legal
-    explicit choice.
+    already carry it. An unpriced default stays visible for diagnostics but
+    cannot be selected; tier default resolution chooses a priced alternative.
     """
     options = list(_CATALOG)
     default_ref = default_model_ref()
@@ -148,6 +150,9 @@ def validate_model_ref(value: str | None) -> str | None:
     requested = _canonical(value.strip())
     for option in available_models():
         if _canonical(option.ref) == requested:
+            provider, model_id = split_model_ref(option.ref)
+            if model_pricing(provider, model_id or "") is None:
+                raise ValueError(f"model {option.ref!r} has no reviewed pricing")
             return option.ref
     raise ValueError(f"unknown model: {value.strip()!r}")
 

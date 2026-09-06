@@ -26,6 +26,7 @@ from research_ai.models import (
     SearchExpert,
 )
 from research_ai.services.agent import LLMProvider
+from research_ai.services.agent import model_pricing as pricing_module
 from research_ai.services.agent.types import (
     AssistantTurn,
     StopReason,
@@ -235,6 +236,24 @@ def _clean_payload(citations=None):
 
 class ProposalDraftServiceTests(TestCase):
     def setUp(self):
+        # Fake provider identities need explicit pricing just like real models.
+        pricing = pricing_module.model_pricing("claude_platform", "claude-opus-5")
+        self.enterContext(
+            patch.dict(
+                pricing_module._PROVIDER_PRICING,
+                {
+                    name: {name.lower(): pricing}
+                    for name in (
+                        "_ScriptedProvider",
+                        "_AlwaysSubmitProvider",
+                        "_SequenceSubmitProvider",
+                        "_SnapshottingProvider",
+                        "_NativeSearchProvider",
+                        "_ExplodingProvider",
+                    )
+                },
+            )
+        )
         # Arrange: GRANT post + Grant + Expert (pre-built profile) + SearchExpert.
         self.user = create_random_default_user("proposer")
         self.post = create_post(
@@ -279,6 +298,26 @@ class ProposalDraftServiceTests(TestCase):
             expert_search=self.expert_search,
             expert=self.expert,
         )
+
+    def test_unpriced_provider_is_rejected_before_spending(self):
+        # Arrange: this provider deliberately has no test pricing entry.
+        class _UnpricedProvider(_ScriptedProvider):
+            pass
+
+        provider = _UnpricedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("no reviewed pricing", result["error_message"])
+        self.assertEqual(provider.call_count, 0)
 
     # -- clean submit writes the Note -------------------------------------
 

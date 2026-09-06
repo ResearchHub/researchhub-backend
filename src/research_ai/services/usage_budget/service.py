@@ -6,7 +6,7 @@ from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import BigIntegerField, Count, Sum
+from django.db.models import BigIntegerField, Count, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -25,6 +25,7 @@ from research_ai.services.agent.providers.registry import (
     split_model_ref,
 )
 from research_ai.services.agent.types import TurnUsage
+from research_ai.services.credit_service import credits_from_microusd
 from research_ai.services.usage_budget.config import (
     BUDGETS_ENFORCED,
     TierPolicy,
@@ -87,6 +88,11 @@ class BudgetStatus:
             "turns_used": self.turns_used,
             "turn_cap": self.turn_cap,
             "resets_at": self.resets_at.isoformat().replace("+00:00", "Z"),
+            "credits": {
+                "daily_limit": credits_from_microusd(self.daily_budget_microusd),
+                "used": credits_from_microusd(self.spent_today_microusd),
+                "remaining": credits_from_microusd(self.remaining_microusd),
+            },
         }
 
 
@@ -151,7 +157,7 @@ def _validate_model(policy: TierPolicy, model_ref: str) -> None:
             f"model {model_ref!r} is not allowed for tier {policy.name!r}"
         )
     provider, model_id = split_model_ref(model_ref)
-    if policy.is_budgeted and model_pricing(provider, model_id or "") is None:
+    if model_pricing(provider, model_id or "") is None:
         raise ModelNotAllowedError(f"model {model_ref!r} has no reviewed pricing")
     if model_ref not in {option.ref for option in available_models()}:
         raise ModelNotAllowedError(f"model {model_ref!r} is not configured")
@@ -166,7 +172,7 @@ def resolve_default_model(policy: TierPolicy) -> str:
         )
         provider, model_id = split_model_ref(option.ref)
         priced = model_pricing(provider, model_id or "") is not None
-        if entitled and (not policy.is_budgeted or priced):
+        if entitled and priced:
             candidates.append(option.ref)
 
     preferred = policy.default_model_ref or generator_model_ref()
@@ -234,21 +240,40 @@ def check_budget_admission(user) -> BudgetStatus:
 
 def _has_in_flight_work(user) -> bool:
     """Whether a budgeted user already has spend-producing work reserved."""
+    now = timezone.now()
     return (
         AgentExecution.objects.filter(
             conversation__user=user,
-            status__in=[
-                AgentExecution.Status.PENDING,
-                AgentExecution.Status.RUNNING,
-            ],
-        ).exists()
+        )
+        .filter(
+            Q(
+                status__in=[
+                    AgentExecution.Status.PENDING,
+                    AgentExecution.Status.RUNNING,
+                ]
+            )
+            | Q(
+                status=AgentExecution.Status.CANCELLED,
+                usage_reservation_expires_at__gt=now,
+            )
+        )
+        .exists()
         or ProposalDraft.objects.filter(
             created_by=user,
-            status__in=[
-                ProposalDraft.Status.PENDING,
-                ProposalDraft.Status.PROCESSING,
-            ],
-        ).exists()
+        )
+        .filter(
+            Q(
+                status__in=[
+                    ProposalDraft.Status.PENDING,
+                    ProposalDraft.Status.PROCESSING,
+                ]
+            )
+            | Q(
+                status=ProposalDraft.Status.CANCELLED,
+                usage_reservation_expires_at__gt=now,
+            )
+        )
+        .exists()
     )
 
 

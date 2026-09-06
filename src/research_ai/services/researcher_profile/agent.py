@@ -18,6 +18,7 @@ import logging
 from django.utils import timezone
 
 from research_ai.services.agent import AgentService, LLMProvider, resolve_provider
+from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from utils.openalex import OpenAlex
 
@@ -207,21 +208,28 @@ def run_profile_agent(
     *,
     provider: LLMProvider | None = None,
     oa_client: OpenAlex | None = None,
+    recorder=None,
 ) -> dict:
     """Run the agent and assemble the grounded profile dict.
 
-    Best-effort: a failed run yields an unresolved profile with the error
-    recorded, never raises. The profile agent has no trace of its own.
+    Best-effort: an ordinary failed run yields an unresolved profile with the
+    error recorded. Budget exhaustion propagates so the owning loop workflow
+    can stop before another provider call. The profile agent has no trace of
+    its own unless the caller supplies a recorder.
     """
     errors: list[str] = []
     toolset = OpenAlexToolset(client=oa_client)
     provider = provider or resolve_provider()
     agent = AgentService(
         provider=provider, max_iterations=_MAX_ITERATIONS
-    ).create_agent(toolset.as_toolset(), system_prompt=_SYSTEM_PROMPT)
+    ).create_agent(
+        toolset.as_toolset(), system_prompt=_SYSTEM_PROMPT, recorder=recorder
+    )
 
     try:
         agent.run(_user_prompt(expert))
+    except BudgetExceededError:
+        raise
     except Exception as exc:  # noqa: BLE001 - agent run is best-effort
         logger.exception("researcher-profile agent failed")
         errors.append(f"agent: {exc}")

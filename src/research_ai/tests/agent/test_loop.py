@@ -231,7 +231,9 @@ class AgentLoopTests(SimpleTestCase):
 
         recorder = CancellingRecorder()
         provider = InternallyRetryingProvider()
-        agent = _build_agent(provider, _build_toolset(), recorder=recorder)
+        agent = _build_agent(
+            provider, _build_toolset(), max_iterations=None, recorder=recorder
+        )
 
         # Act
         with self.assertRaises(InterruptedError):
@@ -332,6 +334,22 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(ctx.exception.iterations, 1)
         # The partial assistant turn is on the transcript, not lost.
         self.assertEqual(ctx.exception.messages[-1].role, "assistant")
+
+    def test_unlimited_iterations_continue_until_completion(self):
+        # Arrange
+        provider = FakeProvider(
+            [_build_tool_turn(f"t{i}", "search", {}) for i in range(31)]
+            + [_build_text_turn("Done.")]
+        )
+        agent = _build_agent(provider, _build_toolset(), max_iterations=None)
+
+        # Act
+        result = agent.run("Keep researching")
+
+        # Assert
+        self.assertEqual(result.final_text, "Done.")
+        self.assertEqual(result.iterations, 32)
+        self.assertEqual(len(provider.calls), 32)
 
     def test_exceeding_max_iterations_raises(self):
         # Arrange: the model never stops calling tools.

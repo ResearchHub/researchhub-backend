@@ -14,6 +14,7 @@ from research_ai.models import (
     AgentExecutionMessage,
 )
 from research_ai.services.agent.errors import (
+    BudgetExceededError,
     IncompleteTurnError,
     IterationLimitError,
     ProviderError,
@@ -911,6 +912,15 @@ class PublicErrorTaxonomyTests(AgentPersistenceTestCase):
         self.assertEqual(error["code"], "agent_interrupted")
         self.assertFalse(error["retryable"])
         self.assertNotIn("execution", error["message"])
+
+    def test_budget_exhaustion_renders_usage_limit(self):
+        # Arrange / Act
+        error = self._fail_with(BudgetExceededError("raw budget details"))
+
+        # Assert
+        self.assertEqual(error["code"], "usage_limit_exceeded")
+        self.assertFalse(error["retryable"])
+        self.assertNotIn("raw budget details", error["message"])
 
     def test_cancelled_execution_renders_no_error(self):
         # Arrange: a cancellation is the user's own stop, not a failure.

@@ -21,6 +21,7 @@ from research_ai.services.proposal_draft.cancel_service import (
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
 from research_ai.services.proposal_draft.run_state import ProposalRunState
+from research_ai.services.usage_budget.reservation import reservation_deadline
 from research_ai.tasks import run_proposal_draft_task
 from user.tests.helpers import create_random_default_user
 
@@ -61,6 +62,37 @@ class ProposalDraftCancelServiceTests(TestCase):
         self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
         self.assertEqual(draft.error_message, "")
         self.assertEqual(draft.step, ProposalDraft.Step.JUDGING)
+
+    def test_running_cancellation_reserves_budget_until_worker_unwinds(self):
+        # Arrange
+        draft = self._draft()
+        draft.usage_reservation_expires_at = reservation_deadline()
+        draft.save(update_fields=["usage_reservation_expires_at"])
+        state = ProposalRunState(ProposalDraftConfig(max_rounds=2))
+        recorder = DraftRecorder(draft, state)
+
+        # Act: cancellation lands while provider work is still in flight.
+        self.cancels.cancel(draft)
+
+        # Assert: only the worker's cancelled result releases admission.
+        draft.refresh_from_db()
+        self.assertIsNotNone(draft.usage_reservation_expires_at)
+        recorder.cancelled_result()
+        draft.refresh_from_db()
+        self.assertIsNone(draft.usage_reservation_expires_at)
+
+    def test_queued_cancellation_releases_budget_immediately(self):
+        # Arrange
+        draft = self._draft(status=ProposalDraft.Status.PENDING)
+        draft.usage_reservation_expires_at = reservation_deadline()
+        draft.save(update_fields=["usage_reservation_expires_at"])
+
+        # Act
+        self.cancels.cancel(draft)
+
+        # Assert
+        draft.refresh_from_db()
+        self.assertIsNone(draft.usage_reservation_expires_at)
 
     def test_cancelling_also_stops_the_traced_agent_execution(self):
         # Arrange: a run whose agent trace exists, so the loop has something to

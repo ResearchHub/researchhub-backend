@@ -18,6 +18,7 @@ from research_ai.services.notebook_chat.researcher_profile_tools import (
 from research_ai.services.notebook_chat.service import (
     ACTIVITY_ALL,
     ACTIVITY_LIVE,
+    ASSISTANT_WORKFLOW,
     WORKFLOW,
     NotebookChatService,
 )
@@ -29,6 +30,7 @@ from research_ai.services.notebook_chat.toolset import (
 __all__ = [
     "ACTIVITY_ALL",
     "ACTIVITY_LIVE",
+    "ASSISTANT_WORKFLOW",
     "GET_RESEARCHER_PROFILE",
     "READ_SELECTED_RFP",
     "SET_SELECTED_RFP",

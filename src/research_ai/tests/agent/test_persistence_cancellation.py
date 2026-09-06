@@ -27,6 +27,7 @@ from research_ai.services.agent_persistence import (
     DatabaseAgentRecorder,
 )
 from research_ai.services.agent_persistence.content import serialize_trace_message
+from research_ai.services.usage_budget.reservation import reservation_deadline
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     agent,
@@ -82,6 +83,51 @@ class AgentCancellationTests(TestCase):
         self.assertEqual(execution.stop_reason, "cancelled")
         self.assertEqual(execution.error_type, "")
         self.assertIsNotNone(execution.finished_at)
+
+    def test_running_cancellation_reserves_budget_until_worker_unwinds(self):
+        # Arrange: this execution owns the budgeted user's single-flight slot,
+        # under the lease its worker's heartbeat keeps renewing.
+        recorder = self._running()
+        lease = reservation_deadline()
+        AgentExecution.objects.filter(id=recorder.execution.id).update(
+            usage_reservation_expires_at=lease
+        )
+
+        # Act: the request reports cancellation before the provider call returns.
+        self.cancels.cancel(recorder.execution)
+
+        # Assert: the lease is neither released nor extended -- the worker owns
+        # it -- and admission opens when the worker reaches its terminal hook,
+        # which represents the in-flight call having returned.
+        execution = AgentExecution.objects.get(id=recorder.execution.id)
+        self.assertEqual(execution.usage_reservation_expires_at, lease)
+        self.assertFalse(recorder.on_run_failed(InterruptedError("cancelled")))
+        execution.refresh_from_db()
+        self.assertIsNone(execution.usage_reservation_expires_at)
+
+    def test_cancelling_a_run_without_a_reservation_adds_none(self):
+        # Arrange: a directly started run never reserved budget.
+        recorder = self._running()
+
+        # Act
+        self.cancels.cancel(recorder.execution)
+
+        # Assert
+        execution = AgentExecution.objects.get(id=recorder.execution.id)
+        self.assertIsNone(execution.usage_reservation_expires_at)
+
+    def test_pending_cancellation_releases_budget_immediately(self):
+        # Arrange: no worker or provider call has claimed this execution.
+        execution = AgentExecutionService().create_pending(self.conversation)
+        execution.usage_reservation_expires_at = reservation_deadline()
+        execution.save(update_fields=["usage_reservation_expires_at"])
+
+        # Act
+        self.cancels.cancel(execution)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertIsNone(execution.usage_reservation_expires_at)
 
     def test_cancelling_stops_the_worker_at_its_next_durable_write(self):
         # Arrange: a run in flight, cancelled from another process.

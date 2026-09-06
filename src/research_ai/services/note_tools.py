@@ -22,11 +22,13 @@ reads use the ``HasAccessPermission`` predicate (any non-NO_ACCESS
 permission), writes the stricter ``HasEditingPermission`` one (editor or
 admin). A toolset built for a single-note surface can additionally be
 scoped with ``note_ids``; notes outside the scope get the same not-found
-error as inaccessible ones.
+error as inaccessible ones. A surface that starts without a note can pass a
+``note_creator`` to expose ``create_note``; a note it creates joins the scope
+for the rest of the turn.
 """
 
 import logging
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 
 from django.db import transaction
 
@@ -44,7 +46,9 @@ logger = logging.getLogger(__name__)
 
 READ_NOTE = "read_note"
 EDIT_NOTE = "edit_note"
+CREATE_NOTE = "create_note"
 _MAX_BLOCKS_PER_READ = 50
+_MAX_TITLE_CHARS = 255
 
 _BLOCK_FORMAT = (
     "Blocks use a compact Tiptap form: a bare string at block level is a "
@@ -57,7 +61,9 @@ class NoteToolset:
     """Note read/edit tools acting with ``user``'s permissions.
 
     ``note_ids``, when given, restricts every tool to those notes regardless
-    of what else the user could access.
+    of what else the user could access. ``note_creator``, when given, adds a
+    ``create_note`` tool: it is called with the title and must return the new
+    ``Note`` (owned by ``user``); the toolset widens ``note_ids`` to include it.
 
     Best-effort contract: handlers never raise; failures come back to the
     model as ``{"error": ...}`` so a bad note id or a stale edit is a turn
@@ -70,15 +76,43 @@ class NoteToolset:
         user,
         service: NoteContentService | None = None,
         note_ids: Collection[int] | None = None,
+        note_creator: Callable[[str], Note] | None = None,
     ):
         self._user = user
         self._service = service or NoteContentService()
-        self._note_ids = None if note_ids is None else frozenset(note_ids)
+        self._note_ids = None if note_ids is None else set(note_ids)
+        self._note_creator = note_creator
 
     # -- tool construction ------------------------------------------------
 
     def build_tools(self) -> list[Tool]:
-        return [
+        tools = []
+        if self._note_creator is not None:
+            tools.append(
+                Tool(
+                    name=CREATE_NOTE,
+                    description=(
+                        "Create a new, empty notebook note owned by the user "
+                        "and return its note_id. Use it when the user wants "
+                        "something drafted, saved, or kept as a document "
+                        "rather than answered in chat, and no suitable note "
+                        "exists yet. The note has no content: populate it "
+                        "with an edit_note insert (expected_version_id null)."
+                    ),
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "A short title for the note.",
+                            }
+                        },
+                        "required": ["title"],
+                    },
+                    handler=self._create_note,
+                )
+            )
+        return tools + [
             Tool(
                 name=READ_NOTE,
                 description=(
@@ -215,6 +249,29 @@ class NoteToolset:
         return Toolset(self.build_tools())
 
     # -- handlers ---------------------------------------------------------
+
+    def _create_note(self, input: dict) -> dict:
+        if self._user is None or getattr(self._user, "is_anonymous", False):
+            return {"error": "a signed-in user is required to create a note"}
+        title = input.get("title")
+        if not isinstance(title, str) or not title.strip():
+            return {"error": "title must be a non-empty string"}
+        title = " ".join(title.split())
+        if len(title) > _MAX_TITLE_CHARS:
+            return {"error": f"title must be at most {_MAX_TITLE_CHARS} characters"}
+        try:
+            note = self._note_creator(title)
+        except Exception as exc:  # noqa: BLE001 - reported to the model
+            logger.exception("create_note failed for user %s", self._user.id)
+            return {"error": f"could not create the note: {exc}"}
+        if self._note_ids is not None:
+            self._note_ids.add(note.id)
+        return {
+            "note_id": note.id,
+            "title": note.title,
+            "version_id": None,
+            "created": True,
+        }
 
     def _read_note(self, input: dict) -> dict:
         note = self._get_readable_note(input.get("note_id"))

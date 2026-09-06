@@ -11,6 +11,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
 import openai
@@ -387,6 +388,23 @@ class OpenRouterProvider(LLMProvider):
             output_tokens=getattr(usage, "completion_tokens", None),
             cache_read_tokens=cache_read_tokens,
             cache_write_tokens=cache_write_tokens,
+            provider_cost_microusd=self._provider_cost_microusd(usage),
+        )
+
+    @staticmethod
+    def _provider_cost_microusd(usage: Any) -> int | None:
+        """Normalize OpenRouter's authoritative USD charge to integer micro-USD."""
+        raw_cost = getattr(usage, "cost", None)
+        if raw_cost is None:
+            return None
+        try:
+            cost = Decimal(str(raw_cost))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+        if not cost.is_finite() or cost < 0:
+            return None
+        return int(
+            (cost * Decimal(1_000_000)).quantize(Decimal(1), rounding=ROUND_HALF_UP)
         )
 
     @staticmethod

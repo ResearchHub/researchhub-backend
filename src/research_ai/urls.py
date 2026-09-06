@@ -1,5 +1,11 @@
 from django.urls import path
 
+from research_ai.views.assistant_chat_views import (
+    AssistantChatCancelView,
+    AssistantChatDetailView,
+    AssistantChatListCreateView,
+    AssistantChatMessageView,
+)
 from research_ai.views.email_views import (
     BulkGenerateEmailView,
     GeneratedEmailDetailView,
@@ -127,5 +133,18 @@ urlpatterns = [
     path(
         "notebook/notes/<int:note_id>/chats/<int:conversation_id>/cancel/",
         NotebookChatCancelView.as_view(),
+    ),
+    path("assistant/chats/", AssistantChatListCreateView.as_view()),
+    path(
+        "assistant/chats/<int:conversation_id>/",
+        AssistantChatDetailView.as_view(),
+    ),
+    path(
+        "assistant/chats/<int:conversation_id>/messages/",
+        AssistantChatMessageView.as_view(),
+    ),
+    path(
+        "assistant/chats/<int:conversation_id>/cancel/",
+        AssistantChatCancelView.as_view(),
     ),
 ]

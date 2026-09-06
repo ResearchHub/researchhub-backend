@@ -1,22 +1,31 @@
+from datetime import UTC, datetime, timedelta
 from threading import Event, Thread
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.db import close_old_connections
-from django.test import TestCase, TransactionTestCase, override_settings
+from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
+from research_ai.services.agent import AgentService, ProviderError, Toolset
+from research_ai.services.agent.model_catalog import ModelOption
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,
     StopReason,
     TextBlock,
+    TextStreamDelta,
     TurnUsage,
 )
 from research_ai.services.usage_budget import (
     AgentLoopBudgetRecorder,
     BudgetExceededError,
+    BudgetStatus,
+    ModelNotAllowedError,
+    TierPolicy,
     UsageLimitExceededError,
     UsageWorkInProgressError,
     atomic_turn_admission,
@@ -25,6 +34,8 @@ from research_ai.services.usage_budget import (
     record,
     resolve_ai_tier,
 )
+from research_ai.services.usage_budget import service as usage_budget_service
+from research_ai.tests.agent.test_loop import FakeProvider, _build_text_turn
 from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
@@ -112,6 +123,10 @@ class UsageBudgetTests(TestCase):
         self.assertEqual(status.spent_today_microusd, 1_650)
         self.assertEqual(status.turns_used, 1)
         self.assertEqual(status.remaining_microusd, 248_350)
+        self.assertEqual(
+            status.as_dict()["credits"],
+            {"daily_limit": "250", "used": "1.65", "remaining": "248.35"},
+        )
 
     def test_admission_raises_when_daily_turn_cap_is_spent(self):
         # Arrange
@@ -195,6 +210,100 @@ class AgentLoopBudgetRecorderTests(TestCase):
         with self.assertRaisesMessage(BudgetExceededError, "access is blocked"):
             recorder.before_model_call()
 
+    def _execution(self, *, status, expires_at):
+        conversation = AgentConversation.objects.create(
+            user=self.user,
+            workflow="notebook_chat",
+        )
+        return AgentExecution.objects.create(
+            conversation=conversation,
+            status=status,
+            attempt=1,
+            usage_reservation_expires_at=expires_at,
+        )
+
+    def _recorder(self, execution):
+        return AgentLoopBudgetRecorder(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model_id="deepseek/deepseek-v4-pro-0813",
+            execution=execution,
+        )
+
+    def test_before_model_call_renews_an_active_worker_lease(self):
+        # Arrange
+        old_expiry = timezone.now() + timedelta(minutes=1)
+        execution = self._execution(
+            status=AgentExecution.Status.RUNNING,
+            expires_at=old_expiry,
+        )
+
+        # Act
+        self._recorder(execution).before_model_call()
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
+
+    def test_discarded_attempt_is_charged_before_retry_admission(self):
+        # Arrange: nine earlier calls leave one turn in the default tier.
+        LLMUsageEvent.objects.bulk_create(
+            [
+                LLMUsageEvent(
+                    user=self.user,
+                    feature="notebook_chat",
+                    provider="openrouter",
+                    model="deepseek/deepseek-v4-pro-0813",
+                    cost_microusd=1,
+                )
+                for _ in range(9)
+            ]
+        )
+        execution = self._execution(
+            status=AgentExecution.Status.RUNNING,
+            expires_at=timezone.now() + timedelta(minutes=1),
+        )
+        recorder = self._recorder(execution)
+
+        # Act: the completed first attempt consumes the last turn before the
+        # provider asks whether it may make its internal retry.
+        recorder.record_usage(TurnUsage(input_tokens=10, output_tokens=2))
+
+        # Assert
+        with self.assertRaises(BudgetExceededError):
+            recorder.before_model_call()
+        self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 10)
+
+    def test_stream_activity_leaves_the_lease_to_the_heartbeat(self):
+        # Arrange: liveness is the worker heartbeat's job, so a burst of stream
+        # events must not stand in for one.
+        old_expiry = timezone.now() + timedelta(minutes=1)
+        execution = self._execution(
+            status=AgentExecution.Status.RUNNING,
+            expires_at=old_expiry,
+        )
+
+        # Act
+        self._recorder(execution).record_stream_event(
+            1, TextStreamDelta(block_index=0, text="still running")
+        )
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertEqual(execution.usage_reservation_expires_at, old_expiry)
+
+    def test_cancelled_owner_cannot_start_another_model_call(self):
+        # Arrange
+        execution = self._execution(
+            status=AgentExecution.Status.CANCELLED,
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        # Act / Assert
+        with self.assertRaises(InterruptedError):
+            self._recorder(execution).before_model_call()
+
 
 class AtomicAdmissionTests(TransactionTestCase):
     def setUp(self):
@@ -261,6 +370,132 @@ class AtomicAdmissionTests(TransactionTestCase):
         self.assertEqual(len(errors), 1)
         self.assertIsInstance(errors[0], UsageWorkInProgressError)
 
+    def test_cancelled_call_blocks_admission_until_its_reservation_is_released(self):
+        # Arrange: cancellation is visible immediately, but the provider call
+        # that was already in flight has not returned to its worker yet.
+        conversation = AgentConversation.objects.create(
+            user=self.user,
+            workflow="notebook_chat",
+        )
+        execution = AgentExecution.objects.create(
+            conversation=conversation,
+            status=AgentExecution.Status.CANCELLED,
+            attempt=1,
+            usage_reservation_expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        # Act & Assert
+        with (
+            self.assertRaises(UsageWorkInProgressError),
+            atomic_turn_admission(self.user),
+        ):
+            pass
+
+        # The worker releases the separate reservation after the call returns.
+        execution.usage_reservation_expires_at = None
+        execution.save(update_fields=["usage_reservation_expires_at"])
+        with atomic_turn_admission(self.user):
+            pass
+
+    def test_expired_cancelled_call_does_not_block_admission(self):
+        # Arrange: the worker died and stopped renewing this lease.
+        conversation = AgentConversation.objects.create(
+            user=self.user,
+            workflow="notebook_chat",
+        )
+        AgentExecution.objects.create(
+            conversation=conversation,
+            status=AgentExecution.Status.CANCELLED,
+            attempt=1,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        # Act / Assert
+        with atomic_turn_admission(self.user):
+            pass
+
+
+class RequiredModelPricingTests(SimpleTestCase):
+    def setUp(self):
+        self.policy = TierPolicy("privileged", None, None, None, None)
+        self.unpriced_model = "bedrock:us.anthropic.claude-opus-5"
+
+    def test_unlimited_tier_cannot_submit_an_unpriced_model(self):
+        # Arrange / Act / Assert
+        with (
+            patch.object(
+                usage_budget_service, "resolve_ai_tier", return_value=self.policy
+            ),
+            self.assertRaisesMessage(ModelNotAllowedError, "no reviewed pricing"),
+        ):
+            check_turn_admission(object(), self.unpriced_model)
+
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
+    def test_unlimited_tier_default_falls_back_to_a_priced_model(self):
+        # Arrange / Act
+        default = usage_budget_service.resolve_default_model(self.policy)
+
+        # Assert
+        self.assertEqual(default, "claude_platform:claude-opus-5")
+
+    def test_no_priced_model_prevents_default_selection(self):
+        # Arrange / Act / Assert
+        with (
+            patch.object(
+                usage_budget_service,
+                "available_models",
+                return_value=[ModelOption(self.unpriced_model, "Unpriced")],
+            ),
+            self.assertRaisesMessage(ModelNotAllowedError, "No configured model"),
+        ):
+            usage_budget_service.resolve_default_model(self.policy)
+
+    def test_unpriced_execution_is_stopped_before_provider_call(self):
+        # Arrange: no user or admission check is needed to enforce pricing.
+        provider = FakeProvider([_build_text_turn("Must not run")])
+        recorder = AgentLoopBudgetRecorder(
+            user=None,
+            feature="notebook_chat",
+            provider="bedrock",
+            model_id="us.anthropic.claude-opus-5",
+        )
+        agent = AgentService(provider=provider, max_iterations=None).create_agent(
+            Toolset([]), system_prompt="Test", recorder=recorder
+        )
+
+        # Act
+        with self.assertRaisesMessage(ProviderError, "no reviewed pricing") as raised:
+            agent.run("Hello")
+
+        # Assert
+        self.assertEqual(provider.calls, [])
+        self.assertFalse(raised.exception.retryable)
+
+
+class CreditBudgetStatusTests(SimpleTestCase):
+    def test_credit_meter_preserves_unlimited_and_exhausted_budgets(self):
+        # Arrange
+        cases = [
+            (None, None, None),
+            (250_000, "250", "0"),
+        ]
+
+        # Act / Assert
+        for budget, limit, remaining in cases:
+            with self.subTest(budget=budget):
+                meter = BudgetStatus(
+                    tier="default",
+                    daily_budget_microusd=budget,
+                    spent_today_microusd=300_001,
+                    turns_used=12,
+                    turn_cap=None,
+                    resets_at=datetime(2026, 9, 5, tzinfo=UTC),
+                ).as_dict()["credits"]
+                self.assertEqual(
+                    meter,
+                    {"daily_limit": limit, "used": "300.001", "remaining": remaining},
+                )
+
 
 class UsageBudgetAPITests(TestCase):
     def setUp(self):
@@ -277,6 +512,7 @@ class UsageBudgetAPITests(TestCase):
         self.assertEqual(
             sorted(response.json()),
             [
+                "credits",
                 "daily_budget",
                 "remaining",
                 "resets_at",
@@ -287,3 +523,7 @@ class UsageBudgetAPITests(TestCase):
             ],
         )
         self.assertEqual(response.json()["tier"], "default")
+        self.assertEqual(
+            response.json()["credits"],
+            {"daily_limit": "250", "used": "0", "remaining": "250"},
+        )

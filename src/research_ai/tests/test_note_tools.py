@@ -6,7 +6,12 @@ from django.test import TestCase
 
 from note.models import NoteContent
 from note.tests.helpers import create_note
-from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE, NoteToolset
+from research_ai.services.note_tools import (
+    CREATE_NOTE,
+    EDIT_NOTE,
+    READ_NOTE,
+    NoteToolset,
+)
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -522,3 +527,77 @@ class NoteToolsetTests(TestCase):
         self.assertIn("not found or not accessible", edit_result["error"])
         other_note.refresh_from_db()
         self.assertEqual(other_note.latest_version_id, other_content.id)
+
+
+class NoteToolsetCreateNoteTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        self.created = []
+
+        def creator(title):
+            note, _content = create_note(self.owner, organization=None, title=title)
+            Permission.objects.create(
+                access_type=ADMIN,
+                content_type=ContentType.objects.get_for_model(
+                    ResearchhubUnifiedDocument
+                ),
+                object_id=note.unified_document.id,
+                user=self.owner,
+            )
+            self.created.append(note)
+            return note
+
+        self.toolset = NoteToolset(
+            user=self.owner, note_ids=set(), note_creator=creator
+        )
+        self.tools = {tool.name: tool for tool in self.toolset.build_tools()}
+
+    def test_create_note_is_offered_only_with_a_creator(self):
+        # Act
+        without = {tool.name for tool in NoteToolset(user=self.owner).build_tools()}
+
+        # Assert
+        self.assertIn(CREATE_NOTE, self.tools)
+        self.assertNotIn(CREATE_NOTE, without)
+
+    def test_create_note_returns_the_note_and_widens_the_scope(self):
+        # Arrange
+        outside, _content = create_note(self.owner, organization=None)
+
+        # Act
+        result = self.tools[CREATE_NOTE].handler({"title": "  New   idea "})
+        read = self.tools[READ_NOTE].handler({"note_id": result["note_id"]})
+        outside_read = self.tools[READ_NOTE].handler({"note_id": outside.id})
+
+        # Assert
+        self.assertEqual(result["title"], "New idea")
+        self.assertEqual(result["note_id"], self.created[0].id)
+        self.assertIsNone(result["version_id"])
+        self.assertEqual(read["title"], "New idea")
+        self.assertIn("error", outside_read)
+
+    def test_create_note_rejects_a_blank_title(self):
+        # Act
+        result = self.tools[CREATE_NOTE].handler({"title": "   "})
+
+        # Assert
+        self.assertIn("error", result)
+        self.assertEqual(self.created, [])
+
+    def test_create_note_reports_creator_failures_to_the_model(self):
+        # Arrange
+        def failing(title):
+            raise RuntimeError("database is away")
+
+        toolset = NoteToolset(user=self.owner, note_ids=set(), note_creator=failing)
+        create = {tool.name: tool for tool in toolset.build_tools()}[CREATE_NOTE]
+
+        # Act
+        result = create.handler({"title": "Anything"})
+
+        # Assert
+        self.assertIn("database is away", result["error"])
