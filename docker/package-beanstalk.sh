@@ -4,7 +4,7 @@ set -eu
 
 image_uri=$1
 output_directory=$2
-script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+script_directory=$(dirname -- "$0")
 
 mkdir -p "$output_directory"
 
@@ -13,8 +13,5 @@ sed \
   "$script_directory/docker-compose.yml" \
   > "$output_directory/docker-compose.yml"
 
-(
-  cd "$output_directory"
-  rm -f deploy.zip
-  zip deploy.zip docker-compose.yml
-)
+rm -f "$output_directory/deploy.zip"
+zip -j "$output_directory/deploy.zip" "$output_directory/docker-compose.yml"
