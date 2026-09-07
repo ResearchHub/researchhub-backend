@@ -186,22 +186,6 @@ class CommentViewTests(APITestCase):
             paper_id, created_by, thread_type="REVIEW", comment_type="REVIEW", **kwargs
         )
 
-    def _create_post_comment(
-        self, post_id, created_by, text="this is a test comment", **kwargs
-    ):
-        self.client.force_authenticate(created_by)
-
-        res = self._create_comment(
-            "researchhubpost",
-            post_id,
-            created_by,
-            {
-                "comment_content_json": {"ops": [{"insert": text}]},
-                **kwargs,
-            },
-        )
-        return res
-
     def test_comment_creator_can_edit(self):
         creator = self.user_1
         comment = self._create_paper_comment(self.paper.id, creator)
@@ -220,7 +204,7 @@ class CommentViewTests(APITestCase):
 
     def test_comment_author_can_post_author_update(self):
         # Arrange
-        author = self.paper.created_by
+        author = self.paper.uploaded_by
         self.client.force_authenticate(author)
 
         # Act
@@ -706,7 +690,7 @@ class CommentViewTests(APITestCase):
         self.assertEqual(_discussion_count(), baseline_discussion_ct)
 
     def test_filter_by_author_update(self):
-        author_update_creator = self.paper.created_by
+        author_update_creator = self.paper.uploaded_by
         regular_creator = self.user_2
         self._create_paper_comment(
             self.paper.id,
