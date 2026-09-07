@@ -246,9 +246,6 @@ class Paper(AbstractGenericReactionModel):
     def created_by(self):
         return self.uploaded_by
 
-    def get_hub_names(self):
-        return ",".join(self.hubs.values_list("name", flat=True))
-
     def get_discussion_count(self):
         from paper.services.paper_version_service import PaperService
 
