@@ -1,5 +1,9 @@
 from .balance_serializer import BalanceSerializer, BalanceSourceRelatedField
 from .funding_overview_serializer import FundingOverviewSerializer
+from .funding_pool_serializer import (
+    DynamicFundingPoolSerializer,
+    FundingPoolContributionSerializer,
+)
 from .fundraise_create_serializer import FundraiseCreateSerializer
 from .fundraise_serializer import DynamicFundraiseSerializer, FundraiseSerializer
 from .grant_create_serializer import GrantCreateSerializer
@@ -16,10 +20,12 @@ from .wallet_serializer import WalletSerializer
 __all__ = [
     "BalanceSerializer",
     "BalanceSourceRelatedField",
+    "DynamicFundingPoolSerializer",
     "DynamicFundraiseSerializer",
     "DynamicGrantSerializer",
     "DynamicPurchaseSerializer",
     "FundingOverviewSerializer",
+    "FundingPoolContributionSerializer",
     "FundraiseCreateSerializer",
     "FundraiseSerializer",
     "GrantCreateSerializer",

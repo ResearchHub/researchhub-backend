@@ -8,16 +8,23 @@ from django.test import TestCase
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.constants.currency import USD
+from purchase.related_models.funding_pool_model import FundingPool
+from purchase.related_models.grant_model import Grant
 from purchase.related_models.payment_model import (
     Payment,
     PaymentProcessor,
     PaymentPurpose,
 )
+from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from purchase.services.payment_service import PaymentService
 from reputation.related_models.bounty_fee import BountyFee
 from reputation.related_models.distribution import Distribution
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import (
+    GRANT as GRANT_DOC,
+)
 from user.models import User
 from user.tests.helpers import create_user
 
@@ -735,6 +742,48 @@ class PaymentServiceTest(TestCase):
         expected_balance = locked_rsc_amount * Decimal("1.07")
         self.assertEqual(self.user.get_locked_balance(), expected_balance)
 
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_contributes_to_funding_pool(
+        self, mock_stripe_retrieve
+    ):
+        """Payment confirmation with funding_pool_id contributes RSC to the pool."""
+        grant_post = create_post(created_by=self.user, document_type=GRANT_DOC)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Org",
+            description="Desc",
+        )
+        pool = FundingPool.objects.create(grant=grant, created_by=self.user)
+
+        locked_rsc_amount = Decimal("100.0")
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_pool_contribution"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": str(locked_rsc_amount),
+            "funding_pool_id": str(pool.id),
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Act
+        payment, contribution = self.service.process_payment_intent_confirmation(
+            "pi_pool_contribution"
+        )
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+        self.assertIsNotNone(contribution)
+        self.assertEqual(contribution.purchase_type, Purchase.FUNDING_POOL_CONTRIBUTION)
+        pool.refresh_from_db()
+        self.assertEqual(pool.amount_holding, locked_rsc_amount)
+
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_with_fundraise_id(
         self, mock_stripe_payment_intent_create
@@ -766,6 +815,32 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(call_kwargs["metadata"]["fundraise_id"], "42")
 
     @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_with_funding_pool_id(
+        self, mock_stripe_payment_intent_create
+    ):
+        """Test that create_payment_intent includes funding_pool_id in metadata."""
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.client_secret = "pi_secret_pool"
+        mock_payment_intent.id = "pi_pool_123"
+        mock_stripe_payment_intent_create.return_value = mock_payment_intent
+
+        # Mock exchange rate (100 RSC = $5.00)
+        with patch.object(RscExchangeRate, "rsc_to_usd", return_value=5.0):
+            # Act
+            result = self.service.create_payment_intent(
+                user_id=self.user.id,
+                rsc_amount=Decimal(100),
+                funding_pool_id=77,
+            )
+
+        # Assert
+        self.assertEqual(result["client_secret"], "pi_secret_pool")
+        call_kwargs = mock_stripe_payment_intent_create.call_args[1]
+        self.assertEqual(call_kwargs["metadata"]["funding_pool_id"], "77")
+        self.assertNotIn("fundraise_id", call_kwargs["metadata"])
+
+    @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_without_fundraise_id(
         self, mock_stripe_payment_intent_create
     ):
@@ -788,6 +863,7 @@ class PaymentServiceTest(TestCase):
         # Assert
         call_kwargs = mock_stripe_payment_intent_create.call_args[1]
         self.assertNotIn("fundraise_id", call_kwargs["metadata"])
+        self.assertNotIn("funding_pool_id", call_kwargs["metadata"])
 
     @patch("stripe.PaymentIntent.retrieve")
     def test_user_receives_full_rsc_amount_plus_bounty_fee_after_paying_fees(

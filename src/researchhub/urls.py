@@ -172,6 +172,10 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 
 router.register(r"funder", purchase.views.FunderViewSet, basename="funder")
 
+router.register(
+    r"funding_pool", purchase.views.FundingPoolViewSet, basename="funding_pool"
+)
+
 router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
 
 router.register(r"activity_feed", ActivityFeedViewSet, basename="activity_feed")
