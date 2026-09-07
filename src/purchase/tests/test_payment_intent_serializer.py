@@ -4,9 +4,15 @@ from decimal import Decimal
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.grant_model import Grant
 from purchase.serializers.payment_intent_serializer import PaymentIntentSerializer
 from reputation.models import Escrow
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import (
+    GRANT as GRANT_DOC,
+)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -33,6 +39,20 @@ class PaymentIntentSerializerTest(TestCase):
         )
         self.fundraise.escrow = self.escrow
         self.fundraise.save()
+
+        grant_post = create_post(created_by=self.user, document_type=GRANT_DOC)
+        self.grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Org",
+            description="Desc",
+        )
+        self.funding_pool = FundingPool.objects.create(
+            grant=self.grant,
+            created_by=self.user,
+        )
 
     def test_valid_data(self):
         # Arrange
@@ -171,3 +191,66 @@ class PaymentIntentSerializerTest(TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("fundraise_id", serializer.errors)
         self.assertIn("expired", str(serializer.errors["fundraise_id"]))
+
+    def test_valid_data_with_funding_pool_id(self):
+        # Arrange
+        data = {
+            "amount": 100,
+            "funding_pool_id": self.funding_pool.id,
+        }
+
+        # Act
+        serializer = PaymentIntentSerializer(data=data)
+
+        # Assert
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(
+            serializer.validated_data["funding_pool_id"], self.funding_pool.id
+        )
+
+    def test_funding_pool_id_not_found(self):
+        # Arrange
+        data = {
+            "amount": 100,
+            "funding_pool_id": 99999,
+        }
+
+        # Act
+        serializer = PaymentIntentSerializer(data=data)
+
+        # Assert
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("funding_pool_id", serializer.errors)
+
+    def test_funding_pool_id_closed_pool(self):
+        # Arrange
+        self.funding_pool.status = FundingPool.CLOSED
+        self.funding_pool.save()
+
+        data = {
+            "amount": 100,
+            "funding_pool_id": self.funding_pool.id,
+        }
+
+        # Act
+        serializer = PaymentIntentSerializer(data=data)
+
+        # Assert
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("funding_pool_id", serializer.errors)
+        self.assertIn("not open", str(serializer.errors["funding_pool_id"]))
+
+    def test_fundraise_id_and_funding_pool_id_mutually_exclusive(self):
+        # Arrange
+        data = {
+            "amount": 100,
+            "fundraise_id": self.fundraise.id,
+            "funding_pool_id": self.funding_pool.id,
+        }
+
+        # Act
+        serializer = PaymentIntentSerializer(data=data)
+
+        # Assert
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("mutually exclusive", str(serializer.errors))
