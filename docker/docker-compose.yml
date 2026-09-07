@@ -25,6 +25,7 @@ services:
       DD_ENV: "${APP_ENV}"
       DD_LOGS_ENABLED: "true"
       DD_SITE: us3.datadoghq.com
+      DD_TAGS: "platform:docker"
     pid: host
     restart: unless-stopped
     volumes:
