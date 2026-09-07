@@ -73,6 +73,7 @@ class PaymentIntentViewTest(APITestCase):
             user_id=self.user.id,
             rsc_amount=Decimal(100),
             fundraise_id=None,
+            funding_pool_id=None,
         )
 
     def test_create_payment_intent_unauthenticated(self):
@@ -132,6 +133,7 @@ class PaymentIntentViewTest(APITestCase):
             user_id=self.user.id,
             rsc_amount=Decimal(100),
             fundraise_id=self.fundraise.id,
+            funding_pool_id=None,
         )
 
     def test_create_payment_intent_invalid_fundraise_id(self):
@@ -168,6 +170,64 @@ class PaymentIntentViewTest(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 400)
         self.assertIn("fundraise_id", response.data)
+
+    @patch("purchase.views.payment_intent_view.PaymentService")
+    def test_create_payment_intent_with_funding_pool_id(
+        self, mock_payment_service_class
+    ):
+        # Arrange
+        from decimal import Decimal
+
+        from purchase.related_models.funding_pool_model import FundingPool
+        from purchase.related_models.grant_model import Grant
+        from researchhub_document.helpers import create_post
+        from researchhub_document.related_models.constants.document_type import (
+            GRANT as GRANT_DOC,
+        )
+
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+        mock_payment_service.create_payment_intent.return_value = {
+            "client_secret": "pi_secret_pool",
+            "payment_intent_id": "pi_pool_123",
+            "locked_rsc_amount": 100,
+            "stripe_amount_cents": 500,
+        }
+
+        grant_post = create_post(
+            created_by=self.fundraise_creator, document_type=GRANT_DOC
+        )
+        grant = Grant.objects.create(
+            created_by=self.fundraise_creator,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Org",
+            description="Desc",
+        )
+        pool = FundingPool.objects.create(
+            grant=grant,
+            created_by=self.fundraise_creator,
+        )
+
+        data = {
+            "amount": 100,
+            "funding_pool_id": pool.id,
+        }
+
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(self.url, data=data)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        mock_payment_service.create_payment_intent.assert_called_once_with(
+            user_id=self.user.id,
+            rsc_amount=Decimal(100),
+            fundraise_id=None,
+            funding_pool_id=pool.id,
+        )
 
     @patch("purchase.views.payment_intent_view.PaymentService")
     def test_create_payment_intent_service_error(self, mock_payment_service_class):
