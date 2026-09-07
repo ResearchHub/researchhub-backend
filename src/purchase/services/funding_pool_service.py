@@ -5,14 +5,23 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
 from analytics.tasks import track_revenue_event
-from purchase.models import Balance, FundingPool, Grant, Purchase, RscExchangeRate
+from purchase.models import (
+    Balance,
+    FundingDistribution,
+    FundingPool,
+    Fundraise,
+    Grant,
+    GrantApplication,
+    Purchase,
+    RscExchangeRate,
+)
 from purchase.related_models.constants import (
     MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
     MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
 )
 from purchase.related_models.constants.currency import RSC
 from purchase.services.fundraise_service import FundraiseService
-from reputation.models import BountyFee
+from reputation.models import BountyFee, Escrow
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from user.models import User
 
@@ -20,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class FundingPoolService:
-    """Service for FundingPool contributions and pool lifecycle helpers."""
+    """Service for FundingPool contributions, distributions, and lifecycle helpers."""
 
     def create_pool_for_grant(self, grant: Grant) -> FundingPool:
         """Create the community contribution pot for a grant (one pool per grant)."""
@@ -176,3 +185,114 @@ class FundingPoolService:
             pool.save(update_fields=["amount_holding", "updated_date"])
 
         return purchase, None
+
+    def _resolve_distribution_target(
+        self,
+        pool: FundingPool,
+        application_id: int,
+    ) -> tuple[GrantApplication | None, Fundraise | None, str | None]:
+        """Resolve a grant application and its proposal fundraise for distribution.
+
+        The application must belong to the same grant as ``pool``.
+        """
+        try:
+            application = GrantApplication.objects.select_related(
+                "preregistration_post"
+            ).get(id=application_id)
+        except GrantApplication.DoesNotExist:
+            return None, None, "Grant application does not exist"
+
+        if application.grant_id != pool.grant_id:
+            return None, None, "Application does not belong to this grant"
+
+        fundraise = (
+            Fundraise.objects.filter(
+                unified_document_id=application.preregistration_post.unified_document_id,
+            )
+            .order_by("-created_date")
+            .first()
+        )
+        if fundraise is None:
+            return None, None, "Proposal fundraise does not exist"
+
+        return application, fundraise, None
+
+    def distribute(
+        self,
+        pool: FundingPool,
+        distributed_by: User,
+        amount: Decimal,
+        application_id: int,
+    ) -> tuple[FundingDistribution | None, str | None]:
+        """
+        Move RSC from a funding pool into an OPEN proposal fundraise escrow.
+
+        Creates an audit ``Purchase`` on the proposal fundraise with no user
+        Balance debit and no second bounty fee (fees were taken on contribute).
+        """
+        try:
+            amount = Decimal(str(amount))
+        except (ArithmeticError, TypeError, ValueError):
+            return None, "Invalid amount"
+
+        if not amount.is_finite() or amount <= 0:
+            return None, "Invalid amount"
+
+        application, fundraise, error = self._resolve_distribution_target(
+            pool, application_id
+        )
+        if error:
+            return None, error
+
+        with transaction.atomic():
+            pool = FundingPool.objects.select_for_update().get(id=pool.id)
+            if pool.status != FundingPool.OPEN:
+                return None, "Funding pool is not open"
+
+            if amount > pool.amount_holding:
+                return None, "Insufficient pool balance"
+
+            fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
+            if fundraise.status != Fundraise.OPEN:
+                return None, "Fundraise is not open"
+            if not fundraise.escrow_id:
+                return None, "Fundraise escrow is not set"
+
+            escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
+
+            pool.amount_holding -= amount
+            pool.amount_distributed += amount
+            pool.save(
+                update_fields=[
+                    "amount_holding",
+                    "amount_distributed",
+                    "updated_date",
+                ]
+            )
+
+            # Audit row only — no Balance debit;
+            purchase = Purchase.objects.create(
+                user=distributed_by,
+                content_type=ContentType.objects.get_for_model(Fundraise),
+                object_id=fundraise.id,
+                purchase_method=Purchase.OFF_CHAIN,
+                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+                paid_status=Purchase.PAID,
+                amount=amount,
+                rsc_usd_rate=RscExchangeRate.get_latest(),
+            )
+
+            escrow.amount_holding += amount
+            escrow.save(update_fields=["amount_holding", "updated_date"])
+
+            distribution = FundingDistribution.objects.create(
+                pool=pool,
+                distributed_by=distributed_by,
+                amount=amount,
+                application=application,
+                target_fundraise=fundraise,
+                fundraise_purchase=purchase,
+                status=FundingDistribution.APPLIED,
+            )
+
+        return distribution, None
