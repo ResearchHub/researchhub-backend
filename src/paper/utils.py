@@ -44,36 +44,6 @@ def get_csl_item(url) -> dict:
         raise ManubotProcessingError(e)
 
 
-def get_location_for_unsupported_pdf(csl_item):
-    """
-    For CSL Items with url_is_unsupported_pdf, the URL is PDF
-    from an unsupported domain, meaning no CSL metadata can be
-    generated. However, since URL resolves to a PDF, we can
-    provide an Unpaywall_Location pointing to that URL.
-    """
-    import datetime
-
-    from manubot.cite.unpaywall import Unpaywall_Location
-
-    url = csl_item.get("URL")
-    return Unpaywall_Location(
-        {
-            "endpoint_id": None,
-            "evidence": None,
-            "host_type": None,
-            "is_best": True,
-            "license": None,
-            "pmh_id": None,
-            "repository_institution": None,
-            "updated": datetime.datetime.now().isoformat(),
-            "url": url,
-            "url_for_landing_page": None,
-            "url_for_pdf": url,
-            "version": None,
-        }
-    )
-
-
 def download_pdf_from_url(url: str) -> ContentFile:
     """
     Downloads a PDF from a URL and validates that it's actually a PDF.
