@@ -64,10 +64,12 @@ jobs:
 
       - name: Summary
         env:
+          GIT_REF: ${{ inputs.git_ref || github.ref_name }}
+          GIT_SHA: ${{ steps.git_sha.outputs.long }}
           IMAGE: ${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
         run: |
           {
-            echo "Given Git ref: \`${{ inputs.git_ref || github.ref_name }}\`"
-            echo "Commit: \`${{ steps.git_sha.outputs.long }}\`"
+            echo "Given Git ref: \`$GIT_REF\`"
+            echo "Commit: \`$GIT_SHA\`"
             echo "Image: \`$IMAGE\`"
           } >> "$GITHUB_STEP_SUMMARY"
