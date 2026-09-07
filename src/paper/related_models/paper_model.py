@@ -246,19 +246,6 @@ class Paper(AbstractGenericReactionModel):
     def created_by(self):
         return self.uploaded_by
 
-    def raw_author_count(self):
-        raw_author_count = 0
-
-        if isinstance(self.raw_authors, list):
-            raw_author_count = len(self.raw_authors)
-            for author in self.raw_authors:
-                if self.authors.filter(
-                    first_name=author.get("first_name"),
-                    last_name=author.get("last_name"),
-                ).exists():
-                    raw_author_count -= 1
-        return raw_author_count
-
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
 
