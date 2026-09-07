@@ -2,7 +2,17 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      git_ref:
+        description: "Git hash or branch to build"
+        required: false
+        type: string
   workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Enter Git hash or branch"
+        required: false
+        type: string
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
@@ -18,6 +28,8 @@ jobs:
     steps:
       - name: Check out sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.git_ref }}
 
       - name: Get Git SHA
         id: git_sha
@@ -49,3 +61,15 @@ jobs:
           tags: ${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
           cache-from: type=gha,scope=researchhub-backend-arm64
           cache-to: type=gha,mode=max,scope=researchhub-backend-arm64
+
+      - name: Summary
+        env:
+          GIT_REF: ${{ inputs.git_ref || github.ref_name }}
+          GIT_SHA: ${{ steps.git_sha.outputs.long }}
+          IMAGE: ${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
+        run: |
+          {
+            echo "Given Git ref: \`$GIT_REF\`"
+            echo "Commit: \`$GIT_SHA\`"
+            echo "Image: \`$IMAGE\`"
+          } >> "$GITHUB_STEP_SUMMARY"
