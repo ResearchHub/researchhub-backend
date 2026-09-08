@@ -1010,6 +1010,12 @@ class UserActivityQuerySerializer(serializers.Serializer):
     user_id = serializers.IntegerField(min_value=1)
 
 
+class AuthorActivityQuerySerializer(serializers.Serializer):
+    """Validate query parameters for the author profile activity feed."""
+
+    author_id = serializers.IntegerField(min_value=1)
+
+
 class RelatedWorkSerializer(serializers.Serializer):
     """Slim unified-document payload for activity feed related_work."""
 
