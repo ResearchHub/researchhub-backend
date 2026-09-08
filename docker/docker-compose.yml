@@ -29,8 +29,10 @@ services:
     pid: host
     restart: unless-stopped
     volumes:
+      - ./beanstalk.d:/conf.d/beanstalk.d:ro
       - /opt/datadog-agent/run:/opt/datadog-agent/run:rw
       - /proc:/host/proc:ro
       - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
+      - /var/log:/host/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
