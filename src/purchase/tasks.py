@@ -11,6 +11,9 @@ from purchase.circle.service import CircleWalletService
 from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
+from purchase.services.grant_application_notification_service import (
+    GrantApplicationNotificationService,
+)
 from reputation.models import Deposit
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
@@ -74,6 +77,12 @@ def complete_eligible_fundraises():
         "error_count": error_count,
         "processed_total": completed_count + error_count,
     }
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
+def send_grant_application_email(notification_id: int) -> None:
+    """Send the RFP application email through the notification queue."""
+    GrantApplicationNotificationService().send_application_email(notification_id)
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
