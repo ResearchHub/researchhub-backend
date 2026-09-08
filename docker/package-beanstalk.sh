@@ -13,5 +13,12 @@ sed \
   "$script_directory/docker-compose.yml" \
   > "$output_directory/docker-compose.yml"
 
+cp \
+  "$script_directory/datadog-logs.yaml" \
+  "$output_directory/datadog-logs.yaml"
+
 rm -f "$output_directory/deploy.zip"
-zip -j "$output_directory/deploy.zip" "$output_directory/docker-compose.yml"
+zip -j \
+  "$output_directory/deploy.zip" \
+  "$output_directory/docker-compose.yml" \
+  "$output_directory/datadog-logs.yaml"
