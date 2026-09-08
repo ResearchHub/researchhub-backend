@@ -18,7 +18,6 @@ from ai_peer_review.signals import preregistration_substantively_updated
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
-from hub.models import Hub
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
@@ -233,7 +232,6 @@ class ResearchhubPostViewSet(
                     "note__author_links",
                     "note__grant_settings__contacts",
                     "note__selected_grant__unified_document__posts",
-                    "note__unified_document__hubs",
                     Prefetch(
                         "grant_applications",
                         queryset=GrantApplication.objects.select_related("grant"),
@@ -390,11 +388,6 @@ class ResearchhubPostViewSet(
                 if access_group is not None:
                     unified_document.access_groups = access_group
                 unified_document.save()
-                if registered_report_proposal is not None:
-                    unified_document.hubs.set(
-                        registered_report_proposal.unified_document.hubs.all()
-                    )
-
                 slug = slugify(title)
                 rh_post = ResearchhubPost.objects.create(
                     created_by=created_by,
@@ -621,7 +614,6 @@ class ResearchhubPostViewSet(
                     status=400,
                 )
 
-            hubs = data.get("hubs", None)
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
 
@@ -652,10 +644,6 @@ class ResearchhubPostViewSet(
             if isinstance(authors, list):
                 self._validate_author_ids(authors)
                 rh_post.reset_post_authors(authors)
-
-            if type(hubs) is list:
-                unified_doc = post.unified_document
-                unified_doc.hubs.set(hubs)
 
             # Handle grant updates
             grant = None
@@ -785,7 +773,6 @@ class ResearchhubPostViewSet(
     def create_unified_doc(self, request, target_grant: Grant | None = None):
         try:
             request_data = request.data
-            hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()
             document_type = request_data.get("document_type")
             is_public = True
             # PREREGISTRATION and GRANT posts may be created as private.
@@ -813,12 +800,9 @@ class ResearchhubPostViewSet(
                                 "This grant requires applications to be public."
                             )
                         is_public = True
-            uni_doc = ResearchhubUnifiedDocument.objects.create(
+            return ResearchhubUnifiedDocument.objects.create(
                 document_type=document_type,
                 is_public=is_public,
             )
-            uni_doc.hubs.add(*hubs)
-            uni_doc.save()
-            return uni_doc
         except (KeyError, TypeError):
             logger.exception("Error creating unified document")
