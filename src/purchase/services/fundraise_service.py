@@ -12,6 +12,8 @@ from purchase.endaoment import EndaomentService
 from purchase.models import (
     Balance,
     EndaomentAccount,
+    FundingDistribution,
+    FundingPool,
     Fundraise,
     Purchase,
     RscExchangeRate,
@@ -575,6 +577,75 @@ class FundraiseService:
         record = distributor.distribute()
         return record.distributed_status != "FAILED"
 
+    def _reverse_pool_sourced_contribution(
+        self,
+        fundraise: Fundraise,
+        distribution: FundingDistribution,
+    ) -> bool:
+        """
+        Return a pool-sourced escrow slice to the FundingPool.
+        """
+        try:
+            amount = Decimal(str(distribution.amount))
+        except (ArithmeticError, TypeError, ValueError):
+            logger.error(
+                "Invalid funding distribution amount for distribution %s",
+                distribution.id,
+            )
+            return False
+
+        if not amount.is_finite() or amount <= 0:
+            logger.error(
+                "Refusing to reverse non-positive funding distribution %s",
+                distribution.id,
+            )
+            return False
+
+        if not fundraise.escrow_id:
+            logger.error(
+                "Fundraise %s has no escrow for pool reverse of distribution %s",
+                fundraise.id,
+                distribution.id,
+            )
+            return False
+
+        escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
+        pool = FundingPool.objects.select_for_update().get(id=distribution.pool_id)
+
+        if amount > escrow.amount_holding:
+            logger.error(
+                "Insufficient escrow holding to reverse distribution %s "
+                "(amount=%s, holding=%s)",
+                distribution.id,
+                amount,
+                escrow.amount_holding,
+            )
+            return False
+
+        if amount > pool.amount_distributed:
+            logger.error(
+                "Insufficient pool distributed to reverse distribution %s "
+                "(amount=%s, distributed=%s)",
+                distribution.id,
+                amount,
+                pool.amount_distributed,
+            )
+            return False
+
+        escrow.amount_holding -= amount
+        escrow.save(update_fields=["amount_holding", "updated_date"])
+
+        pool.amount_holding += amount
+        pool.amount_distributed -= amount
+        pool.save(
+            update_fields=["amount_holding", "amount_distributed", "updated_date"]
+        )
+
+        distribution.status = FundingDistribution.REVERSED
+        distribution.save(update_fields=["status", "updated_date"])
+
+        return True
+
     def refund_rsc_contributions(self, fundraise: Fundraise) -> bool:
         """
         Refund all RSC contributions from escrow back to contributors.
@@ -586,6 +657,21 @@ class FundraiseService:
         bounty_fee_ct = ContentType.objects.get_for_model(BountyFee)
 
         for contribution in fundraise.purchases.all():
+            pool_distribution = (
+                FundingDistribution.objects.filter(
+                    fundraise_purchase=contribution,
+                    status=FundingDistribution.APPLIED,
+                )
+                .select_related("pool")
+                .first()
+            )
+            if pool_distribution is not None:
+                if not self._reverse_pool_sourced_contribution(
+                    fundraise, pool_distribution
+                ):
+                    return False
+                continue
+
             for debit in Balance.objects.filter(purchase=contribution):
                 if not self._refund_contribution_debit(
                     fundraise, contribution.user, debit, purchase_ct, bounty_fee_ct
@@ -610,6 +696,7 @@ class FundraiseService:
         """
         Complete a fundraise and payout funds to the recipient.
         Only works if the fundraise is in OPEN status and has escrow funds.
+        Marks any APPLIED FundingDistribution rows as SETTLED after payout.
 
         Args:
             fundraise: The fundraise to complete
@@ -632,6 +719,14 @@ class FundraiseService:
 
             if not fundraise.payout_funds():
                 raise RuntimeError("Failed to payout funds")
+
+            FundingDistribution.objects.filter(
+                target_fundraise=fundraise,
+                status=FundingDistribution.APPLIED,
+            ).update(
+                status=FundingDistribution.SETTLED,
+                updated_date=timezone.now(),
+            )
 
             fundraise.status = Fundraise.COMPLETED
             fundraise.save()
