@@ -48,6 +48,7 @@ class FundingPoolServiceTests(TestCase):
             target_currency="USD",
         )
         create_user(email="bank@researchhub.com")
+        create_user(email="revenue@researchhub.com")
 
     def _give_available_balance(self, user, amount):
         distribution_ct = ContentType.objects.get(model="distribution")
@@ -321,3 +322,81 @@ class FundingPoolServiceTests(TestCase):
         # Assert
         self.assertIsNone(distribution)
         self.assertEqual(error, "Funding pool is not open")
+
+    def test_close_fundraise_restores_pool_and_refunds_user_slices(self):
+        # Arrange: pool top-up + direct user contribution on the same proposal
+        self._seed_pool_holding(Decimal(200))
+        _, application, fundraise = self._create_proposal_application_with_fundraise()
+        distribution, error = self.service.distribute(
+            self.pool, self.creator, Decimal(75), application.id
+        )
+        self.assertIsNone(error)
+
+        user_contributor = create_random_authenticated_user("mixed_close_user")
+        self._give_available_balance(user_contributor, 1000)
+        _, user_error = FundraiseService().create_rsc_contribution(
+            user_contributor, fundraise, Decimal(40), use_credits=False
+        )
+        self.assertIsNone(user_error)
+        creator_balance_before_close = self.creator.get_available_balance()
+
+        # Act
+        closed = FundraiseService().close_fundraise(fundraise)
+
+        # Assert
+        self.assertTrue(closed)
+        fundraise.refresh_from_db()
+        fundraise.escrow.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.CLOSED)
+        self.assertEqual(fundraise.escrow.amount_holding, Decimal(0))
+
+        distribution.refresh_from_db()
+        self.assertEqual(distribution.status, FundingDistribution.REVERSED)
+
+        self.pool.refresh_from_db()
+        self.assertEqual(self.pool.amount_holding, Decimal(200))
+        self.assertEqual(self.pool.amount_distributed, Decimal(0))
+
+        self.assertTrue(
+            Balance.objects.filter(user=user_contributor, amount=40).exists()
+        )
+        self.assertEqual(
+            self.creator.get_available_balance(), creator_balance_before_close
+        )
+        self.assertEqual(
+            Balance.objects.filter(purchase=distribution.fundraise_purchase).count(),
+            0,
+        )
+
+    def test_complete_fundraise_settles_distribution_and_pays_author(self):
+        # Arrange
+        self._seed_pool_holding(Decimal(150))
+        applicant, application, fundraise = (
+            self._create_proposal_application_with_fundraise()
+        )
+        distribution, error = self.service.distribute(
+            self.pool, self.creator, Decimal(90), application.id
+        )
+        self.assertIsNone(error)
+        author_balance_before = applicant.get_available_balance()
+
+        # Act
+        FundraiseService().complete_fundraise(fundraise)
+
+        # Assert
+        fundraise.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.COMPLETED)
+        fundraise.escrow.refresh_from_db()
+        self.assertEqual(fundraise.escrow.amount_holding, Decimal(0))
+
+        distribution.refresh_from_db()
+        self.assertEqual(distribution.status, FundingDistribution.SETTLED)
+
+        self.pool.refresh_from_db()
+        self.assertEqual(self.pool.amount_holding, Decimal(60))
+        self.assertEqual(self.pool.amount_distributed, Decimal(90))
+
+        self.assertEqual(
+            applicant.get_available_balance(),
+            author_balance_before + Decimal(90),
+        )
