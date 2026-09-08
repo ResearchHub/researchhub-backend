@@ -29,7 +29,7 @@ services:
     pid: host
     restart: unless-stopped
     volumes:
-      - ./datadog-logs.yaml:/conf.d/datadog-logs.yaml:ro
+      - ./beanstalk.d:/conf.d/beanstalk.d:ro
       - /opt/datadog-agent/run:/opt/datadog-agent/run:rw
       - /proc:/host/proc:ro
       - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
