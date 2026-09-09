@@ -759,6 +759,13 @@ class PaymentServiceTest(TestCase):
         )
         pool = FundingPool.objects.create(grant=grant, created_by=self.user)
 
+        RscExchangeRate.objects.create(
+            rate=0.5,
+            real_rate=0.5,
+            target_currency=USD,
+        )
+        create_user(email="bank@researchhub.com")
+
         locked_rsc_amount = Decimal("100.0")
         mock_payment_intent = MagicMock()
         mock_payment_intent.status = "succeeded"
