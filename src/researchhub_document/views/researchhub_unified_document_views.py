@@ -150,6 +150,7 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_pool",
                 ]
             },
             "pch_dfs_get_contributors": {
@@ -355,6 +356,7 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_pool",
                 ]
             },
             "pch_dfs_get_contributors": {

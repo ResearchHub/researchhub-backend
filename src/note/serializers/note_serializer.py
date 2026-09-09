@@ -379,6 +379,7 @@ class NoteSerializer(ModelSerializer):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_pool",
                 ]
             },
             "pch_dgs_get_created_by": {
@@ -540,6 +541,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_pool",
                 ]
             },
             "pch_dgs_get_created_by": {

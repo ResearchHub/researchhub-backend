@@ -435,6 +435,7 @@ class PostSerializer(ContentObjectSerializer):
                     "created_by",
                     "contacts",
                     "applications",
+                    "funding_pool",
                 ],
             )
             return serializer.data
@@ -1373,6 +1374,7 @@ MODERATOR_GRANT_FEED_ITEM_FIELDS = (
     "created_by",
     "contacts",
     "post_id",
+    "funding_pool",
 )
 MODERATOR_GRANT_FEED_USER_FIELDS = (
     "id",
