@@ -211,6 +211,25 @@ class NotebookChatViewTests(APITestCase):
         self.assertIn("model", response.data)
         self.assertFalse(AgentExecution.objects.exists())
 
+    def test_post_message_cannot_switch_the_conversation_effort(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        first_response, _delay = self._post_message(chat_id, effort="low")
+        first = AgentExecution.objects.get(id=first_response.data["execution_id"])
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+
+        # Act
+        response, delay = self._post_message(chat_id, effort="high")
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("effort cannot be changed", response.data["detail"])
+        self.assertEqual(first.conversation.executions.count(), 1)
+        self.assertEqual(first.conversation.chat_messages.count(), 1)
+        delay.assert_not_called()
+
     @override_settings(
         ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
     )
