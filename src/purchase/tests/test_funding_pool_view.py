@@ -39,6 +39,7 @@ class FundingPoolViewTests(APITestCase):
             currency="USD",
             organization="Test Org",
             description="Test grant",
+            status=Grant.OPEN,
         )
         self.pool = FundingPoolService().create_pool_for_grant(self.grant)
 
