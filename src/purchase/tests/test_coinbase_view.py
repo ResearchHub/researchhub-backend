@@ -127,7 +127,7 @@ class TestCoinbaseViewSet(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
         self.assertEqual(
-            response.data["error"], "Coinbase API credentials not configured"
+            response.data["error"], "Validation error generating onramp URL"
         )
 
     @patch("purchase.views.coinbase_view.CoinbaseService")

@@ -35,7 +35,7 @@ class BalanceSourceRelatedField(serializers.RelatedField):
         elif isinstance(value, Bounty):
             return BountySerializer(value).data
 
-        logger.info(f"No representation for {value} / id: {value.id}")
+        logger.info("No representation for type %s / id: %s", type(value), value.id)
 
         return None
 
