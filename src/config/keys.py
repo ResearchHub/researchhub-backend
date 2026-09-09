@@ -20,6 +20,7 @@ MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", "")
 MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", "")
 
 RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "")
+TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 
 
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET", "")
