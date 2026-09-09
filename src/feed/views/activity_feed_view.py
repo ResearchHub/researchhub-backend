@@ -275,7 +275,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         author_id = query_serializer.validated_data["author_id"]
 
         queryset = self.filter_queryset(self.get_queryset()).filter(
-            user__author_profile_id=author_id
+            user__author_profile__id=author_id
         )
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
