@@ -67,10 +67,9 @@ class FundingPoolServiceTests(TestCase):
     def _seed_pool_holding(self, amount=Decimal(200)):
         contributor = create_random_authenticated_user("pool_seed_contributor")
         self._give_available_balance(contributor, 1000)
-        purchase, error = self.service.create_rsc_contribution(
+        purchase = self.service.create_rsc_contribution(
             contributor, self.pool, amount, use_credits=False
         )
-        self.assertIsNone(error)
         self.pool.refresh_from_db()
         return purchase
 
@@ -99,18 +98,25 @@ class FundingPoolServiceTests(TestCase):
         self.assertEqual(again.id, self.pool.id)
         self.assertEqual(FundingPool.objects.filter(grant=self.grant).count(), 1)
 
+    def test_is_valid_for_contribution_follows_status(self):
+        # Assert
+        self.assertTrue(self.pool.is_valid_for_contribution)
+
+        self.pool.status = FundingPool.CLOSED
+        self.pool.save(update_fields=["status"])
+        self.assertFalse(self.pool.is_valid_for_contribution)
+
     def test_create_rsc_contribution_with_available_balance(self):
         # Arrange
         contributor = create_random_authenticated_user("pool_contributor")
         self._give_available_balance(contributor, 1000)
 
         # Act
-        purchase, error = self.service.create_rsc_contribution(
+        purchase = self.service.create_rsc_contribution(
             contributor, self.pool, Decimal(100), use_credits=False
         )
 
         # Assert
-        self.assertIsNone(error)
         self.assertIsNotNone(purchase)
         self.assertEqual(purchase.purchase_type, Purchase.FUNDING_POOL_CONTRIBUTION)
         self.assertEqual(purchase.object_id, self.pool.id)
@@ -138,12 +144,11 @@ class FundingPoolServiceTests(TestCase):
         self._give_available_balance(contributor, 500)
 
         # Act
-        purchase, error = self.service.create_rsc_contribution(
+        purchase = self.service.create_rsc_contribution(
             contributor, self.pool, Decimal(100), use_credits=True
         )
 
         # Assert
-        self.assertIsNone(error)
         debits = Balance.objects.filter(purchase=purchase)
         self.assertTrue(
             all(
@@ -159,14 +164,12 @@ class FundingPoolServiceTests(TestCase):
         self._give_funding_credits(contributor, 50)
         self._give_available_balance(contributor, 1000)
 
-        # Act
-        purchase, error = self.service.create_rsc_contribution(
-            contributor, self.pool, Decimal(100), use_credits=True
-        )
-
-        # Assert
-        self.assertIsNone(purchase)
-        self.assertEqual(error, "Insufficient funding credit balance")
+        # Act / Assert
+        with self.assertRaises(ValueError) as ctx:
+            self.service.create_rsc_contribution(
+                contributor, self.pool, Decimal(100), use_credits=True
+            )
+        self.assertEqual(str(ctx.exception), "Insufficient funding credit balance")
         self.pool.refresh_from_db()
         self.assertEqual(self.pool.amount_holding, Decimal(0))
 
@@ -177,27 +180,23 @@ class FundingPoolServiceTests(TestCase):
         contributor = create_random_authenticated_user("closed_pool_contributor")
         self._give_available_balance(contributor, 1000)
 
-        # Act
-        purchase, error = self.service.create_contribution(
-            contributor, self.pool, Decimal(100), use_credits=False
-        )
-
-        # Assert
-        self.assertIsNone(purchase)
-        self.assertEqual(error, "Funding pool is not open")
+        # Act / Assert
+        with self.assertRaises(ValueError) as ctx:
+            self.service.create_contribution(
+                contributor, self.pool, Decimal(100), use_credits=False
+            )
+        self.assertEqual(str(ctx.exception), "Funding pool is not open")
 
     def test_create_contribution_rejects_usd(self):
         # Arrange
         contributor = create_random_authenticated_user("usd_pool_contributor")
 
-        # Act
-        purchase, error = self.service.create_contribution(
-            contributor, self.pool, Decimal(100), currency="USD"
-        )
-
-        # Assert
-        self.assertIsNone(purchase)
-        self.assertIn("Only RSC", error)
+        # Act / Assert
+        with self.assertRaises(ValueError) as ctx:
+            self.service.create_contribution(
+                contributor, self.pool, Decimal(100), currency="USD"
+            )
+        self.assertIn("Only RSC", str(ctx.exception))
 
     def test_distribute_to_open_proposal_fundraise(self):
         # Arrange
@@ -206,7 +205,7 @@ class FundingPoolServiceTests(TestCase):
         creator_balance_before = self.creator.get_available_balance()
 
         # Act
-        distribution, error = self.service.distribute(
+        distribution = self.service.distribute(
             self.pool,
             self.creator,
             Decimal(75),
@@ -214,7 +213,6 @@ class FundingPoolServiceTests(TestCase):
         )
 
         # Assert
-        self.assertIsNone(error)
         self.assertIsNotNone(distribution)
         self.assertEqual(distribution.status, FundingDistribution.APPLIED)
         self.assertEqual(distribution.amount, Decimal(75))
@@ -241,17 +239,15 @@ class FundingPoolServiceTests(TestCase):
         self._seed_pool_holding(Decimal(50))
         _, application, _ = self._create_proposal_application_with_fundraise()
 
-        # Act
-        distribution, error = self.service.distribute(
-            self.pool,
-            self.creator,
-            Decimal(51),
-            application.id,
-        )
-
-        # Assert
-        self.assertIsNone(distribution)
-        self.assertEqual(error, "Insufficient pool balance")
+        # Act / Assert
+        with self.assertRaises(ValueError) as ctx:
+            self.service.distribute(
+                self.pool,
+                self.creator,
+                Decimal(51),
+                application.id,
+            )
+        self.assertEqual(str(ctx.exception), "Insufficient pool balance")
         self.pool.refresh_from_db()
         self.assertEqual(self.pool.amount_holding, Decimal(50))
         self.assertEqual(self.pool.amount_distributed, Decimal(0))
@@ -273,17 +269,17 @@ class FundingPoolServiceTests(TestCase):
             grant=other_grant
         )
 
-        # Act
-        distribution, error = self.service.distribute(
-            self.pool,
-            self.creator,
-            Decimal(25),
-            other_application.id,
+        # Act / Assert
+        with self.assertRaises(ValueError) as ctx:
+            self.service.distribute(
+                self.pool,
+                self.creator,
+                Decimal(25),
+                other_application.id,
+            )
+        self.assertEqual(
+            str(ctx.exception), "Application does not belong to this grant"
         )
-
-        # Assert
-        self.assertIsNone(distribution)
-        self.assertEqual(error, "Application does not belong to this grant")
 
     def test_distribute_rejects_closed_fundraise(self):
         # Arrange
@@ -292,17 +288,15 @@ class FundingPoolServiceTests(TestCase):
         fundraise.status = Fundraise.CLOSED
         fundraise.save(update_fields=["status"])
 
-        # Act
-        distribution, error = self.service.distribute(
-            self.pool,
-            self.creator,
-            Decimal(25),
-            application.id,
-        )
-
-        # Assert
-        self.assertIsNone(distribution)
-        self.assertEqual(error, "Fundraise is not open")
+        # Act / Assert
+        with self.assertRaises(ValueError) as ctx:
+            self.service.distribute(
+                self.pool,
+                self.creator,
+                Decimal(25),
+                application.id,
+            )
+        self.assertEqual(str(ctx.exception), "Fundraise is not open")
 
     def test_distribute_rejects_closed_pool(self):
         # Arrange
@@ -311,26 +305,23 @@ class FundingPoolServiceTests(TestCase):
         self.pool.status = FundingPool.CLOSED
         self.pool.save(update_fields=["status"])
 
-        # Act
-        distribution, error = self.service.distribute(
-            self.pool,
-            self.creator,
-            Decimal(25),
-            application.id,
-        )
-
-        # Assert
-        self.assertIsNone(distribution)
-        self.assertEqual(error, "Funding pool is not open")
+        # Act / Assert
+        with self.assertRaises(ValueError) as ctx:
+            self.service.distribute(
+                self.pool,
+                self.creator,
+                Decimal(25),
+                application.id,
+            )
+        self.assertEqual(str(ctx.exception), "Funding pool is not open")
 
     def test_close_fundraise_restores_pool_and_refunds_user_slices(self):
         # Arrange: pool top-up + direct user contribution on the same proposal
         self._seed_pool_holding(Decimal(200))
         _, application, fundraise = self._create_proposal_application_with_fundraise()
-        distribution, error = self.service.distribute(
+        distribution = self.service.distribute(
             self.pool, self.creator, Decimal(75), application.id
         )
-        self.assertIsNone(error)
 
         user_contributor = create_random_authenticated_user("mixed_close_user")
         self._give_available_balance(user_contributor, 1000)
@@ -374,10 +365,9 @@ class FundingPoolServiceTests(TestCase):
         applicant, application, fundraise = (
             self._create_proposal_application_with_fundraise()
         )
-        distribution, error = self.service.distribute(
+        distribution = self.service.distribute(
             self.pool, self.creator, Decimal(90), application.id
         )
-        self.assertIsNone(error)
         author_balance_before = applicant.get_available_balance()
 
         # Act

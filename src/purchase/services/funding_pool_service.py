@@ -39,14 +39,6 @@ class FundingPoolService:
         )
         return pool
 
-    def validate_pool_for_contribution(
-        self, pool: FundingPool
-    ) -> tuple[bool, str | None]:
-        """Validate that a funding pool can accept contributions."""
-        if pool.status != FundingPool.OPEN:
-            return False, "Funding pool is not open"
-        return True, None
-
     def create_contribution(
         self,
         user: User,
@@ -54,30 +46,31 @@ class FundingPoolService:
         amount: Decimal,
         currency: str = RSC,
         use_credits: bool = True,
-    ) -> tuple[Purchase | None, str | None]:
+    ) -> Purchase:
         """
         Validate and create an RSC contribution to a funding pool.
 
-
         Fees and balance debits follow the fundraise pattern;
         net amount is credited to ``pool.amount_holding``.
+
+        Raises:
+            ValueError: If the pool, currency, or amount is invalid.
         """
-        is_valid, error = self.validate_pool_for_contribution(pool)
-        if not is_valid:
-            return None, error
+        if not pool.is_valid_for_contribution:
+            raise ValueError("Funding pool is not open")
 
         if currency != RSC:
-            return None, "Only RSC contributions are supported for funding pools"
+            raise ValueError("Only RSC contributions are supported for funding pools")
 
         try:
             amount = Decimal(amount)
-        except Exception:
-            return None, "Invalid amount"
+        except Exception as error:
+            raise ValueError("Invalid amount") from error
 
         min_rsc = MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
         max_rsc = MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
         if amount < min_rsc or amount > max_rsc:
-            return None, f"Invalid amount. Minimum is {min_rsc}"
+            raise ValueError(f"Invalid amount. Minimum is {min_rsc}")
 
         return self.create_rsc_contribution(user, pool, amount, use_credits=use_credits)
 
@@ -87,21 +80,24 @@ class FundingPoolService:
         pool: FundingPool,
         amount: Decimal,
         use_credits: bool = True,
-    ) -> tuple[Purchase | None, str | None]:
+    ) -> Purchase:
         """
         Create an RSC contribution to a funding pool.
 
         When ``use_credits`` is True, the full ``amount + fee`` must be covered
         by funding credits. Otherwise, promotional RSC is consumed first and
         available RSC covers any remainder.
+
+        Raises:
+            ValueError: If amount, fees, pool status, or balance is invalid.
         """
         try:
             amount = Decimal(str(amount))
-        except (ArithmeticError, TypeError, ValueError):
-            return None, "Invalid amount"
+        except (ArithmeticError, TypeError, ValueError) as error:
+            raise ValueError("Invalid amount") from error
 
         if not amount.is_finite() or amount <= 0:
-            return None, "Invalid amount"
+            raise ValueError("Invalid amount")
 
         fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(amount)
         total_cost = amount + fee
@@ -110,21 +106,18 @@ class FundingPoolService:
             not value.is_finite() or value < 0
             for value in (fee, rh_fee, dao_fee, total_cost)
         ):
-            return None, "Invalid fee configuration"
+            raise ValueError("Invalid fee configuration")
 
         with transaction.atomic():
             pool = FundingPool.objects.select_for_update().get(id=pool.id)
-            if pool.status != FundingPool.OPEN:
-                return None, "Funding pool is not open"
+            if not pool.is_valid_for_contribution:
+                raise ValueError("Funding pool is not open")
 
             user = User.objects.select_for_update().get(id=user.id)
 
-            try:
-                allocations = FundraiseService._allocate_contribution_spend(
-                    user, total_cost, use_credits
-                )
-            except ValueError as error:
-                return None, str(error)
+            allocations = FundraiseService._allocate_contribution_spend(
+                user, total_cost, use_credits
+            )
 
             purchase = Purchase.objects.create(
                 user=user,
@@ -184,26 +177,29 @@ class FundingPoolService:
             pool.amount_holding += amount
             pool.save(update_fields=["amount_holding", "updated_date"])
 
-        return purchase, None
+        return purchase
 
     def _resolve_distribution_target(
         self,
         pool: FundingPool,
         application_id: int,
-    ) -> tuple[GrantApplication | None, Fundraise | None, str | None]:
+    ) -> tuple[GrantApplication, Fundraise]:
         """Resolve a grant application and its proposal fundraise for distribution.
 
         The application must belong to the same grant as ``pool``.
+
+        Raises:
+            ValueError: If the application or proposal fundraise cannot be used.
         """
         try:
             application = GrantApplication.objects.select_related(
                 "preregistration_post"
             ).get(id=application_id)
-        except GrantApplication.DoesNotExist:
-            return None, None, "Grant application does not exist"
+        except GrantApplication.DoesNotExist as error:
+            raise ValueError("Grant application does not exist") from error
 
         if application.grant_id != pool.grant_id:
-            return None, None, "Application does not belong to this grant"
+            raise ValueError("Application does not belong to this grant")
 
         fundraise = (
             Fundraise.objects.filter(
@@ -213,9 +209,9 @@ class FundingPoolService:
             .first()
         )
         if fundraise is None:
-            return None, None, "Proposal fundraise does not exist"
+            raise ValueError("Proposal fundraise does not exist")
 
-        return application, fundraise, None
+        return application, fundraise
 
     def distribute(
         self,
@@ -223,40 +219,39 @@ class FundingPoolService:
         distributed_by: User,
         amount: Decimal,
         application_id: int,
-    ) -> tuple[FundingDistribution | None, str | None]:
+    ) -> FundingDistribution:
         """
         Move RSC from a funding pool into an OPEN proposal fundraise escrow.
 
         Creates an audit ``Purchase`` on the proposal fundraise with no user
         Balance debit and no second bounty fee (fees were taken on contribute).
+
+        Raises:
+            ValueError: If amount, pool, application, or fundraise is invalid.
         """
         try:
             amount = Decimal(str(amount))
-        except (ArithmeticError, TypeError, ValueError):
-            return None, "Invalid amount"
+        except (ArithmeticError, TypeError, ValueError) as error:
+            raise ValueError("Invalid amount") from error
 
         if not amount.is_finite() or amount <= 0:
-            return None, "Invalid amount"
+            raise ValueError("Invalid amount")
 
-        application, fundraise, error = self._resolve_distribution_target(
-            pool, application_id
-        )
-        if error:
-            return None, error
+        application, fundraise = self._resolve_distribution_target(pool, application_id)
 
         with transaction.atomic():
             pool = FundingPool.objects.select_for_update().get(id=pool.id)
-            if pool.status != FundingPool.OPEN:
-                return None, "Funding pool is not open"
+            if not pool.is_valid_for_contribution:
+                raise ValueError("Funding pool is not open")
 
             if amount > pool.amount_holding:
-                return None, "Insufficient pool balance"
+                raise ValueError("Insufficient pool balance")
 
             fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
             if fundraise.status != Fundraise.OPEN:
-                return None, "Fundraise is not open"
+                raise ValueError("Fundraise is not open")
             if not fundraise.escrow_id:
-                return None, "Fundraise escrow is not set"
+                raise ValueError("Fundraise escrow is not set")
 
             escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
 
@@ -295,4 +290,4 @@ class FundingPoolService:
                 status=FundingDistribution.APPLIED,
             )
 
-        return distribution, None
+        return distribution

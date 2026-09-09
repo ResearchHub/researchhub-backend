@@ -559,12 +559,13 @@ class PaymentService:
         except (FundingPool.DoesNotExist, User.DoesNotExist):
             return None
 
-        contribution, error = funding_pool_service.create_contribution(
-            user=user,
-            pool=pool,
-            amount=rsc_amount,
-            currency=RSC,
-            use_credits=True,
-        )
-
-        return contribution if not error else None
+        try:
+            return funding_pool_service.create_contribution(
+                user=user,
+                pool=pool,
+                amount=rsc_amount,
+                currency=RSC,
+                use_credits=True,
+            )
+        except ValueError:
+            return None
