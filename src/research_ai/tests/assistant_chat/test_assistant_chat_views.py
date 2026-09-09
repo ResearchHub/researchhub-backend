@@ -6,7 +6,11 @@ from rest_framework.test import APITestCase
 
 from note.models import Note
 from note.tests.helpers import create_note
-from research_ai.models import AgentExecution, NoteAgentConversation
+from research_ai.models import (
+    AgentConversation,
+    AgentExecution,
+    NoteAgentConversation,
+)
 from research_ai.services.notebook_chat import NotebookChatService
 
 MODEL_SETTINGS = {
@@ -241,9 +245,12 @@ class AssistantChatViewTests(APITestCase):
         # Act
         response = self.client.delete(self._chat_url(chat_id))
 
-        # Assert
+        # Assert: gone from the API, kept in the database.
         self.assertEqual(response.status_code, 204)
         self.assertEqual(self.client.get(self._chat_url(chat_id)).status_code, 404)
+        conversation = AgentConversation.objects.get(id=chat_id)
+        self.assertTrue(conversation.is_removed)
+        self.assertIsNotNone(conversation.removed_date)
 
     def _link_note(self, chat_id):
         note, _content = create_note(self.owner, organization=None)
