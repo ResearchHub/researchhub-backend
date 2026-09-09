@@ -73,16 +73,16 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
         if error_response:
             return error_response
 
-        _, error = self.funding_pool_service.create_contribution(
-            user=request.user,
-            pool=pool,
-            amount=validated["amount"],
-            currency=validated["amount_currency"],
-            use_credits=validated["use_credits"],
-        )
-
-        if error:
-            return Response({"message": error}, status=400)
+        try:
+            self.funding_pool_service.create_contribution(
+                user=request.user,
+                pool=pool,
+                amount=validated["amount"],
+                currency=validated["amount_currency"],
+                use_credits=validated["use_credits"],
+            )
+        except ValueError as error:
+            return Response({"message": str(error)}, status=400)
 
         # Let the contributor follow the grant document when present
         grant = pool.grant
@@ -118,15 +118,15 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
         if request.user != grant.created_by and not request.user.moderator:
             return Response({"message": "Permission denied"}, status=403)
 
-        _, error = self.funding_pool_service.distribute(
-            pool=pool,
-            distributed_by=request.user,
-            amount=validated["amount"],
-            application_id=validated["application_id"],
-        )
-
-        if error:
-            return Response({"message": error}, status=400)
+        try:
+            self.funding_pool_service.distribute(
+                pool=pool,
+                distributed_by=request.user,
+                amount=validated["amount"],
+                application_id=validated["application_id"],
+            )
+        except ValueError as error:
+            return Response({"message": str(error)}, status=400)
 
         pool.refresh_from_db()
         context = self.get_serializer_context()
