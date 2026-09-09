@@ -20,6 +20,18 @@ class FundingPoolContributionSerializer(serializers.Serializer):
         return value
 
 
+class FundingPoolDistributeSerializer(serializers.Serializer):
+    """Input validation for POST /api/funding_pool/{id}/distribute/."""
+
+    amount = serializers.DecimalField(max_digits=19, decimal_places=10)
+    application_id = serializers.IntegerField()
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Amount must be greater than zero.")
+        return value
+
+
 class DynamicFundingPoolSerializer(DynamicModelFieldSerializer):
     created_by = serializers.SerializerMethodField()
     amount_holding = serializers.SerializerMethodField()
