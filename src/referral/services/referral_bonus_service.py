@@ -43,12 +43,13 @@ class ReferralBonusService:
         Returns:
             List of dicts with referral data
         """
-        # Get all contributions to this fundraise
+        # Get wallet-backed contributions only.
         contributions = Purchase.objects.filter(
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
             content_type__model="fundraise",
             object_id=fundraise.id,
             paid_status=Purchase.PAID,
+            funding_distribution__isnull=True,
         ).select_related("user")
 
         eligible_referrals = []
