@@ -2,22 +2,25 @@ from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase, override_settings
+from django.test import override_settings
 from web3 import Web3
 
 from purchase.models import Balance
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
+from reputation.models import HotWalletNonceReservation
 from reputation.services.wallet import DEAD_ADDRESS, WalletService
 from user.related_models.user_model import FOUNDATION_REVENUE_EMAIL
 from user.tests.helpers import create_user
+from utils.test_helpers import AWSMockTransactionTestCase
 
 
-class TestWalletService(TestCase):
+class TestWalletService(AWSMockTransactionTestCase):
     """Test cases for WalletService."""
 
     def setUp(self):
         """Set up test data."""
+        super().setUp()
         # Create a community revenue account user
         self.revenue_account = create_user(
             email=FOUNDATION_REVENUE_EMAIL, first_name="Revenue", last_name="Account"
@@ -46,6 +49,8 @@ class TestWalletService(TestCase):
         # Set up mock w3
         self.mock_w3.eth.contract.return_value = self.mock_contract
         self.mock_w3.eth = self.mock_eth
+        self.mock_eth.chain_id = 84532
+        self.mock_eth.get_transaction_count.return_value = 0
         self.mock_w3.to_checksum_address = Web3.to_checksum_address
 
         # Mock requests for gas price API calls
@@ -328,6 +333,7 @@ class TestWalletService(TestCase):
         """Test RSC burning on ETHEREUM network."""
         # Arrange
         mock_web3_provider.ethereum = self.mock_w3
+        self.mock_eth.chain_id = 11155111
         mock_gas_estimate.return_value = 150000  # 150k gas
         mock_execute_transfer.return_value = "0x789abc"
         mock_get_private_key.return_value = "mock_private_key"
@@ -428,3 +434,35 @@ class TestWalletService(TestCase):
         """Test that DEAD_ADDRESS constant is correctly defined."""
 
         self.assertEqual(DEAD_ADDRESS, "0x000000000000000000000000000000000000dEaD")
+
+    @override_settings(
+        WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
+        WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
+    )
+    @patch("reputation.services.wallet.web3_provider")
+    @patch("reputation.services.wallet.get_private_key", return_value="mock-key")
+    @patch(
+        "reputation.services.wallet.execute_erc20_transfer",
+        side_effect=TimeoutError("lost response"),
+    )
+    def test_uncertain_burn_retains_debit_and_is_not_repeated(
+        self, mock_transfer, mock_key, mock_provider
+    ):
+        # Arrange
+        mock_provider.base = self.mock_w3
+        Balance.objects.create(
+            user=self.revenue_account,
+            content_type=ContentType.objects.get_for_model(self.revenue_account),
+            object_id=self.revenue_account.id,
+            amount="100.0",
+        )
+
+        # Act
+        with self.assertRaises(TimeoutError):
+            WalletService.burn_revenue_rsc("BASE")
+        WalletService.burn_revenue_rsc("BASE")
+
+        # Assert
+        self.assertEqual(self.revenue_account.get_available_balance(), Decimal(0))
+        self.assertEqual(HotWalletNonceReservation.objects.count(), 1)
+        mock_transfer.assert_called_once()

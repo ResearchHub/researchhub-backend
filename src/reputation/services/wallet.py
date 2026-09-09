@@ -3,7 +3,6 @@ import time
 from decimal import Decimal
 
 from django.conf import settings
-from django.db import transaction
 from web3 import Web3
 
 from ethereum.lib import (
@@ -15,6 +14,7 @@ from ethereum.lib import (
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from reputation.lib import contract_abi, get_gas_price_wei
+from reputation.services.hot_wallet_service import HotWalletService
 from user.models import User
 from utils.web3_utils import web3_provider
 
@@ -44,29 +44,26 @@ class WalletService:
             # same balance twice.
             revenue_account = User.objects.get_community_revenue_account()
 
-            with transaction.atomic():
-                revenue_account = User.objects.select_for_update().get(
+            current_balance = revenue_account.get_available_balance()
+            if current_balance <= 0:
+                logger.info(
+                    "Revenue account has no balance to burn: %s", current_balance
+                )
+                return None
+
+            def prepare_burn():
+                # Called in the same durable transaction as the shared nonce
+                # reservation. Retain this debit if submission becomes uncertain.
+                locked_account = User.objects.select_for_update().get(
                     pk=revenue_account.pk
                 )
-                current_balance = revenue_account.get_available_balance()
+                if locked_account.get_available_balance() != current_balance:
+                    raise ValueError("Revenue balance changed before burn reservation")
+                WalletService._zero_out_revenue_account(locked_account, current_balance)
 
-                if current_balance <= 0:
-                    logger.info(
-                        "Revenue account has no balance to burn: %s", current_balance
-                    )
-                    return None
-
-                logger.info("Revenue account balance to burn: %s", current_balance)
-
-                # Step 1: Create negative balance records to zero out the account
-                WalletService._zero_out_revenue_account(
-                    revenue_account, current_balance
-                )
-
-                # Step 2: Burn tokens from hot wallet (with receipt confirmation)
-                tx_hash = WalletService._burn_tokens_from_hot_wallet(
-                    current_balance, network
-                )
+            tx_hash = WalletService._burn_tokens_from_hot_wallet(
+                current_balance, network, prepare=prepare_burn
+            )
 
             logger.info(
                 f"Successfully burned {current_balance} RSC from revenue account "
@@ -93,7 +90,9 @@ class WalletService:
             raise RuntimeError("Failed to record the revenue-account burn")
 
     @staticmethod
-    def _burn_tokens_from_hot_wallet(amount: Decimal, network: str = "BASE") -> str:
+    def _burn_tokens_from_hot_wallet(
+        amount: Decimal, network: str = "BASE", *, prepare=None
+    ) -> str:
         """Transfers tokens from hot wallet to dead address (burning them)."""
         try:
             # Get the appropriate web3 provider and contract address
@@ -135,14 +134,15 @@ class WalletService:
                 raise Exception(error_msg)
 
             # Execute the transfer to dead address
-            tx_hash = execute_erc20_transfer(
+            tx_hash = HotWalletService(transfer=execute_erc20_transfer).send(
                 w3=w3,
                 sender=settings.WEB3_WALLET_ADDRESS,
-                sender_signing_key=get_private_key(),
+                private_key=get_private_key(),
                 contract=contract,
-                to=DEAD_ADDRESS,
+                to_address=DEAD_ADDRESS,
                 amount=amount,
                 network=network,
+                prepare=prepare,
             )
 
             logger.info(f"Burning transaction submitted: {tx_hash}")

@@ -8,21 +8,17 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
 from web3 import Web3
 
-import ethereum.lib
-import ethereum.utils
 from ethereum.lib import (
     RSC_CONTRACT_ADDRESS,
     execute_erc20_transfer,
-    get_nonce,
     get_private_key,
 )
 from mailing_list.services import EmailService
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
+from reputation.services.hot_wallet_service import HotWalletService
 from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
@@ -360,18 +356,12 @@ def _get_w3_for_network(network):
     return web3_provider.ethereum if network == "ETHEREUM" else web3_provider.base
 
 
-def _calculate_tokens_and_update_withdrawal_amount(withdrawal, amount):
-    ethereum.lib.convert_reputation_amount_to_token_amount("RSC", amount)
-    withdrawal.amount = str(amount)
-    withdrawal.save(update_fields=["amount"])
-
-
 def broadcast_withdrawal_transfer(withdrawal):
     """
     Broadcast the ERC-20 transfer for a withdrawal row that has been committed
-    to the database. Idempotent when transaction_hash is already set.
+    to the database. Never resubmit a row with a hash or reserved nonce.
     """
-    if withdrawal.transaction_hash:
+    if withdrawal.transaction_hash or withdrawal.broadcast_nonce is not None:
         return withdrawal
 
     if withdrawal.paid_status in (
@@ -390,8 +380,6 @@ def broadcast_withdrawal_transfer(withdrawal):
     w3 = _get_w3_for_network(network)
     amount = Decimal(withdrawal.amount)
 
-    _calculate_tokens_and_update_withdrawal_amount(withdrawal, amount)
-
     contract = w3.eth.contract(
         abi=contract_abi,
         address=Web3.to_checksum_address(
@@ -401,25 +389,17 @@ def broadcast_withdrawal_transfer(withdrawal):
         ),
     )
 
-    checksum_sender = Web3.to_checksum_address(settings.WEB3_WALLET_ADDRESS)
-    if withdrawal.broadcast_nonce is None:
-        withdrawal.broadcast_nonce = get_nonce(w3, checksum_sender)
-        withdrawal.save(update_fields=["broadcast_nonce"])
-
-    tx_hash = execute_erc20_transfer(
-        w3,
-        settings.WEB3_WALLET_ADDRESS,
-        _get_private_key_for_transfer(),
-        contract,
-        withdrawal.to_address,
-        amount,
+    HotWalletService(transfer=execute_erc20_transfer).send(
+        w3=w3,
+        sender=settings.WEB3_WALLET_ADDRESS,
+        private_key=_get_private_key_for_transfer(),
+        contract=contract,
+        to_address=withdrawal.to_address,
+        amount=amount,
         network=network,
-        nonce=withdrawal.broadcast_nonce,
+        withdrawal_id=withdrawal.id,
     )
-
-    withdrawal.transaction_hash = tx_hash
-    withdrawal.paid_status = PaidStatusModelMixin.PENDING
-    withdrawal.save(update_fields=["transaction_hash", "paid_status"])
+    withdrawal.refresh_from_db()
     return withdrawal
 
 
@@ -470,31 +450,11 @@ def check_pending_withdrawal():
     """
     Re-enqueue stuck broadcasts and promote PENDING withdrawals based on receipts.
     """
-    from reputation.tasks import broadcast_withdrawal
-
-    stuck_withdrawals = Withdrawal.objects.filter(
-        Q(paid_status=PaidStatusModelMixin.INITIATED)
-        | Q(
-            paid_status=PaidStatusModelMixin.PENDING,
-            transaction_hash__isnull=True,
-        )
+    from reputation.services.withdrawal_recovery_service import (
+        WithdrawalRecoveryService,
     )
-    for withdrawal in stuck_withdrawals.iterator():
-        broadcast_withdrawal.delay(withdrawal.id)
 
-    pending_withdrawals = Withdrawal.objects.filter(
-        paid_status=PaidStatusModelMixin.PENDING,
-        transaction_hash__isnull=False,
-    )
-    for withdrawal in pending_withdrawals:
-        with transaction.atomic():
-            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal.id)
-            paid_status, paid_date = evaluate_transaction_hash(
-                withdrawal.transaction_hash, network=withdrawal.network
-            )
-            withdrawal.paid_status = paid_status
-            withdrawal.paid_date = paid_date
-            withdrawal.save()
+    WithdrawalRecoveryService().check_pending()
 
 
 def check_hotwallet():
