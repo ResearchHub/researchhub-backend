@@ -48,6 +48,7 @@ class PaymentIntentSerializerTest(TestCase):
             currency="USD",
             organization="Org",
             description="Desc",
+            status=Grant.OPEN,
         )
         self.funding_pool = FundingPool.objects.create(
             grant=self.grant,

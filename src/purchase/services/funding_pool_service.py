@@ -254,6 +254,8 @@ class FundingPoolService:
             fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
             if fundraise.status != Fundraise.OPEN:
                 raise ValueError("Fundraise is not open")
+            if fundraise.is_expired():
+                raise ValueError("Fundraise is expired")
             if not fundraise.escrow_id:
                 raise ValueError("Fundraise escrow is not set")
 

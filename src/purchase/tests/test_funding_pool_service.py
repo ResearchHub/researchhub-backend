@@ -37,6 +37,7 @@ class FundingPoolServiceTests(TestCase):
             currency="USD",
             organization="Test Org",
             description="Test grant",
+            status=Grant.OPEN,
         )
         self.service = FundingPoolService()
         self.pool = self.service.create_pool_for_grant(self.grant)
