@@ -191,7 +191,11 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("doc_duds_get_grant", {})
         _filter_fields = _context_fields.get("_filter_fields", {})
 
-        grant = unified_doc.grants.filter(**_filter_fields).first()
+        grant = (
+            unified_doc.grants.select_related("funding_pool")
+            .filter(**_filter_fields)
+            .first()
+        )
         if grant:
             serializer = DynamicGrantSerializer(
                 grant,
