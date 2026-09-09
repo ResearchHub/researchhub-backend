@@ -72,5 +72,10 @@ class FundingPool(DefaultModel):
 
     @property
     def is_valid_for_contribution(self) -> bool:
-        """Whether the pool currently accepts contributions and distributions."""
+        """Whether the pool currently accepts contributions."""
+        return self.status == self.OPEN and self.grant.is_active()
+
+    @property
+    def is_valid_for_distribution(self) -> bool:
+        """Whether holdings can be distributed to proposal fundraises."""
         return self.status == self.OPEN

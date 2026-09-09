@@ -109,7 +109,11 @@ class FundingPoolService:
             raise ValueError("Invalid fee configuration")
 
         with transaction.atomic():
-            pool = FundingPool.objects.select_for_update().get(id=pool.id)
+            pool = (
+                FundingPool.objects.select_for_update()
+                .select_related("grant")
+                .get(id=pool.id)
+            )
             if not pool.is_valid_for_contribution:
                 raise ValueError("Funding pool is not open")
 
@@ -241,7 +245,7 @@ class FundingPoolService:
 
         with transaction.atomic():
             pool = FundingPool.objects.select_for_update().get(id=pool.id)
-            if not pool.is_valid_for_contribution:
+            if not pool.is_valid_for_distribution:
                 raise ValueError("Funding pool is not open")
 
             if amount > pool.amount_holding:
