@@ -108,6 +108,7 @@ BOUNTY_DOCUMENT_GRANT_FIELDS = (
     "is_active",
     "created_by",
     "contacts",
+    "funding_pool",
 )
 
 BOUNTY_DOCUMENT_USER_FIELDS = (
