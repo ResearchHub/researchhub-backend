@@ -4,8 +4,9 @@ from django.contrib.auth import get_user_model
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
+from note.models import Note
 from note.tests.helpers import create_note
-from research_ai.models import AgentExecution
+from research_ai.models import AgentExecution, NoteAgentConversation
 from research_ai.services.notebook_chat import NotebookChatService
 
 MODEL_SETTINGS = {
@@ -231,6 +232,79 @@ class AssistantChatViewTests(APITestCase):
         self.assertTrue(response.data["cancelled"])
         execution = AgentExecution.objects.get(id=posted.data["execution_id"])
         self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
+
+    def test_list_orders_by_activity(self):
+        # Arrange: two chats, the older one renamed after the newer one exists.
+        self.client.force_authenticate(self.owner)
+        older_id = self._create_chat_id()
+        newer_id = self._create_chat_id()
+        self.client.patch(self._chat_url(older_id), {"title": "Renamed"}, format="json")
+
+        # Act
+        response = self.client.get(CHATS_URL)
+
+        # Assert: creation order holds; the rename didn't promote the older chat.
+        self.assertEqual(
+            [chat["id"] for chat in response.data["chats"]], [newer_id, older_id]
+        )
+
+    def test_delete_chat(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+
+        # Act
+        response = self.client.delete(self._chat_url(chat_id))
+
+        # Assert
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(self.client.get(self._chat_url(chat_id)).status_code, 404)
+
+    def _link_note(self, chat_id):
+        note, _content = create_note(self.owner, organization=None)
+        NoteAgentConversation.objects.create(note=note, conversation_id=chat_id)
+        return note
+
+    def test_delete_chat_keeps_its_note_by_default(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        note = self._link_note(chat_id)
+
+        # Act
+        response = self.client.delete(self._chat_url(chat_id))
+
+        # Assert
+        self.assertEqual(response.status_code, 204)
+        note.unified_document.refresh_from_db()
+        self.assertFalse(note.unified_document.is_removed)
+
+    def test_delete_chat_with_notes_soft_deletes_them(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        note = self._link_note(chat_id)
+
+        # Act
+        response = self.client.delete(f"{self._chat_url(chat_id)}?delete_notes=true")
+
+        # Assert: flagged removed, the notebook's own delete, not a hard delete.
+        self.assertEqual(response.status_code, 204)
+        note.unified_document.refresh_from_db()
+        self.assertTrue(note.unified_document.is_removed)
+        self.assertTrue(Note.objects.filter(id=note.id).exists())
+
+    def test_delete_chat_of_other_user_fails(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        self.client.force_authenticate(self.other)
+
+        # Act
+        response = self.client.delete(self._chat_url(chat_id))
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
 
     def test_rename_chat(self):
         # Arrange

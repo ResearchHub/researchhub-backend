@@ -13,6 +13,7 @@ flow created does not show the assistant chat among that note's chats.
 """
 
 from research_ai.models import AgentConversation, AgentExecution
+from research_ai.services.agent_persistence import AgentConversationBusyError
 from research_ai.services.notebook_chat.service import (
     ACTIVITY_ALL,
     ASSISTANT_WORKFLOW,
@@ -45,18 +46,22 @@ class AssistantChatService:
         ).first()
 
     def list_conversations(self, user) -> list[dict]:
-        """The user's assistant chats, newest activity first."""
+        """The user's assistant chats, newest activity first.
+
+        Activity is the newest message (or creation), not ``updated_date``:
+        renaming a chat must not move it to the top. The listing's
+        ``updated_date`` reports that same activity time so a client's
+        "x minutes ago" agrees with the order.
+        """
         conversations = self.engine.listing(
-            AgentConversation.objects.filter(workflow=WORKFLOW, user=user).order_by(
-                "-updated_date", "-id"
-            )
-        )
+            AgentConversation.objects.filter(workflow=WORKFLOW, user=user)
+        ).order_by("-last_activity_date", "-id")
         return [
             {
                 "id": conversation.id,
                 "title": conversation.title,
                 "created_date": conversation.created_date,
-                "updated_date": conversation.updated_date,
+                "updated_date": conversation.last_activity_date,
                 "last_message_preview": conversation.last_message_preview,
                 "has_active_turn": conversation.has_active_turn,
             }
@@ -72,6 +77,41 @@ class AssistantChatService:
         self, conversation: AgentConversation, title: str
     ) -> AgentConversation:
         return self.engine.rename_conversation(conversation, title)
+
+    def delete_conversation(
+        self, conversation: AgentConversation, *, delete_notes: bool = False
+    ) -> None:
+        """Delete the chat and its turns.
+
+        Notes the chat created are the user's and stay unless ``delete_notes``
+        asks for them too, in which case they get the notebook's own soft
+        delete (the unified document is flagged removed) — never a hard
+        delete, and only for notes this user created.
+
+        Refused while a turn is running: the worker would keep writing to
+        rows that no longer exist.
+        """
+        if conversation.executions.filter(
+            status__in=[
+                AgentExecution.Status.PENDING,
+                AgentExecution.Status.RUNNING,
+            ]
+        ).exists():
+            raise AgentConversationBusyError(
+                "The assistant is still working on this conversation."
+            )
+        if delete_notes:
+            for note in self.engine._linked_notes(conversation):
+                if note.created_by_id != conversation.user_id:
+                    continue
+                unified_document = note.unified_document
+                unified_document.is_removed = True
+                unified_document.save(update_fields=["is_removed"])
+                # The notebook socket is per organization; a note outside one
+                # has no room to tell.
+                if note.organization_id is not None:
+                    note.notify_note_deleted()
+        conversation.delete()
 
     def representation(
         self, conversation: AgentConversation, *, activity_scope: str = ACTIVITY_ALL
