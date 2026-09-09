@@ -635,6 +635,10 @@ class FundraiseService:
         escrow.amount_holding -= amount
         escrow.save(update_fields=["amount_holding", "updated_date"])
 
+        cached_escrow = fundraise._state.fields_cache.get("escrow")
+        if cached_escrow is not None:
+            cached_escrow.amount_holding = escrow.amount_holding
+
         pool.amount_holding += amount
         pool.amount_distributed -= amount
         pool.save(
@@ -768,8 +772,9 @@ class FundraiseService:
             fundraise.status = Fundraise.CLOSED
             fundraise.save()
 
-            # Update escrow status
-            fundraise.escrow.set_cancelled_status()
+            escrow = fundraise.escrow
+            escrow.status = Escrow.CANCELLED
+            escrow.save(update_fields=["status"])
 
             return True
 
