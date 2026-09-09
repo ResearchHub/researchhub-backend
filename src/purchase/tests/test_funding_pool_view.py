@@ -3,12 +3,25 @@ from decimal import Decimal
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
-from purchase.models import Balance, FundingPool, Grant, Purchase, RscExchangeRate
+from purchase.models import (
+    Balance,
+    FundingDistribution,
+    FundingPool,
+    Fundraise,
+    Grant,
+    GrantApplication,
+    Purchase,
+    RscExchangeRate,
+)
 from purchase.services.funding_pool_service import FundingPoolService
+from purchase.services.fundraise_service import FundraiseService
 from reputation.models import BountyFee
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC,
+)
+from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.follow_model import Follow
@@ -61,6 +74,32 @@ class FundingPoolViewTests(APITestCase):
             f"/api/funding_pool/{pool_id}/create_contribution/",
             payload,
         )
+
+    def _seed_pool_holding(self, amount=Decimal(200)):
+        contributor = create_random_authenticated_user("pool_view_seed")
+        self._give_user_balance(contributor, 1000)
+        response = self._create_contribution(
+            self.pool.id, contributor, amount=amount, use_credits=False
+        )
+        self.assertEqual(response.status_code, 200)
+        self.pool.refresh_from_db()
+
+    def _create_proposal_application_with_fundraise(self, grant=None):
+        grant = grant or self.grant
+        applicant = create_random_authenticated_user("pool_view_applicant")
+        proposal = create_post(created_by=applicant, document_type=PREREGISTRATION)
+        application = GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=proposal,
+            applicant=applicant,
+        )
+        fundraise = FundraiseService().create_fundraise_with_escrow(
+            user=applicant,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+        )
+        return applicant, application, fundraise
 
     def test_retrieve_funding_pool(self):
         # Arrange
@@ -146,6 +185,143 @@ class FundingPoolViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 400)
         self.assertIn("amount_currency", response.data)
+
+    def test_distribute_as_grant_creator(self):
+        # Arrange
+        self._seed_pool_holding(Decimal(200))
+        _, application, fundraise = self._create_proposal_application_with_fundraise()
+        creator_balance_before = self.creator.get_available_balance()
+        self.client.force_authenticate(self.creator)
+
+        # Act
+        response = self.client.post(
+            f"/api/funding_pool/{self.pool.id}/distribute/",
+            {"amount": 75, "application_id": application.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(float(response.data["amount_holding"]["rsc"]), 125.0)
+        self.assertEqual(float(response.data["amount_distributed"]["rsc"]), 75.0)
+        self.assertEqual(float(response.data["amount_raised"]["rsc"]), 200.0)
+
+        fundraise.escrow.refresh_from_db()
+        self.assertEqual(fundraise.escrow.amount_holding, Decimal(75))
+        self.assertEqual(self.creator.get_available_balance(), creator_balance_before)
+
+        distribution = FundingDistribution.objects.get(pool=self.pool)
+        self.assertEqual(distribution.status, FundingDistribution.APPLIED)
+        self.assertEqual(distribution.amount, Decimal(75))
+        self.assertEqual(
+            Balance.objects.filter(purchase=distribution.fundraise_purchase).count(),
+            0,
+        )
+
+    def test_distribute_as_moderator(self):
+        # Arrange
+        self._seed_pool_holding(Decimal(100))
+        _, application, _ = self._create_proposal_application_with_fundraise()
+        moderator = create_random_authenticated_user(
+            "pool_view_moderator", moderator=True
+        )
+        self.client.force_authenticate(moderator)
+
+        # Act
+        response = self.client.post(
+            f"/api/funding_pool/{self.pool.id}/distribute/",
+            {"amount": 40, "application_id": application.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(float(response.data["amount_holding"]["rsc"]), 60.0)
+        self.assertEqual(float(response.data["amount_distributed"]["rsc"]), 40.0)
+
+        distribution = FundingDistribution.objects.get(pool=self.pool)
+        self.assertEqual(distribution.distributed_by_id, moderator.id)
+
+    def test_distribute_permission_denied_for_non_creator(self):
+        # Arrange
+        self._seed_pool_holding(Decimal(100))
+        _, application, _ = self._create_proposal_application_with_fundraise()
+        outsider = create_random_authenticated_user("pool_view_outsider")
+        self.client.force_authenticate(outsider)
+
+        # Act
+        response = self.client.post(
+            f"/api/funding_pool/{self.pool.id}/distribute/",
+            {"amount": 25, "application_id": application.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self.pool.refresh_from_db()
+        self.assertEqual(self.pool.amount_holding, Decimal(100))
+        self.assertEqual(self.pool.amount_distributed, Decimal(0))
+
+    def test_distribute_overspend_blocked(self):
+        # Arrange
+        self._seed_pool_holding(Decimal(50))
+        _, application, _ = self._create_proposal_application_with_fundraise()
+        self.client.force_authenticate(self.creator)
+
+        # Act
+        response = self.client.post(
+            f"/api/funding_pool/{self.pool.id}/distribute/",
+            {"amount": 51, "application_id": application.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Insufficient pool balance", response.data["message"])
+        self.pool.refresh_from_db()
+        self.assertEqual(self.pool.amount_holding, Decimal(50))
+
+    def test_distribute_rejects_application_from_other_grant(self):
+        # Arrange
+        self._seed_pool_holding(Decimal(100))
+        other_creator = create_random_authenticated_user("other_grant_view")
+        other_post = create_post(created_by=other_creator, document_type=GRANT_DOC)
+        other_grant = Grant.objects.create(
+            created_by=other_creator,
+            unified_document=other_post.unified_document,
+            amount=Decimal("5000.00"),
+            currency="USD",
+            organization="Other Org",
+            description="Other grant",
+        )
+        _, other_application, _ = self._create_proposal_application_with_fundraise(
+            grant=other_grant
+        )
+        self.client.force_authenticate(self.creator)
+
+        # Act
+        response = self.client.post(
+            f"/api/funding_pool/{self.pool.id}/distribute/",
+            {"amount": 25, "application_id": other_application.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("does not belong", response.data["message"])
+
+    def test_distribute_rejects_closed_fundraise(self):
+        # Arrange
+        self._seed_pool_holding(Decimal(100))
+        _, application, fundraise = self._create_proposal_application_with_fundraise()
+        fundraise.status = Fundraise.CLOSED
+        fundraise.save(update_fields=["status"])
+        self.client.force_authenticate(self.creator)
+
+        # Act
+        response = self.client.post(
+            f"/api/funding_pool/{self.pool.id}/distribute/",
+            {"amount": 25, "application_id": application.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not open", response.data["message"])
 
     def test_grant_create_via_api_creates_funding_pool(self):
         # Arrange
