@@ -755,6 +755,7 @@ class PaymentServiceTest(TestCase):
             currency="USD",
             organization="Org",
             description="Desc",
+            status=Grant.OPEN,
         )
         pool = FundingPool.objects.create(grant=grant, created_by=self.user)
 

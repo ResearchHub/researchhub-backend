@@ -1109,6 +1109,7 @@ class CloseFundraiseTests(TestCase):
             currency="USD",
             organization="Mixed Close Org",
             description="Mixed close grant",
+            status=Grant.OPEN,
         )
         pool_service = FundingPoolService()
         pool = pool_service.create_pool_for_grant(grant)
