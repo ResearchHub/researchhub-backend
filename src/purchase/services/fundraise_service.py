@@ -609,8 +609,8 @@ class FundraiseService:
             )
             return False
 
-        escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
         pool = FundingPool.objects.select_for_update().get(id=distribution.pool_id)
+        escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
 
         if amount > escrow.amount_holding:
             logger.error(

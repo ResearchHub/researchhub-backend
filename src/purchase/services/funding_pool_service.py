@@ -250,13 +250,6 @@ class FundingPoolService:
         application, fundraise = self._resolve_distribution_target(pool, application_id)
 
         with transaction.atomic():
-            pool = FundingPool.objects.select_for_update().get(id=pool.id)
-            if not pool.is_valid_for_distribution:
-                raise ValueError("Funding pool is not open")
-
-            if amount > pool.amount_holding:
-                raise ValueError("Insufficient pool balance")
-
             fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
             if fundraise.status != Fundraise.OPEN:
                 raise ValueError("Fundraise is not open")
@@ -264,6 +257,13 @@ class FundingPoolService:
                 raise ValueError("Fundraise is expired")
             if not fundraise.escrow_id:
                 raise ValueError("Fundraise escrow is not set")
+
+            pool = FundingPool.objects.select_for_update().get(id=pool.id)
+            if not pool.is_valid_for_distribution:
+                raise ValueError("Funding pool is not open")
+
+            if amount > pool.amount_holding:
+                raise ValueError("Insufficient pool balance")
 
             escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
 
