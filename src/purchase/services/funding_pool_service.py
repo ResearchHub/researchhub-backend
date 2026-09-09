@@ -190,20 +190,26 @@ class FundingPoolService:
     ) -> tuple[GrantApplication, Fundraise]:
         """Resolve a grant application and its proposal fundraise for distribution.
 
-        The application must belong to the same grant as ``pool``.
+        The application must belong to the same grant as ``pool`` and its
+        proposal must be an approved (non-removed) preregistration, matching
+        ``GrantApplication.with_approved_proposal()``.
 
         Raises:
             ValueError: If the application or proposal fundraise cannot be used.
         """
         try:
             application = GrantApplication.objects.select_related(
-                "preregistration_post"
+                "preregistration_post",
+                "preregistration_post__unified_document",
             ).get(id=application_id)
         except GrantApplication.DoesNotExist as error:
             raise ValueError("Grant application does not exist") from error
 
         if application.grant_id != pool.grant_id:
             raise ValueError("Application does not belong to this grant")
+
+        if not application.has_approved_proposal():
+            raise ValueError("Application proposal is not approved")
 
         fundraise = (
             Fundraise.objects.filter(
