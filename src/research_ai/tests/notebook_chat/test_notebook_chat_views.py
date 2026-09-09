@@ -197,6 +197,8 @@ class NotebookChatViewTests(APITestCase):
         execution = AgentExecution.objects.get(id=response.data["execution_id"])
         self.assertEqual(execution.configuration["effort"], "high")
         self.assertEqual(execution.configuration["thinking"], "disabled")
+        chat = self.client.get(self._chat_url(chat_id))
+        self.assertEqual(chat.data["executions"][0]["effort"], "high")
 
     def test_post_message_with_unknown_model_is_rejected(self):
         # Arrange
@@ -493,6 +495,7 @@ class NotebookChatViewTests(APITestCase):
         )
         self.assertIsNotNone(response.data["messages"][0]["created_date"])
         self.assertEqual(len(response.data["executions"]), 1)
+        self.assertEqual(response.data["executions"][0]["effort"], "low")
         self.assertEqual(
             response.data["executions"][0]["status"],
             AgentExecution.Status.PENDING,
