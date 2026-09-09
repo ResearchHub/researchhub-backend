@@ -233,21 +233,6 @@ class AssistantChatViewTests(APITestCase):
         execution = AgentExecution.objects.get(id=posted.data["execution_id"])
         self.assertEqual(execution.status, AgentExecution.Status.CANCELLED)
 
-    def test_list_orders_by_activity(self):
-        # Arrange: two chats, the older one renamed after the newer one exists.
-        self.client.force_authenticate(self.owner)
-        older_id = self._create_chat_id()
-        newer_id = self._create_chat_id()
-        self.client.patch(self._chat_url(older_id), {"title": "Renamed"}, format="json")
-
-        # Act
-        response = self.client.get(CHATS_URL)
-
-        # Assert: creation order holds; the rename didn't promote the older chat.
-        self.assertEqual(
-            [chat["id"] for chat in response.data["chats"]], [newer_id, older_id]
-        )
-
     def test_delete_chat(self):
         # Arrange
         self.client.force_authenticate(self.owner)

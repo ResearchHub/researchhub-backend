@@ -40,8 +40,8 @@ import logging
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Exists, F, OuterRef, Subquery
-from django.db.models.functions import Coalesce, Left
+from django.db.models import Exists, OuterRef, Subquery
+from django.db.models.functions import Left
 from django.utils import timezone
 
 from note.related_models.note_model import Note
@@ -307,25 +307,17 @@ class NotebookChatService:
 
     @staticmethod
     def listing(conversations):
-        """Annotate a conversation queryset for a chat picker, in one query.
-
-        ``last_activity_date`` is when the conversation last moved: its newest
-        message, or its creation while it has none. Pickers order by it rather
-        than ``updated_date``, which a rename also bumps.
-        """
-        last_message = AgentConversationMessage.objects.filter(
-            conversation=OuterRef("pk"), is_active=True
-        ).order_by("-sequence")
+        """Annotate a conversation queryset for a chat picker, in one query."""
+        last_message = (
+            AgentConversationMessage.objects.filter(
+                conversation=OuterRef("pk"), is_active=True
+            )
+            .order_by("-sequence")
+            .annotate(preview=Left("content", LIST_PREVIEW_CHARS))
+            .values("preview")[:1]
+        )
         return conversations.annotate(
-            last_message_preview=Subquery(
-                last_message.annotate(
-                    preview=Left("content", LIST_PREVIEW_CHARS)
-                ).values("preview")[:1]
-            ),
-            last_activity_date=Coalesce(
-                Subquery(last_message.values("created_date")[:1]),
-                F("created_date"),
-            ),
+            last_message_preview=Subquery(last_message),
             has_active_turn=Exists(
                 AgentExecution.objects.filter(
                     conversation=OuterRef("pk"),

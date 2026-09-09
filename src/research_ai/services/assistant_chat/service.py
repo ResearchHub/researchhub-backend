@@ -46,22 +46,18 @@ class AssistantChatService:
         ).first()
 
     def list_conversations(self, user) -> list[dict]:
-        """The user's assistant chats, newest activity first.
-
-        Activity is the newest message (or creation), not ``updated_date``:
-        renaming a chat must not move it to the top. The listing's
-        ``updated_date`` reports that same activity time so a client's
-        "x minutes ago" agrees with the order.
-        """
+        """The user's assistant chats, newest activity first."""
         conversations = self.engine.listing(
-            AgentConversation.objects.filter(workflow=WORKFLOW, user=user)
-        ).order_by("-last_activity_date", "-id")
+            AgentConversation.objects.filter(workflow=WORKFLOW, user=user).order_by(
+                "-updated_date", "-id"
+            )
+        )
         return [
             {
                 "id": conversation.id,
                 "title": conversation.title,
                 "created_date": conversation.created_date,
-                "updated_date": conversation.last_activity_date,
+                "updated_date": conversation.updated_date,
                 "last_message_preview": conversation.last_message_preview,
                 "has_active_turn": conversation.has_active_turn,
             }
