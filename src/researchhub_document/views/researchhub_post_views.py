@@ -579,6 +579,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_pool",
                     ],
                 ).data
                 if grant
@@ -757,6 +758,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_pool",
                     ],
                 ).data
                 if grant
