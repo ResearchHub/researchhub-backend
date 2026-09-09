@@ -58,7 +58,7 @@ class PaymentIntentSerializer(serializers.Serializer):
         except FundingPool.DoesNotExist:
             raise serializers.ValidationError("Funding pool not found.")
 
-        if pool.status != FundingPool.OPEN:
+        if not pool.is_valid_for_contribution:
             raise serializers.ValidationError(
                 "Funding pool is not open for contributions."
             )

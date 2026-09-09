@@ -69,3 +69,8 @@ class FundingPool(DefaultModel):
     def amount_raised(self) -> Decimal:
         """Total RSC ever contributed: holding + distributed."""
         return self.amount_holding + self.amount_distributed
+
+    @property
+    def is_valid_for_contribution(self) -> bool:
+        """Whether the pool currently accepts contributions and distributions."""
+        return self.status == self.OPEN

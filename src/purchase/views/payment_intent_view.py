@@ -8,7 +8,6 @@ from rest_framework.views import APIView
 from purchase.models import FundingPool, Fundraise
 from purchase.related_models.payment_model import Payment
 from purchase.serializers.payment_intent_serializer import PaymentIntentSerializer
-from purchase.services.funding_pool_service import FundingPoolService
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.payment_service import PaymentService
 
@@ -27,13 +26,11 @@ class PaymentIntentView(APIView):
         self,
         payment_service: PaymentService = None,
         fundraise_service: FundraiseService = None,
-        funding_pool_service: FundingPoolService = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.payment_service = payment_service or PaymentService()
         self.fundraise_service = fundraise_service or FundraiseService()
-        self.funding_pool_service = funding_pool_service or FundingPoolService()
 
     def post(self, request, *args, **kwargs):
         user_id = request.user.id
@@ -75,12 +72,9 @@ class PaymentIntentView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            is_valid, error = self.funding_pool_service.validate_pool_for_contribution(
-                pool
-            )
-            if not is_valid:
+            if not pool.is_valid_for_contribution:
                 return Response(
-                    {"message": error},
+                    {"message": "Funding pool is not open"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

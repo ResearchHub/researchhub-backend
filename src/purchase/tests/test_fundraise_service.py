@@ -1115,10 +1115,9 @@ class CloseFundraiseTests(TestCase):
 
         pool_contributor = create_random_authenticated_user("mixed_close_pool_user")
         self._give_user_rsc_balance(pool_contributor, 1000)
-        _, pool_error = pool_service.create_rsc_contribution(
+        pool_service.create_rsc_contribution(
             pool_contributor, pool, Decimal(200), use_credits=False
         )
-        self.assertIsNone(pool_error)
 
         applicant = create_random_authenticated_user("mixed_close_applicant")
         proposal = create_post(created_by=applicant, document_type=PREREGISTRATION)
@@ -1134,10 +1133,9 @@ class CloseFundraiseTests(TestCase):
             goal_currency="USD",
         )
 
-        distribution, dist_error = pool_service.distribute(
+        distribution = pool_service.distribute(
             pool, grant_creator, Decimal(75), application.id
         )
-        self.assertIsNone(dist_error)
 
         user_contributor = create_random_authenticated_user("mixed_close_rsc_user")
         self._give_user_rsc_balance(user_contributor, 1000)
