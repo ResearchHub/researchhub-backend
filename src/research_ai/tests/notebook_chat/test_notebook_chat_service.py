@@ -17,6 +17,7 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
+from research_ai.services.agent.providers import claude_platform, openrouter
 from research_ai.services.agent.types import StopReason, TurnUsage
 from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
@@ -172,6 +173,101 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.configuration["effort"], "high")
         self.assertEqual(execution.configuration["thinking"], "disabled")
 
+    def test_later_messages_inherit_or_repeat_the_effort(self):
+        # Arrange
+        first, _delay = self._submit(effort="high")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+
+        for options in ({}, {"effort": "high"}):
+            with self.subTest(options=options):
+                # Act
+                execution, _delay = self._submit("Continue", **options)
+
+                # Assert
+                self.assertEqual(execution.configuration["effort"], "high")
+                execution.status = AgentExecution.Status.SUCCEEDED
+                execution.save(update_fields=["status"])
+
+    def test_later_messages_cannot_change_effort(self):
+        # Arrange
+        first, _delay = self._submit(effort="low")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "effort cannot be changed"):
+            self._submit("Think harder", effort="high")
+        self.assertEqual(self.conversation.executions.count(), 1)
+        self.assertEqual(self.conversation.chat_messages.count(), 1)
+
+    def test_new_conversation_can_choose_a_different_effort(self):
+        # Arrange
+        first, _delay = self._submit(effort="low")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+        conversation = self.service.create_conversation(self.note, self.user)
+
+        # Act
+        second, _delay = self._submit(conversation=conversation, effort="high")
+
+        # Assert
+        self.assertEqual(second.configuration["effort"], "high")
+        self.assertNotEqual(second.conversation_id, first.conversation_id)
+
+    def test_default_effort_is_pinned_across_adapter_default_changes(self):
+        for adapter, model_ref in (
+            (claude_platform, "claude_platform:claude-opus-5"),
+            (openrouter, "openrouter:openai/gpt-5.6-sol"),
+        ):
+            with self.subTest(model=model_ref):
+                # Arrange
+                conversation = self.service.create_conversation(self.note, self.user)
+                first, _delay = self._submit(
+                    conversation=conversation, model_ref=model_ref
+                )
+                first.status = AgentExecution.Status.SUCCEEDED
+                first.save(update_fields=["status"])
+
+                # Act
+                with patch.object(adapter, "EFFORT", "high"):
+                    second, _delay = self._submit(conversation=conversation)
+
+                # Assert
+                self.assertEqual(first.configuration["effort"], "low")
+                self.assertEqual(second.configuration["effort"], "low")
+                second.status = AgentExecution.Status.SUCCEEDED
+                second.save(update_fields=["status"])
+
+    def test_legacy_conversation_without_effort_uses_adapter_default(self):
+        # Arrange
+        first, _delay = self._submit()
+        first.configuration.pop("effort")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["configuration", "status"])
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "effort cannot be changed"):
+            self._submit(effort="high")
+        second, _delay = self._submit()
+        self.assertEqual(second.configuration["effort"], "low")
+
+    def test_legacy_conversation_keeps_its_latest_effort(self):
+        # Arrange: before locking, an existing chat could change effort.
+        first, _delay = self._submit(effort="low")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+        second, _delay = self._submit()
+        second.configuration["effort"] = "high"
+        second.status = AgentExecution.Status.SUCCEEDED
+        second.save(update_fields=["configuration", "status"])
+
+        # Act
+        third, _delay = self._submit()
+
+        # Assert
+        self.assertEqual(third.configuration["effort"], "high")
+
     def test_submit_message_accepts_temperature_for_gemini(self):
         # Act
         execution, _delay = self._submit(
@@ -215,6 +311,7 @@ class NotebookChatServiceTests(TestCase):
         resolve.assert_called_once_with(
             "claude_platform:claude-sonnet-5",
             native_tools=frozenset({"web_search"}),
+            effort="low",
         )
 
     def test_second_message_continues_the_same_conversation(self):
@@ -516,7 +613,9 @@ class NotebookChatServiceTests(TestCase):
 
         # Assert
         resolver.assert_called_once_with(
-            "claude_platform:claude-sonnet-5", native_tools=frozenset({"web_search"})
+            "claude_platform:claude-sonnet-5",
+            native_tools=frozenset({"web_search"}),
+            effort="low",
         )
         self.assertEqual(result["final_text"], "Done.")
 

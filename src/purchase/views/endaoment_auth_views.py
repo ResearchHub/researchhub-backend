@@ -42,7 +42,7 @@ class EndaomentConnectView(APIView):
                 }
             )
         except Exception as e:
-            logger.warning(f"Failed to initiate Endaoment connection: {e}")
+            logger.warning("Failed to initiate Endaoment connection: %s", e)
             raise APIException("Failed to initiate Endaoment connection")
 
 
@@ -97,7 +97,7 @@ class EndaomentDisconnectView(APIView):
         try:
             disconnected = self.service.disconnect(request.user)
         except Exception as e:
-            logger.warning(f"Failed to disconnect Endaoment account: {e}")
+            logger.warning("Failed to disconnect Endaoment account: %s", e)
             raise APIException("Failed to disconnect Endaoment account")
 
         if not disconnected:
