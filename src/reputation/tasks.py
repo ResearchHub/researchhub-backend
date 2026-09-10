@@ -446,6 +446,7 @@ def find_qualified_users_and_notify(
                 notification_type=Notification.BOUNTY_FOR_YOU,
                 extra={
                     "bounty_id": bounty.id,
+                    "bounty_creator_id": bounty.created_by_id,
                     "amount": bounty.amount,
                     "bounty_type": bounty.bounty_type,
                     "bounty_expiration_date": bounty.expiration_date,
@@ -482,6 +483,7 @@ def find_bounties_for_user_and_notify(user_id) -> Notification | None:
                 notification_type=Notification.BOUNTY_FOR_YOU,
                 extra={
                     "bounty_id": bounty.id,
+                    "bounty_creator_id": bounty.created_by_id,
                     "amount": bounty.amount,
                     "bounty_type": bounty.bounty_type,
                     "bounty_expiration_date": bounty.expiration_date,
