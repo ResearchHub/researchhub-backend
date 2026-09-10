@@ -63,13 +63,12 @@ class AbstractGenericRelationModel(DefaultAuthenticatedModel):
 class SoftDeletableModel(models.Model):
     """Adapted from https://github.com/jazzband/django-model-utils"""
 
-    all_objects = models.Manager()
-
     is_public = models.BooleanField(default=True)
     is_removed = models.BooleanField(default=False)
     is_removed_date = models.DateTimeField(default=None, null=True, blank=True)
 
     objects = SoftDeletableManager()
+    all_objects = models.Manager()  # noqa: DJ012
 
     class Meta:
         abstract = True
