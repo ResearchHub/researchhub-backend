@@ -2,8 +2,6 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
-from django.core.cache import cache
-from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -30,20 +28,6 @@ from user.tests.helpers import create_user
 
 class LeaderboardApiTests(APITestCase):
     def setUp(self):
-        # Isolate anonymous throttles and cached responses from other tests.
-        cache_settings = override_settings(
-            CACHES={
-                "default": {
-                    "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-                    "LOCATION": self.id(),
-                }
-            }
-        )
-        cache_settings.enable()
-        self.addCleanup(cache_settings.disable)
-        cache.clear()
-        self.addCleanup(cache.clear)
-
         # Create test users
         self.reviewer1 = create_user(
             email="reviewer1@researchhub.com", first_name="First", last_name="Reviewer"
