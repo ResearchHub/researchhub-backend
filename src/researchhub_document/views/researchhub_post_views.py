@@ -64,7 +64,6 @@ from researchhub_document.services.unified_document_share_link_service import (
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import Author, User
 from user.services.risk_score_service import RiskScoreService
-from utils.throttles import THROTTLE_CLASSES
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +86,6 @@ class ResearchhubPostViewSet(
     queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
-    throttle_classes = THROTTLE_CLASSES
     moderation_model = ResearchhubPost
 
     def get_permissions(self):
