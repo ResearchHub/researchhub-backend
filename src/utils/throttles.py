@@ -106,9 +106,3 @@ class FeedRecommendationRefreshThrottle(UserRateThrottle):
         if not force_refresh:
             return True
         return super().allow_request(request, view)
-
-
-THROTTLE_CLASSES = [
-    UserBurstRateThrottle,
-    UserSustainedRateThrottle,
-]
