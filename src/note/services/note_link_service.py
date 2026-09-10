@@ -4,6 +4,7 @@ import re
 from urllib.parse import urlsplit
 
 _URL = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+_MARKDOWN_START = re.compile(r"\[([^\[\]\n]+)\]\((https?://)", re.IGNORECASE)
 _CLOSING_BRACKETS = {")": "(", "]": "[", "}": "{"}
 
 
@@ -50,45 +51,78 @@ def link_note_urls(blocks: list[dict]) -> list[dict]:
     return result
 
 
+def _is_web_url(url: str) -> bool:
+    try:
+        return bool(urlsplit(url).hostname)
+    except ValueError:
+        return False
+
+
+def _destination_end(text: str, start: int) -> tuple[int, bool]:
+    """Read a Markdown destination, keeping balanced URL parentheses.
+
+    Return the scan endpoint even on failure so callers never rescan a long
+    malformed destination for every apparent link nested inside it.
+    """
+    depth = 1
+    for index in range(start, len(text)):
+        char = text[index]
+        if char.isspace() or char in "<>\"'":
+            return index + 1, False
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1, True
+    return len(text), False
+
+
+def _markdown_links(text: str):
+    """Yield complete Markdown links before considering bare URLs."""
+    cursor = 0
+    while match := _MARKDOWN_START.search(text, cursor):
+        start = match.start(2)
+        cursor, complete = _destination_end(text, start)
+        url = text[start : cursor - 1]
+        if complete and _is_web_url(url):
+            yield match.start(), cursor, match.group(1), url
+
+
+def _linked_node(node: dict, label: str, url: str) -> dict:
+    return {
+        **node,
+        "text": label,
+        "marks": [
+            *node.get("marks", []),
+            {"type": "link", "attrs": {"href": url}},
+        ],
+    }
+
+
+def _link_bare_urls(node: dict, text: str) -> list[dict]:
+    result = []
+    cursor = 0
+    for match in _URL.finditer(text):
+        url = _trim_url(match.group())
+        if not _is_web_url(url):
+            continue
+        if match.start() > cursor:
+            result.append({**node, "text": text[cursor : match.start()]})
+        result.append(_linked_node(node, url, url))
+        cursor = match.start() + len(url)
+    if cursor < len(text):
+        result.append({**node, "text": text[cursor:]})
+    return result
+
+
 def _link_text(node: dict) -> list[dict]:
     text = node["text"]
     result = []
     cursor = 0
-    previous_match_end = 0
-    for match in _URL.finditer(text):
-        label_boundary = previous_match_end
-        previous_match_end = match.end()
-        url = _trim_url(match.group())
-        try:
-            if not urlsplit(url).hostname:
-                continue
-        except ValueError:
-            continue
-        start, end = match.start(), match.start() + len(url)
-        label = url
-        if text.endswith("](", label_boundary, start) and text[end : end + 1] == ")":
-            # Search only the gap since the preceding URL, even if that URL
-            # was invalid. This avoids repeatedly scanning a growing prefix.
-            opening = text.rfind("[", label_boundary, start - 2)
-            if opening >= 0:
-                candidate = text[opening + 1 : start - 2]
-                if candidate and "]" not in candidate and "\n" not in candidate:
-                    start = opening
-                    end += 1
-                    label = candidate
-        if start > cursor:
-            result.append({**node, "text": text[cursor:start]})
-        result.append(
-            {
-                **node,
-                "text": label,
-                "marks": [
-                    *node.get("marks", []),
-                    {"type": "link", "attrs": {"href": url}},
-                ],
-            }
-        )
+    for start, end, label, url in _markdown_links(text):
+        result.extend(_link_bare_urls(node, text[cursor:start]))
+        result.append(_linked_node(node, label, url))
         cursor = end
-    if cursor < len(text):
-        result.append({**node, "text": text[cursor:]})
+    result.extend(_link_bare_urls(node, text[cursor:]))
     return result

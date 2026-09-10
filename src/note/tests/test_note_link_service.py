@@ -6,6 +6,73 @@ from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
 
 
 class NoteLinkServiceTests(TestCase):
+    def test_url_label_links_to_markdown_destination(self):
+        # Arrange
+        blocks = [
+            {
+                "type": "text",
+                "text": "[https://example.com/label](https://example.com/target)",
+            }
+        ]
+
+        # Act
+        result = link_note_urls(blocks)
+
+        # Assert
+        self.assertEqual(
+            result,
+            [
+                {
+                    "type": "text",
+                    "text": "https://example.com/label",
+                    "marks": [
+                        {
+                            "type": "link",
+                            "attrs": {"href": "https://example.com/target"},
+                        }
+                    ],
+                }
+            ],
+        )
+
+    def test_mixed_and_adjacent_markdown_links_keep_separate_destinations(self):
+        # Arrange
+        text = (
+            "https://example.org/first "
+            "[https://example.org/label](https://doi.org/a(b))"
+            "[Second](https://example.org/second?x=1&y=2). "
+            "https://example.org/last."
+        )
+
+        # Act
+        result = link_note_urls([{"type": "text", "text": text}])
+
+        # Assert
+        links = [node for node in result if node.get("marks")]
+        self.assertEqual(
+            [node["marks"][0]["attrs"]["href"] for node in links],
+            [
+                "https://example.org/first",
+                "https://doi.org/a(b)",
+                "https://example.org/second?x=1&y=2",
+                "https://example.org/last",
+            ],
+        )
+        self.assertEqual(links[1]["text"], "https://example.org/label")
+        self.assertEqual(links[2]["text"], "Second")
+
+    def test_markdown_destination_keeps_nested_parentheses_and_final_punctuation(self):
+        # Arrange
+        url = "https://example.org/a(b(c))."
+        blocks = [{"type": "text", "text": f"[Paper]({url})"}]
+
+        # Act
+        result = link_note_urls(blocks)
+
+        # Assert
+        self.assertEqual(result[0]["text"], "Paper")
+        self.assertEqual(result[0]["marks"][0]["attrs"]["href"], url)
+
     def test_links_survive_editor_schema_round_trip(self):
         # Arrange
         blocks = parse_blocks(BLOCK_EDITOR, ["See https://doi.org/10.1234/paper."])
