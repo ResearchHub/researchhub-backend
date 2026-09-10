@@ -24,7 +24,11 @@ from feed.activity_feed_cache import (
 )
 from feed.feed_visibility import exclude_hidden_feed_entries
 from feed.models import FeedEntry
-from feed.serializers import ActivityFeedEntrySerializer, UserActivityQuerySerializer
+from feed.serializers import (
+    ActivityFeedEntrySerializer,
+    AuthorActivityQuerySerializer,
+    UserActivityQuerySerializer,
+)
 from feed.services.feed_entry_visibility_service import FeedEntryVisibilityService
 from feed.services.user_activity_service import UserActivityService
 from feed.views.common import FeedPagination
@@ -67,7 +71,8 @@ class CountedFeedPagination(PageNumberPagination):
 class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     """
     Feed of activity on documents, excluding paper/preprint-associated
-    entries. Peer reviews are limited to proposals (PREREGISTRATION).
+    entries. Peer reviews are limited to proposals (PREREGISTRATION), except
+    on ``author_activity``, which lists every review its author wrote.
     Entries are limited to documents the requester is allowed to see.
     These filters apply to every request.
 
@@ -253,6 +258,32 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         self.add_user_votes_to_response(request.user, response.data)
         return response
 
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="author_activity",
+        url_name="author-activity",
+    )
+    def list_author_activity(self, request: Request) -> Response:
+        """Return the activity the requested author performed.
+
+        Requires ``author_id``. Readable by anyone; private documents appear
+        only for requesters allowed to see them.
+        """
+        query_serializer = AuthorActivityQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        author_id = query_serializer.validated_data["author_id"]
+
+        queryset = self.filter_queryset(self.get_queryset()).filter(
+            user__author_profile__id=author_id
+        )
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        response = self.get_paginated_response(serializer.data)
+        if request.user.is_authenticated:
+            self.add_user_votes_to_response(request.user, response.data)
+        return response
+
     def get_queryset(self):
         queryset = (
             FeedEntry.objects.select_related(
@@ -304,7 +335,10 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             user__email=AI_EXPERT_EMAIL,
         )
         queryset = self._exclude_paper_documents(queryset)
-        queryset = self._exclude_non_proposal_peer_reviews(queryset)
+        # A profile lists every review its author wrote, including those on
+        # registered reports and grants. Discovery feeds stay proposal-only.
+        if self.action != "list_author_activity":
+            queryset = self._exclude_non_proposal_peer_reviews(queryset)
 
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")

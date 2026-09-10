@@ -188,7 +188,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
         # cached -- see `use_cache` in list() -- so they can safely respect
         # per-viewer visibility. This lets the author, grant owners, invited
         # reviewers, and moderators see private preregistrations and grants
-        # (e.g. on the author profile's Proposals tab) while everyone else,
+        # (e.g. on the My Funding page) while everyone else,
         # including anonymous viewers, still only sees public ones.
         #
         # This feed stays public-only unless a mod/editor passes

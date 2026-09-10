@@ -40,6 +40,7 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PAPER,
     PREREGISTRATION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -53,6 +54,7 @@ from utils.test_helpers import AWSMockTestCase, create_test_user
 User = get_user_model()
 ACTIVITY_LIST_URL = reverse("activity_feed-list")
 USER_ACTIVITY_URL = reverse("activity_feed-user-activity")
+AUTHOR_ACTIVITY_URL = reverse("activity_feed-author-activity")
 
 
 def _make_feed_entry(
@@ -1705,6 +1707,71 @@ class UserActivityFeedTests(APITestCase):
         # Assert
         ids = {entry["id"] for entry in resp.data["results"]}
         self.assertNotIn(private_entry.id, ids)
+
+
+class AuthorActivityFeedTests(APITestCase):
+    """Public activity performed by a specific author."""
+
+    def setUp(self):
+        super().setUp()
+        self.author = create_test_user("profile_owner")
+        self.other = create_test_user("profile_other", email="other@example.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.other)
+
+        _, _, self.prereg_entry = _create_post_and_entry(
+            self.author, PREREGISTRATION, "Owned Prereg"
+        )
+        _create_post_and_entry(self.other, PREREGISTRATION, "Other Prereg")
+
+    def test_returns_only_the_authors_own_activity(self):
+        """A visitor sees the author's entries and nobody else's."""
+        # Act
+        resp = self.client.get(
+            AUTHOR_ACTIVITY_URL, {"author_id": self.author.author_profile.id}
+        )
+
+        # Assert
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertEqual(ids, {self.prereg_entry.id})
+
+    def test_serves_anonymous_requests(self):
+        """An anonymous visitor may read an author's public activity."""
+        # Arrange
+        self.client.force_authenticate(user=None)
+
+        # Act
+        resp = self.client.get(
+            AUTHOR_ACTIVITY_URL, {"author_id": self.author.author_profile.id}
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertEqual(ids, {self.prereg_entry.id})
+
+    def test_includes_reviews_on_registered_reports(self):
+        """A review the author wrote on a registered report appears on the feed."""
+        # Arrange
+        document, post, _ = _create_post_and_entry(
+            self.other, REGISTERED_REPORT, "Registered Report"
+        )
+        _, review_entry = _make_comment_feed_entry(
+            self.author, document, post, COMMUNITY_REVIEW
+        )
+
+        # Act
+        resp = self.client.get(
+            AUTHOR_ACTIVITY_URL,
+            {
+                "author_id": self.author.author_profile.id,
+                "comment_type": COMMUNITY_REVIEW,
+            },
+        )
+
+        # Assert
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertEqual(ids, {review_entry.id})
 
 
 class ActivityFeedCacheTests(ActivityFeedBaseTests):

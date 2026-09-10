@@ -10,9 +10,6 @@ from django.db.models import Q, QuerySet
 
 from institution.models import Institution
 from paper.related_models.citation_model import Citation, Source
-from user.related_models.author_contribution_summary_model import (
-    AuthorContributionSummary,
-)
 from user.related_models.author_institution import AuthorInstitution
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
@@ -475,21 +472,7 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
     researchhub_author.save()
 
     # Prepare data for bulk operations
-    contribution_summaries = []
     author_institutions = []
-
-    # Process activity by year
-    activity_by_year = openalex_author.get("counts_by_year", [])
-    contribution_summaries = [
-        AuthorContributionSummary(
-            source=AuthorContributionSummary.SOURCE_OPENALEX,
-            author=researchhub_author,
-            year=activity.get("year"),
-            works_count=activity.get("works_count"),
-            citation_count=activity.get("cited_by_count"),
-        )
-        for activity in activity_by_year
-    ]
 
     # Process affiliations
     affiliations = openalex_author.get("affiliations", [])
@@ -521,12 +504,6 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
         )
 
     # Perform bulk operations
-    AuthorContributionSummary.objects.bulk_create(
-        contribution_summaries,
-        update_conflicts=True,
-        unique_fields=["source", "author", "year"],
-        update_fields=["works_count", "citation_count"],
-    )
     AuthorInstitution.objects.bulk_create(author_institutions, ignore_conflicts=True)
 
     return researchhub_author

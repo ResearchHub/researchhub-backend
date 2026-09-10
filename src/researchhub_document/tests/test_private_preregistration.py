@@ -1030,36 +1030,6 @@ class NotePostEmbedVisibilityTests(AWSMockTestCase):
         self.assertIn("document_type", embedded)
 
 
-class AuthorContributionsPrivacyTests(AWSMockTestCase):
-    """The public author contributions feed excludes private preregistrations."""
-
-    def setUp(self):
-        super().setUp()
-        self.author = _make_user("author")
-
-        self.public_post = create_post(
-            title="Public", created_by=self.author, document_type=PREREGISTRATION
-        )
-        self.private_post = create_post(
-            title="Private", created_by=self.author, document_type=PREREGISTRATION
-        )
-        self.private_post.unified_document.is_public = False
-        self.private_post.unified_document.save()
-
-        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
-        from reputation.related_models.contribution import Contribution
-
-        for ordinal, post in enumerate((self.public_post, self.private_post)):
-            Contribution.objects.create(
-                contribution_type=Contribution.SUBMITTER,
-                user=self.author,
-                unified_document=post.unified_document,
-                content_type=post_ct,
-                object_id=post.id,
-                ordinal=ordinal,
-            )
-
-
 class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
     """RFP creators can require applications be private, public, or optional."""
 

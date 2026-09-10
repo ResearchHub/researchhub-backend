@@ -14,13 +14,11 @@ from rest_framework.serializers import (
 )
 
 from hub.models import Hub
-from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
+from hub.serializers import HubSerializer, SimpleHubSerializer
 from institution.serializers import DynamicInstitutionSerializer
-from paper.models import Paper
-from purchase.models import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
-from reputation.models import Bounty, Contribution, Distribution, Score, Withdrawal
+from reputation.models import Contribution, Distribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -29,11 +27,9 @@ from researchhub_access_group.constants import (
     SENIOR_EDITOR,
 )
 from researchhub_access_group.serializers import DynamicPermissionSerializer
-from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import (
-    Action,
     Author,
     Major,
     Organization,
@@ -41,9 +37,6 @@ from user.models import (
     User,
     UserVerification,
     Verdict,
-)
-from user.related_models.author_contribution_summary_model import (
-    AuthorContributionSummary,
 )
 from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
@@ -836,83 +829,6 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         return user.is_verified
 
 
-class DynamicActionSerializer(DynamicModelFieldSerializer):
-    item = SerializerMethodField()
-    content_type = SerializerMethodField()
-    created_by = SerializerMethodField()
-    hubs = SerializerMethodField()
-    reason = SerializerMethodField()
-
-    class Meta:
-        model = Action
-        fields = "__all__"
-
-    def get_item(self, action):
-        context = self.context
-        _context_fields = context.get("usr_das_get_item", {})
-        item = action.item
-
-        if isinstance(item, Withdrawal):
-            # @patrick
-            # https://github.com/ResearchHub/researchhub-backend/pull/990#discussion_r819213890
-            from reputation.serializers import WithdrawalSerializer
-
-            serializer = WithdrawalSerializer
-            context = {}
-            _context_fields = {}
-        elif isinstance(item, Paper):
-            from paper.serializers import DynamicPaperSerializer
-
-            serializer = DynamicPaperSerializer
-        elif isinstance(item, ResearchhubPost):
-            from researchhub_document.serializers import DynamicPostSerializer
-
-            serializer = DynamicPostSerializer
-        elif isinstance(item, Purchase):
-            from purchase.serializers import DynamicPurchaseSerializer
-
-            serializer = DynamicPurchaseSerializer
-        elif isinstance(item, RhCommentModel):
-            from researchhub_comment.serializers import DynamicRhCommentSerializer
-
-            serializer = DynamicRhCommentSerializer
-        elif isinstance(item, Verdict):
-            serializer = DynamicVerdictSerializer
-        elif isinstance(item, Bounty):
-            from reputation.serializers import DynamicBountySerializer
-
-            serializer = DynamicBountySerializer
-        else:
-            return None
-
-        data = serializer(item, context=context, **_context_fields).data
-
-        return data
-
-    def get_created_by(self, action):
-        context = self.context
-        _context_fields = context.get("usr_das_get_created_by", {})
-        serializer = DynamicUserSerializer(
-            action.user, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_content_type(self, action):
-        content_type = action.content_type
-        return {"id": content_type.id, "name": content_type.model}
-
-    def get_hubs(self, action):
-        context = self.context
-        _context_fields = context.get("usr_das_get_hubs", {})
-        serializer = DynamicHubSerializer(
-            action.hubs, many=True, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_reason(self, action):
-        return getattr(action, "reason", None)
-
-
 class OrganizationSerializer(ModelSerializer):
     member_count = SerializerMethodField()
     user_permission = SerializerMethodField()
@@ -1066,7 +982,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     coauthors = SerializerMethodField()
     reputation = SerializerMethodField()
     reputation_list = SerializerMethodField()
-    activity_by_year = SerializerMethodField()
     summary_stats = SerializerMethodField()
     achievements = SerializerMethodField()
     headline = SerializerMethodField()
@@ -1107,18 +1022,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         }
 
         return stats
-
-    def get_activity_by_year(self, author):
-        context = self.context
-        _context_fields = context.get("author_profile::activity_by_year", {})
-
-        serializer = DynamicAuthorContributionSummarySerializer(
-            author.contribution_summaries.all(),
-            context=context,
-            many=True,
-            **_context_fields,
-        )
-        return serializer.data
 
     def get_reputation(self, author):
         score = Score.objects.filter(author=author).order_by("-score").first()
@@ -1200,9 +1103,3 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
-
-
-class DynamicAuthorContributionSummarySerializer(DynamicModelFieldSerializer):
-    class Meta:
-        model = AuthorContributionSummary
-        fields = "__all__"
