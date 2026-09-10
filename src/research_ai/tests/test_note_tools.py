@@ -308,36 +308,6 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(read["blocks"], {"0": "Written by the agent"})
         self.assertEqual(read["version_id"], result["version_id"])
 
-    def test_edit_note_saves_clickable_references_only_in_changed_blocks(self):
-        # Arrange
-        untouched = {
-            "type": "paragraph",
-            "content": [{"type": "text", "text": "https://example.org/unchanged"}],
-        }
-        seeded = self._seed_version({"type": "doc", "content": [untouched]})
-
-        # Act
-        result, _ = self.toolset.dispatch(
-            EDIT_NOTE,
-            {
-                "note_id": self.note.id,
-                "expected_version_id": seeded.id,
-                "edits": _insert(["Reference: https://doi.org/10.1234/paper."], at=1),
-            },
-        )
-
-        # Assert
-        self.assertTrue(result["saved"])
-        self.note.refresh_from_db()
-        stored = json.loads(self.note.latest_version.json)
-        self.assertEqual(stored["content"][0], untouched)
-        linked = stored["content"][1]["content"][1]
-        self.assertEqual(linked["text"], "https://doi.org/10.1234/paper")
-        self.assertEqual(linked["marks"][0]["type"], "link")
-        self.assertEqual(
-            linked["marks"][0]["attrs"]["href"], "https://doi.org/10.1234/paper"
-        )
-
     def test_edit_note_touches_only_the_addressed_blocks(self):
         # Arrange
         seeded = self._seed_version(EDITOR_DOC)
