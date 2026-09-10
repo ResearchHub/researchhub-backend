@@ -6,12 +6,12 @@ from django.db import transaction
 
 from mailing_list.services import EmailService
 from notification.models import Notification
-from notification.services import EmailNotificationService
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
 from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
+from purchase.services.grant_notification_service import GrantNotificationService
 from reputation.models import Deposit
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
@@ -80,7 +80,7 @@ def complete_eligible_fundraises():
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_grant_application_email(notification_id: int) -> None:
     """Send the RFP application email through the notification queue."""
-    EmailNotificationService().send_grant_application_email(notification_id)
+    GrantNotificationService().send_application_email(notification_id)
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
