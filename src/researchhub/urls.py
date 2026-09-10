@@ -87,10 +87,6 @@ router.register(
 
 router.register(r"audit", user.views.AuditViewSet, basename="audit")
 
-router.register(
-    r"contribution", user.views.ContributionViewSet, basename="contribution"
-)
-
 router.register(r"leaderboard", user.views.LeaderboardViewSet, basename="leaderboard")
 
 router.register(

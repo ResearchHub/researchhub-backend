@@ -122,20 +122,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
                     "title",
                 ]
             },
-            "usr_das_get_item": {
-                "_include_fields": [
-                    "amount",
-                    "content_type",
-                    "expiration_date",
-                    "flagged_content_name",
-                    "id",
-                    "is_content_removed",
-                    "paper_status",
-                    "paper",
-                    "plain_text",
-                    "verdict_choice",
-                ],
-            },
             "usr_dus_get_author_profile": {
                 "_include_fields": [
                     "id",

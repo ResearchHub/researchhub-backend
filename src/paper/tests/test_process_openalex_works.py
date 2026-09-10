@@ -295,19 +295,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
             self.assertGreater(author.two_year_mean_citedness, 0)
             self.assertGreater(author.i10_index, 0)
 
-    @patch.object(OpenAlex, "get_authors")
-    def test_create_contribution_activity(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(self.works)
-            author = Author.objects.filter(
-                openalex_ids__contains=[mock_data["results"][0]["id"]]
-            ).first()
-
-            self.assertGreater(len(author.contribution_summaries.all()), 0)
-
     def test_clean_url(self):
         url = "https://abc.com/def ghi"
 
