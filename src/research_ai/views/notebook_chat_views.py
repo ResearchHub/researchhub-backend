@@ -40,14 +40,12 @@ from research_ai.services.usage_budget import (
     UsageLimitExceededError,
     UsageWorkInProgressError,
 )
-from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
 
 NOTEBOOK_CHAT_PERMISSIONS = [
     IsAuthenticated,
     ResearchAIBudgetPermission,
-    UserIsEditor | IsModerator,
 ]
 
 
