@@ -1,0 +1,49 @@
+name: Enforce Isolated Agent File Changes
+
+on:
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check-file-isolation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Verify agent files are changed in isolation
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed_files=$(git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA")
+
+          has_agent_file_change=false
+          has_other_file_change=false
+
+          while IFS= read -r file; do
+            if [[ -z "$file" ]]; then
+              continue
+            fi
+
+            case "$file" in
+              AGENTS.md|CLAUDE.md|*/AGENTS.md|*/CLAUDE.md)
+                has_agent_file_change=true
+                ;;
+              *)
+                has_other_file_change=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          if [[ "$has_agent_file_change" == true &&
+                "$has_other_file_change" == true ]]; then
+            echo "::error::Changes to AGENTS.md or CLAUDE.md must be submitted in a separate PR."
+            exit 1
+          fi
+
+          echo "Agent file isolation check passed."
