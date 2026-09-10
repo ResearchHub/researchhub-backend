@@ -20,10 +20,9 @@ class GrantApplicationNotificationService:
             subject=subject,
             email_context={
                 "subject": subject,
-                "action": {
-                    "message": "".join(part["value"] for part in notification.body),
-                    "frontend_view_link": notification.navigation_url,
-                },
+                "body": "".join(part["value"] for part in notification.body),
+                "cta_url": notification.navigation_url,
+                "cta_label": "View Proposal",
             },
-            template="general_email_message",
+            template="general_branded_email",
         )
