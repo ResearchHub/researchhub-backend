@@ -38,18 +38,12 @@ class NotebookChatViewTests(APITestCase):
             email="outsider@researchhub_test.com",
         )
         # A collaborator on the note who is neither a hub editor nor a
-        # moderator, to exercise the rollout gate.
+        # moderator, to verify access for regular users.
         self.regular_user = user_model.objects.create_user(
             username="regular@researchhub_test.com",
             password="password",
             email="regular@researchhub_test.com",
         )
-        # The feature is gated to hub editors and moderators for now; note
-        # access is still checked separately, so the outsider is a moderator
-        # too (they must clear the gate to exercise the 404 path).
-        for user in (self.owner, self.viewer, self.outsider):
-            user.moderator = True
-            user.save(update_fields=["moderator"])
         self.note, self.content = create_note(self.owner, organization=None)
         unified_doc_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
         Permission.objects.create(
@@ -311,7 +305,7 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(get_response.status_code, 404)
         self.assertEqual(post_response.status_code, 404)
 
-    def test_gate_blocks_regular_users_even_with_note_access(self):
+    def test_regular_users_can_create_and_list_chats_with_note_access(self):
         # Arrange: full note access, but neither hub editor nor moderator.
         self.client.force_authenticate(self.regular_user)
 
@@ -320,8 +314,8 @@ class NotebookChatViewTests(APITestCase):
         list_response = self.client.get(self.chats_url)
 
         # Assert
-        self.assertEqual(create_response.status_code, 403)
-        self.assertEqual(list_response.status_code, 403)
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(list_response.status_code, 200)
 
     def test_post_message_requires_authentication(self):
         # Act
