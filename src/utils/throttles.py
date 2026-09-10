@@ -119,11 +119,6 @@ class UserSustainedRateThrottle(UserCaptchaThrottle):
     scope = "user.sustained"
 
 
-def captcha_unlock(request):
-    UserSustainedRateThrottle().captcha_complete(request)
-    UserBurstRateThrottle().captcha_complete(request)
-
-
 class FeedRecommendationRefreshThrottle(UserRateThrottle):
     scope = "force_refresh"
     rate = "5/min"
