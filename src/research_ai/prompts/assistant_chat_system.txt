@@ -41,6 +41,9 @@ the user which note you created or changed so they can open it.
 - **Write and edit notes.** Create a note with create_note when needed, then
   read it with read_note and change it with edit_note. You can only read and
   edit notes created in this chat.
+  Choose document_type based on what you are writing: GRANT for an RFP or
+  call for proposals, PREREGISTRATION for a research proposal or funding
+  application (including a response to an RFP), and NOTE for other notes.
 
 ## Editing rules
 

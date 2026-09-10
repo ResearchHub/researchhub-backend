@@ -40,6 +40,11 @@ from research_ai.services.note_block_edits import (
     check_block_edits,
     parse_block_edits,
 )
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    NOTE,
+    PREREGISTRATION,
+)
 from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
 
 logger = logging.getLogger(__name__)
@@ -49,6 +54,7 @@ EDIT_NOTE = "edit_note"
 CREATE_NOTE = "create_note"
 _MAX_BLOCKS_PER_READ = 50
 _MAX_TITLE_CHARS = 255
+_CREATABLE_NOTE_TYPES = (NOTE, PREREGISTRATION, GRANT)
 
 _BLOCK_FORMAT = (
     "Blocks use a compact Tiptap form: a bare string at block level is a "
@@ -62,8 +68,9 @@ class NoteToolset:
 
     ``note_ids``, when given, restricts every tool to those notes regardless
     of what else the user could access. ``note_creator``, when given, adds a
-    ``create_note`` tool: it is called with the title and must return the new
-    ``Note`` (owned by ``user``); the toolset widens ``note_ids`` to include it.
+    ``create_note`` tool: it is called with the title and document type and
+    returns the new ``Note`` (owned by ``user``); the toolset widens
+    ``note_ids`` to include it.
 
     Best-effort contract: handlers never raise; failures come back to the
     model as ``{"error": ...}`` so a bad note id or a stale edit is a turn
@@ -76,7 +83,7 @@ class NoteToolset:
         user,
         service: NoteContentService | None = None,
         note_ids: Collection[int] | None = None,
-        note_creator: Callable[[str], Note] | None = None,
+        note_creator: Callable[[str, str], Note] | None = None,
     ):
         self._user = user
         self._service = service or NoteContentService()
@@ -105,9 +112,19 @@ class NoteToolset:
                             "title": {
                                 "type": "string",
                                 "description": "A short title for the note.",
-                            }
+                            },
+                            "document_type": {
+                                "type": "string",
+                                "enum": list(_CREATABLE_NOTE_TYPES),
+                                "description": (
+                                    "GRANT for an RFP or call for proposals; "
+                                    "PREREGISTRATION for a research proposal or "
+                                    "funding application (including an RFP response); "
+                                    "NOTE for other notes."
+                                ),
+                            },
                         },
-                        "required": ["title"],
+                        "required": ["title", "document_type"],
                     },
                     handler=self._create_note,
                 )
@@ -259,8 +276,11 @@ class NoteToolset:
         title = " ".join(title.split())
         if len(title) > _MAX_TITLE_CHARS:
             return {"error": f"title must be at most {_MAX_TITLE_CHARS} characters"}
+        document_type = input.get("document_type")
+        if document_type not in _CREATABLE_NOTE_TYPES:
+            return {"error": "document_type must be NOTE, PREREGISTRATION, or GRANT"}
         try:
-            note = self._note_creator(title)
+            note = self._note_creator(title, document_type)
         except Exception as exc:  # noqa: BLE001 - reported to the model
             logger.exception("create_note failed for user %s", self._user.id)
             return {"error": f"could not create the note: {exc}"}
@@ -269,6 +289,7 @@ class NoteToolset:
         return {
             "note_id": note.id,
             "title": note.title,
+            "document_type": note.document_type,
             "version_id": None,
             "created": True,
         }
