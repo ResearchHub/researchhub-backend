@@ -95,6 +95,7 @@ extend-select = [
     "B006",  # mutable-argument-default
     "B009",  # get-attr-with-constant
     "C4",    # flake8-comprehensions
+    "DJ012", # django-unordered-body-content-in-model
     "E",     # pycodestyle errors
     "FURB",  # refurb
     "G201",  # logging-exc-info
