@@ -25,7 +25,6 @@ from researchhub_access_group.constants import (
 from researchhub_access_group.models import Permission
 from user.models import User
 from user.views.follow_view_mixins import FollowViewActionMixin
-from utils.throttles import THROTTLE_CLASSES
 
 from .filters import HubFilter
 from .models import Hub
@@ -49,7 +48,6 @@ class HubViewSet(viewsets.ReadOnlyModelViewSet, FollowViewActionMixin):
     )
     permission_classes = [IsAuthenticatedOrReadOnly]
     pagination_class = CustomPageLimitPagination
-    throttle_classes = THROTTLE_CLASSES
     filterset_class = HubFilter
     search_fields = "name"
 
