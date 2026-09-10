@@ -12,7 +12,10 @@ The notebook chat list for a note filters on its own workflow, so a note this
 flow created does not show the assistant chat among that note's chats.
 """
 
+from django.utils import timezone
+
 from research_ai.models import AgentConversation, AgentExecution
+from research_ai.services.agent_persistence import AgentConversationBusyError
 from research_ai.services.notebook_chat.service import (
     ACTIVITY_ALL,
     ASSISTANT_WORKFLOW,
@@ -41,15 +44,15 @@ class AssistantChatService:
     def get_conversation(self, user, conversation_id: int) -> AgentConversation | None:
         """The user's assistant chat ``conversation_id``, if any."""
         return AgentConversation.objects.filter(
-            workflow=WORKFLOW, user=user, id=conversation_id
+            workflow=WORKFLOW, user=user, id=conversation_id, is_removed=False
         ).first()
 
     def list_conversations(self, user) -> list[dict]:
         """The user's assistant chats, newest activity first."""
         conversations = self.engine.listing(
-            AgentConversation.objects.filter(workflow=WORKFLOW, user=user).order_by(
-                "-updated_date", "-id"
-            )
+            AgentConversation.objects.filter(
+                workflow=WORKFLOW, user=user, is_removed=False
+            ).order_by("-updated_date", "-id")
         )
         return [
             {
@@ -72,6 +75,41 @@ class AssistantChatService:
         self, conversation: AgentConversation, title: str
     ) -> AgentConversation:
         return self.engine.rename_conversation(conversation, title)
+
+    def delete_conversation(
+        self, conversation: AgentConversation, *, delete_notes: bool = False
+    ) -> None:
+        """Remove the chat. Notes the chat created are the user's and stay
+        unless ``delete_notes`` asks for them too, in which case they get
+        the notebook's own soft delete (the unified document is flagged removed),
+        and only for notes this user created.
+
+        Refused while a turn is running: the worker would keep writing to a
+        chat the user can no longer see.
+        """
+        if conversation.executions.filter(
+            status__in=[
+                AgentExecution.Status.PENDING,
+                AgentExecution.Status.RUNNING,
+            ]
+        ).exists():
+            raise AgentConversationBusyError(
+                "The assistant is still working on this conversation."
+            )
+        if delete_notes:
+            for note in self.engine._linked_notes(conversation):
+                if note.created_by_id != conversation.user_id:
+                    continue
+                unified_document = note.unified_document
+                unified_document.is_removed = True
+                unified_document.save(update_fields=["is_removed"])
+                # The notebook socket is per organization; a note outside one
+                # has no room to tell.
+                if note.organization_id is not None:
+                    note.notify_note_deleted()
+        conversation.is_removed = True
+        conversation.removed_date = timezone.now()
+        conversation.save(update_fields=["is_removed", "removed_date", "updated_date"])
 
     def representation(
         self, conversation: AgentConversation, *, activity_scope: str = ACTIVITY_ALL
