@@ -1,21 +1,20 @@
 import logging
 from ipaddress import ip_address
-from typing import override
 
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 logger = logging.getLogger(__name__)
 
 
-class CloudflareAnonRateThrottle(AnonRateThrottle):
+class CloudflareClientIPMixin:
     """
-    Throttle class that uses the Cloudflare connecting IP address for identifying
-    anonymous users. This is safe since it cannot be spoofed by the client.
+    Mixing class for throttle implementations that overrides the `get_ident` method to
+    use the Cloudflare connecting IP address (`HTTP_CF_CONNECTING_IP`).
+    This is safer than using `X-Forwarded-For` since it cannot be spoofed by the client.
     Falls back to the standard REMOTE_ADDR if the Cloudflare header is not present
     or invalid.
     """
 
-    @override
     def get_ident(self, request):
         value = request.META.get("HTTP_CF_CONNECTING_IP")
 
@@ -30,7 +29,14 @@ class CloudflareAnonRateThrottle(AnonRateThrottle):
         return request.META.get("REMOTE_ADDR")
 
 
-class FeedRecommendationRefreshThrottle(UserRateThrottle):
+class CloudflareAnonRateThrottle(CloudflareClientIPMixin, AnonRateThrottle):
+    """
+    Throttle class for anonymous users that uses the Cloudflare connecting IP address
+    for identification.
+    """
+
+
+class FeedRecommendationRefreshThrottle(CloudflareClientIPMixin, UserRateThrottle):
     scope = "force_refresh"
     rate = "5/min"
 
