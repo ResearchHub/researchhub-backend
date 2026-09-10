@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.utils.html import format_html
 
 from mailing_list.services import EmailService
 from notification.models import Notification
@@ -11,7 +12,6 @@ from purchase.circle.service import CircleWalletService
 from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
-from purchase.services.grant_notification_service import GrantNotificationService
 from reputation.models import Deposit
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
@@ -79,8 +79,28 @@ def complete_eligible_fundraises():
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_grant_application_email(notification_id: int) -> None:
-    """Send the RFP application email through the notification queue."""
-    GrantNotificationService().send_application_email(notification_id)
+    """Email the RFP owner the applicant's name and a link to the proposal."""
+    notification = Notification.objects.select_related(
+        "action_user", "recipient", "unified_document"
+    ).get(id=notification_id)
+    subject = "Someone applied to your RFP"
+    context = {
+        "subject": subject,
+        "body": format_html(
+            "<p>A new research proposal has been submitted</p>"
+            "<p>{} submitted proposal: {}</p>",
+            notification.action_user.first_name,
+            notification.unified_document.get_display_title(),
+        ),
+        "cta_url": notification.navigation_url,
+        "cta_label": "View Proposal",
+    }
+    EmailService().send_email(
+        [notification.recipient.email],
+        subject,
+        context,
+        template="general_branded_email",
+    )
 
 
 @app.task(queue=QUEUE_NOTIFICATION)

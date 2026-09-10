@@ -138,6 +138,7 @@ class GrantApplicationNotificationDispatchTests(AWSMockTransactionTestCase):
         # Assert
         mock_send_notification.assert_called_once()
         mock_send_email.assert_called_once()
-        email = mock_send_email.call_args.kwargs
-        self.assertEqual(email["recipients"], self.owner.email)
-        self.assertEqual(email["email_context"]["cta_url"], proposal_url)
+        recipients, subject, context = mock_send_email.call_args.args
+        self.assertEqual(recipients, [self.owner.email])
+        self.assertEqual(subject, "Someone applied to your RFP")
+        self.assertEqual(context["cta_url"], proposal_url)
