@@ -279,18 +279,13 @@ class AgentLoopBudgetRecorderTests(TestCase):
         self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
 
     def test_discarded_attempt_is_charged_before_retry_admission(self):
-        # Arrange: nine earlier calls leave one turn in the default tier.
-        LLMUsageEvent.objects.bulk_create(
-            [
-                LLMUsageEvent(
-                    user=self.user,
-                    feature="notebook_chat",
-                    provider="openrouter",
-                    model="deepseek/deepseek-v4-pro-0813",
-                    cost_microusd=1,
-                )
-                for _ in range(9)
-            ]
+        # Arrange: prior usage leaves one microdollar in the daily budget.
+        LLMUsageEvent.objects.create(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model="deepseek/deepseek-v4-pro-0813",
+            cost_microusd=249_999,
         )
         execution = self._execution(
             status=AgentExecution.Status.RUNNING,
@@ -298,14 +293,14 @@ class AgentLoopBudgetRecorderTests(TestCase):
         )
         recorder = self._recorder(execution)
 
-        # Act: the completed first attempt consumes the last turn before the
+        # Act: the completed first attempt consumes the remaining budget before the
         # provider asks whether it may make its internal retry.
         recorder.record_usage(TurnUsage(input_tokens=10, output_tokens=2))
 
         # Assert
         with self.assertRaises(BudgetExceededError):
             recorder.before_model_call()
-        self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 10)
+        self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 2)
 
     def test_stream_activity_leaves_the_lease_to_the_heartbeat(self):
         # Arrange: liveness is the worker heartbeat's job, so a burst of stream

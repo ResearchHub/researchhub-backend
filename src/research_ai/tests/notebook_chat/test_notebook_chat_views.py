@@ -161,6 +161,8 @@ class NotebookChatViewTests(APITestCase):
     )
     def test_post_message_records_a_selected_model(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
 
@@ -176,6 +178,8 @@ class NotebookChatViewTests(APITestCase):
 
     def test_post_message_records_effort_and_thinking(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
 
@@ -209,6 +213,8 @@ class NotebookChatViewTests(APITestCase):
 
     def test_post_message_cannot_switch_the_conversation_effort(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
         first_response, _delay = self._post_message(chat_id, effort="low")
@@ -231,6 +237,8 @@ class NotebookChatViewTests(APITestCase):
     )
     def test_post_message_cannot_switch_the_conversation_model(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
         first_response, _delay = self._post_message(
@@ -489,7 +497,7 @@ class NotebookChatViewTests(APITestCase):
         )
         self.assertIsNotNone(response.data["messages"][0]["created_date"])
         self.assertEqual(len(response.data["executions"]), 1)
-        self.assertEqual(response.data["executions"][0]["effort"], "low")
+        self.assertEqual(response.data["executions"][0]["effort"], "none")
         self.assertEqual(
             response.data["executions"][0]["status"],
             AgentExecution.Status.PENDING,
