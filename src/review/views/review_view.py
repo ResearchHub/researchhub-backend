@@ -13,12 +13,10 @@ from researchhub_document.related_models.constants.document_type import (
 from review.models.review_model import Review
 from review.permissions import AllowedToUpdateReview
 from review.serializers import ReviewSerializer
-from utils.throttles import THROTTLE_CLASSES
 
 
 class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     serializer_class = ReviewSerializer
-    throttle_classes = THROTTLE_CLASSES
 
     permission_classes = [
         IsAuthenticatedOrReadOnly,

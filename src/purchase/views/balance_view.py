@@ -12,7 +12,6 @@ from rest_framework.permissions import IsAuthenticated
 
 from purchase.models import Balance, RscExchangeRate
 from purchase.serializers import BalanceSerializer
-from utils.throttles import THROTTLE_CLASSES
 
 
 class BalanceFilter(filters.FilterSet):
@@ -32,7 +31,6 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         IsAuthenticated,
     ]
     pagination_class = PageNumberPagination
-    throttle_classes = THROTTLE_CLASSES
 
     def get_queryset(self):
         user = self.request.user

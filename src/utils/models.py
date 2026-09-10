@@ -19,9 +19,6 @@ class DefaultModel(models.Model):
 
 
 class DefaultAuthenticatedModel(models.Model):
-    class Meta:
-        abstract = True
-
     created_by = models.ForeignKey(
         USER_MODEL,
         on_delete=models.CASCADE,
@@ -42,11 +39,11 @@ class DefaultAuthenticatedModel(models.Model):
         auto_now=True,
     )
 
-
-class AbstractGenericRelationModel(DefaultAuthenticatedModel):
     class Meta:
         abstract = True
 
+
+class AbstractGenericRelationModel(DefaultAuthenticatedModel):
     # Below the mandatory fields for generic relation
     content_type = models.ForeignKey(
         ContentType,
@@ -59,6 +56,9 @@ class AbstractGenericRelationModel(DefaultAuthenticatedModel):
     object_id = models.PositiveIntegerField()
     content_object = GenericForeignKey()
 
+    class Meta:
+        abstract = True
+
 
 class SoftDeletableModel(models.Model):
     """Adapted from https://github.com/jazzband/django-model-utils"""
@@ -67,11 +67,11 @@ class SoftDeletableModel(models.Model):
     is_removed = models.BooleanField(default=False)
     is_removed_date = models.DateTimeField(default=None, null=True, blank=True)
 
+    objects = SoftDeletableManager()
+    all_objects = models.Manager()  # noqa: DJ012
+
     class Meta:
         abstract = True
-
-    objects = SoftDeletableManager()
-    all_objects = models.Manager()
 
     def delete(self, soft=True, *args, **kwargs):
         """Sets `is_removed` True when `soft` is True instead of deleting.
@@ -146,13 +146,13 @@ class PaidStatusModelMixin(models.Model):
         (PENDING, PENDING),
     ]
 
-    class Meta:
-        abstract = True
-
     paid_date = models.DateTimeField(default=None, null=True)
     paid_status = models.CharField(
         max_length=255, choices=PAID_STATUS_CHOICES, default=INITIATED, null=True
     )
+
+    class Meta:
+        abstract = True
 
     def set_paid_failed(self):
         self.paid_status = self.FAILED

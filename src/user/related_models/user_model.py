@@ -22,7 +22,6 @@ from researchhub_access_group.constants import (
 )
 from utils.managers import SoftDeletableManagerMixin
 from utils.models import SoftDeletableModel
-from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
 FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
@@ -194,9 +193,6 @@ class User(SoftDeletableModel, AbstractUser):
 
     def set_probable_spammer(self, probable_spammer=True):
         if self.probable_spammer != probable_spammer:
-            capcha_throttle = UserSustainedRateThrottle()
-            capcha_throttle.lock(self, "probably_spam")
-
             self.probable_spammer = probable_spammer
             self.spam_updated_date = timezone.now()
             self.save(update_fields=["probable_spammer", "spam_updated_date"])

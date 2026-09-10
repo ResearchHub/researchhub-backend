@@ -1,10 +1,12 @@
 import json
 import time
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from hub.models import Hub
 from paper.related_models.authorship_model import Authorship
@@ -25,6 +27,7 @@ from user.serializers import (
     UserSerializer,
 )
 from user.tests.helpers import create_university, create_user
+from utils.turnstile import TurnstileService
 
 
 class UserSerializersTests(TestCase):
@@ -416,3 +419,59 @@ class UserBalanceHistorySerializerTests(TestCase):
         )
 
         self.assertEqual(int(serializer.data["balance_history"]), 1000)
+
+
+@override_settings(TURNSTILE_ENABLED=True, TURNSTILE_SECRET_KEY="secret")
+class RegistrationTurnstileTests(TestCase):
+    def setUp(self):
+        self.mailchimp_patcher = patch("oauth.signals.UserSignupService")
+        self.mailchimp_patcher.start()
+        self.addCleanup(self.mailchimp_patcher.stop)
+        self.client = APIClient()
+        self.payload = {
+            "email": "newuser@example.com",
+            "password1": "testpassword123!",
+            "password2": "testpassword123!",
+            "first_name": "Test",
+            "last_name": "User",
+        }
+
+    def test_registration_succeeds_with_a_valid_token(self):
+        # Arrange
+        with patch.object(TurnstileService, "verify", return_value=True) as verify:
+            # Act
+            response = self.client.post(
+                "/api/auth/register/", {**self.payload, "turnstile_token": "good"}
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        verify.assert_called_once()
+
+    def test_registration_is_rejected_without_a_token(self):
+        # Arrange / Act
+        response = self.client.post("/api/auth/register/", self.payload)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("turnstile_token", response.json())
+
+    def test_registration_is_rejected_when_the_token_fails_verification(self):
+        # Arrange
+        with patch.object(TurnstileService, "verify", return_value=False):
+            # Act
+            response = self.client.post(
+                "/api/auth/register/", {**self.payload, "turnstile_token": "bad"}
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("turnstile_token", response.json())
+
+    @override_settings(TURNSTILE_ENABLED=False)
+    def test_registration_succeeds_without_a_token_while_disabled(self):
+        # Arrange / Act
+        response = self.client.post("/api/auth/register/", self.payload)
+
+        # Assert
+        self.assertEqual(response.status_code, 201)

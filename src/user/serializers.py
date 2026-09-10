@@ -50,6 +50,7 @@ from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.related_models.risk_score_model import RiskScoreEvent
+from utils.turnstile import TurnstileService
 
 logger = logging.getLogger(__name__)
 
@@ -703,6 +704,26 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     first_name = CharField(max_length=150, allow_blank=True, required=False)
     last_name = CharField(max_length=150, allow_blank=True, required=False)
     referral_code = CharField(max_length=100, allow_blank=True, required=False)
+    turnstile_token = CharField(
+        max_length=2048, allow_blank=True, required=False, write_only=True
+    )
+
+    def validate(self, attrs):
+        """
+        Validates the request and rejects it if the Turnstile challenge is not passed.
+        """
+        service = TurnstileService()
+        if not service.is_enabled():
+            return super().validate(attrs)
+
+        token = attrs.get("turnstile_token", "")
+        request = self.context.get("request")
+        if not service.verify(token, request):
+            raise serializers.ValidationError(
+                {"turnstile_token": "Challenge verification failed."}
+            )
+
+        return super().validate(attrs)
 
     def validate_username(self, username):
         if username:

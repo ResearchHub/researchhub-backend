@@ -64,6 +64,7 @@ from research_ai.services.agent import (
     validate_model_ref,
 )
 from research_ai.services.agent.model_capabilities import validate_generation_options
+from research_ai.services.agent.providers.registry import default_effort
 from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentContextService,
@@ -489,8 +490,8 @@ class NotebookChatService:
         note-less assistant conversation, whose turn runs with ``create_note``
         against the notes attached to it. A chat still untitled takes its
         name from this message. ``model_ref`` selects the model for the first
-        turn. Later turns reuse that model; requesting a different provider or
-        model raises ``ValueError``.
+        turn. Later turns reuse that model and effort; requesting a different
+        provider, model, or effort raises ``ValueError``.
         Raises ``ValueError`` on an empty or oversized message or a model not
         in the selectable catalog, and lets ``AgentConversationBusyError``
         propagate when a turn is already running on this conversation (the
@@ -546,9 +547,28 @@ class NotebookChatService:
             model = (
                 conversation_model or selected_model or resolve_default_model(policy)
             )
+            previous_configuration = (
+                locked_conversation.executions.order_by("-attempt")
+                .values_list("configuration", flat=True)
+                .first()
+            )
+            if previous_configuration is not None:
+                # Preserve the latest setting for chats that predate effort
+                # locking. Older rows can omit the adapter's default.
+                conversation_effort = previous_configuration.get("effort")
+                if conversation_effort is None:
+                    conversation_effort = default_effort(model)
+                if effort is not None and effort != conversation_effort:
+                    raise ValueError(
+                        "effort cannot be changed after a conversation has started; "
+                        "start a new conversation to use a different effort"
+                    )
+                effort = conversation_effort
             effort, thinking = effective_generation_options(
                 policy, effort=effort, thinking=thinking
             )
+            if effort is None:
+                effort = default_effort(model)
             with atomic_turn_admission(
                 locked_conversation.user,
                 model,
