@@ -6,72 +6,35 @@ from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
 
 
 class NoteLinkServiceTests(TestCase):
-    def test_url_label_links_to_markdown_destination(self):
+    def test_only_explicit_http_urls_are_linked(self):
         # Arrange
-        blocks = [
-            {
-                "type": "text",
-                "text": "[https://example.com/label](https://example.com/target)",
-            }
-        ]
-
-        # Act
-        result = link_note_urls(blocks)
-
-        # Assert
-        self.assertEqual(
-            result,
-            [
-                {
-                    "type": "text",
-                    "text": "https://example.com/label",
-                    "marks": [
-                        {
-                            "type": "link",
-                            "attrs": {"href": "https://example.com/target"},
-                        }
-                    ],
-                }
-            ],
+        prefix = (
+            "example.com user@example.com //example.com/path "
+            "ftp://example.com/file mailto:user@example.com "
         )
-
-    def test_mixed_and_adjacent_markdown_links_keep_separate_destinations(self):
-        # Arrange
-        text = (
-            "https://example.org/first "
-            "[https://example.org/label](https://doi.org/a(b))"
-            "[Second](https://example.org/second?x=1&y=2). "
-            "https://example.org/last."
-        )
+        text = prefix + "http://example.com/paper"
 
         # Act
         result = link_note_urls([{"type": "text", "text": text}])
 
         # Assert
-        links = [node for node in result if node.get("marks")]
+        self.assertEqual(result[0], {"type": "text", "text": prefix})
         self.assertEqual(
-            [node["marks"][0]["attrs"]["href"] for node in links],
-            [
-                "https://example.org/first",
-                "https://doi.org/a(b)",
-                "https://example.org/second?x=1&y=2",
-                "https://example.org/last",
-            ],
+            result[1]["marks"][0]["attrs"]["href"], "http://example.com/paper"
         )
-        self.assertEqual(links[1]["text"], "https://example.org/label")
-        self.assertEqual(links[2]["text"], "Second")
 
-    def test_markdown_destination_keeps_nested_parentheses_and_final_punctuation(self):
+    def test_preserves_literal_text_without_markdown_interpretation(self):
         # Arrange
-        url = "https://example.org/a(b(c))."
-        blocks = [{"type": "text", "text": f"[Paper]({url})"}]
+        text = "**Source** [Paper](https://example.com/paper)"
 
         # Act
-        result = link_note_urls(blocks)
+        result = link_note_urls([{"type": "text", "text": text}])
 
         # Assert
-        self.assertEqual(result[0]["text"], "Paper")
-        self.assertEqual(result[0]["marks"][0]["attrs"]["href"], url)
+        self.assertEqual("".join(node["text"] for node in result), text)
+        linked = [node for node in result if node.get("marks")]
+        self.assertEqual(len(linked), 1)
+        self.assertEqual(linked[0]["text"], "https://example.com/paper")
 
     def test_links_survive_editor_schema_round_trip(self):
         # Arrange
@@ -119,18 +82,6 @@ class NoteLinkServiceTests(TestCase):
         )
         self.assertTrue(all({"type": "italic"} in node["marks"] for node in nodes))
         self.assertEqual(blocks, original)
-
-    def test_converts_markdown_reference_to_a_link_label(self):
-        # Arrange
-        blocks = [{"type": "text", "text": "Read [Paper](https://doi.org/a(b))."}]
-
-        # Act
-        result = link_note_urls(blocks)
-
-        # Assert
-        self.assertEqual("".join(node["text"] for node in result), "Read Paper.")
-        self.assertEqual(result[1]["text"], "Paper")
-        self.assertEqual(result[1]["marks"][0]["attrs"]["href"], "https://doi.org/a(b)")
 
     def test_preserves_existing_links_and_code(self):
         # Arrange
@@ -227,23 +178,3 @@ class NoteLinkServiceTests(TestCase):
         # Assert
         self.assertEqual(result[0]["marks"][0]["attrs"]["href"], url)
         self.assertEqual(result[1]["text"], suffix)
-
-    def test_invalid_url_does_not_disrupt_later_markdown_reference(self):
-        # Arrange
-        prefix = "https://[bad "
-        blocks = [
-            {
-                "type": "text",
-                "text": prefix + "[Paper](https://example.org/paper)",
-            }
-        ]
-
-        # Act
-        result = link_note_urls(blocks)
-
-        # Assert
-        self.assertEqual(result[0]["text"], prefix)
-        self.assertEqual(result[1]["text"], "Paper")
-        self.assertEqual(
-            result[1]["marks"][0]["attrs"]["href"], "https://example.org/paper"
-        )
