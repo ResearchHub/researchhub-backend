@@ -34,6 +34,7 @@ from django.db import transaction
 
 from note.related_models.note_model import Note, NoteContent, parse_note_json
 from note.services.note_content_service import NoteContentService
+from note.services.note_link_service import link_note_urls
 from research_ai.services.agent import Tool, Toolset
 from research_ai.services.note_block_edits import (
     apply_block_edits,
@@ -42,7 +43,6 @@ from research_ai.services.note_block_edits import (
 )
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
-    NOTE,
     PREREGISTRATION,
 )
 from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
@@ -54,12 +54,15 @@ EDIT_NOTE = "edit_note"
 CREATE_NOTE = "create_note"
 _MAX_BLOCKS_PER_READ = 50
 _MAX_TITLE_CHARS = 255
-_CREATABLE_NOTE_TYPES = (NOTE, PREREGISTRATION, GRANT)
+_CREATABLE_NOTE_TYPES = (PREREGISTRATION, GRANT)
 
 _BLOCK_FORMAT = (
     "Blocks use a compact Tiptap form: a bare string at block level is a "
     "plain paragraph; inside a block's `content`, a bare string is unmarked "
-    "text; attributes equal to the editor default are omitted."
+    "text; attributes equal to the editor default are omitted. "
+    "Reference URLs must be clickable: use text nodes with "
+    'marks: [{"type": "link", "attrs": {"href": "https://..."}}]. '
+    "Do not write Markdown link syntax into note text."
 )
 
 
@@ -119,8 +122,8 @@ class NoteToolset:
                                 "description": (
                                     "GRANT for an RFP or call for proposals; "
                                     "PREREGISTRATION for a research proposal or "
-                                    "funding application (including an RFP response); "
-                                    "NOTE for other notes."
+                                    "funding application (including an RFP response). "
+                                    "Only these two document types can be created."
                                 ),
                             },
                         },
@@ -278,7 +281,7 @@ class NoteToolset:
             return {"error": f"title must be at most {_MAX_TITLE_CHARS} characters"}
         document_type = input.get("document_type")
         if document_type not in _CREATABLE_NOTE_TYPES:
-            return {"error": "document_type must be NOTE, PREREGISTRATION, or GRANT"}
+            return {"error": "document_type must be PREREGISTRATION or GRANT"}
         try:
             note = self._note_creator(title, document_type)
         except Exception as exc:  # noqa: BLE001 - reported to the model
@@ -396,7 +399,10 @@ class NoteToolset:
             for index, edit in enumerate(edits):
                 if edit.blocks is not None:
                     try:
-                        edit.blocks = parse_blocks(BLOCK_EDITOR, edit.blocks)
+                        edit.blocks = parse_blocks(
+                            BLOCK_EDITOR,
+                            link_note_urls(parse_blocks(BLOCK_EDITOR, edit.blocks)),
+                        )
                     except ValueError as exc:
                         raise ValueError(f"edits[{index}]: {exc}") from exc
         except ValueError as exc:

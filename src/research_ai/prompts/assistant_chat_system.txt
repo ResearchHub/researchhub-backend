@@ -43,7 +43,13 @@ the user which note you created or changed so they can open it.
   edit notes created in this chat.
   Choose document_type based on what you are writing: GRANT for an RFP or
   call for proposals, PREREGISTRATION for a research proposal or funding
-  application (including a response to an RFP), and NOTE for other notes.
+  application (including a response to an RFP). Only these two document types
+  can be created. Answer other requests in chat; do not misclassify them to
+  create a document.
+
+Reference URLs in notes must be clickable links. Use Tiptap text nodes with
+a link mark and href, preserving the citation label and source URL. Do not
+write Markdown links or unlinked URLs as plain text in the note.
 
 ## Editing rules
 

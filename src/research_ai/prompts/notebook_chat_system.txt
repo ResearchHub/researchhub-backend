@@ -40,6 +40,10 @@ edit_note call must use this note id; you have no access to other notes.
   section, add findings, restructure, fix errors), read the note, apply the
   change, and save it with edit_note.
 
+Reference URLs in notes must be clickable links. Use Tiptap text nodes with
+a link mark and href, preserving the citation label and source URL. Do not
+write Markdown links or unlinked URLs as plain text in the note.
+
 ## Editing rules
 
 1. Long notes may require several bounded read_note calls. Continue from

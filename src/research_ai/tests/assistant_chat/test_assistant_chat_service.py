@@ -99,7 +99,7 @@ class AssistantChatServiceTests(TestCase):
         delay.assert_called_once_with(execution.id)
 
     def test_create_note_preserves_requested_document_type(self):
-        for document_type in (GRANT, PREREGISTRATION, NOTE):
+        for document_type in (GRANT, PREREGISTRATION):
             with self.subTest(document_type=document_type):
                 # Arrange
                 execution, _delay = self._submit()
@@ -192,7 +192,13 @@ class AssistantChatServiceTests(TestCase):
         execution, _delay = self._submit()
         self._run(
             execution,
-            [tool_turn("t1", "create_note", {"title": "Mine", "document_type": NOTE})],
+            [
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {"title": "Mine", "document_type": PREREGISTRATION},
+                )
+            ],
         )
         own_note = self.conversation.note_links.get().note
         other_note, _content = create_note(self.user, organization=None)
@@ -223,7 +229,13 @@ class AssistantChatServiceTests(TestCase):
         execution, _delay = self._submit()
         self._run(
             execution,
-            [tool_turn("t1", "create_note", {"title": "Mine", "document_type": NOTE})],
+            [
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {"title": "Mine", "document_type": PREREGISTRATION},
+                )
+            ],
         )
         note = self.conversation.note_links.get().note
 
