@@ -260,7 +260,7 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         prepared = chat.prepare_turn(
             self.conversation,
             "Question",
-            configuration={"max_iterations": 12},
+            configuration={"max_iterations": 12, "effort": "high"},
         )
 
         # Act
@@ -273,6 +273,7 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         self.assertIsNotNone(entry["last_activity_at"])
         self.assertEqual(entry["iterations"], 1)
         self.assertEqual(entry["max_iterations"], 12)
+        self.assertEqual(entry["effort"], "high")
 
     def test_max_iterations_is_absent_when_the_attempt_recorded_none(self):
         # Arrange: max_iterations is read from the attempt's own configuration
@@ -287,6 +288,7 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
 
         # Assert
         self.assertIsNone(entry["max_iterations"])
+        self.assertIsNone(entry["effort"])
 
     def test_a_running_turn_reports_a_heartbeat_and_no_finish(self):
         # Arrange: a turn in flight, no terminal hook called.

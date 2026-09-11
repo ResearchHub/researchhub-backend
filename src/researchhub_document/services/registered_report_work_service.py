@@ -52,12 +52,10 @@ class RegisteredReportWorkService:
             )
             .prefetch_related(
                 Prefetch("author_links", queryset=author_links),
-                "unified_document__hubs",
                 Prefetch(
                     "journey__preregistration_post__author_links",
                     queryset=author_links,
                 ),
-                "journey__preregistration_post__unified_document__hubs",
                 Prefetch(
                     "journey__preregistration_post__unified_document__reviews",
                     queryset=Review.objects.filter(is_removed=False).select_related(

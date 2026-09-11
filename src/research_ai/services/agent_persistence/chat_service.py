@@ -348,6 +348,11 @@ class AgentChatService:
                 # The model ref this turn was submitted with, so a client can
                 # label which model produced each answer.
                 "model": execution.model,
+                "effort": (
+                    execution.configuration.get("effort")
+                    if isinstance(execution.configuration, dict)
+                    else None
+                ),
                 "trigger_message_id": execution.trigger_message_id,
                 "retry_of_id": execution.retry_of_id,
                 "context_parent_id": execution.context_parent_id,

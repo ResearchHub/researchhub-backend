@@ -38,18 +38,12 @@ class NotebookChatViewTests(APITestCase):
             email="outsider@researchhub_test.com",
         )
         # A collaborator on the note who is neither a hub editor nor a
-        # moderator, to exercise the rollout gate.
+        # moderator, to verify access for regular users.
         self.regular_user = user_model.objects.create_user(
             username="regular@researchhub_test.com",
             password="password",
             email="regular@researchhub_test.com",
         )
-        # The feature is gated to hub editors and moderators for now; note
-        # access is still checked separately, so the outsider is a moderator
-        # too (they must clear the gate to exercise the 404 path).
-        for user in (self.owner, self.viewer, self.outsider):
-            user.moderator = True
-            user.save(update_fields=["moderator"])
         self.note, self.content = create_note(self.owner, organization=None)
         unified_doc_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
         Permission.objects.create(
@@ -167,6 +161,8 @@ class NotebookChatViewTests(APITestCase):
     )
     def test_post_message_records_a_selected_model(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
 
@@ -182,6 +178,8 @@ class NotebookChatViewTests(APITestCase):
 
     def test_post_message_records_effort_and_thinking(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
 
@@ -197,6 +195,8 @@ class NotebookChatViewTests(APITestCase):
         execution = AgentExecution.objects.get(id=response.data["execution_id"])
         self.assertEqual(execution.configuration["effort"], "high")
         self.assertEqual(execution.configuration["thinking"], "disabled")
+        chat = self.client.get(self._chat_url(chat_id))
+        self.assertEqual(chat.data["executions"][0]["effort"], "high")
 
     def test_post_message_with_unknown_model_is_rejected(self):
         # Arrange
@@ -211,11 +211,34 @@ class NotebookChatViewTests(APITestCase):
         self.assertIn("model", response.data)
         self.assertFalse(AgentExecution.objects.exists())
 
+    def test_post_message_cannot_switch_the_conversation_effort(self):
+        # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        first_response, _delay = self._post_message(chat_id, effort="low")
+        first = AgentExecution.objects.get(id=first_response.data["execution_id"])
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+
+        # Act
+        response, delay = self._post_message(chat_id, effort="high")
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("effort cannot be changed", response.data["detail"])
+        self.assertEqual(first.conversation.executions.count(), 1)
+        self.assertEqual(first.conversation.chat_messages.count(), 1)
+        delay.assert_not_called()
+
     @override_settings(
         ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
     )
     def test_post_message_cannot_switch_the_conversation_model(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
         first_response, _delay = self._post_message(
@@ -290,7 +313,7 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(get_response.status_code, 404)
         self.assertEqual(post_response.status_code, 404)
 
-    def test_gate_blocks_regular_users_even_with_note_access(self):
+    def test_regular_users_can_create_and_list_chats_with_note_access(self):
         # Arrange: full note access, but neither hub editor nor moderator.
         self.client.force_authenticate(self.regular_user)
 
@@ -299,8 +322,8 @@ class NotebookChatViewTests(APITestCase):
         list_response = self.client.get(self.chats_url)
 
         # Assert
-        self.assertEqual(create_response.status_code, 403)
-        self.assertEqual(list_response.status_code, 403)
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(list_response.status_code, 200)
 
     def test_post_message_requires_authentication(self):
         # Act
@@ -474,6 +497,7 @@ class NotebookChatViewTests(APITestCase):
         )
         self.assertIsNotNone(response.data["messages"][0]["created_date"])
         self.assertEqual(len(response.data["executions"]), 1)
+        self.assertEqual(response.data["executions"][0]["effort"], "none")
         self.assertEqual(
             response.data["executions"][0]["status"],
             AgentExecution.Status.PENDING,

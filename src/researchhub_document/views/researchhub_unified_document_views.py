@@ -12,6 +12,7 @@ from discussion.models import Vote
 from discussion.serializers import VoteSerializer
 from paper.models import Paper
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
@@ -396,18 +397,20 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
         if not is_visible:
             return Response(status=status.HTTP_403_FORBIDDEN)
         metadata_context = self._get_document_metadata_context()
+        include_fields = [
+            "id",
+            "documents",
+            "reviews",
+            "score",
+            "fundraise",
+            "grant",
+        ]
+        if unified_document.document_type == PAPER:
+            include_fields.append("hubs")
 
         serializer = self.dynamic_serializer_class(
             unified_document,
-            _include_fields=(
-                "id",
-                "documents",
-                "reviews",
-                "score",
-                "hubs",
-                "fundraise",
-                "grant",
-            ),
+            _include_fields=include_fields,
             context=metadata_context,
         )
         serializer_data = serializer.data

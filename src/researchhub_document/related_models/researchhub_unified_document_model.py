@@ -172,9 +172,6 @@ class ResearchhubUnifiedDocument(
             return author
         return Author.objects.none()
 
-    def get_hub_names(self):
-        return ",".join(self.hubs.values_list("name", flat=True))
-
     def get_primary_hub(self, fallback=False):
         from topic.models import UnifiedDocumentTopics
 

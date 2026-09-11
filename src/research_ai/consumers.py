@@ -14,7 +14,7 @@ Admission mirrors the REST contract in ``notebook_chat_views`` and must be
 kept in sync with ``NOTEBOOK_CHAT_PERMISSIONS`` there: authentication
 (4401 -- including a deactivated account, which ``TokenAuthMiddleware``
 still resolves from its lingering token but DRF's ``TokenAuthentication``
-refuses), the editor-or-moderator rollout gate (4403, the REST 403), and
+refuses), the Research AI tier gate (4403, the REST 403), and
 owner-scoped resolution of the note and conversation (4404, the REST 404).
 Resolution failures close with the same code whether the chat does not
 exist, belongs to someone else, or sits on an invisible note -- the group is
@@ -41,10 +41,8 @@ CLOSE_NOT_FOUND = 4404
 
 
 def _gate_rejection_code(user) -> int | None:
-    """The Research AI tier and editor-or-moderator rollout gates."""
+    """Reject accounts whose Research AI tier is blocked."""
     if resolve_ai_tier(user).name == "blocked":
-        return CLOSE_FORBIDDEN
-    if not (user.moderator or user.is_hub_editor()):
         return CLOSE_FORBIDDEN
     return None
 

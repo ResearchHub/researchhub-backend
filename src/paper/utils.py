@@ -4,8 +4,6 @@ from django.core.files.base import ContentFile
 from django.db.models import Count, Q
 
 from discussion.models import Vote
-from paper.exceptions import ManubotProcessingError
-from paper.manubot import RHCiteKey
 
 PAPER_SCORE_Q_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
@@ -22,56 +20,6 @@ def clean_abstract(abstract):
     # cleaned_text = cleaned_text.replace('\r', ' ')
     cleaned_text = cleaned_text.lstrip()
     return cleaned_text
-
-
-def get_csl_item(url) -> dict:
-    """
-    Generate a CSL JSON item for a URL. Currently, does not work
-    for most PDF URLs unless they are from known domains where
-    persistent identifiers can be extracted.
-    """
-    from manubot.cite.citekey import citekey_to_csl_item, url_to_citekey
-
-    try:
-        citekey = url_to_citekey(url)
-        citekey = RHCiteKey(citekey)
-        csl_item = citekey_to_csl_item(citekey)
-
-        if not csl_item:
-            raise Exception(f"Error searching for paper: {url}")
-        return csl_item
-    except Exception as e:
-        raise ManubotProcessingError(e)
-
-
-def get_location_for_unsupported_pdf(csl_item):
-    """
-    For CSL Items with url_is_unsupported_pdf, the URL is PDF
-    from an unsupported domain, meaning no CSL metadata can be
-    generated. However, since URL resolves to a PDF, we can
-    provide an Unpaywall_Location pointing to that URL.
-    """
-    import datetime
-
-    from manubot.cite.unpaywall import Unpaywall_Location
-
-    url = csl_item.get("URL")
-    return Unpaywall_Location(
-        {
-            "endpoint_id": None,
-            "evidence": None,
-            "host_type": None,
-            "is_best": True,
-            "license": None,
-            "pmh_id": None,
-            "repository_institution": None,
-            "updated": datetime.datetime.now().isoformat(),
-            "url": url,
-            "url_for_landing_page": None,
-            "url_for_pdf": url,
-            "version": None,
-        }
-    )
 
 
 def download_pdf_from_url(url: str) -> ContentFile:

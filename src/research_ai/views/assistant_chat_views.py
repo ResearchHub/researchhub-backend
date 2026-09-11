@@ -4,7 +4,7 @@ The assistant is the notebook chat without a note: the collection lives at
 ``assistant/chats/`` and every other route addresses one chat by id. Chats
 are private to their creator, so another user's chat id is a 404. Access is
 gated exactly as the notebook chat: authentication, a non-blocked Research AI
-tier, and the editor-or-moderator rollout gate.
+tier.
 """
 
 import logging
@@ -29,14 +29,12 @@ from research_ai.services.usage_budget import (
     UsageLimitExceededError,
     UsageWorkInProgressError,
 )
-from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
 
 ASSISTANT_CHAT_PERMISSIONS = [
     IsAuthenticated,
     ResearchAIBudgetPermission,
-    UserIsEditor | IsModerator,
 ]
 
 
@@ -72,7 +70,7 @@ class AssistantChatListCreateView(APIView):
 
 
 class AssistantChatDetailView(APIView):
-    """Read or rename one chat; ``?activity=live`` is the polling form."""
+    """Read, rename or delete one chat; ``?activity=live`` is the polling form."""
 
     permission_classes = ASSISTANT_CHAT_PERMISSIONS
 
@@ -95,6 +93,23 @@ class AssistantChatDetailView(APIView):
         return Response(
             {"conversation_id": conversation.id, "title": conversation.title}
         )
+
+    def delete(self, request, conversation_id):
+        """``?delete_notes=true`` also removes the notes the chat created."""
+        service = AssistantChatService()
+        conversation = _get_conversation_or_404(service, request.user, conversation_id)
+        delete_notes = request.query_params.get("delete_notes", "").lower() in (
+            "1",
+            "true",
+        )
+        try:
+            service.delete_conversation(conversation, delete_notes=delete_notes)
+        except AgentConversationBusyError:
+            return Response(
+                {"detail": "The assistant is still working on this conversation."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AssistantChatMessageView(APIView):
