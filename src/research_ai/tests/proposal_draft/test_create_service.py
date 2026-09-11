@@ -120,8 +120,8 @@ class ProposalDraftCreateServiceTests(TestCase):
         enqueue.assert_called_once_with(draft.id)
 
     def test_create_replaces_a_chat_turn_whose_worker_was_lost(self):
-        # Arrange: the user's notebook turn died mid-run; it, too, holds the
-        # user's single budget slot.
+        # Arrange: the user's notebook turn died mid-run; it, too, holds
+        # one of the user's budget slots.
         conversation = AgentConversation.objects.create(
             user=self.user, workflow="notebook_chat"
         )
@@ -166,16 +166,17 @@ class ProposalDraftCreateServiceTests(TestCase):
 
     def test_create_honors_existing_user_budget_reservation(self):
         # Arrange
-        other_expert = Expert.objects.create(email="other@example.edu")
-        other_search_expert = SearchExpert.objects.create(
-            expert_search=self.expert_search,
-            expert=other_expert,
-        )
-        ProposalDraft.objects.create(
-            search_expert=other_search_expert,
-            created_by=self.user,
-            status=ProposalDraft.Status.PENDING,
-        )
+        for index in range(5):
+            other_expert = Expert.objects.create(email=f"other{index}@example.edu")
+            other_search_expert = SearchExpert.objects.create(
+                expert_search=self.expert_search,
+                expert=other_expert,
+            )
+            ProposalDraft.objects.create(
+                search_expert=other_search_expert,
+                created_by=self.user,
+                status=ProposalDraft.Status.PENDING,
+            )
         enqueue = Mock()
 
         # Act / Assert
@@ -184,7 +185,7 @@ class ProposalDraftCreateServiceTests(TestCase):
                 search_expert=self.search_expert,
                 created_by=self.user,
             )
-        self.assertEqual(ProposalDraft.objects.count(), 1)
+        self.assertEqual(ProposalDraft.objects.count(), 5)
         enqueue.assert_not_called()
 
     def test_enqueue_failure_marks_draft_failed_and_releases_reservation(self):

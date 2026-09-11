@@ -358,18 +358,19 @@ class NotebookChatViewTests(APITestCase):
         # Assert
         self.assertEqual(second.status_code, 409)
 
-    def test_busy_chat_blocks_the_users_other_chats(self):
-        # Arrange: a turn is running in the first chat.
+    def test_five_busy_chats_block_the_users_next_chat(self):
+        # Arrange
         self.client.force_authenticate(self.owner)
-        busy_chat = self._create_chat_id()
-        self._post_message(busy_chat)
+        for _ in range(5):
+            busy_chat = self._create_chat_id()
+            posted, _delay = self._post_message(busy_chat)
+            self.assertEqual(posted.status_code, 202)
         other_chat = self._create_chat_id()
 
         # Act
         response, _delay = self._post_message(other_chat, "Separate thread")
 
-        # Assert: budget admission is per user so parallel chats cannot race
-        # against the same usage snapshot.
+        # Assert
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data["code"], "usage_work_in_progress")
 
@@ -426,14 +427,11 @@ class NotebookChatViewTests(APITestCase):
         )
 
     def test_cancel_idle_chat_does_not_touch_the_users_running_chat(self):
-        # Arrange: a turn is running in one chat and single-flight admission
-        # refuses a second turn in another chat.
+        # Arrange: one chat is running and another is idle.
         self.client.force_authenticate(self.owner)
         first_chat = self._create_chat_id()
         first_posted, _delay = self._post_message(first_chat)
         second_chat = self._create_chat_id()
-        second_posted, _delay = self._post_message(second_chat)
-        self.assertEqual(second_posted.status_code, 409)
 
         # Act
         response = self._cancel(second_chat)
@@ -441,6 +439,29 @@ class NotebookChatViewTests(APITestCase):
         # Assert
         self.assertFalse(response.data["cancelled"])
         self.assertIsNone(response.data["execution_id"])
+        self.assertEqual(
+            AgentExecution.objects.get(id=first_posted.data["execution_id"]).status,
+            AgentExecution.Status.PENDING,
+        )
+
+    def test_cancel_one_running_chat_leaves_another_running(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        first_chat = self._create_chat_id()
+        first_posted, _delay = self._post_message(first_chat)
+        second_chat = self._create_chat_id()
+        second_posted, _delay = self._post_message(second_chat)
+        self.assertEqual(first_posted.status_code, 202)
+        self.assertEqual(second_posted.status_code, 202)
+
+        # Act
+        response = self._cancel(second_chat)
+
+        # Assert
+        self.assertTrue(response.data["cancelled"])
+        self.assertEqual(
+            response.data["execution_id"], second_posted.data["execution_id"]
+        )
         self.assertEqual(
             AgentExecution.objects.get(id=first_posted.data["execution_id"]).status,
             AgentExecution.Status.PENDING,
