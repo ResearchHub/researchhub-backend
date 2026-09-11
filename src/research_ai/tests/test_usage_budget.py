@@ -128,19 +128,50 @@ class UsageBudgetTests(TestCase):
             {"daily_limit": "250", "used": "1.65", "remaining": "248.35"},
         )
 
-    def test_admission_raises_when_daily_turn_cap_is_spent(self):
-        # Arrange
+    def test_admission_allows_many_cheap_calls_for_each_tier(self):
+        # Arrange: exceed even the former privileged-tier cap for little cost.
         LLMUsageEvent.objects.bulk_create(
             [
                 LLMUsageEvent(
                     user=self.user,
                     feature="notebook_chat",
                     provider="openrouter",
-                    model="deepseek/deepseek-v4-pro-0813",
+                    model="deepseek/deepseek-v4-flash-0731",
                     cost_microusd=1,
                 )
-                for _ in range(10)
+                for _ in range(2001)
             ]
+        )
+        for tier in ("default", "invited", "privileged"):
+            with self.subTest(tier=tier):
+                # Arrange
+                if tier == "invited":
+                    Expert.objects.create(
+                        email=self.user.email, registered_user=self.user
+                    )
+                elif tier == "privileged":
+                    self.user.moderator = True
+                    self.user.save(update_fields=["moderator"])
+
+                # Act
+                status = check_turn_admission(
+                    self.user, self.MODEL, effort="none", thinking="disabled"
+                )
+
+                # Assert
+                self.assertEqual(status.tier, tier)
+                self.assertEqual(status.turns_used, 2001)
+                self.assertIsNone(status.turn_cap)
+                self.assertFalse(status.exhausted)
+
+    def test_admission_rejects_exhausted_budget_without_turn_cap(self):
+        # Arrange
+        LLMUsageEvent.objects.create(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model="deepseek/deepseek-v4-flash-0731",
+            cost_microusd=250_000,
         )
 
         # Act / Assert
@@ -148,7 +179,8 @@ class UsageBudgetTests(TestCase):
             check_turn_admission(
                 self.user, self.MODEL, effort="none", thinking="disabled"
             )
-        self.assertEqual(raised.exception.status.turns_used, 10)
+        self.assertIsNone(raised.exception.status.turn_cap)
+        self.assertEqual(raised.exception.status.remaining_microusd, 0)
 
     def test_default_tier_rejects_locked_model(self):
         with self.assertRaisesRegex(ValueError, "not allowed"):
@@ -247,18 +279,13 @@ class AgentLoopBudgetRecorderTests(TestCase):
         self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
 
     def test_discarded_attempt_is_charged_before_retry_admission(self):
-        # Arrange: nine earlier calls leave one turn in the default tier.
-        LLMUsageEvent.objects.bulk_create(
-            [
-                LLMUsageEvent(
-                    user=self.user,
-                    feature="notebook_chat",
-                    provider="openrouter",
-                    model="deepseek/deepseek-v4-pro-0813",
-                    cost_microusd=1,
-                )
-                for _ in range(9)
-            ]
+        # Arrange: prior usage leaves one microdollar in the daily budget.
+        LLMUsageEvent.objects.create(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model="deepseek/deepseek-v4-pro-0813",
+            cost_microusd=249_999,
         )
         execution = self._execution(
             status=AgentExecution.Status.RUNNING,
@@ -266,14 +293,14 @@ class AgentLoopBudgetRecorderTests(TestCase):
         )
         recorder = self._recorder(execution)
 
-        # Act: the completed first attempt consumes the last turn before the
+        # Act: the completed first attempt consumes the remaining budget before the
         # provider asks whether it may make its internal retry.
         recorder.record_usage(TurnUsage(input_tokens=10, output_tokens=2))
 
         # Assert
         with self.assertRaises(BudgetExceededError):
             recorder.before_model_call()
-        self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 10)
+        self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 2)
 
     def test_stream_activity_leaves_the_lease_to_the_heartbeat(self):
         # Arrange: liveness is the worker heartbeat's job, so a burst of stream

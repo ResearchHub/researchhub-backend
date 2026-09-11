@@ -97,7 +97,7 @@ class ReferralMetricsService:
 
         total_invited = referred_users.count()
 
-        # Active funders are those who have made at least one wallet-backed contribution.
+        # Active funders have made at least one wallet-backed contribution.
         active_funders = (
             referred_users.filter(
                 referred__purchases__purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,

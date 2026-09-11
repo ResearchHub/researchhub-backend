@@ -5,7 +5,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from rest_framework.test import APITestCase
 
-from hub.tests.helpers import create_hub
 from note.models import Note, NoteContent
 from note.tests.helpers import create_note
 from purchase.models import Fundraise
@@ -37,7 +36,6 @@ class CreateRegisteredReportDraftTests(APITestCase):
             "journal_entry_moderator",
             moderator=True,
         )
-        self.hub = create_hub("journal entry hub")
         self.journey_service = JourneyService()
         self.client.force_authenticate(self.moderator)
 
@@ -92,17 +90,9 @@ class CreateRegisteredReportDraftTests(APITestCase):
         self.assertFalse(
             ResearchhubPost.objects.filter(document_type=REGISTERED_REPORT).exists()
         )
-        self.assertCountEqual(
-            note.unified_document.hubs.all(),
-            proposal.unified_document.hubs.all(),
-        )
         self.assertEqual(
             response.data["registered_report_prefill"]["author_ids"],
             [self.user.author_profile.id],
-        )
-        self.assertEqual(
-            response.data["registered_report_prefill"]["hub_ids"],
-            [self.hub.id],
         )
         self.assertEqual(
             response.data["registered_report_prefill"]["image"],
@@ -121,10 +111,6 @@ class CreateRegisteredReportDraftTests(APITestCase):
         self.assertEqual(
             note_response.data["registered_report_prefill"]["author_ids"],
             [self.user.author_profile.id],
-        )
-        self.assertEqual(
-            note_response.data["registered_report_prefill"]["hub_ids"],
-            [self.hub.id],
         )
         self.assertEqual(
             note_response.data["registered_report_prefill"]["image"],
@@ -427,7 +413,6 @@ class CreateRegisteredReportDraftTests(APITestCase):
             renderable_text="Proposal content ready for registered report drafting.",
             title=f"{user.username} proposal title",
         )
-        proposal.unified_document.hubs.add(self.hub)
         proposal.authors.add(user.author_profile)
         proposal.image = "proposal-cover-image-key"
         proposal.preview_img = "https://example.com/proposal-preview.png"

@@ -65,7 +65,6 @@ from review.services.review_service import (
 )
 from user.models import User
 from user.permissions import IsModerator
-from utils.throttles import THROTTLE_CLASSES
 
 
 class CommentPagination(PageNumberPagination):
@@ -88,7 +87,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         IsObjectOwner,
         ThreadViewingPermissions,
     ]
-    throttle_classes = THROTTLE_CLASSES
     _ALLOWED_MODEL_NAMES = (PAPER, RESEARCHHUB_POST, HYPOTHESIS)
     _CONTENT_TYPE_MAPPINGS = {
         PAPER: "paper",

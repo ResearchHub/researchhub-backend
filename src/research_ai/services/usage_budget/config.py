@@ -5,11 +5,8 @@ from dataclasses import dataclass, replace
 DEFAULT_OPEN_WEIGHT_MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
 BUDGETS_ENFORCED = True
 DEFAULT_DAILY_BUDGET_MICROUSD = 250_000
-DEFAULT_DAILY_TURN_CAP = 10
 INVITED_DAILY_BUDGET_MICROUSD = 10_000_000
-INVITED_DAILY_TURN_CAP = 200
 PRIVILEGED_DAILY_BUDGET_MICROUSD = 100_000_000
-PRIVILEGED_DAILY_TURN_CAP = 2000
 
 
 @dataclass(frozen=True)
@@ -32,7 +29,7 @@ def tier_policies() -> dict[str, TierPolicy]:
     default = TierPolicy(
         name="default",
         daily_budget_microusd=DEFAULT_DAILY_BUDGET_MICROUSD,
-        daily_turn_cap=DEFAULT_DAILY_TURN_CAP,
+        daily_turn_cap=None,
         allowed_model_refs=(DEFAULT_OPEN_WEIGHT_MODEL,),
         default_model_ref=DEFAULT_OPEN_WEIGHT_MODEL,
         max_effort="none",
@@ -41,14 +38,14 @@ def tier_policies() -> dict[str, TierPolicy]:
     invited = TierPolicy(
         name="invited",
         daily_budget_microusd=INVITED_DAILY_BUDGET_MICROUSD,
-        daily_turn_cap=INVITED_DAILY_TURN_CAP,
+        daily_turn_cap=None,
         allowed_model_refs=None,
         default_model_ref=None,
     )
     privileged = TierPolicy(
         name="privileged",
         daily_budget_microusd=PRIVILEGED_DAILY_BUDGET_MICROUSD,
-        daily_turn_cap=PRIVILEGED_DAILY_TURN_CAP,
+        daily_turn_cap=None,
         allowed_model_refs=None,
         default_model_ref=None,
     )

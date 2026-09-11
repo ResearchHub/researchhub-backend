@@ -741,6 +741,8 @@ REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 
 # Cache Settings
+TEST_RUNNER = "utils.test_runner.IsolatedCacheRunner"
+
 if TESTING:
     CACHES = {
         "default": {
@@ -841,9 +843,9 @@ MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", keys.MAILCHIMP_KEY)
 MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", keys.MAILCHIMP_LIST_ID)
 MAILCHIMP_SERVER = "us4"
 
-# Recaptcha
-RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
-RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", keys.RECAPTCHA_SECRET_KEY)
+# Cloudflare Turnstile
+TURNSTILE_ENABLED = os.environ.get("TURNSTILE_ENABLED", "false").lower() == "true"
+TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", keys.TURNSTILE_SECRET_KEY)
 
 
 # Amplitude
