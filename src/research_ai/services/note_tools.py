@@ -34,6 +34,7 @@ from django.db import transaction
 
 from note.related_models.note_model import Note, NoteContent, parse_note_json
 from note.services.note_content_service import NoteContentService
+from note.services.note_link_service import link_note_urls
 from research_ai.services.agent import Tool, Toolset
 from research_ai.services.note_block_edits import (
     apply_block_edits,
@@ -398,7 +399,10 @@ class NoteToolset:
             for index, edit in enumerate(edits):
                 if edit.blocks is not None:
                     try:
-                        edit.blocks = parse_blocks(BLOCK_EDITOR, edit.blocks)
+                        edit.blocks = parse_blocks(
+                            BLOCK_EDITOR,
+                            link_note_urls(parse_blocks(BLOCK_EDITOR, edit.blocks)),
+                        )
                     except ValueError as exc:
                         raise ValueError(f"edits[{index}]: {exc}") from exc
         except ValueError as exc:

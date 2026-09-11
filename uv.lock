@@ -1602,6 +1602,15 @@ wheels = [
 ]
 
 [[package]]
+name = "linkify-it-py"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/45/98/7a1a5f31fd5c7ba93e963b168e244b8e3dd705b3d2a718e3c3307583bf57/linkify_it_py-2.2.0.tar.gz", hash = "sha256:907acd2d17ac1fbb9ddb62c8957ccbd6158cac602231a15c3b0cd1e215f03cee", size = 32939, upload-time = "2026-08-29T07:07:08.305Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/13/d4/1152d1c7ab42d8b908be64fd200ddc870dc9d4925e951198702084aa1a7d/linkify_it_py-2.2.0-py3-none-any.whl", hash = "sha256:3adc40eb5af300b2605fcfdb968c24e1d780a90f1f2221af7c15e5111e94d443", size = 21971, upload-time = "2026-08-29T07:07:07.164Z" },
+]
+
+[[package]]
 name = "lru-dict"
 version = "1.4.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2496,6 +2505,7 @@ dependencies = [
     { name = "elastic-apm" },
     { name = "flower" },
     { name = "humanize" },
+    { name = "linkify-it-py" },
     { name = "lxml" },
     { name = "mailchimp-marketing" },
     { name = "openai" },
@@ -2564,6 +2574,7 @@ requires-dist = [
     { name = "elastic-apm", specifier = "==6.24.0" },
     { name = "flower", specifier = ">=2.0.1,<3.0.0" },
     { name = "humanize", specifier = ">=4.12.2,<5.0.0" },
+    { name = "linkify-it-py", specifier = ">=2,<3" },
     { name = "lxml", specifier = ">=6.0.1" },
     { name = "mailchimp-marketing", specifier = ">=3.0.72,<4.0.0" },
     { name = "openai", specifier = ">=1.45.0" },
