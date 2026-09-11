@@ -35,6 +35,7 @@ from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Figure, Paper
 from paper.tests.helpers import create_paper
 from purchase.models import (
+    FundingPool,
     Fundraise,
     Grant,
     GrantApplication,
@@ -2755,3 +2756,51 @@ class FundraiseContributionContentSerializerTests(AWSMockTestCase):
         self.assertEqual(data["proposal_title"], "Test Proposal")
         self.assertEqual(data["proposal_slug"], self.post.slug)
         self.assertEqual(data["unified_document_id"], self.unified_doc.id)
+
+    def test_serializes_funding_pool_contribution(self):
+        """
+        Purchase with FUNDING_POOL_CONTRIBUTION serializes against the grant.
+        """
+        # Arrange
+        grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+        grant_hub = create_hub("GrantHub")
+        grant_doc.hubs.add(grant_hub)
+        grant_post = ResearchhubPost.objects.create(
+            title="Test Grant RFP",
+            created_by=self.user,
+            document_type=document_type.GRANT,
+            renderable_text="A test grant",
+            unified_document=grant_doc,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=Decimal("5000.00"),
+            currency="USD",
+            status=Grant.OPEN,
+        )
+        pool = FundingPool.objects.create(grant=grant, created_by=self.user)
+        pool_ct = ContentType.objects.get_for_model(FundingPool)
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=pool_ct,
+            object_id=pool.id,
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="250",
+        )
+
+        # Act
+        serializer = FundraiseContributionContentSerializer(purchase)
+        data = serializer.data
+
+        # Assert
+        self.assertEqual(data["id"], purchase.id)
+        self.assertEqual(data["amount"], 250.0)
+        self.assertEqual(data["currency"], "RSC")
+        self.assertEqual(data["post_id"], grant_post.id)
+        self.assertEqual(data["proposal_title"], "Test Grant RFP")
+        self.assertEqual(data["proposal_slug"], grant_post.slug)
+        self.assertEqual(data["unified_document_id"], grant_doc.id)
