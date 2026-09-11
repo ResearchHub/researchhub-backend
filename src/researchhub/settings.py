@@ -352,7 +352,7 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ],
     "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
+        "utils.throttles.CloudflareAnonRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "50/minute",
