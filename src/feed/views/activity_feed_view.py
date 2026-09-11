@@ -272,7 +272,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 ),
                 Prefetch(
                     "unified_document__grants",
-                    queryset=Grant.objects.annotate(
+                    queryset=Grant.objects.select_related("funding_pool").annotate(
                         num_applicants=Count("applications", distinct=True),
                     ),
                 ),

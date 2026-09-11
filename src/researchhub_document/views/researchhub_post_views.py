@@ -224,6 +224,7 @@ class ResearchhubPostViewSet(
                     "note__grant_settings",
                     "note__preregistration_settings__nonprofit",
                     "note__selected_grant",
+                    "note__selected_grant__funding_pool",
                     "unified_document",
                 )
                 .prefetch_related(
@@ -233,14 +234,21 @@ class ResearchhubPostViewSet(
                     "note__selected_grant__unified_document__posts",
                     Prefetch(
                         "grant_applications",
-                        queryset=GrantApplication.objects.select_related("grant"),
+                        queryset=GrantApplication.objects.select_related(
+                            "grant", "grant__funding_pool"
+                        ),
                     ),
                     Prefetch(
                         "unified_document__proposal_reviews",
                         queryset=ProposalReview.objects.filter(
                             grant__isnull=False,
                         )
-                        .select_related("grant", "unified_document", "key_insight")
+                        .select_related(
+                            "grant",
+                            "grant__funding_pool",
+                            "unified_document",
+                            "key_insight",
+                        )
                         .prefetch_related(
                             "unified_document__"
                             "ai_peer_review_editorial_feedback__categories",

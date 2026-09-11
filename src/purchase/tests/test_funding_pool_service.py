@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
@@ -23,6 +24,9 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.tests.helpers import create_random_authenticated_user, create_user
 
 
@@ -37,6 +41,7 @@ class FundingPoolServiceTests(TestCase):
             currency="USD",
             organization="Test Org",
             description="Test grant",
+            status=Grant.OPEN,
         )
         self.service = FundingPoolService()
         self.pool = self.service.create_pool_for_grant(self.grant)
@@ -297,6 +302,46 @@ class FundingPoolServiceTests(TestCase):
                 application.id,
             )
         self.assertEqual(str(ctx.exception), "Fundraise is not open")
+
+    def test_distribute_rejects_expired_fundraise(self):
+        # Arrange
+        self._seed_pool_holding(Decimal(100))
+        _, application, fundraise = self._create_proposal_application_with_fundraise()
+        fundraise.end_date = datetime.now(UTC) - timedelta(days=1)
+        fundraise.save(update_fields=["end_date"])
+
+        # Act / Assert
+        with self.assertRaises(ValueError) as ctx:
+            self.service.distribute(
+                self.pool,
+                self.creator,
+                Decimal(25),
+                application.id,
+            )
+        self.assertEqual(str(ctx.exception), "Fundraise is expired")
+        self.pool.refresh_from_db()
+        self.assertEqual(self.pool.amount_holding, Decimal(100))
+        self.assertEqual(self.pool.amount_distributed, Decimal(0))
+
+    def test_distribute_rejects_unapproved_proposal(self):
+        # Arrange
+        self._seed_pool_holding(Decimal(100))
+        _, application, _ = self._create_proposal_application_with_fundraise()
+        ud = application.preregistration_post.unified_document
+        ud.status = ResearchhubUnifiedDocument.PENDING
+        ud.save(update_fields=["status"])
+
+        # Act / Assert
+        with self.assertRaises(ValueError) as ctx:
+            self.service.distribute(
+                self.pool,
+                self.creator,
+                Decimal(25),
+                application.id,
+            )
+        self.assertEqual(str(ctx.exception), "Application proposal is not approved")
+        self.pool.refresh_from_db()
+        self.assertEqual(self.pool.amount_holding, Decimal(100))
 
     def test_distribute_rejects_closed_pool(self):
         # Arrange

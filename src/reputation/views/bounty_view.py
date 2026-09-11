@@ -29,7 +29,7 @@ from rest_framework.response import Response
 from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from hub.models import Hub
-from purchase.models import Balance
+from purchase.models import Balance, Grant
 from reputation.constants import MAXIMUM_BOUNTY_AMOUNT_RSC, MINIMUM_BOUNTY_AMOUNT_RSC
 from reputation.models import Bounty, BountyFee, BountySolution, Contribution, Escrow
 from reputation.permissions import (
@@ -285,6 +285,10 @@ class BountyViewSet(viewsets.ModelViewSet):
                 queryset=ResearchhubPost.objects.select_related(
                     "created_by__author_profile"
                 ).prefetch_related("author_links__author__user"),
+            ),
+            Prefetch(
+                "unified_document__grants",
+                queryset=Grant.objects.select_related("funding_pool"),
             ),
         )
 

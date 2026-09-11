@@ -109,7 +109,11 @@ class FundingPoolService:
             raise ValueError("Invalid fee configuration")
 
         with transaction.atomic():
-            pool = FundingPool.objects.select_for_update().get(id=pool.id)
+            pool = (
+                FundingPool.objects.select_for_update()
+                .select_related("grant")
+                .get(id=pool.id)
+            )
             if not pool.is_valid_for_contribution:
                 raise ValueError("Funding pool is not open")
 
@@ -186,20 +190,26 @@ class FundingPoolService:
     ) -> tuple[GrantApplication, Fundraise]:
         """Resolve a grant application and its proposal fundraise for distribution.
 
-        The application must belong to the same grant as ``pool``.
+        The application must belong to the same grant as ``pool`` and its
+        proposal must be an approved (non-removed) preregistration, matching
+        ``GrantApplication.with_approved_proposal()``.
 
         Raises:
             ValueError: If the application or proposal fundraise cannot be used.
         """
         try:
             application = GrantApplication.objects.select_related(
-                "preregistration_post"
+                "preregistration_post",
+                "preregistration_post__unified_document",
             ).get(id=application_id)
         except GrantApplication.DoesNotExist as error:
             raise ValueError("Grant application does not exist") from error
 
         if application.grant_id != pool.grant_id:
             raise ValueError("Application does not belong to this grant")
+
+        if not application.has_approved_proposal():
+            raise ValueError("Application proposal is not approved")
 
         fundraise = (
             Fundraise.objects.filter(
@@ -240,18 +250,20 @@ class FundingPoolService:
         application, fundraise = self._resolve_distribution_target(pool, application_id)
 
         with transaction.atomic():
+            fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
+            if fundraise.status != Fundraise.OPEN:
+                raise ValueError("Fundraise is not open")
+            if fundraise.is_expired():
+                raise ValueError("Fundraise is expired")
+            if not fundraise.escrow_id:
+                raise ValueError("Fundraise escrow is not set")
+
             pool = FundingPool.objects.select_for_update().get(id=pool.id)
-            if not pool.is_valid_for_contribution:
+            if not pool.is_valid_for_distribution:
                 raise ValueError("Funding pool is not open")
 
             if amount > pool.amount_holding:
                 raise ValueError("Insufficient pool balance")
-
-            fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
-            if fundraise.status != Fundraise.OPEN:
-                raise ValueError("Fundraise is not open")
-            if not fundraise.escrow_id:
-                raise ValueError("Fundraise escrow is not set")
 
             escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
 

@@ -12,6 +12,7 @@ from purchase.serializers.funding_pool_serializer import (
     FundingPoolDistributeSerializer,
 )
 from purchase.services.funding_pool_service import FundingPoolService
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.follow_model import Follow
 
 
@@ -26,6 +27,17 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
             "funding_pool_service", FundingPoolService()
         )
         return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        visible_doc_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
+            "unified_document_id"
+        )
+        return (
+            super()
+            .get_queryset()
+            .filter(grant__unified_document_id__in=visible_doc_ids)
+            .select_related("grant")
+        )
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -52,7 +64,7 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
 
     def _get_pool_or_error(self, pk):
         try:
-            return FundingPool.objects.select_related("grant").get(id=pk), None
+            return self.get_queryset().get(id=pk), None
         except FundingPool.DoesNotExist:
             return None, Response(
                 {"message": "Funding pool does not exist"}, status=400

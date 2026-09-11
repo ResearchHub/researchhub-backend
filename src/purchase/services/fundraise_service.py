@@ -609,8 +609,8 @@ class FundraiseService:
             )
             return False
 
-        escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
         pool = FundingPool.objects.select_for_update().get(id=distribution.pool_id)
+        escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
 
         if amount > escrow.amount_holding:
             logger.error(
@@ -634,6 +634,10 @@ class FundraiseService:
 
         escrow.amount_holding -= amount
         escrow.save(update_fields=["amount_holding", "updated_date"])
+
+        cached_escrow = fundraise._state.fields_cache.get("escrow")
+        if cached_escrow is not None:
+            cached_escrow.amount_holding = escrow.amount_holding
 
         pool.amount_holding += amount
         pool.amount_distributed -= amount
@@ -768,8 +772,9 @@ class FundraiseService:
             fundraise.status = Fundraise.CLOSED
             fundraise.save()
 
-            # Update escrow status
-            fundraise.escrow.set_cancelled_status()
+            escrow = fundraise.escrow
+            escrow.status = Escrow.CANCELLED
+            escrow.save(update_fields=["status"])
 
             return True
 

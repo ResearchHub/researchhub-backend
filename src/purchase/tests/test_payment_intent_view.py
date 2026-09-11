@@ -204,6 +204,7 @@ class PaymentIntentViewTest(APITestCase):
             currency="USD",
             organization="Org",
             description="Desc",
+            status=Grant.OPEN,
         )
         pool = FundingPool.objects.create(
             grant=grant,

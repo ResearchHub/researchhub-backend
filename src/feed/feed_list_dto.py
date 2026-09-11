@@ -257,6 +257,24 @@ def serialize_slim_grant_applications(grant, context):
     return application_data
 
 
+def _rsc_usd_amount(rsc_amount):
+    try:
+        usd_amount = RscExchangeRate.rsc_to_usd(float(rsc_amount))
+    except AttributeError:
+        usd_amount = None
+    return {"rsc": rsc_amount, "usd": usd_amount}
+
+
+def _serialize_slim_funding_pool(pool):
+    return {
+        "id": pool.id,
+        "status": pool.status,
+        "amount_holding": _rsc_usd_amount(pool.amount_holding),
+        "amount_distributed": _rsc_usd_amount(pool.amount_distributed),
+        "amount_raised": _rsc_usd_amount(pool.amount_raised),
+    }
+
+
 def _serialize_slim_grant(grant, context):
     data = {
         "id": grant.id,
@@ -271,6 +289,11 @@ def _serialize_slim_grant(grant, context):
     all_applications = serialize_slim_grant_applications(grant, context)
     data["application_count"] = len(all_applications)
     data["applications"] = all_applications
+
+    try:
+        data["funding_pool"] = _serialize_slim_funding_pool(grant.funding_pool)
+    except ObjectDoesNotExist:
+        data["funding_pool"] = None
 
     return data
 
