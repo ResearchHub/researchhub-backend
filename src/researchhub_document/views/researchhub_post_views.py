@@ -24,6 +24,7 @@ from purchase.serializers.fundraise_create_serializer import FundraiseCreateSeri
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from purchase.services.funding_pool_service import FundingPoolService
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
 from researchhub.settings import TESTING
@@ -490,6 +491,8 @@ class ResearchhubPostViewSet(
                         grant.contacts.set(contacts)
                     else:
                         grant.contacts.clear()
+
+                    FundingPoolService().create_pool_for_grant(grant)
 
                     # Trusted users skip the grant moderation queue.
                     if risk_score_service.is_trusted(created_by):
