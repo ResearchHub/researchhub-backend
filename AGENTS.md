@@ -53,7 +53,7 @@ uv add --dev <package_name>
 - Keep imports at the top of the file when possible.
 - Use serializers and viewsets for API boundaries.
 - Keep migrations focused and reversible.
-- Prefer soft deletion since rows stay for audit. When a user removes something, flag the row (`is_removed`, and a `removed_date` where applicable)
+- Prefer soft deletion with SoftDeletableModel when possible.
 - Run the relevant tests before committing.
 
 ## Code Placement

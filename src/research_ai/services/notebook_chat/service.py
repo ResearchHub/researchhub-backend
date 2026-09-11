@@ -925,13 +925,19 @@ class NotebookChatService:
         return NoteToolset(
             user=conversation.user,
             note_ids={linked.id for linked in self._linked_notes(conversation)},
-            note_creator=lambda title: self._create_note(conversation, title),
+            note_creator=lambda title, document_type: self._create_note(
+                conversation, title, document_type
+            ),
         )
 
-    def _create_note(self, conversation: AgentConversation, title: str) -> Note:
+    def _create_note(
+        self, conversation: AgentConversation, title: str, document_type: str
+    ) -> Note:
         with transaction.atomic():
             note = self.note_creation.create_private_note(
-                created_by=conversation.user, title=title
+                created_by=conversation.user,
+                title=title,
+                document_type=document_type,
             )
             self.note_conversations.attach(conversation, note)
         return note

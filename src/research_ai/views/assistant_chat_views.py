@@ -4,7 +4,7 @@ The assistant is the notebook chat without a note: the collection lives at
 ``assistant/chats/`` and every other route addresses one chat by id. Chats
 are private to their creator, so another user's chat id is a 404. Access is
 gated exactly as the notebook chat: authentication, a non-blocked Research AI
-tier, and the editor-or-moderator rollout gate.
+tier.
 """
 
 import logging
@@ -29,14 +29,12 @@ from research_ai.services.usage_budget import (
     UsageLimitExceededError,
     UsageWorkInProgressError,
 )
-from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
 
 ASSISTANT_CHAT_PERMISSIONS = [
     IsAuthenticated,
     ResearchAIBudgetPermission,
-    UserIsEditor | IsModerator,
 ]
 
 

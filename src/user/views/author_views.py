@@ -34,7 +34,6 @@ from user.tasks import invalidate_author_profile_caches
 from user.utils import AuthorClaimError, claim_openalex_author_profile
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.throttles import THROTTLE_CLASSES
 
 
 class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
@@ -49,7 +48,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         (IsAuthenticatedOrReadOnly & UpdateAuthor & CreateOrUpdateIfAllowed)
         | DeleteAuthorPermission
     ]
-    throttle_classes = THROTTLE_CLASSES
 
     def perform_destroy(self, instance):
         ProfileDeletionService().delete_author(instance)

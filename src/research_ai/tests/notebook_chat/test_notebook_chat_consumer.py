@@ -44,10 +44,6 @@ class NotebookChatConsumerTests(TransactionTestCase):
             password="password",
             email="owner@researchhub_test.com",
         )
-        # The rollout gate admits editors or moderators; the flag is the
-        # cheapest way through it for tests.
-        self.user.moderator = True
-        self.user.save(update_fields=["moderator"])
         self.other_user = user_model.objects.create_user(
             username="other@researchhub_test.com",
             password="password",
@@ -111,9 +107,26 @@ class NotebookChatConsumerTests(TransactionTestCase):
         self.assertFalse(connected)
         self.assertEqual(code, CLOSE_UNAUTHENTICATED)
 
-    async def test_user_outside_the_rollout_gate_is_rejected(self):
-        # Act: authenticated, but neither editor nor moderator.
-        _communicator, connected, code = await self._connect(self.other_user)
+    async def test_regular_user_can_connect_to_own_conversation(self):
+        # Arrange: the user has no editor or moderator role.
+        user = self.other_user
+
+        # Act
+        communicator, connected, _detail = await self._connect(
+            user, conversation_id=self.other_conversation.id
+        )
+
+        # Assert
+        self.assertTrue(connected)
+        await communicator.disconnect()
+
+    async def test_suspended_user_is_rejected(self):
+        # Arrange
+        self.user.is_suspended = True
+        await self.user.asave(update_fields=["is_suspended"])
+
+        # Act
+        _communicator, connected, code = await self._connect(self.user)
 
         # Assert
         self.assertFalse(connected)
@@ -154,8 +167,8 @@ class NotebookChatConsumerTests(TransactionTestCase):
         self.assertFalse(connected)
         self.assertEqual(code, CLOSE_NOT_FOUND)
 
-    async def test_hub_editor_passes_the_rollout_gate(self):
-        # Arrange: not a moderator; the gate's other branch admits editors.
+    async def test_hub_editor_can_connect(self):
+        # Arrange
         user_model = get_user_model()
 
         # Act

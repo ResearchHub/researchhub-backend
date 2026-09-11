@@ -538,7 +538,7 @@ class NoteToolsetCreateNoteTests(TestCase):
         )
         self.created = []
 
-        def creator(title):
+        def creator(title, document_type):
             note, _content = create_note(self.owner, organization=None, title=title)
             Permission.objects.create(
                 access_type=ADMIN,
@@ -548,6 +548,8 @@ class NoteToolsetCreateNoteTests(TestCase):
                 object_id=note.unified_document.id,
                 user=self.owner,
             )
+            note.document_type = document_type
+            note.save(update_fields=["document_type"])
             self.created.append(note)
             return note
 
@@ -569,7 +571,9 @@ class NoteToolsetCreateNoteTests(TestCase):
         outside, _content = create_note(self.owner, organization=None)
 
         # Act
-        result = self.tools[CREATE_NOTE].handler({"title": "  New   idea "})
+        result = self.tools[CREATE_NOTE].handler(
+            {"title": "  New   idea ", "document_type": "PREREGISTRATION"}
+        )
         read = self.tools[READ_NOTE].handler({"note_id": result["note_id"]})
         outside_read = self.tools[READ_NOTE].handler({"note_id": outside.id})
 
@@ -579,6 +583,21 @@ class NoteToolsetCreateNoteTests(TestCase):
         self.assertIsNone(result["version_id"])
         self.assertEqual(read["title"], "New idea")
         self.assertIn("error", outside_read)
+
+    def test_create_note_rejects_missing_or_unsupported_document_type(self):
+        for document_type in (None, "NOTE", "RFP", "PAPER", "", ["GRANT"]):
+            with self.subTest(document_type=document_type):
+                # Arrange
+                payload = {"title": "Draft"}
+                if document_type is not None:
+                    payload["document_type"] = document_type
+
+                # Act
+                result = self.tools[CREATE_NOTE].handler(payload)
+
+                # Assert
+                self.assertIn("error", result)
+                self.assertEqual(self.created, [])
 
     def test_create_note_rejects_a_blank_title(self):
         # Act
@@ -590,14 +609,16 @@ class NoteToolsetCreateNoteTests(TestCase):
 
     def test_create_note_reports_creator_failures_to_the_model(self):
         # Arrange
-        def failing(title):
+        def failing(title, document_type):
             raise RuntimeError("database is away")
 
         toolset = NoteToolset(user=self.owner, note_ids=set(), note_creator=failing)
         create = {tool.name: tool for tool in toolset.build_tools()}[CREATE_NOTE]
 
         # Act
-        result = create.handler({"title": "Anything"})
+        result = create.handler(
+            {"title": "Anything", "document_type": "PREREGISTRATION"}
+        )
 
         # Assert
         self.assertIn("database is away", result["error"])
