@@ -18,7 +18,13 @@ from reputation.lib import (
     check_hotwallet,
     check_pending_withdrawal,
 )
-from reputation.models import Bounty, BountySolution, Contribution, Withdrawal
+from reputation.models import (
+    Bounty,
+    BountySolution,
+    Contribution,
+    HotWalletNonceReservation,
+    Withdrawal,
+)
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.related_models.score import Score
@@ -107,9 +113,8 @@ def broadcast_withdrawal(self, withdrawal_id):
         return False
 
     try:
-        with transaction.atomic():
-            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
-            broadcast_withdrawal_transfer(withdrawal)
+        withdrawal = Withdrawal.objects.get(id=withdrawal_id)
+        broadcast_withdrawal_transfer(withdrawal)
         return True
     except Exception as exc:
         withdrawal = Withdrawal.objects.filter(id=withdrawal_id).first()
@@ -120,6 +125,20 @@ def broadcast_withdrawal(self, withdrawal_id):
             self.max_retries + 1,
             exc,
         )
+        if withdrawal and (
+            withdrawal.transaction_hash
+            or withdrawal.broadcast_nonce is not None
+            or HotWalletNonceReservation.objects.filter(
+                withdrawal_id=withdrawal_id
+            ).exists()
+        ):
+            # Reservation is committed before sending. The node may have
+            # accepted a request even when it returned an error or timed out.
+            logger.error(
+                "Withdrawal %s may have been submitted; funds held for manual review",
+                withdrawal_id,
+            )
+            return False
         if self.request.retries >= self.max_retries:
             if (
                 withdrawal
@@ -130,7 +149,25 @@ def broadcast_withdrawal(self, withdrawal_id):
                     PaidStatusModelMixin.FAILED,
                 )
             ):
-                withdrawal.set_paid_failed()
+                # A different worker may have reserved while we handled the
+                # error. Recheck under the same row lock used by reservation.
+                with transaction.atomic():
+                    withdrawal = Withdrawal.objects.select_for_update().get(
+                        id=withdrawal_id
+                    )
+                    if (
+                        not withdrawal.transaction_hash
+                        and withdrawal.broadcast_nonce is None
+                        and not HotWalletNonceReservation.objects.filter(
+                            withdrawal_id=withdrawal_id
+                        ).exists()
+                        and withdrawal.paid_status
+                        in (
+                            PaidStatusModelMixin.INITIATED,
+                            PaidStatusModelMixin.PENDING,
+                        )
+                    ):
+                        withdrawal.set_paid_failed()
             logger.exception(
                 "Failed to broadcast for withdrawal %s after all retries",
                 withdrawal_id,

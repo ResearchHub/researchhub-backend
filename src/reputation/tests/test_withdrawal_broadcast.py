@@ -14,7 +14,7 @@ from reputation.lib import (
     check_pending_withdrawal,
     evaluate_transaction_hash,
 )
-from reputation.models import Withdrawal
+from reputation.models import HotWalletNonceReservation, Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.tasks import broadcast_withdrawal
 from reputation.tests.helpers import create_deposit
@@ -52,6 +52,7 @@ class EvaluateTransactionHashTests(AWSMockTransactionTestCase):
 
 class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
     def setUp(self):
+        super().setUp()
         self.user = create_random_authenticated_user_with_reputation(
             "broadcast_user", 1000
         )
@@ -91,24 +92,29 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
     )
     @mock.patch("reputation.lib.RSC_CONTRACT_ADDRESS", TEST_RSC_CONTRACT_ADDRESS)
     @mock.patch("reputation.lib.execute_erc20_transfer", return_value="0xabc")
-    @mock.patch("reputation.lib.get_nonce", return_value=7)
+    @mock.patch("reputation.lib._get_w3_for_network")
     @mock.patch("reputation.lib.get_private_key", return_value="mock-key")
     def test_broadcast_sets_hash_and_pending(
-        self, mock_get_private_key, mock_nonce, mock_transfer
+        self, mock_get_private_key, mock_provider, mock_transfer
     ):
+        # Arrange
+        mock_provider.return_value.eth.chain_id = 11155111
+        mock_provider.return_value.eth.get_transaction_count.return_value = 7
         withdrawal = Withdrawal.objects.create(
             user=self.user,
             token_address="0xtoken",
-            from_address="0xfrom",
-            to_address="0xto",
+            from_address=TEST_WEB3_WALLET_ADDRESS,
+            to_address=VALID_TEST_TO_ADDRESS,
             amount="500",
             fee="10",
             network="ETHEREUM",
             paid_status=PaidStatusModelMixin.INITIATED,
         )
 
+        # Act
         broadcast_withdrawal_transfer(withdrawal)
 
+        # Assert
         withdrawal.refresh_from_db()
         self.assertEqual(withdrawal.transaction_hash, "0xabc")
         self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.PENDING)
@@ -183,6 +189,45 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         pending_with_hash.refresh_from_db()
         self.assertEqual(pending_with_hash.paid_status, PaidStatusModelMixin.PENDING)
         self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal(510))
+
+    @override_settings(
+        WEB3_WALLET_ADDRESS=TEST_WEB3_WALLET_ADDRESS,
+        WEB3_KEYSTORE_SECRET_ID="mock-secret-id",
+    )
+    @mock.patch("reputation.lib.RSC_CONTRACT_ADDRESS", TEST_RSC_CONTRACT_ADDRESS)
+    @mock.patch("reputation.lib.get_private_key", return_value="mock-key")
+    @mock.patch("reputation.lib._get_w3_for_network")
+    @mock.patch(
+        "reputation.lib.execute_erc20_transfer",
+        side_effect=TimeoutError("lost response"),
+    )
+    def test_uncertain_broadcast_retains_debit_even_after_retry_limit(
+        self, mock_transfer, mock_provider, mock_key
+    ):
+        # Arrange
+        mock_provider.return_value.eth.chain_id = 11155111
+        mock_provider.return_value.eth.get_transaction_count.return_value = 7
+        withdrawal = self._create_withdrawal_with_balance()
+        withdrawal.from_address = TEST_WEB3_WALLET_ADDRESS
+        withdrawal.to_address = VALID_TEST_TO_ADDRESS
+        withdrawal.save()
+
+        # Act
+        with mock.patch.object(
+            broadcast_withdrawal.request, "retries", broadcast_withdrawal.max_retries
+        ):
+            self.assertFalse(broadcast_withdrawal(withdrawal.id))
+        broadcast_withdrawal(withdrawal.id)
+
+        # Assert
+        withdrawal.refresh_from_db()
+        self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.PENDING)
+        self.assertEqual(withdrawal.broadcast_nonce, 7)
+        self.assertTrue(
+            HotWalletNonceReservation.objects.filter(withdrawal=withdrawal).exists()
+        )
+        self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal(510))
+        mock_transfer.assert_called_once()
 
 
 class CheckPendingWithdrawalRecoveryTests(AWSMockTransactionTestCase):

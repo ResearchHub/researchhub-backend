@@ -4,6 +4,9 @@ from reputation.related_models.contribution import Contribution
 from reputation.related_models.deposit import Deposit
 from reputation.related_models.distribution import Distribution
 from reputation.related_models.escrow import Escrow
+from reputation.related_models.hot_wallet_nonce_reservation import (
+    HotWalletNonceReservation,
+)
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.related_models.paper_reward import HubCitationValue, PaperReward
 from reputation.related_models.score import AlgorithmVariables, Score, ScoreChange
@@ -23,6 +26,7 @@ __all__ = [
     "Deposit",
     "Distribution",
     "Escrow",
+    "HotWalletNonceReservation",
     "HubCitationValue",
     "PaidStatusModelMixin",
     "PaperReward",
