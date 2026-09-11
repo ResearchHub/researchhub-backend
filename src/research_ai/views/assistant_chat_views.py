@@ -130,6 +130,9 @@ class AssistantChatMessageView(APIView):
                 effort=serializer.validated_data.get("effort"),
                 thinking=serializer.validated_data.get("thinking"),
                 temperature=serializer.validated_data.get("temperature"),
+                question_execution_id=serializer.validated_data.get(
+                    "question_execution_id"
+                ),
             )
         except AgentConversationBusyError:
             return Response(

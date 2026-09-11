@@ -49,6 +49,8 @@ class Tool:
             ``{"error": ...}``.
         is_terminal: When True, a successful call ends the loop (a "submit"
             tool that hands back a final answer).
+        requires_user_input: A successful result is a question/options object.
+            Ends the run and must be called alone, before dependent actions.
     """
 
     name: str
@@ -56,6 +58,7 @@ class Tool:
     input_schema: dict
     handler: ToolHandler
     is_terminal: bool = False
+    requires_user_input: bool = False
 
 
 class Toolset:
@@ -139,7 +142,7 @@ class Toolset:
                 )
             }, False
         is_error = isinstance(result, dict) and "error" in result
-        return result, tool.is_terminal and not is_error
+        return result, (tool.is_terminal or tool.requires_user_input) and not is_error
 
     def render_specs(self, provider: "LLMProvider") -> Any:
         """Render this toolset to ``provider``'s wire format."""

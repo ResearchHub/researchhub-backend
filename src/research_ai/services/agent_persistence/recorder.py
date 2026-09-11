@@ -303,6 +303,10 @@ class DatabaseAgentRecorder:
         """Seal the run as ``SUCCEEDED``; ``False`` if it was already terminal."""
         now = timezone.now()
         final_output, _truncated, _size = serialize_final_output(result.final_text)
+        if getattr(result, "user_input_request", None) is not None:
+            # The question tool bounds this payload well below the row budget.
+            # Persist with completion so refresh/trace loss cannot lose it.
+            final_output["question"] = result.user_input_request.as_dict()
         transitioned = False
         with transaction.atomic():
             execution = AgentExecution.objects.select_for_update().get(
