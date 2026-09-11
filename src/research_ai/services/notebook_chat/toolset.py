@@ -4,13 +4,14 @@ Assembles the toolset one chat turn runs with: the note read/edit tools
 (scoped to the acting user's permissions), the acting user's public profile,
 ResearchHub grant discovery, the OpenAlex literature tools, and web search. The
 OpenAlex toolset is reused minus ``submit_profile`` -- a chat turn ends when
-the model answers in plain text, so a terminal submit tool from another flow
-must not ride along.
+the model answers in plain text or asks the user a question, so a terminal
+submit tool from another flow must not ride along.
 """
 
 import logging
 
 from research_ai.services.agent import Tool, Toolset
+from research_ai.services.question_tool_service import build_question_tool
 from research_ai.services.researcher_profile.openalex_tools import SUBMIT_PROFILE
 from utils.brave_search import BraveSearch
 
@@ -118,6 +119,7 @@ def compose_notebook_toolset(
     if selected_rfp_toolset is not None:
         candidates.extend(selected_rfp_toolset.build_tools())
     candidates.extend(note_toolset.build_tools())
+    candidates.append(build_question_tool())
 
     toolset = Toolset()
     for tool in candidates:

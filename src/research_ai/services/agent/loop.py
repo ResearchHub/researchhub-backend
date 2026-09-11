@@ -30,6 +30,7 @@ from research_ai.services.agent.types import (
     TextBlock,
     ToolResultBlock,
     TurnUsage,
+    UserInputRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -127,14 +128,17 @@ class AgentResult:
         final_text: The assistant's last text (often empty when it ends on a
             terminal tool call).
         stop_reason: ``"end_turn"`` (model answered in plain text) or
-            ``"stop_tool"`` (a terminal tool ended the run).
+            ``"stop_tool"`` (a terminal tool ended the run), or ``"user_input"``
+            (a question ended the run, awaiting a new human message).
         iterations: Number of model turns taken.
+        user_input_request: Structured question for the chat to display.
     """
 
     messages: list[Message]
     final_text: str
     stop_reason: str
     iterations: int
+    user_input_request: UserInputRequest | None = None
 
 
 class Agent:
@@ -339,6 +343,26 @@ class Agent:
     def _dispatch_tool_calls(
         self, tool_calls, iteration: int
     ) -> tuple[list[ToolResultBlock], bool]:
+        # Never perform a write from the same batch as a question: it could
+        # depend on an answer we do not have. Reply to every call so provider
+        # replay remains valid, then let the model issue the question alone.
+        if len(tool_calls) > 1 and any(
+            (tool := self.toolset.get(call.name)) and tool.requires_user_input
+            for call in tool_calls
+        ):
+            return [
+                ToolResultBlock(
+                    tool_use_id=call.id,
+                    content={
+                        "error": (
+                            "User-input tools must be called alone. "
+                            "No tools in this batch were executed."
+                        )
+                    },
+                    is_error=True,
+                )
+                for call in tool_calls
+            ], False
         result_blocks: list[ToolResultBlock] = []
         stop = False
         for call in tool_calls:
@@ -469,6 +493,16 @@ class Agent:
             self._record_message(tool_result_message)
 
             if stop:
+                tool = self.toolset.get(turn.tool_calls[0].name)
+                if tool is not None and tool.requires_user_input:
+                    request = UserInputRequest(**result_blocks[0].content)
+                    return AgentResult(
+                        messages=messages,
+                        final_text=request.text,
+                        stop_reason="user_input",
+                        iterations=iteration,
+                        user_input_request=request,
+                    )
                 logger.info("iter %d stop_tool: terminal tool ended the run", iteration)
                 return AgentResult(
                     messages=messages,
