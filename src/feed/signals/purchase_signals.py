@@ -8,6 +8,7 @@ from django.dispatch import receiver
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry, refresh_feed_entry_by_id
+from purchase.models import FundingPool, Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
@@ -24,8 +25,6 @@ def _unified_document_for_contribution_purchase(instance: Purchase):
     contribution purchase.
     """
     if instance.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION:
-        from purchase.models import Fundraise
-
         try:
             fundraise = Fundraise.objects.select_related("unified_document").get(
                 id=instance.object_id
@@ -44,8 +43,6 @@ def _unified_document_for_contribution_purchase(instance: Purchase):
         return fundraise.unified_document
 
     if instance.purchase_type == Purchase.FUNDING_POOL_CONTRIBUTION:
-        from purchase.models import FundingPool
-
         try:
             pool = FundingPool.objects.select_related("grant__unified_document").get(
                 id=instance.object_id
