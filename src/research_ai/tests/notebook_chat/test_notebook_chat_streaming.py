@@ -148,6 +148,21 @@ class NotebookStreamBufferTests(SimpleTestCase):
         self.assertEqual(draft_item["label"], "Drafting an edit")
         self.assertEqual(draft_item["text"], "")
 
+    def test_code_execution_announces_label_without_raw_arguments(self):
+        # Arrange
+        self.buffer.append(1, ToolUseStreamStart(block_index=0, name="code_execution"))
+
+        # Act
+        self.buffer.append(
+            1, ToolInputStreamDelta(block_index=0, partial_json='{"code":"print(42)"}')
+        )
+        self.buffer.flush()
+
+        # Assert
+        item = self.store.get(9)["items"][0]
+        self.assertEqual(item["label"], "Preparing code")
+        self.assertEqual(item["text"], "")
+
     def test_edit_note_argument_json_streams_as_prose(self):
         # Arrange
         self.buffer.append(1, ToolUseStreamStart(block_index=0, name="edit_note"))
