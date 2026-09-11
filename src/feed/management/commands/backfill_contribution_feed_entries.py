@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry
-from purchase.models import FundingPool, Fundraise
+from purchase.models import Fundraise
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
@@ -14,9 +14,7 @@ from purchase.related_models.usd_fundraise_contribution_model import (
 
 
 class Command(BaseCommand):
-    help = (
-        "Backfill FeedEntry rows for existing fundraise and funding-pool contributions"
-    )
+    help = "Backfill FeedEntry rows for existing fundraise contributions"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -46,18 +44,11 @@ class Command(BaseCommand):
                 return
 
         rsc_stats = self._backfill_rsc_contributions(since_dt, options["dry_run"])
-        pool_stats = self._backfill_funding_pool_contributions(
-            since_dt, options["dry_run"]
-        )
         usd_stats = self._backfill_usd_contributions(since_dt, options["dry_run"])
 
         self.stdout.write(
-            f"RSC fundraise contributions: processed={rsc_stats[0]}, "
+            f"RSC contributions: processed={rsc_stats[0]}, "
             f"skipped={rsc_stats[1]}, errors={rsc_stats[2]}"
-        )
-        self.stdout.write(
-            f"Funding pool contributions: processed={pool_stats[0]}, "
-            f"skipped={pool_stats[1]}, errors={pool_stats[2]}"
         )
         self.stdout.write(
             f"USD contributions: processed={usd_stats[0]}, "
@@ -79,13 +70,11 @@ class Command(BaseCommand):
             queryset = queryset.filter(created_date__gte=since_dt)
 
         total = queryset.count()
-        self.stdout.write(f"Found {total} RSC fundraise contributions to process")
+        self.stdout.write(f"Found {total} RSC contributions to process")
 
         if total == 0 or dry_run:
             if dry_run and total > 0:
-                self.stdout.write(
-                    f"Dry run: would backfill {total} RSC fundraise contributions"
-                )
+                self.stdout.write(f"Dry run: would backfill {total} RSC contributions")
             return (0, 0, 0)
 
         processed = 0
@@ -119,74 +108,11 @@ class Command(BaseCommand):
                 processed += 1
 
                 if processed % 100 == 0:
-                    self.stdout.write(f"RSC fundraise: Processed {processed}/{total}")
+                    self.stdout.write(f"RSC: Processed {processed}/{total}")
 
             except Exception as e:
                 errors += 1
                 self.stderr.write(f"Error on purchase {purchase.id}: {e}")
-
-        return (processed, skipped, errors)
-
-    def _backfill_funding_pool_contributions(self, since_dt, dry_run):
-        purchase_ct = ContentType.objects.get_for_model(Purchase)
-
-        queryset = (
-            Purchase.objects.filter(
-                purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
-            )
-            .select_related("user")
-            .order_by("id")
-        )
-
-        if since_dt:
-            queryset = queryset.filter(created_date__gte=since_dt)
-
-        total = queryset.count()
-        self.stdout.write(f"Found {total} funding pool contributions to process")
-
-        if total == 0 or dry_run:
-            if dry_run and total > 0:
-                self.stdout.write(
-                    f"Dry run: would backfill {total} funding pool contributions"
-                )
-            return (0, 0, 0)
-
-        processed = 0
-        skipped = 0
-        errors = 0
-
-        for purchase in queryset.iterator(chunk_size=500):
-            try:
-                try:
-                    pool = FundingPool.objects.select_related(
-                        "grant__unified_document"
-                    ).get(id=purchase.object_id)
-                except FundingPool.DoesNotExist:
-                    skipped += 1
-                    continue
-
-                unified_doc = getattr(pool.grant, "unified_document", None)
-                if not unified_doc:
-                    skipped += 1
-                    continue
-
-                hub_ids = list(unified_doc.hubs.values_list("id", flat=True))
-
-                create_feed_entry(
-                    item_id=purchase.id,
-                    item_content_type_id=purchase_ct.id,
-                    action=FeedEntry.PUBLISH,
-                    hub_ids=hub_ids,
-                    user_id=purchase.user_id,
-                )
-                processed += 1
-
-                if processed % 100 == 0:
-                    self.stdout.write(f"Funding pool: Processed {processed}/{total}")
-
-            except Exception as e:
-                errors += 1
-                self.stderr.write(f"Error on funding pool purchase {purchase.id}: {e}")
 
         return (processed, skipped, errors)
 
