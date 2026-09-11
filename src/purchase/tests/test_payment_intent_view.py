@@ -74,6 +74,7 @@ class PaymentIntentViewTest(APITestCase):
             rsc_amount=Decimal(100),
             fundraise_id=None,
             funding_pool_id=None,
+            purpose=PaymentPurpose.RSC_PURCHASE,
         )
 
     def test_create_payment_intent_unauthenticated(self):
@@ -134,6 +135,7 @@ class PaymentIntentViewTest(APITestCase):
             rsc_amount=Decimal(100),
             fundraise_id=self.fundraise.id,
             funding_pool_id=None,
+            purpose=PaymentPurpose.RSC_PURCHASE,
         )
 
     def test_create_payment_intent_invalid_fundraise_id(self):
@@ -228,6 +230,7 @@ class PaymentIntentViewTest(APITestCase):
             rsc_amount=Decimal(100),
             fundraise_id=None,
             funding_pool_id=pool.id,
+            purpose=PaymentPurpose.RSC_PURCHASE,
         )
 
     @patch("purchase.views.payment_intent_view.PaymentService")
@@ -251,6 +254,48 @@ class PaymentIntentViewTest(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.data["message"], "Failed to create payment intent")
+
+    @patch("purchase.views.payment_intent_view.PaymentService")
+    def test_create_payment_intent_funding_credits_purchase(
+        self, mock_payment_service_class
+    ):
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+        mock_payment_service.create_payment_intent.return_value = {
+            "client_secret": "pi_secret_credits",
+            "payment_intent_id": "pi_credits_123",
+            "locked_rsc_amount": 100,
+            "stripe_amount_cents": 500,
+        }
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            self.url,
+            data={"amount": 100, "purpose": PaymentPurpose.FUNDING_CREDITS_PURCHASE},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_payment_service.create_payment_intent.assert_called_once_with(
+            user_id=self.user.id,
+            rsc_amount=Decimal(100),
+            fundraise_id=None,
+            funding_pool_id=None,
+            purpose=PaymentPurpose.FUNDING_CREDITS_PURCHASE,
+        )
+
+    def test_create_payment_intent_funding_credits_purchase_rejects_target(self):
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.post(
+            self.url,
+            data={
+                "amount": 100,
+                "purpose": PaymentPurpose.FUNDING_CREDITS_PURCHASE,
+                "fundraise_id": self.fundraise.id,
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
 
 
 class PaymentIntentStatusViewTest(APITestCase):

@@ -916,3 +916,69 @@ class PaymentServiceTest(TestCase):
         # User receives requested amount + bounty fee (for later fundraise contribution)
         expected_balance = float(requested_rsc_amount + bounty_fee_rsc)
         self.assertEqual(total_balance, expected_balance)
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_funding_credits_purchase_skips_bounty_fee(
+        self, mock_stripe_payment_intent_create
+    ):
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.client_secret = "pi_secret_credits"
+        mock_payment_intent.id = "pi_credits"
+        mock_stripe_payment_intent_create.return_value = mock_payment_intent
+
+        with (
+            patch.object(RscExchangeRate, "rsc_to_usd", return_value=5.0),
+            patch(
+                "purchase.services.payment_service.calculate_rsc_purchase_fees",
+                side_effect=[
+                    (Decimal("2.00"), Decimal("2.00"), Decimal("0.00"), None),
+                    (Decimal("0.10"), Decimal("0.10"), Decimal("0.00"), None),
+                ],
+            ),
+            patch(
+                "purchase.services.payment_service.calculate_bounty_fees"
+            ) as mock_bounty_fees,
+        ):
+            result = self.service.create_payment_intent(
+                user_id=self.user.id,
+                rsc_amount=Decimal(100),
+                purpose=PaymentPurpose.FUNDING_CREDITS_PURCHASE,
+            )
+
+        # $5.00 + RSC purchase fee ($0.10) + Stripe fee ($0.445) = 554 cents;
+        # no 7% contribution fee is pre-paid for a plain credits purchase.
+        mock_bounty_fees.assert_not_called()
+        self.assertEqual(result["stripe_amount_cents"], 554)
+        metadata = mock_stripe_payment_intent_create.call_args[1]["metadata"]
+        self.assertEqual(metadata["purpose"], PaymentPurpose.FUNDING_CREDITS_PURCHASE)
+        self.assertEqual(metadata["bounty_fees_rsc"], "0")
+        self.assertNotIn("fundraise_id", metadata)
+        self.assertNotIn("funding_pool_id", metadata)
+
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_funding_credits_purchase_credits_exact_amount_without_bounty_fee(
+        self, mock_stripe_retrieve
+    ):
+        """A funding credits purchase lands as FUNDING_CREDIT for exactly the
+        requested RSC, with no pre-paid contribution fee and no contribution."""
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 554
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_credits_confirm"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.FUNDING_CREDITS_PURCHASE,
+            "locked_rsc_amount": "100.0",
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        payment, contribution = self.service.process_payment_intent_confirmation(
+            "pi_credits_confirm"
+        )
+
+        self.assertIsNone(contribution)
+        self.assertEqual(payment.purpose, PaymentPurpose.FUNDING_CREDITS_PURCHASE)
+        self.user.refresh_from_db()
+        self.assertEqual(float(self.user.get_funding_credits_balance()), 100.0)
+        self.assertEqual(float(self.user.get_available_balance()), 0.0)

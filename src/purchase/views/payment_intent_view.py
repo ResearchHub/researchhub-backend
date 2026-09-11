@@ -39,6 +39,7 @@ class PaymentIntentView(APIView):
 
         data = serializer.validated_data
         rsc_amount = data.get("amount")
+        purpose = data.get("purpose")
         fundraise_id = data.get("fundraise_id")
         funding_pool_id = data.get("funding_pool_id")
 
@@ -84,6 +85,7 @@ class PaymentIntentView(APIView):
                 rsc_amount=rsc_amount,
                 fundraise_id=fundraise_id,
                 funding_pool_id=funding_pool_id,
+                purpose=purpose,
             )
 
             return Response(payment_intent_data, status=status.HTTP_200_OK)

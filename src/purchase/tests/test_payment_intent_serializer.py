@@ -7,6 +7,7 @@ from django.test import TestCase
 from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.payment_model import PaymentPurpose
 from purchase.serializers.payment_intent_serializer import PaymentIntentSerializer
 from reputation.models import Escrow
 from researchhub_document.helpers import create_post
@@ -255,3 +256,46 @@ class PaymentIntentSerializerTest(TestCase):
         # Assert
         self.assertFalse(serializer.is_valid())
         self.assertIn("mutually exclusive", str(serializer.errors))
+
+    def test_purpose_defaults_to_rsc_purchase(self):
+        serializer = PaymentIntentSerializer(data={"amount": 100})
+
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(
+            serializer.validated_data["purpose"], PaymentPurpose.RSC_PURCHASE
+        )
+
+    def test_funding_credits_purchase_is_valid(self):
+        serializer = PaymentIntentSerializer(
+            data={"amount": 100, "purpose": PaymentPurpose.FUNDING_CREDITS_PURCHASE}
+        )
+
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(
+            serializer.validated_data["purpose"],
+            PaymentPurpose.FUNDING_CREDITS_PURCHASE,
+        )
+
+    def test_funding_credits_purchase_rejects_contribution_target(self):
+        for target in (
+            {"fundraise_id": self.fundraise.id},
+            {"funding_pool_id": self.funding_pool.id},
+        ):
+            serializer = PaymentIntentSerializer(
+                data={
+                    "amount": 100,
+                    "purpose": PaymentPurpose.FUNDING_CREDITS_PURCHASE,
+                    **target,
+                }
+            )
+
+            self.assertFalse(serializer.is_valid())
+            self.assertIn("cannot target", str(serializer.errors))
+
+    def test_unsupported_purpose_is_rejected(self):
+        serializer = PaymentIntentSerializer(
+            data={"amount": 100, "purpose": PaymentPurpose.APC}
+        )
+
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("purpose", serializer.errors)

@@ -13,6 +13,7 @@ from purchase.related_models.constants.currency import RSC
 from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.payment_model import (
+    PAYMENT_INTENT_PURPOSES,
     Payment,
     PaymentProcessor,
     PaymentPurpose,
@@ -36,8 +37,24 @@ STRIPE_FEE_PERCENT = Decimal("0.029")  # 2.9%
 STRIPE_FEE_FIXED_CENTS = 30  # $0.30
 
 
+ZERO_FEES = (Decimal(0), Decimal(0), Decimal(0), None)
+
+
 class PaymentService:
     """Service for handling payment-related business logic."""
+
+    @staticmethod
+    def _contribution_fees(purpose: str, amount: Decimal):
+        """
+        Contribution (bounty) fees owed on top of `amount`, in the same units.
+
+        An RSC purchase pre-pays them so the auto-contribution that follows
+        can spend the full amount. A funding credits purchase has no
+        contribution attached, so the fee is charged when the credits are spent.
+        """
+        if purpose == PaymentPurpose.RSC_PURCHASE:
+            return calculate_bounty_fees(amount)
+        return ZERO_FEES
 
     def _get_or_create_payment(
         self, external_payment_id: str, defaults: dict
@@ -249,9 +266,10 @@ class PaymentService:
         rsc_amount: Decimal,
         fundraise_id: int | None = None,
         funding_pool_id: int | None = None,
+        purpose: str = PaymentPurpose.RSC_PURCHASE,
     ) -> dict[str, Any]:
         """
-        Create a Stripe payment intent for RSC purchase.
+        Create a Stripe payment intent for an RSC or funding credits purchase.
 
         Args:
             user_id: ID of the user making the payment.
@@ -259,6 +277,8 @@ class PaymentService:
             fundraise_id: Optional fundraise ID to auto-contribute to after purchase.
             funding_pool_id: Optional funding pool ID to auto-contribute to after
                 purchase. Mutually exclusive with fundraise_id.
+            purpose: One of PAYMENT_INTENT_PURPOSES. FUNDING_CREDITS_PURCHASE
+                skips the contribution fee and takes no target.
 
         Returns:
             Dict containing client_secret, payment_intent_id, and locked_rsc_amount
@@ -272,14 +292,18 @@ class PaymentService:
             rsc_fees, _, _, _ = calculate_rsc_purchase_fees(Decimal(str(rsc_amount)))
 
             # Calculate bounty fees (platform fee) in RSC
-            bounty_fee_rsc, _, _, _ = calculate_bounty_fees(Decimal(str(rsc_amount)))
+            bounty_fee_rsc, _, _, _ = self._contribution_fees(
+                purpose, Decimal(str(rsc_amount))
+            )
 
             # Calculate RSC purchase fees in USD (for Stripe charge calculation)
             usd_fees, _, _, _ = calculate_rsc_purchase_fees(Decimal(str(usd_amount)))
 
             # Calculate bounty fees (platform fee) in USD
             # (for Stripe charge calculation)
-            bounty_fee_usd, _, _, _ = calculate_bounty_fees(Decimal(str(usd_amount)))
+            bounty_fee_usd, _, _, _ = self._contribution_fees(
+                purpose, Decimal(str(usd_amount))
+            )
 
             # Calculate Stripe fees (2.9% + $0.30)
             stripe_fee = (Decimal(str(usd_amount)) * STRIPE_FEE_PERCENT) + (
@@ -294,7 +318,7 @@ class PaymentService:
 
             metadata = {
                 "user_id": str(user_id),
-                "purpose": PaymentPurpose.RSC_PURCHASE,
+                "purpose": purpose,
                 "locked_rsc_amount": str(rsc_amount),
                 "original_currency": RSC.lower(),
                 "original_amount": str(rsc_amount),
@@ -362,7 +386,7 @@ class PaymentService:
                 "purpose", PaymentPurpose.RSC_PURCHASE
             )
 
-            if purpose != PaymentPurpose.RSC_PURCHASE:
+            if purpose not in PAYMENT_INTENT_PURPOSES:
                 raise ValueError(f"Unexpected payment purpose: {purpose}")
 
             # Get the locked RSC amount from metadata
@@ -460,8 +484,10 @@ class PaymentService:
         # Calculate RSC purchase fees (2% platform fee)
         rsc_fee, rh_fee, dao_fee, fee_obj = calculate_rsc_purchase_fees(rsc_amount)
 
-        # Calculate platform fees (bounty fees) for future fundraise contributions
-        bounty_fee, bounty_rh_fee, bounty_dao_fee, _ = calculate_bounty_fees(rsc_amount)
+        # Pre-paid contribution fees, if this purpose charges them
+        bounty_fee, bounty_rh_fee, bounty_dao_fee, _ = self._contribution_fees(
+            purpose, rsc_amount
+        )
 
         if any(
             not value.is_finite() or value < 0

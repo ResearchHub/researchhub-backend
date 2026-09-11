@@ -3,6 +3,10 @@ from rest_framework import serializers
 from purchase.related_models.constants import MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
 from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.payment_model import (
+    PAYMENT_INTENT_PURPOSES,
+    PaymentPurpose,
+)
 
 
 class PaymentIntentSerializer(serializers.Serializer):
@@ -11,6 +15,8 @@ class PaymentIntentSerializer(serializers.Serializer):
 
     Optionally accepts a fundraise_id or funding_pool_id (mutually exclusive)
     to automatically contribute the purchased RSC once the payment is processed.
+    A FUNDING_CREDITS_PURCHASE purpose only tops up the user's funding credits,
+    so it cannot carry a contribution target.
     """
 
     amount = serializers.DecimalField(
@@ -18,6 +24,12 @@ class PaymentIntentSerializer(serializers.Serializer):
         decimal_places=10,
         min_value=MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
         help_text="Amount of RSC to purchase",
+    )
+    purpose = serializers.ChoiceField(
+        choices=[(purpose.value, purpose.label) for purpose in PAYMENT_INTENT_PURPOSES],
+        default=PaymentPurpose.RSC_PURCHASE,
+        help_text="RSC_PURCHASE (optionally auto-contributed) or "
+        "FUNDING_CREDITS_PURCHASE (credits only)",
     )
     fundraise_id = serializers.IntegerField(
         required=False,
@@ -79,6 +91,15 @@ class PaymentIntentSerializer(serializers.Serializer):
         if fundraise_id is not None and funding_pool_id is not None:
             raise serializers.ValidationError(
                 "fundraise_id and funding_pool_id are mutually exclusive."
+            )
+
+        has_target = fundraise_id is not None or funding_pool_id is not None
+        if (
+            attrs.get("purpose") == PaymentPurpose.FUNDING_CREDITS_PURCHASE
+            and has_target
+        ):
+            raise serializers.ValidationError(
+                "A funding credits purchase cannot target a fundraise or funding pool."
             )
 
         return attrs

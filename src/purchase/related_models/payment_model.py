@@ -17,6 +17,17 @@ class PaymentPurpose(models.TextChoices):
 
     APC = "APC", _("Article Processing Charge")
     RSC_PURCHASE = "RSC_PURCHASE", _("RSC Purchase")
+    # Cash converted to funding credits with no contribution attached. Unlike
+    # RSC_PURCHASE it does not pre-pay the contribution fee, which is charged
+    # when the credits are eventually spent.
+    FUNDING_CREDITS_PURCHASE = "FUNDING_CREDITS_PURCHASE", _("Funding Credits Purchase")
+
+
+# Purposes the Stripe payment-intent flow accepts.
+PAYMENT_INTENT_PURPOSES = (
+    PaymentPurpose.RSC_PURCHASE,
+    PaymentPurpose.FUNDING_CREDITS_PURCHASE,
+)
 
 
 class Payment(DefaultModel):
