@@ -1,13 +1,14 @@
 import json
 import unittest
 
-from research_ai.services.notebook_chat.draft_markdown import (
+from research_ai.services.notebook_chat.draft_blocks import (
     MAX_INPUT_BYTES,
-    ToolDraftMarkdown,
+    ToolDraftBlocks,
 )
+from utils.prosemirror import expand_blocks
 
 
-class ToolDraftMarkdownTests(unittest.TestCase):
+class ToolDraftBlocksTests(unittest.TestCase):
     def test_heading_and_list_structure_survives_every_fragment(self):
         # Arrange: the heading's type/attrs arrive after its text.
         payload = json.dumps(
@@ -40,27 +41,27 @@ class ToolDraftMarkdownTests(unittest.TestCase):
                 ]
             }
         )
-        draft = ToolDraftMarkdown()
+        draft = ToolDraftBlocks()
         # Act
         for char in payload:
             draft.feed(char)
             draft.snapshot()
         # Assert
         self.assertEqual(
-            draft.snapshot(), "## Overview\n\nA paragraph\\.\n\n- First item"
+            draft.snapshot(), expand_blocks(json.loads(payload)["edits"][0]["blocks"])
         )
 
     def test_unfinished_paragraph_streams_before_json_closes(self):
         # Arrange
-        draft = ToolDraftMarkdown()
+        draft = ToolDraftBlocks()
         # Act
         draft.feed('{"edits":[{"blocks":["Already writing')
         # Assert
-        self.assertEqual(draft.snapshot(), "Already writing")
+        self.assertEqual(draft.snapshot(), expand_blocks(["Already writing"]))
 
     def test_preserves_inline_text_and_marks_without_artificial_paragraphs(self):
         # Arrange
-        draft = ToolDraftMarkdown()
+        draft = ToolDraftBlocks()
         # Act
         draft.feed(
             json.dumps(
@@ -87,11 +88,18 @@ class ToolDraftMarkdownTests(unittest.TestCase):
             )
         )
         # Assert
-        self.assertEqual(draft.snapshot(), "Some **bold** text")
+        self.assertEqual(
+            draft.snapshot()[0]["content"],
+            [
+                {"type": "text", "text": "Some "},
+                {"type": "text", "text": "bold", "marks": [{"type": "bold"}]},
+                {"type": "text", "text": " text"},
+            ],
+        )
 
-    def test_ignores_arguments_and_unsafe_links_and_escapes_markdown(self):
+    def test_streams_only_note_blocks_without_interpreting_their_content(self):
         # Arrange
-        draft = ToolDraftMarkdown()
+        draft = ToolDraftBlocks()
         # Act
         text = {
             "type": "text",
@@ -113,25 +121,43 @@ class ToolDraftMarkdownTests(unittest.TestCase):
             )
         )
         # Assert
-        self.assertEqual(draft.snapshot(), r"\[click\]\(bad\)")
+        self.assertEqual(draft.snapshot(), [{"type": "paragraph", "content": [text]}])
 
     def test_unicode_survives_fragment_boundaries(self):
         # Arrange
         payload = json.dumps({"edits": [{"blocks": ["Café 🌱"]}]})
-        draft = ToolDraftMarkdown()
+        draft = ToolDraftBlocks()
         # Act
         for char in payload:
             draft.feed(char)
             draft.snapshot()
         # Assert
-        self.assertEqual(draft.snapshot(), "Café 🌱")
+        self.assertEqual(draft.snapshot(), expand_blocks(["Café 🌱"]))
 
     def test_preview_input_is_bounded(self):
         # Arrange
-        draft = ToolDraftMarkdown()
+        draft = ToolDraftBlocks()
         # Act
         draft.feed("x" * (MAX_INPUT_BYTES + 100))
         draft.feed("x" * 100)
         # Assert
         self.assertEqual(len(draft._input), MAX_INPUT_BYTES)
-        self.assertEqual(draft.snapshot(), "")
+        self.assertEqual(draft.snapshot(), [])
+
+    def test_malformed_fragment_retains_last_snapshot(self):
+        # Arrange
+        draft = ToolDraftBlocks()
+        draft.feed('{"edits":[{"blocks":["Visible text"]}]}')
+        previous = draft.snapshot()
+        # Act
+        draft.feed("not json")
+        # Assert
+        self.assertEqual(draft.snapshot(), previous)
+
+    def test_expanded_snapshot_is_bounded(self):
+        # Arrange: tiny compact strings expand into larger node dictionaries.
+        draft = ToolDraftBlocks()
+        # Act
+        draft.feed(json.dumps({"edits": [{"blocks": ["a"] * 5000}]}))
+        # Assert
+        self.assertEqual(draft.snapshot(), [])

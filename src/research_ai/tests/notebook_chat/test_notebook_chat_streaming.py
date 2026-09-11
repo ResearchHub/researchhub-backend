@@ -100,7 +100,10 @@ class NotebookStreamBufferTests(SimpleTestCase):
             ),
         )
         self.buffer.flush()
-        self.assertEqual(self.store.get(9)["items"][0]["markdown"], "Overview")
+        self.assertEqual(
+            self.store.get(9)["items"][0]["blocks"],
+            [{"content": [{"type": "text", "text": "Overview"}]}],
+        )
 
         # Act: only the heading metadata changes.
         self.buffer.append(
@@ -115,10 +118,28 @@ class NotebookStreamBufferTests(SimpleTestCase):
         # Assert: both delivery paths carry a replacement formatted snapshot.
         delta = self.publisher.calls[-1][1]["deltas"][0]
         self.assertEqual(delta["delta"], "")
-        self.assertEqual(delta["markdown"], "## Overview")
-        self.assertEqual(self.store.get(9)["items"][0]["markdown"], "## Overview")
+        self.assertEqual(
+            delta["blocks"],
+            [
+                {
+                    "content": [{"type": "text", "text": "Overview"}],
+                    "type": "heading",
+                    "attrs": {"level": 2},
+                }
+            ],
+        )
+        self.assertEqual(
+            self.store.get(9)["items"][0]["blocks"],
+            [
+                {
+                    "content": [{"type": "text", "text": "Overview"}],
+                    "type": "heading",
+                    "attrs": {"level": 2},
+                }
+            ],
+        )
         self.buffer.restart(1)
-        self.assertEqual(self.buffer.formatted_drafts, {})
+        self.assertEqual(self.buffer.block_drafts, {})
         self.assertEqual(self.store.get(9)["items"], [])
 
     def test_later_fragments_coalesce_until_flush(self):
@@ -172,7 +193,7 @@ class NotebookStreamBufferTests(SimpleTestCase):
                 "at": draft_delta["at"],
                 "tool": "edit_note",
                 "label": "Drafting an edit",
-                "markdown": "",
+                "blocks": [],
             },
         )
         draft_item = self.store.get(9)["items"][-1]
