@@ -1,9 +1,11 @@
 from decimal import Decimal, InvalidOperation
 
+from django.db import transaction
 from rest_framework import serializers
 
 from purchase.models import Grant
 from purchase.related_models.constants.currency import USD
+from purchase.services.funding_pool_service import FundingPoolService
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 
 
@@ -100,12 +102,17 @@ class GrantCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         contact_ids = validated_data.pop("contact_ids", [])
-        grant = super().create(validated_data)
+        with transaction.atomic():
+            validated_data.pop("unified_document_id", None)
+            validated_data.pop("post_id", None)
+            grant = super().create(validated_data)
 
-        if contact_ids:
-            from user.models import User
+            if contact_ids:
+                from user.models import User
 
-            contacts = User.objects.filter(id__in=contact_ids)
-            grant.contacts.set(contacts)
+                contacts = User.objects.filter(id__in=contact_ids)
+                grant.contacts.set(contacts)
+
+            FundingPoolService().create_pool_for_grant(grant)
 
         return grant

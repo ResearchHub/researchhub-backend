@@ -79,6 +79,34 @@ class GrantFeedListDtoTests(AWSMockTestCase):
         self.assertNotIn("contacts", grant_data)
         self.assertIn("amount", grant_data)
         self.assertIn("usd", grant_data["amount"])
+        self.assertIn("funding_pool", grant_data)
+        self.assertIsNone(grant_data["funding_pool"])
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.rsc_to_usd")
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_grant_feed_list_entry_includes_funding_pool(
+        self, mock_usd_to_rsc, mock_rsc_to_usd
+    ):
+        mock_usd_to_rsc.return_value = 200.0
+        mock_rsc_to_usd.return_value = 50.0
+
+        from purchase.models import FundingPool
+
+        FundingPool.objects.create(
+            grant=self.grant,
+            created_by=self.user,
+            amount_holding=Decimal("100.00"),
+            amount_distributed=Decimal("25.00"),
+        )
+
+        data = GrantFeedListEntrySerializer(self._make_feed_entry(self.grant_post)).data
+        funding_pool = data["content_object"]["grant"]["funding_pool"]
+
+        self.assertEqual(funding_pool["status"], FundingPool.OPEN)
+        self.assertEqual(float(funding_pool["amount_holding"]["rsc"]), 100.0)
+        self.assertEqual(float(funding_pool["amount_distributed"]["rsc"]), 25.0)
+        self.assertEqual(float(funding_pool["amount_raised"]["rsc"]), 125.0)
+        self.assertEqual(funding_pool["amount_holding"]["usd"], 50.0)
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_grant_application_fundraise_is_slim_without_key_insight(
