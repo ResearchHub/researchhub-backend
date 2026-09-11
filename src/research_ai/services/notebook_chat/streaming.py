@@ -32,6 +32,7 @@ from research_ai.services.agent.types import (
     ToolUseStreamStart,
 )
 from research_ai.services.notebook_chat.activity import drafting_label
+from research_ai.services.notebook_chat.draft_blocks import ToolDraftBlocks
 from research_ai.services.notebook_chat.tool_draft import (
     TOOL_DRAFT_PROSE_TOOLS,
     ToolDraftTextExtractor,
@@ -106,6 +107,7 @@ class NotebookStreamBuffer:
         self.pending_chars = 0
         # Per draft item, the scanner turning argument JSON into prose.
         self.drafts: dict[str, ToolDraftTextExtractor] = {}
+        self.block_drafts: dict[str, ToolDraftBlocks] = {}
         self.last_flush_at: float | None = None
         self.last_active_check_at: float | None = None
         self.stream_revision = 0
@@ -136,7 +138,10 @@ class NotebookStreamBuffer:
         # A tool-use start carries no text but must still announce its item;
         # anything else with nothing to show is a no-op.
         announces = opened and isinstance(event, ToolUseStreamStart)
-        if not fragment and not announces:
+        draft_update = (
+            isinstance(event, ToolInputStreamDelta) and item_id in self.block_drafts
+        )
+        if not fragment and not announces and not draft_update:
             return
         item["text"] += fragment
 
@@ -181,6 +186,7 @@ class NotebookStreamBuffer:
             item["label"] = drafting_label(tool)
             if tool in TOOL_DRAFT_PROSE_TOOLS:
                 self.drafts[item_id] = ToolDraftTextExtractor()
+                self.block_drafts[item_id] = ToolDraftBlocks()
         return item
 
     def _fragment(self, item: dict, event) -> str:
@@ -188,6 +194,9 @@ class NotebookStreamBuffer:
         if isinstance(event, ToolUseStreamStart):
             return ""
         if isinstance(event, ToolInputStreamDelta):
+            draft = self.block_drafts.get(item["id"])
+            if draft is not None:
+                draft.feed(event.partial_json)
             extractor = self.drafts.get(item["id"])
             return extractor.feed(event.partial_json) if extractor else ""
         return event.text
@@ -203,6 +212,12 @@ class NotebookStreamBuffer:
 
         sequence = self.sequence + 1
         stream_id = self._stream_id()
+        for item_id, delta in self.pending.items():
+            draft = self.block_drafts.get(item_id)
+            if draft is not None:
+                blocks = draft.snapshot()
+                self.items[item_id]["blocks"] = blocks
+                delta["blocks"] = blocks
         deltas = [dict(delta) for delta in self.pending.values()]
         self.store.set(
             self.execution_id,
@@ -274,6 +289,7 @@ class NotebookStreamBuffer:
         self.pending.clear()
         self.pending_chars = 0
         self.drafts.clear()
+        self.block_drafts.clear()
         self.iteration = iteration
         self.sequence = 0
         self.last_flush_at = None

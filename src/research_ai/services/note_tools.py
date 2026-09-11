@@ -181,6 +181,7 @@ class NoteToolset:
             ),
             Tool(
                 name=EDIT_NOTE,
+                eager_input_streaming=True,
                 description=(
                     "Edit a note with block operations: insert new blocks at "
                     "a position, replace an inclusive range of blocks, or "

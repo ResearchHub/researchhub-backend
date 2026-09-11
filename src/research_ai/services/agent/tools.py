@@ -49,6 +49,8 @@ class Tool:
             ``{"error": ...}``.
         is_terminal: When True, a successful call ends the loop (a "submit"
             tool that hands back a final answer).
+        eager_input_streaming: Ask supporting providers to emit input fragments
+            before the complete argument is available, for live draft previews.
     """
 
     name: str
@@ -56,6 +58,7 @@ class Tool:
     input_schema: dict
     handler: ToolHandler
     is_terminal: bool = False
+    eager_input_streaming: bool = False
 
 
 class Toolset:
