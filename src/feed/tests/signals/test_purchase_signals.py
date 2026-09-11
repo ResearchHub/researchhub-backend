@@ -6,7 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
 
 from feed.models import FeedEntry
-from purchase.models import Fundraise, Grant, GrantApplication
+from purchase.models import FundingPool, Fundraise, Grant, GrantApplication
 from purchase.related_models.purchase_model import Purchase
 from purchase.services.fundraise_service import FundraiseService
 from researchhub_document.helpers import create_post
@@ -489,4 +489,94 @@ class TestPurchaseSignals(AWSMockTestCase):
             # Signal should handle missing feed entries gracefully
         except Exception as e:
             msg = f"Signal should handle missing feed entries gracefully: {e}"
+            self.fail(msg)
+
+    @patch("feed.signals.purchase_signals.create_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_funding_pool_contribution_triggers_feed_update(
+        self, mock_transaction, mock_refresh, mock_create
+    ):
+        """
+        Creating a funding-pool contribution creates a feed entry and
+        refreshes the grant post feed entry.
+        """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
+
+        grant_post = create_post(
+            created_by=self.user, document_type=GRANT, title="Open Grant"
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="NSF",
+            description="Open research grant",
+            status=Grant.OPEN,
+            end_date=datetime.now(UTC) + timedelta(days=30),
+        )
+        pool = FundingPool.objects.create(grant=grant, created_by=self.user)
+
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        feed_entry = FeedEntry.objects.create(
+            content_type=post_content_type,
+            object_id=grant_post.id,
+            unified_document=grant_post.unified_document,
+            action=FeedEntry.PUBLISH,
+            action_date=datetime.now(UTC),
+            content={},
+        )
+
+        # Act
+        contributor = create_random_authenticated_user("pool_contributor_1")
+        pool_ct = ContentType.objects.get_for_model(FundingPool)
+        purchase = Purchase.objects.create(
+            user=contributor,
+            content_type=pool_ct,
+            object_id=pool.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            paid_status="PAID",
+            amount="100",
+        )
+
+        # Assert
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+        mock_create.apply_async.assert_called_once()
+        create_args = mock_create.apply_async.call_args
+        self.assertEqual(
+            create_args.kwargs.get("args") or create_args[1].get("args"),
+            (
+                purchase.id,
+                purchase_ct.id,
+                FeedEntry.PUBLISH,
+                list(grant_post.unified_document.hubs.values_list("id", flat=True)),
+                contributor.id,
+            ),
+        )
+        mock_refresh.apply_async.assert_called_with(
+            args=(feed_entry.id,),
+            priority=1,
+        )
+
+    def test_funding_pool_signal_handles_missing_pool(self):
+        """Signal handles missing FundingPool without raising."""
+        pool_ct = ContentType.objects.get_for_model(FundingPool)
+
+        try:
+            Purchase.objects.create(
+                user=self.user,
+                content_type=pool_ct,
+                object_id=99999,
+                purchase_method=Purchase.OFF_CHAIN,
+                purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+                paid_status="PAID",
+                amount="100",
+            )
+        except Exception as e:
+            msg = f"Signal should handle missing funding pool gracefully: {e}"
             self.fail(msg)

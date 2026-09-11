@@ -545,8 +545,8 @@ class BountySerializer(serializers.Serializer):
 
 class FundraiseContributionContentSerializer(serializers.Serializer):
     """
-    Serializer for fundraise contribution feed items (Purchase or
-    UsdFundraiseContribution).
+    Serializer for contribution feed items (fundraise Purchase,
+    funding-pool Purchase, or UsdFundraiseContribution).
     """
 
     id = serializers.IntegerField()
@@ -562,12 +562,21 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
 
     def _get_unified_document(self, obj):
         """
-        Get unified document from the contribution's fundraise.
+        Get unified document from the contribution target (fundraise or
+        funding pool / grant).
         """
-        from purchase.models import Fundraise
+        from purchase.models import FundingPool, Fundraise
+        from purchase.related_models.purchase_model import Purchase
 
         if hasattr(obj, "purchase_type"):
-            # Purchase - object_id points to Fundraise
+            if obj.purchase_type == Purchase.FUNDING_POOL_CONTRIBUTION:
+                try:
+                    pool = FundingPool.objects.select_related(
+                        "grant__unified_document"
+                    ).get(id=obj.object_id)
+                    return getattr(pool.grant, "unified_document", None)
+                except FundingPool.DoesNotExist:
+                    return None
             try:
                 fundraise = Fundraise.objects.select_related("unified_document").get(
                     id=obj.object_id

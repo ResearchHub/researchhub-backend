@@ -228,16 +228,26 @@ def _get_unified_document(
         case "rhcommentmodel":
             doc = item.thread.unified_document
         case "purchase":
-            # Fundraise contribution - object_id points to Fundraise
-            from purchase.models import Fundraise
+            # Contribution purchases point at Fundraise or FundingPool
+            from purchase.models import FundingPool, Fundraise
+            from purchase.related_models.purchase_model import Purchase
 
-            try:
-                fundraise = Fundraise.objects.select_related("unified_document").get(
-                    id=item.object_id
-                )
-                doc = fundraise.unified_document
-            except Fundraise.DoesNotExist:
-                doc = None
+            if item.purchase_type == Purchase.FUNDING_POOL_CONTRIBUTION:
+                try:
+                    pool = FundingPool.objects.select_related(
+                        "grant__unified_document"
+                    ).get(id=item.object_id)
+                    doc = getattr(pool.grant, "unified_document", None)
+                except FundingPool.DoesNotExist:
+                    doc = None
+            else:
+                try:
+                    fundraise = Fundraise.objects.select_related(
+                        "unified_document"
+                    ).get(id=item.object_id)
+                    doc = fundraise.unified_document
+                except Fundraise.DoesNotExist:
+                    doc = None
         case "usdfundraisecontribution":
             doc = item.fundraise.unified_document
         case "fundingactivity":

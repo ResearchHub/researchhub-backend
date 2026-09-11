@@ -18,48 +18,84 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 logger = logging.getLogger(__name__)
 
 
+def _unified_document_for_contribution_purchase(instance: Purchase):
+    """
+    Resolve the parent unified document for a fundraise or funding-pool
+    contribution purchase.
+    """
+    if instance.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION:
+        from purchase.models import Fundraise
+
+        try:
+            fundraise = Fundraise.objects.select_related("unified_document").get(
+                id=instance.object_id
+            )
+        except Fundraise.DoesNotExist:
+            logger.warning(
+                "Fundraise %s not found for purchase %s",
+                instance.object_id,
+                instance.id,
+            )
+            return None
+
+        if not fundraise.unified_document:
+            logger.warning("No unified document found for fundraise %s", fundraise.id)
+            return None
+        return fundraise.unified_document
+
+    if instance.purchase_type == Purchase.FUNDING_POOL_CONTRIBUTION:
+        from purchase.models import FundingPool
+
+        try:
+            pool = FundingPool.objects.select_related("grant__unified_document").get(
+                id=instance.object_id
+            )
+        except FundingPool.DoesNotExist:
+            logger.warning(
+                "FundingPool %s not found for purchase %s",
+                instance.object_id,
+                instance.id,
+            )
+            return None
+
+        unified_document = getattr(pool.grant, "unified_document", None)
+        if not unified_document:
+            logger.warning(
+                "No unified document found for funding pool %s (grant %s)",
+                pool.id,
+                pool.grant_id,
+            )
+            return None
+        return unified_document
+
+    return None
+
+
 @receiver(post_save, sender=Purchase)
 def handle_purchase_feed_entry(sender, instance, created, **kwargs):
     """
     Signal handler that refreshes feed entries when a purchase is created or updated.
     This ensures feed entries show the latest purchase information.
 
-    For fundraise contributions, we also create a dedicated feed entry
-    so the contribution appears as its own activity in the feed.
+    For fundraise and funding-pool contributions, we also create a dedicated
+    feed entry so the contribution appears as its own activity in the feed.
     """
     try:
-        # Handle fundraise contributions differently
-        if instance.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION:
-            # Import here to avoid circular imports
-            from purchase.models import Fundraise
-
-            # Get the fundraise object
-            try:
-                fundraise = Fundraise.objects.get(id=instance.object_id)
-            except Fundraise.DoesNotExist:
-                logger.warning(
-                    "Fundraise %s not found for purchase %s",
-                    instance.object_id,
-                    instance.id,
-                )
-                return
-
-            # Get the unified document
-            unified_document = fundraise.unified_document
+        contribution_types = (
+            Purchase.FUNDRAISE_CONTRIBUTION,
+            Purchase.FUNDING_POOL_CONTRIBUTION,
+        )
+        if instance.purchase_type in contribution_types:
+            unified_document = _unified_document_for_contribution_purchase(instance)
             if not unified_document:
-                logger.warning(
-                    "No unified document found for fundraise %s", fundraise.id
-                )
                 return
 
-            # Create a new feed entry for this contribution
             if created:
                 _create_contribution_feed_entry(instance, unified_document)
 
-            # Refresh existing document feed entries
             _refresh_document_feed_entries(unified_document)
         else:
-            # For non-fundraise purchases, use direct lookup
+            # For non-contribution purchases, use direct lookup
             feed_entries = FeedEntry.objects.filter(
                 content_type=instance.content_type,
                 object_id=instance.object_id,
@@ -108,7 +144,7 @@ def handle_usd_contribution_feed_entry(sender, instance, created, **kwargs):
 
 def _create_contribution_feed_entry(instance, unified_document):
     """
-    Create a feed entry for a fundraise contribution.
+    Create a feed entry for a fundraise or funding-pool contribution.
     """
     content_type = ContentType.objects.get_for_model(instance)
     hub_ids = list(unified_document.hubs.values_list("id", flat=True))

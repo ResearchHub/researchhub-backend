@@ -16,7 +16,7 @@ from feed.tasks import (
 )
 from hub.models import Hub
 from paper.models import Paper
-from purchase.models import Fundraise
+from purchase.models import FundingPool, Fundraise, Grant
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
@@ -839,6 +839,39 @@ class FeedTasksTest(AWSMockTestCase):
 
         # Act
         actual = _get_unified_document(contribution, usd_ct)
+
+        # Assert
+        self.assertEqual(actual, unified_document)
+
+    def test_get_unified_document_for_funding_pool_purchase(self):
+        """
+        Funding-pool contribution Purchase resolves to the grant unified doc.
+        """
+        # Arrange
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=unified_document,
+            amount=Decimal("5000.00"),
+            currency="USD",
+            status=Grant.OPEN,
+        )
+        pool = FundingPool.objects.create(grant=grant, created_by=self.user)
+        pool_ct = ContentType.objects.get_for_model(FundingPool)
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=pool_ct,
+            object_id=pool.id,
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="100",
+        )
+        purchase_ct = ContentType.objects.get_for_model(Purchase)
+
+        # Act
+        actual = _get_unified_document(purchase, purchase_ct)
 
         # Assert
         self.assertEqual(actual, unified_document)
