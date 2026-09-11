@@ -5,7 +5,6 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
-from hub.tests.helpers import create_hub
 from invite.related_models.note_invitation import NoteInvitation
 from note.models import Note, NoteTemplate, PreregistrationSettings
 from organizations.models import NonprofitOrg
@@ -19,7 +18,6 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from topic.models import Topic, UnifiedDocumentTopics
 from user.models import Author, Organization
 from user.tests.helpers import make_user_verified
 
@@ -1171,7 +1169,6 @@ class NoteTests(APITestCase):
                     "Test post content that is sufficiently long for validation"
                 ),
                 "title": "Test post title that is sufficiently long",
-                "hubs": [],
             },
         )
         self.assertEqual(post_response.status_code, 200)
@@ -1184,7 +1181,6 @@ class NoteTests(APITestCase):
         # Verify post data is present and correctly structured
         self.assertIsNotNone(note["post"])
         self.assertIn("authors", note["post"])
-        self.assertIn("hubs", note["post"])
         self.assertIn("unified_document", note["post"])
 
     def test_note_with_preregistration_post_fundraise(self):
@@ -1213,7 +1209,6 @@ class NoteTests(APITestCase):
                     "Test post content that is sufficiently long for validation"
                 ),
                 "title": "Test post title that is sufficiently long",
-                "hubs": [],
                 "fundraise_goal_amount": 1000,
             },
         )
@@ -1256,7 +1251,6 @@ class NoteTests(APITestCase):
                     "Test grant post content that is sufficiently long for validation"
                 ),
                 "title": "Test grant post title that is sufficiently long",
-                "hubs": [],
                 "grant_amount": 50000,
                 "grant_currency": "USD",
                 "grant_organization": "National Science Foundation",
@@ -1323,7 +1317,6 @@ class NoteTests(APITestCase):
                 "title": (
                     "Test grant post with contacts title that is sufficiently long"
                 ),
-                "hubs": [],
                 "grant_amount": 75000,
                 "grant_currency": "USD",
                 "grant_organization": "National Science Foundation with Contacts",
@@ -1406,7 +1399,6 @@ class NoteTests(APITestCase):
                     "Test post content that is sufficiently long for validation"
                 ),
                 "title": "Test post title that is sufficiently long",
-                "hubs": [],
             },
         )
         self.assertEqual(post_response.status_code, 200)
@@ -1454,7 +1446,6 @@ class NoteTests(APITestCase):
                     "Test post content that is sufficiently long for validation"
                 ),
                 "title": "Test post title that is sufficiently long",
-                "hubs": [],
             },
         )
         self.assertEqual(post_response.status_code, 200)
@@ -1579,7 +1570,6 @@ class NoteTests(APITestCase):
                     "Grant post content that is sufficiently long for validation"
                 ),
                 "title": "Grant post title that is sufficiently long",
-                "hubs": [],
                 "grant_amount": 50000,
                 "grant_currency": "USD",
                 "grant_organization": "Test Foundation",
@@ -1631,7 +1621,6 @@ class NoteTests(APITestCase):
                     "sufficiently long for validation"
                 ),
                 "title": "Test grant with applications title that is sufficiently long",
-                "hubs": [],
                 "grant_amount": 60000,
                 "grant_currency": "USD",
                 "grant_organization": "Application Test Foundation",
@@ -1656,7 +1645,6 @@ class NoteTests(APITestCase):
                 "title": (
                     "Preregistration for grant application that is sufficiently long"
                 ),
-                "hubs": [],
             },
         )
         self.assertEqual(preregistration_response.status_code, 200)
@@ -1810,18 +1798,16 @@ class NoteTests(APITestCase):
         self.assertEqual(published_draft_response.status_code, 409)
 
     def test_creates_note_with_draft_details(self) -> None:
-        """A create request stores the cover, byline, and hubs."""
+        """A create request stores the cover and byline."""
         # Arrange
         first_author = Author.objects.create(first_name="Ada", last_name="Lovelace")
         second_author = Author.objects.create(first_name="Grace", last_name="Hopper")
-        hub = create_hub(name="Molecular Biology")
 
         # Act
         response = self.client.post(
             "/api/note/",
             {
                 "author_ids": [second_author.id, first_author.id],
-                "hub_ids": [hub.id],
                 "image": "notes/cover.png",
                 "preview_img": "https://www.researchhub.com/cover.png",
                 "title": "Draft with details",
@@ -1838,52 +1824,27 @@ class NoteTests(APITestCase):
             [author["id"] for author in response.data["authors"]],
             [second_author.id, first_author.id],
         )
-        self.assertEqual(
-            [hub_data["id"] for hub_data in response.data["hubs"]], [hub.id]
-        )
-
-    def test_creates_note_with_legacy_hub_input(self) -> None:
-        """A create request may still send its topics as the legacy hubs list."""
-        # Arrange
-        hub = create_hub(name="Neuroscience")
-
-        # Act
-        response = self.client.post("/api/note/", {"hubs": [hub.id], "title": "Legacy"})
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            [hub_data["id"] for hub_data in response.data["hubs"]], [hub.id]
-        )
 
     def test_patches_draft_details_partially(self) -> None:
-        """A patch changes only what it sends and never touches real topics."""
+        """A patch changes only the draft details it sends."""
         # Arrange
         author = Author.objects.create(first_name="Ada", last_name="Lovelace")
         replacement_author = Author.objects.create(
             first_name="Alan", last_name="Turing"
         )
-        first_hub = create_hub(name="Genetics")
-        second_hub = create_hub(name="Immunology")
         note_id = self.client.post(
             "/api/note/",
             {
                 "author_ids": [author.id],
-                "hub_ids": [first_hub.id],
                 "image": "notes/cover.png",
             },
         ).data["id"]
-        topic = Topic.objects.create(openalex_id="T1", display_name="Genomics")
-        UnifiedDocumentTopics.objects.create(
-            unified_document=Note.objects.get(id=note_id).unified_document, topic=topic
-        )
 
         # Act
         replace_response = self.client.patch(
             f"/api/note/{note_id}/",
             {
                 "author_ids": [replacement_author.id],
-                "hub_ids": [second_hub.id],
                 "title": "Renamed",
             },
         )
@@ -1898,18 +1859,11 @@ class NoteTests(APITestCase):
             [author_data["id"] for author_data in replace_response.data["authors"]],
             [replacement_author.id],
         )
-        self.assertEqual(
-            [hub_data["id"] for hub_data in replace_response.data["hubs"]],
-            [second_hub.id],
-        )
         self.assertEqual(replace_response.data["image"], "notes/cover.png")
         self.assertEqual(clear_response.status_code, 200)
         self.assertEqual(clear_response.data["authors"], [])
         self.assertEqual(clear_response.data["image"], "")
         self.assertEqual(clear_response.data["title"], "Renamed")
-        self.assertEqual(
-            list(Note.objects.get(id=note_id).unified_document.topics.all()), [topic]
-        )
 
     def test_saves_grant_settings_on_grant_note(self) -> None:
         """Grant form values round-trip without creating a live grant."""
@@ -2219,7 +2173,6 @@ class AccessibleNoteTests(APITestCase):
                     "Grant post content that is sufficiently long for validation"
                 ),
                 "title": "Grant post title that is sufficiently long",
-                "hubs": [],
                 "grant_amount": 50000,
                 "grant_currency": "USD",
                 "grant_organization": "Test Foundation",

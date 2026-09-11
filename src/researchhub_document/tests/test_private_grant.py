@@ -6,7 +6,6 @@ from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from hub.tests.helpers import create_hub
 from purchase.models import Grant, GrantApplication
 from research_ai.models import ExpertSearch, GeneratedEmail
 from research_ai.services.outreach.invited_experts import (
@@ -55,13 +54,12 @@ class CreatePrivateGrantTests(APITestCase):
         cache.clear()
         self.author = create_random_default_user("private_grant_author", moderator=True)
         make_user_verified(self.author)
-        self.hub = create_hub()
 
     def test_grant_defaults_to_public(self):
         self.client.force_authenticate(self.author)
         resp = self.client.post(
             "/api/researchhubpost/",
-            _grant_post_body(hubs=[self.hub.id]),
+            _grant_post_body(),
         )
         self.assertEqual(resp.status_code, 200)
         post_id = resp.data["id"]
@@ -72,7 +70,7 @@ class CreatePrivateGrantTests(APITestCase):
         self.client.force_authenticate(self.author)
         resp = self.client.post(
             "/api/researchhubpost/",
-            _grant_post_body(is_public=False, hubs=[self.hub.id]),
+            _grant_post_body(is_public=False),
         )
         self.assertEqual(resp.status_code, 200)
         post_id = resp.data["id"]

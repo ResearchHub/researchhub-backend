@@ -34,6 +34,14 @@ class AgentConversation(DefaultModel):
     )
     next_trace_sequence = models.PositiveBigIntegerField(default=1)
     next_chat_sequence = models.PositiveBigIntegerField(default=1)
+    is_removed = models.BooleanField(
+        default=False,
+        db_comment=(
+            "Soft delete: the user removed the conversation. Rows are kept for "
+            "audit and usage accounting; every user-facing lookup excludes them."
+        ),
+    )
+    removed_date = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "research_ai_agent_conversation"

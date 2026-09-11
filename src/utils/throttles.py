@@ -83,29 +83,6 @@ class UserCaptchaThrottle(UserRateThrottle):
     def throttle_failure(self):
         return False
 
-    def captcha_complete(self, request):
-        """
-        Unlocks user on throttle cache and db level
-        """
-        # unique id for requester
-        key = self.get_cache_key(request, None)
-        locked = self.cache.get(key + "_locked", False)
-        if locked:
-            self.cache.delete(key + "_locked")
-            self.cache.delete(key)
-
-            throt, _ = Throttle.objects.get_or_create(throttle_key=key)
-            # TODO Log when we see a new user with same ip?
-            throt.locked = False
-            throt.ident = self.get_ident(request)
-            if request.user.is_authenticated:
-                throt.user = request.user
-            throt.captchas_completed = throt.captchas_completed + 1
-            throt.save()
-            return throt
-        else:
-            return True
-
     # To not reveal cool down time in details
     def wait(self):
         return None
@@ -117,11 +94,6 @@ class UserBurstRateThrottle(UserCaptchaThrottle):
 
 class UserSustainedRateThrottle(UserCaptchaThrottle):
     scope = "user.sustained"
-
-
-def captcha_unlock(request):
-    UserSustainedRateThrottle().captcha_complete(request)
-    UserBurstRateThrottle().captcha_complete(request)
 
 
 class FeedRecommendationRefreshThrottle(UserRateThrottle):
