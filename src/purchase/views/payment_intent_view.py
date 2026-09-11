@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from purchase.models import Fundraise
+from purchase.models import FundingPool, Fundraise
 from purchase.related_models.payment_model import Payment
 from purchase.serializers.payment_intent_serializer import PaymentIntentSerializer
 from purchase.services.fundraise_service import FundraiseService
@@ -40,6 +40,7 @@ class PaymentIntentView(APIView):
         data = serializer.validated_data
         rsc_amount = data.get("amount")
         fundraise_id = data.get("fundraise_id")
+        funding_pool_id = data.get("funding_pool_id")
 
         # Validate fundraise if provided
         if fundraise_id is not None:
@@ -62,11 +63,27 @@ class PaymentIntentView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+        if funding_pool_id is not None:
+            try:
+                pool = FundingPool.objects.get(id=funding_pool_id)
+            except FundingPool.DoesNotExist:
+                return Response(
+                    {"message": "Funding pool does not exist"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not pool.is_valid_for_contribution:
+                return Response(
+                    {"message": "Funding pool is not open"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         try:
             payment_intent_data = self.payment_service.create_payment_intent(
                 user_id=user_id,
                 rsc_amount=rsc_amount,
                 fundraise_id=fundraise_id,
+                funding_pool_id=funding_pool_id,
             )
 
             return Response(payment_intent_data, status=status.HTTP_200_OK)

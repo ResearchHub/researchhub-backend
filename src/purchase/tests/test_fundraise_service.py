@@ -8,7 +8,15 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
-from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
+from purchase.models import (
+    Balance,
+    FundingDistribution,
+    Fundraise,
+    Grant,
+    GrantApplication,
+    Purchase,
+    RscExchangeRate,
+)
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.constants.fundraise import (
     MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
@@ -17,17 +25,21 @@ from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
+from purchase.services.funding_pool_service import FundingPoolService
 from purchase.services.fundraise_service import (
     FundraiseService,
 )
-from reputation.models import BountyFee
+from reputation.models import BountyFee, Escrow
 from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import (
+    GRANT as GRANT_DOC,
+)
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from user.related_models.user_model import User
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_random_authenticated_user, create_user
 
 
 class TestFundraiseService(APITestCase):
@@ -1083,6 +1095,162 @@ class CloseFundraiseTests(TestCase):
         # Verify USD contribution was marked as refunded
         contribution.refresh_from_db()
         self.assertTrue(contribution.is_refunded)
+
+    def test_close_fundraise_refunds_user_slices_and_restores_pool_slices(self):
+        """Mixed close: user RSC refunded; pool-sourced slice returns to FundingPool."""
+        # Arrange
+        create_user(email="bank@researchhub.com")
+        grant_creator = create_random_authenticated_user("mixed_close_grant_creator")
+        grant_post = create_post(created_by=grant_creator, document_type=GRANT_DOC)
+        grant = Grant.objects.create(
+            created_by=grant_creator,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Mixed Close Org",
+            description="Mixed close grant",
+            status=Grant.OPEN,
+        )
+        pool_service = FundingPoolService()
+        pool = pool_service.create_pool_for_grant(grant)
+
+        pool_contributor = create_random_authenticated_user("mixed_close_pool_user")
+        self._give_user_rsc_balance(pool_contributor, 1000)
+        pool_service.create_rsc_contribution(
+            pool_contributor, pool, Decimal(200), use_credits=False
+        )
+
+        applicant = create_random_authenticated_user("mixed_close_applicant")
+        proposal = create_post(created_by=applicant, document_type=PREREGISTRATION)
+        application = GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=proposal,
+            applicant=applicant,
+        )
+        fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=applicant,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+        )
+
+        distribution = pool_service.distribute(
+            pool, grant_creator, Decimal(75), application.id
+        )
+
+        user_contributor = create_random_authenticated_user("mixed_close_rsc_user")
+        self._give_user_rsc_balance(user_contributor, 1000)
+        _, user_error = self.fundraise_service.create_rsc_contribution(
+            user_contributor, fundraise, Decimal(40), use_credits=False
+        )
+        self.assertIsNone(user_error)
+        grant_creator_balance_before = grant_creator.get_available_balance()
+
+        # Act
+        result = self.fundraise_service.close_fundraise(fundraise)
+
+        # Assert
+        self.assertTrue(result)
+        fundraise.refresh_from_db()
+        fundraise.escrow.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.CLOSED)
+        self.assertEqual(fundraise.escrow.amount_holding, Decimal(0))
+
+        distribution.refresh_from_db()
+        self.assertEqual(distribution.status, FundingDistribution.REVERSED)
+
+        pool.refresh_from_db()
+        self.assertEqual(pool.amount_holding, Decimal(200))
+        self.assertEqual(pool.amount_distributed, Decimal(0))
+
+        self.assertTrue(
+            Balance.objects.filter(user=user_contributor, amount=40).exists()
+        )
+        self.assertEqual(
+            grant_creator.get_available_balance(), grant_creator_balance_before
+        )
+        self.assertEqual(
+            Balance.objects.filter(purchase=distribution.fundraise_purchase).count(),
+            0,
+        )
+        self.assertFalse(Balance.objects.filter(user=grant_creator, amount=75).exists())
+
+    def test_close_fundraise_user_then_pool_does_not_restore_escrow_holding(self):
+        """Direct refund before pool reverse must not rewrite escrow holding.
+
+        Purchase order puts the user contribution first so refund caches
+        fundraise.escrow, then pool reverse updates a separate Escrow row.
+        Closing must leave escrow at 0 with the pool fully restored.
+        """
+        # Arrange
+        create_user(email="bank@researchhub.com")
+        grant_creator = create_random_authenticated_user("close_order_grant_creator")
+        grant_post = create_post(created_by=grant_creator, document_type=GRANT_DOC)
+        grant = Grant.objects.create(
+            created_by=grant_creator,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Close Order Org",
+            description="Close order grant",
+            status=Grant.OPEN,
+        )
+        pool_service = FundingPoolService()
+        pool = pool_service.create_pool_for_grant(grant)
+
+        pool_contributor = create_random_authenticated_user("close_order_pool_user")
+        self._give_user_rsc_balance(pool_contributor, 1000)
+        pool_service.create_rsc_contribution(
+            pool_contributor, pool, Decimal(200), use_credits=False
+        )
+
+        applicant = create_random_authenticated_user("close_order_applicant")
+        proposal = create_post(created_by=applicant, document_type=PREREGISTRATION)
+        application = GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=proposal,
+            applicant=applicant,
+        )
+        fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=applicant,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+        )
+
+        # User contribution first (lower purchase id), then pool distribute
+        user_contributor = create_random_authenticated_user("close_order_rsc_user")
+        self._give_user_rsc_balance(user_contributor, 1000)
+        _, user_error = self.fundraise_service.create_rsc_contribution(
+            user_contributor, fundraise, Decimal(40), use_credits=False
+        )
+        self.assertIsNone(user_error)
+
+        distribution = pool_service.distribute(
+            pool, grant_creator, Decimal(75), application.id
+        )
+
+        # Act
+        result = self.fundraise_service.close_fundraise(fundraise)
+
+        # Assert
+        self.assertTrue(result)
+        fundraise.refresh_from_db()
+        fundraise.escrow.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.CLOSED)
+        self.assertEqual(fundraise.escrow.status, Escrow.CANCELLED)
+        self.assertEqual(fundraise.escrow.amount_holding, Decimal(0))
+
+        distribution.refresh_from_db()
+        self.assertEqual(distribution.status, FundingDistribution.REVERSED)
+
+        pool.refresh_from_db()
+        self.assertEqual(pool.amount_holding, Decimal(200))
+        self.assertEqual(pool.amount_distributed, Decimal(0))
+
+        self.assertTrue(
+            Balance.objects.filter(user=user_contributor, amount=40).exists()
+        )
 
 
 class CreateUsdContributionTests(TestCase):

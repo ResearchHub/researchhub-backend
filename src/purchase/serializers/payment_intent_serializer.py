@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from purchase.related_models.constants import MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.fundraise_model import Fundraise
 
 
@@ -8,8 +9,8 @@ class PaymentIntentSerializer(serializers.Serializer):
     """
     Serializer for RSC purchase payment intent creation.
 
-    Optionally accepts a fundraise_id to automatically contribute
-    the purchased RSC to a fundraise once the payment is processed.
+    Optionally accepts a fundraise_id or funding_pool_id (mutually exclusive)
+    to automatically contribute the purchased RSC once the payment is processed.
     """
 
     amount = serializers.DecimalField(
@@ -22,6 +23,11 @@ class PaymentIntentSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         help_text="Optional fundraise ID to auto-contribute to after purchase",
+    )
+    funding_pool_id = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Optional funding pool ID to auto-contribute to after purchase",
     )
 
     def validate_fundraise_id(self, value):
@@ -43,6 +49,22 @@ class PaymentIntentSerializer(serializers.Serializer):
 
         return value
 
+    def validate_funding_pool_id(self, value):
+        if value is None:
+            return value
+
+        try:
+            pool = FundingPool.objects.get(id=value)
+        except FundingPool.DoesNotExist:
+            raise serializers.ValidationError("Funding pool not found.")
+
+        if not pool.is_valid_for_contribution:
+            raise serializers.ValidationError(
+                "Funding pool is not open for contributions."
+            )
+
+        return value
+
     def validate(self, attrs):
         amount = attrs.get("amount")
 
@@ -50,6 +72,13 @@ class PaymentIntentSerializer(serializers.Serializer):
         if amount <= 0:
             raise serializers.ValidationError(
                 {"amount": "Amount must be greater than zero."}
+            )
+
+        fundraise_id = attrs.get("fundraise_id")
+        funding_pool_id = attrs.get("funding_pool_id")
+        if fundraise_id is not None and funding_pool_id is not None:
+            raise serializers.ValidationError(
+                "fundraise_id and funding_pool_id are mutually exclusive."
             )
 
         return attrs

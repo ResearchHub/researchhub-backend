@@ -90,6 +90,7 @@ class NoteViewSet(ModelViewSet):
                 "preregistration_settings",
                 "preregistration_settings__nonprofit",
                 "selected_grant",
+                "selected_grant__funding_pool",
                 "unified_document",
             )
             .prefetch_related(

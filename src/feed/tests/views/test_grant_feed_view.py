@@ -159,6 +159,7 @@ class GrantFeedViewTests(APITestCase):
         self.assertIn("organization", grant_data)
         self.assertIn("amount", grant_data)
         self.assertIn("is_expired", grant_data)
+        self.assertIn("funding_pool", grant_data)
 
     def test_grant_feed_organization_field(self):
         """Test that the organization field is correctly populated"""
