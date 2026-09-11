@@ -9,7 +9,15 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
+from research_ai.models import (
+    AgentConversation,
+    AgentExecution,
+    Expert,
+    ExpertSearch,
+    LLMUsageEvent,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.services.agent import AgentService, ProviderError, Toolset
 from research_ai.services.agent.model_catalog import ModelOption
 from research_ai.services.agent.types import (
@@ -336,8 +344,104 @@ class AtomicAdmissionTests(TransactionTestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("budget-concurrent")
 
-    def test_concurrent_jobs_cannot_share_the_same_budget_snapshot(self):
+    def _execution(self, *, status=AgentExecution.Status.PENDING, user=None, **kwargs):
+        conversation = AgentConversation.objects.create(
+            user=user or self.user, workflow="notebook_chat"
+        )
+        return AgentExecution.objects.create(
+            conversation=conversation, status=status, attempt=1, **kwargs
+        )
+
+    def test_five_jobs_are_admitted_and_the_sixth_is_rejected(self):
+        # Arrange / Act
+        for _ in range(5):
+            with atomic_turn_admission(self.user):
+                self._execution()
+
+        # Assert
+        with (
+            self.assertRaisesMessage(UsageWorkInProgressError, "At most 5"),
+            atomic_turn_admission(self.user),
+        ):
+            self._execution()
+        self.assertEqual(AgentExecution.objects.count(), 5)
+
+    def test_other_users_jobs_do_not_consume_slots(self):
         # Arrange
+        other = create_random_authenticated_user("budget-other")
+        for _ in range(5):
+            self._execution(user=other)
+
+        # Act / Assert
+        with atomic_turn_admission(self.user):
+            self._execution()
+
+    def test_terminal_jobs_do_not_consume_slots(self):
+        # Arrange
+        for _ in range(4):
+            self._execution()
+        for execution_status in (
+            AgentExecution.Status.SUCCEEDED,
+            AgentExecution.Status.FAILED,
+            AgentExecution.Status.INTERRUPTED,
+            AgentExecution.Status.CANCELLED,
+        ):
+            self._execution(status=execution_status)
+
+        # Act / Assert
+        with atomic_turn_admission(self.user):
+            self._execution()
+
+    def test_proposal_and_its_trace_consume_only_one_slot(self):
+        # Arrange
+        for _ in range(3):
+            self._execution()
+        trace = self._execution(status=AgentExecution.Status.RUNNING)
+        search = ExpertSearch.objects.create(created_by=self.user, query="enzymes")
+        expert = SearchExpert.objects.create(
+            expert_search=search,
+            expert=Expert.objects.create(email="slots@example.edu"),
+        )
+        ProposalDraft.objects.create(
+            created_by=self.user,
+            search_expert=expert,
+            agent_conversation=trace.conversation,
+            status=ProposalDraft.Status.PROCESSING,
+        )
+
+        # Act: three chats and one traced draft leave one slot.
+        with atomic_turn_admission(self.user):
+            self._execution()
+
+        # Assert: the draft also counts towards the shared limit.
+        with (
+            self.assertRaises(UsageWorkInProgressError),
+            atomic_turn_admission(self.user),
+        ):
+            pass
+
+    def test_exhausted_budget_rejects_a_job_even_with_free_slots(self):
+        # Arrange
+        self._execution()
+        LLMUsageEvent.objects.create(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model="deepseek/deepseek-v4-flash-0731",
+            cost_microusd=250_000,
+        )
+
+        # Act / Assert
+        with (
+            self.assertRaises(UsageLimitExceededError),
+            atomic_turn_admission(self.user),
+        ):
+            pass
+
+    def test_concurrent_jobs_cannot_both_take_the_last_slot(self):
+        # Arrange
+        for _ in range(4):
+            self._execution()
         first_created = Event()
         second_started = Event()
         allow_first_commit = Event()
@@ -400,6 +504,8 @@ class AtomicAdmissionTests(TransactionTestCase):
     def test_cancelled_call_blocks_admission_until_its_reservation_is_released(self):
         # Arrange: cancellation is visible immediately, but the provider call
         # that was already in flight has not returned to its worker yet.
+        for _ in range(4):
+            self._execution()
         conversation = AgentConversation.objects.create(
             user=self.user,
             workflow="notebook_chat",
@@ -426,6 +532,8 @@ class AtomicAdmissionTests(TransactionTestCase):
 
     def test_expired_cancelled_call_does_not_block_admission(self):
         # Arrange: the worker died and stopped renewing this lease.
+        for _ in range(4):
+            self._execution()
         conversation = AgentConversation.objects.create(
             user=self.user,
             workflow="notebook_chat",

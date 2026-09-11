@@ -145,6 +145,16 @@ class AgentExecutionLivenessTests(TestCase):
 
     def test_a_reclaimed_turn_frees_admission_and_the_conversation(self):
         # Arrange
+        for _ in range(4):
+            conversation = AgentConversation.objects.create(
+                user=self.user, workflow="notebook_chat"
+            )
+            AgentExecution.objects.create(
+                conversation=conversation,
+                status=AgentExecution.Status.RUNNING,
+                attempt=1,
+                usage_reservation_expires_at=self.live,
+            )
         execution = self._claimed_turn(lease=self.lapsed).execution
         with (
             self.assertRaises(UsageWorkInProgressError),

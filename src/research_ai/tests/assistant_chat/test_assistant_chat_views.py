@@ -174,7 +174,7 @@ class AssistantChatViewTests(APITestCase):
         # Assert
         self.assertEqual(second.status_code, 409)
 
-    def test_busy_notebook_chat_blocks_the_assistant_chat(self):
+    def test_notebook_and_assistant_chats_share_five_slots(self):
         # Arrange: budget admission is per user, across workflows.
         self.client.force_authenticate(self.owner)
         note, _content = create_note(self.owner, organization=None)
@@ -183,7 +183,11 @@ class AssistantChatViewTests(APITestCase):
             NotebookChatService().submit_message(note, notebook_chat, "Busy")
         chat_id = self._create_chat_id()
 
-        # Act
+        # Act: four assistant chats fit alongside the notebook chat.
+        for _ in range(4):
+            response, _delay = self._post_message(chat_id)
+            self.assertEqual(response.status_code, 202)
+            chat_id = self._create_chat_id()
         response, _delay = self._post_message(chat_id)
 
         # Assert

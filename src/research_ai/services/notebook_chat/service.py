@@ -2,8 +2,8 @@
 
 A user can keep any number of chats on a note, workflow ``notebook_chat``.
 Each chat is its own ``AgentConversation`` -- resolved by id, never by
-position -- with its own context lineage and its own busy check. Budgeted users
-may still have only one spend-producing job in flight across all chats. A turn
+position -- with its own context lineage and its own busy check. Budget admission
+limits the user's total in-flight jobs across chats and proposal drafts. A turn
 is split across two processes:
 
 - ``submit_message`` (request path) resolves the conversation, appends the
