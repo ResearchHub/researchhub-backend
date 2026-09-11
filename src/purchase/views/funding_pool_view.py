@@ -9,6 +9,7 @@ from purchase.models import FundingPool
 from purchase.serializers.funding_pool_serializer import (
     DynamicFundingPoolSerializer,
     FundingPoolContributionSerializer,
+    FundingPoolDistributeSerializer,
 )
 from purchase.services.funding_pool_service import FundingPoolService
 from user.related_models.follow_model import Follow
@@ -49,6 +50,14 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
         }
         return context
 
+    def _get_pool_or_error(self, pk):
+        try:
+            return FundingPool.objects.select_related("grant").get(id=pk), None
+        except FundingPool.DoesNotExist:
+            return None, Response(
+                {"message": "Funding pool does not exist"}, status=400
+            )
+
     @track_event
     @action(
         methods=["POST"],
@@ -60,21 +69,20 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
         input_serializer.is_valid(raise_exception=True)
         validated = input_serializer.validated_data
 
+        pool, error_response = self._get_pool_or_error(kwargs.get("pk"))
+        if error_response:
+            return error_response
+
         try:
-            pool = FundingPool.objects.get(id=kwargs.get("pk"))
-        except FundingPool.DoesNotExist:
-            return Response({"message": "Funding pool does not exist"}, status=400)
-
-        _, error = self.funding_pool_service.create_contribution(
-            user=request.user,
-            pool=pool,
-            amount=validated["amount"],
-            currency=validated["amount_currency"],
-            use_credits=validated["use_credits"],
-        )
-
-        if error:
-            return Response({"message": error}, status=400)
+            self.funding_pool_service.create_contribution(
+                user=request.user,
+                pool=pool,
+                amount=validated["amount"],
+                currency=validated["amount_currency"],
+                use_credits=validated["use_credits"],
+            )
+        except ValueError as error:
+            return Response({"message": str(error)}, status=400)
 
         # Let the contributor follow the grant document when present
         grant = pool.grant
@@ -85,6 +93,40 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
                 object_id=document.id,
                 content_type=ContentType.objects.get_for_model(document),
             )
+
+        pool.refresh_from_db()
+        context = self.get_serializer_context()
+        serializer = self.get_serializer(pool, context=context)
+        return Response(serializer.data)
+
+    @track_event
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsAuthenticated],
+    )
+    def distribute(self, request, *args, **kwargs):
+        input_serializer = FundingPoolDistributeSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        validated = input_serializer.validated_data
+
+        pool, error_response = self._get_pool_or_error(kwargs.get("pk"))
+        if error_response:
+            return error_response
+
+        grant = pool.grant
+        if request.user != grant.created_by and not request.user.moderator:
+            return Response({"message": "Permission denied"}, status=403)
+
+        try:
+            self.funding_pool_service.distribute(
+                pool=pool,
+                distributed_by=request.user,
+                amount=validated["amount"],
+                application_id=validated["application_id"],
+            )
+        except ValueError as error:
+            return Response({"message": str(error)}, status=400)
 
         pool.refresh_from_db()
         context = self.get_serializer_context()

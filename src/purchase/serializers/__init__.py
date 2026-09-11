@@ -3,6 +3,7 @@ from .funding_overview_serializer import FundingOverviewSerializer
 from .funding_pool_serializer import (
     DynamicFundingPoolSerializer,
     FundingPoolContributionSerializer,
+    FundingPoolDistributeSerializer,
 )
 from .fundraise_create_serializer import FundraiseCreateSerializer
 from .fundraise_serializer import DynamicFundraiseSerializer, FundraiseSerializer
@@ -26,6 +27,7 @@ __all__ = [
     "DynamicPurchaseSerializer",
     "FundingOverviewSerializer",
     "FundingPoolContributionSerializer",
+    "FundingPoolDistributeSerializer",
     "FundraiseCreateSerializer",
     "FundraiseSerializer",
     "GrantCreateSerializer",
