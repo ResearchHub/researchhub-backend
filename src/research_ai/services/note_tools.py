@@ -187,6 +187,9 @@ class NoteToolset:
                     "delete one. Indices refer to the `blocks` map from "
                     "read_note; all edits in one call apply together against "
                     "that same numbering, so they never shift each other. "
+                    "Call edit_note directly, including retries; it is not "
+                    "available inside code_execution. Pass edits as an actual "
+                    "array of operation objects, never a JSON-encoded string. "
                     "Pass the version_id from your latest read_note or "
                     "edit_note result as expected_version_id; the edit is "
                     "rejected as stale if the note changed since. "
@@ -207,8 +210,10 @@ class NoteToolset:
                         "expected_version_id": {
                             "type": ["integer", "null"],
                             "description": (
-                                "version_id from read_note. Pass null only if "
-                                "read_note reported no version."
+                                "version_id from the latest read_note or "
+                                "edit_note result. Pass null for a freshly "
+                                "created note when create_note or read_note "
+                                "reported no version."
                             ),
                         },
                         "edits": {
@@ -216,7 +221,10 @@ class NoteToolset:
                             "minItems": 1,
                             "description": (
                                 "Operations on the block indices you read, "
-                                "applied as one batch."
+                                "applied as one batch. Supply an array, not a "
+                                "string containing JSON. Example: "
+                                '[{"op": "insert", "at": 0, '
+                                '"blocks": ["Paragraph text"]}]'
                             ),
                             "items": {
                                 "type": "object",
@@ -402,7 +410,14 @@ class NoteToolset:
                     except ValueError as exc:
                         raise ValueError(f"edits[{index}]: {exc}") from exc
         except ValueError as exc:
-            return {"error": str(exc)}
+            return {
+                "error": (
+                    f"{exc}. No edits were saved by this call. "
+                    "Correct the arguments and retry edit_note directly with "
+                    "the intended content and the same expected_version_id; "
+                    "edit_note is not available inside code_execution."
+                )
+            }
 
         expected = input.get("expected_version_id")
         try:

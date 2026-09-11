@@ -442,6 +442,45 @@ class NoteToolsetTests(TestCase):
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, self.content.id)
 
+    def test_edit_note_recovers_from_encoded_edits_without_partial_save(self):
+        # Arrange
+        edits = _insert(["Intended paragraph"])
+        version_count = NoteContent.objects.filter(note=self.note).count()
+        args = {
+            "note_id": self.note.id,
+            "expected_version_id": self.content.id,
+            "edits": json.dumps(edits),
+        }
+
+        # Act
+        rejected, _ = self.toolset.dispatch(EDIT_NOTE, args)
+
+        # Assert: rejection preserves the version, so a corrected call can retry.
+        self.assertIn("not a JSON string", rejected["error"])
+        self.assertIn("No edits were saved", rejected["error"])
+        self.assertIn("retry edit_note directly", rejected["error"])
+        self.assertIn("not available inside code_execution", rejected["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version_id, self.content.id)
+        self.assertEqual(
+            NoteContent.objects.filter(note=self.note).count(), version_count
+        )
+
+        # Act
+        saved, _ = self.toolset.dispatch(EDIT_NOTE, {**args, "edits": edits})
+
+        # Assert
+        self.assertTrue(saved["saved"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version_id, saved["version_id"])
+        self.assertEqual(
+            NoteContent.objects.filter(note=self.note).count(), version_count + 1
+        )
+        document = json.loads(self.note.latest_version.json)
+        self.assertEqual(
+            document["content"][0]["content"][0]["text"], "Intended paragraph"
+        )
+
     def test_edit_note_rejects_stale_version(self):
         # Arrange: another writer saved a version after our read.
         newer, _ = self.toolset.dispatch(
