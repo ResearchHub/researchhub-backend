@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from hub.models import Hub
@@ -9,6 +10,7 @@ from paper.models import Paper
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers import DynamicPurchaseSerializer
+from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub_document.related_models.constants import document_type
@@ -1136,11 +1138,29 @@ class RelatedWorkSerializer(serializers.Serializer):
         if num_applicants is None:
             num_applicants = grant.applications.count()
 
+        try:
+            pool = grant.funding_pool
+        except ObjectDoesNotExist:
+            funding_pool = None
+        else:
+            funding_pool = DynamicFundingPoolSerializer(
+                pool,
+                context=self.context,
+                _include_fields=(
+                    "id",
+                    "amount_holding",
+                    "amount_distributed",
+                    "amount_raised",
+                    "status",
+                ),
+            ).data
+
         return {
             "status": grant.status,
             "amount": _grant_amount(grant),
             "organization": grant.organization,
             "application_count": num_applicants,
+            "funding_pool": funding_pool,
         }
 
     def get_fundraise(self, unified_document):
