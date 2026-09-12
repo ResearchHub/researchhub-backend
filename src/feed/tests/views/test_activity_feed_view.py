@@ -191,6 +191,13 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
             status=Grant.OPEN,
             organization="Test Org",
         )
+        self.funding_pool = FundingPool.objects.create(
+            grant=self.grant,
+            created_by=self.user,
+            amount_holding=Decimal("100.00"),
+            amount_distributed=Decimal("25.00"),
+            status=FundingPool.OPEN,
+        )
         self.fundraise = Fundraise.objects.create(
             unified_document=self.prereg_doc,
             created_by=self.user,
@@ -236,6 +243,14 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         self.assertIn("amount", related_work["grant"])
         self.assertEqual(related_work["grant"]["amount"]["usd"], 10000.0)
         self.assertIn("application_count", related_work["grant"])
+        self.assertIn("funding_pool", related_work["grant"])
+        funding_pool = related_work["grant"]["funding_pool"]
+        self.assertEqual(funding_pool["id"], self.funding_pool.id)
+        self.assertEqual(funding_pool["status"], FundingPool.OPEN)
+        self.assertEqual(float(funding_pool["amount_holding"]["rsc"]), 100.0)
+        self.assertEqual(float(funding_pool["amount_distributed"]["rsc"]), 25.0)
+        self.assertEqual(float(funding_pool["amount_raised"]["rsc"]), 125.0)
+        self.assertEqual(funding_pool["amount_holding"]["usd"], 300.0)
 
     def test_related_work_on_prereg_comment(self):
         # Act
