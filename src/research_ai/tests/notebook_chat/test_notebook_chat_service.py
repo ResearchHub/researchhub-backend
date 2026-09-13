@@ -394,9 +394,12 @@ class NotebookChatServiceTests(TestCase):
         with self.assertRaises(AgentConversationBusyError):
             self.service.submit_message(self.note, self.conversation, "again")
 
-    def test_busy_chat_blocks_the_users_other_chats_while_budgeted(self):
-        # Arrange: a turn is pending on the first chat.
+    def test_five_busy_chats_block_the_users_next_chat(self):
+        # Arrange
         self._submit()
+        for _ in range(4):
+            conversation = self.service.create_conversation(self.note, self.user)
+            self._submit(conversation=conversation)
         second = self.service.create_conversation(self.note, self.user)
 
         # Act / Assert
@@ -440,8 +443,8 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(lost.status, AgentExecution.Status.FAILED)
 
     def test_submit_message_replaces_a_draft_whose_worker_was_lost(self):
-        # Arrange: the user's proposal draft died mid-run; it, too, holds the
-        # user's single budget slot.
+        # Arrange: the user's proposal draft died mid-run; it, too, holds
+        # one of the user's budget slots.
         search_expert = SearchExpert.objects.create(
             expert_search=ExpertSearch.objects.create(
                 created_by=self.user, query="protein folding"

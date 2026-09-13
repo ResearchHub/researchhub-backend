@@ -9,7 +9,15 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from research_ai.models import AgentConversation, AgentExecution, Expert, LLMUsageEvent
+from research_ai.models import (
+    AgentConversation,
+    AgentExecution,
+    Expert,
+    ExpertSearch,
+    LLMUsageEvent,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.services.agent import AgentService, ProviderError, Toolset
 from research_ai.services.agent.model_catalog import ModelOption
 from research_ai.services.agent.types import (
@@ -128,19 +136,50 @@ class UsageBudgetTests(TestCase):
             {"daily_limit": "250", "used": "1.65", "remaining": "248.35"},
         )
 
-    def test_admission_raises_when_daily_turn_cap_is_spent(self):
-        # Arrange
+    def test_admission_allows_many_cheap_calls_for_each_tier(self):
+        # Arrange: exceed even the former privileged-tier cap for little cost.
         LLMUsageEvent.objects.bulk_create(
             [
                 LLMUsageEvent(
                     user=self.user,
                     feature="notebook_chat",
                     provider="openrouter",
-                    model="deepseek/deepseek-v4-pro-0813",
+                    model="deepseek/deepseek-v4-flash-0731",
                     cost_microusd=1,
                 )
-                for _ in range(10)
+                for _ in range(2001)
             ]
+        )
+        for tier in ("default", "invited", "privileged"):
+            with self.subTest(tier=tier):
+                # Arrange
+                if tier == "invited":
+                    Expert.objects.create(
+                        email=self.user.email, registered_user=self.user
+                    )
+                elif tier == "privileged":
+                    self.user.moderator = True
+                    self.user.save(update_fields=["moderator"])
+
+                # Act
+                status = check_turn_admission(
+                    self.user, self.MODEL, effort="none", thinking="disabled"
+                )
+
+                # Assert
+                self.assertEqual(status.tier, tier)
+                self.assertEqual(status.turns_used, 2001)
+                self.assertIsNone(status.turn_cap)
+                self.assertFalse(status.exhausted)
+
+    def test_admission_rejects_exhausted_budget_without_turn_cap(self):
+        # Arrange
+        LLMUsageEvent.objects.create(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model="deepseek/deepseek-v4-flash-0731",
+            cost_microusd=250_000,
         )
 
         # Act / Assert
@@ -148,7 +187,8 @@ class UsageBudgetTests(TestCase):
             check_turn_admission(
                 self.user, self.MODEL, effort="none", thinking="disabled"
             )
-        self.assertEqual(raised.exception.status.turns_used, 10)
+        self.assertIsNone(raised.exception.status.turn_cap)
+        self.assertEqual(raised.exception.status.remaining_microusd, 0)
 
     def test_default_tier_rejects_locked_model(self):
         with self.assertRaisesRegex(ValueError, "not allowed"):
@@ -247,18 +287,13 @@ class AgentLoopBudgetRecorderTests(TestCase):
         self.assertGreater(execution.usage_reservation_expires_at, old_expiry)
 
     def test_discarded_attempt_is_charged_before_retry_admission(self):
-        # Arrange: nine earlier calls leave one turn in the default tier.
-        LLMUsageEvent.objects.bulk_create(
-            [
-                LLMUsageEvent(
-                    user=self.user,
-                    feature="notebook_chat",
-                    provider="openrouter",
-                    model="deepseek/deepseek-v4-pro-0813",
-                    cost_microusd=1,
-                )
-                for _ in range(9)
-            ]
+        # Arrange: prior usage leaves one microdollar in the daily budget.
+        LLMUsageEvent.objects.create(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model="deepseek/deepseek-v4-pro-0813",
+            cost_microusd=249_999,
         )
         execution = self._execution(
             status=AgentExecution.Status.RUNNING,
@@ -266,14 +301,14 @@ class AgentLoopBudgetRecorderTests(TestCase):
         )
         recorder = self._recorder(execution)
 
-        # Act: the completed first attempt consumes the last turn before the
+        # Act: the completed first attempt consumes the remaining budget before the
         # provider asks whether it may make its internal retry.
         recorder.record_usage(TurnUsage(input_tokens=10, output_tokens=2))
 
         # Assert
         with self.assertRaises(BudgetExceededError):
             recorder.before_model_call()
-        self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 10)
+        self.assertEqual(LLMUsageEvent.objects.filter(user=self.user).count(), 2)
 
     def test_stream_activity_leaves_the_lease_to_the_heartbeat(self):
         # Arrange: liveness is the worker heartbeat's job, so a burst of stream
@@ -309,8 +344,104 @@ class AtomicAdmissionTests(TransactionTestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("budget-concurrent")
 
-    def test_concurrent_jobs_cannot_share_the_same_budget_snapshot(self):
+    def _execution(self, *, status=AgentExecution.Status.PENDING, user=None, **kwargs):
+        conversation = AgentConversation.objects.create(
+            user=user or self.user, workflow="notebook_chat"
+        )
+        return AgentExecution.objects.create(
+            conversation=conversation, status=status, attempt=1, **kwargs
+        )
+
+    def test_five_jobs_are_admitted_and_the_sixth_is_rejected(self):
+        # Arrange / Act
+        for _ in range(5):
+            with atomic_turn_admission(self.user):
+                self._execution()
+
+        # Assert
+        with (
+            self.assertRaisesMessage(UsageWorkInProgressError, "At most 5"),
+            atomic_turn_admission(self.user),
+        ):
+            self._execution()
+        self.assertEqual(AgentExecution.objects.count(), 5)
+
+    def test_other_users_jobs_do_not_consume_slots(self):
         # Arrange
+        other = create_random_authenticated_user("budget-other")
+        for _ in range(5):
+            self._execution(user=other)
+
+        # Act / Assert
+        with atomic_turn_admission(self.user):
+            self._execution()
+
+    def test_terminal_jobs_do_not_consume_slots(self):
+        # Arrange
+        for _ in range(4):
+            self._execution()
+        for execution_status in (
+            AgentExecution.Status.SUCCEEDED,
+            AgentExecution.Status.FAILED,
+            AgentExecution.Status.INTERRUPTED,
+            AgentExecution.Status.CANCELLED,
+        ):
+            self._execution(status=execution_status)
+
+        # Act / Assert
+        with atomic_turn_admission(self.user):
+            self._execution()
+
+    def test_proposal_and_its_trace_consume_only_one_slot(self):
+        # Arrange
+        for _ in range(3):
+            self._execution()
+        trace = self._execution(status=AgentExecution.Status.RUNNING)
+        search = ExpertSearch.objects.create(created_by=self.user, query="enzymes")
+        expert = SearchExpert.objects.create(
+            expert_search=search,
+            expert=Expert.objects.create(email="slots@example.edu"),
+        )
+        ProposalDraft.objects.create(
+            created_by=self.user,
+            search_expert=expert,
+            agent_conversation=trace.conversation,
+            status=ProposalDraft.Status.PROCESSING,
+        )
+
+        # Act: three chats and one traced draft leave one slot.
+        with atomic_turn_admission(self.user):
+            self._execution()
+
+        # Assert: the draft also counts towards the shared limit.
+        with (
+            self.assertRaises(UsageWorkInProgressError),
+            atomic_turn_admission(self.user),
+        ):
+            pass
+
+    def test_exhausted_budget_rejects_a_job_even_with_free_slots(self):
+        # Arrange
+        self._execution()
+        LLMUsageEvent.objects.create(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model="deepseek/deepseek-v4-flash-0731",
+            cost_microusd=250_000,
+        )
+
+        # Act / Assert
+        with (
+            self.assertRaises(UsageLimitExceededError),
+            atomic_turn_admission(self.user),
+        ):
+            pass
+
+    def test_concurrent_jobs_cannot_both_take_the_last_slot(self):
+        # Arrange
+        for _ in range(4):
+            self._execution()
         first_created = Event()
         second_started = Event()
         allow_first_commit = Event()
@@ -373,6 +504,8 @@ class AtomicAdmissionTests(TransactionTestCase):
     def test_cancelled_call_blocks_admission_until_its_reservation_is_released(self):
         # Arrange: cancellation is visible immediately, but the provider call
         # that was already in flight has not returned to its worker yet.
+        for _ in range(4):
+            self._execution()
         conversation = AgentConversation.objects.create(
             user=self.user,
             workflow="notebook_chat",
@@ -399,6 +532,8 @@ class AtomicAdmissionTests(TransactionTestCase):
 
     def test_expired_cancelled_call_does_not_block_admission(self):
         # Arrange: the worker died and stopped renewing this lease.
+        for _ in range(4):
+            self._execution()
         conversation = AgentConversation.objects.create(
             user=self.user,
             workflow="notebook_chat",

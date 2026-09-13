@@ -24,6 +24,7 @@ from purchase.serializers.fundraise_create_serializer import FundraiseCreateSeri
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from purchase.services.funding_pool_service import FundingPoolService
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
 from researchhub.settings import TESTING
@@ -223,6 +224,7 @@ class ResearchhubPostViewSet(
                     "note__grant_settings",
                     "note__preregistration_settings__nonprofit",
                     "note__selected_grant",
+                    "note__selected_grant__funding_pool",
                     "unified_document",
                 )
                 .prefetch_related(
@@ -232,14 +234,21 @@ class ResearchhubPostViewSet(
                     "note__selected_grant__unified_document__posts",
                     Prefetch(
                         "grant_applications",
-                        queryset=GrantApplication.objects.select_related("grant"),
+                        queryset=GrantApplication.objects.select_related(
+                            "grant", "grant__funding_pool"
+                        ),
                     ),
                     Prefetch(
                         "unified_document__proposal_reviews",
                         queryset=ProposalReview.objects.filter(
                             grant__isnull=False,
                         )
-                        .select_related("grant", "unified_document", "key_insight")
+                        .select_related(
+                            "grant",
+                            "grant__funding_pool",
+                            "unified_document",
+                            "key_insight",
+                        )
                         .prefetch_related(
                             "unified_document__"
                             "ai_peer_review_editorial_feedback__categories",
@@ -491,6 +500,8 @@ class ResearchhubPostViewSet(
                     else:
                         grant.contacts.clear()
 
+                    FundingPoolService().create_pool_for_grant(grant)
+
                     # Trusted users skip the grant moderation queue.
                     if risk_score_service.is_trusted(created_by):
                         GrantModerationService().approve_grant(grant, created_by)
@@ -576,6 +587,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_pool",
                     ],
                 ).data
                 if grant
@@ -754,6 +766,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_pool",
                     ],
                 ).data
                 if grant

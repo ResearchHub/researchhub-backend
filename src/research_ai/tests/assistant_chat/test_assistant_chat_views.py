@@ -36,15 +36,12 @@ class AssistantChatViewTests(APITestCase):
             password="password",
             email="other@researchhub_test.com",
         )
-        # Neither editor nor moderator: exercises the rollout gate.
+        # Neither editor nor moderator: verifies regular user access.
         self.regular_user = user_model.objects.create_user(
             username="regular@researchhub_test.com",
             password="password",
             email="regular@researchhub_test.com",
         )
-        for user in (self.owner, self.other):
-            user.moderator = True
-            user.save(update_fields=["moderator"])
 
     def _chat_url(self, conversation_id):
         return f"{CHATS_URL}{conversation_id}/"
@@ -79,7 +76,7 @@ class AssistantChatViewTests(APITestCase):
         self.assertEqual(response.data["executions"], [])
         self.assertEqual(response.data["notes"], [])
 
-    def test_gate_blocks_regular_users(self):
+    def test_regular_users_can_create_chats(self):
         # Arrange
         self.client.force_authenticate(self.regular_user)
 
@@ -87,7 +84,7 @@ class AssistantChatViewTests(APITestCase):
         response = self.client.post(CHATS_URL, {}, format="json")
 
         # Assert
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 201)
 
     def test_requires_authentication(self):
         # Act
@@ -177,7 +174,7 @@ class AssistantChatViewTests(APITestCase):
         # Assert
         self.assertEqual(second.status_code, 409)
 
-    def test_busy_notebook_chat_blocks_the_assistant_chat(self):
+    def test_notebook_and_assistant_chats_share_five_slots(self):
         # Arrange: budget admission is per user, across workflows.
         self.client.force_authenticate(self.owner)
         note, _content = create_note(self.owner, organization=None)
@@ -186,7 +183,11 @@ class AssistantChatViewTests(APITestCase):
             NotebookChatService().submit_message(note, notebook_chat, "Busy")
         chat_id = self._create_chat_id()
 
-        # Act
+        # Act: four assistant chats fit alongside the notebook chat.
+        for _ in range(4):
+            response, _delay = self._post_message(chat_id)
+            self.assertEqual(response.status_code, 202)
+            chat_id = self._create_chat_id()
         response, _delay = self._post_message(chat_id)
 
         # Assert

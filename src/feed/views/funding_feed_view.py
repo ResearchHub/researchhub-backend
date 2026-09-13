@@ -130,13 +130,17 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
         funded_by = self.request.query_params.get("funded_by")
 
         application_lookup = "applications"
-        annotated_grants = Grant.objects.annotate(
-            num_applicants=Count(
-                application_lookup,
-                distinct=True,
-                filter=Q(**approved_proposal_filters(application_lookup)),
+        annotated_grants = (
+            Grant.objects.annotate(
+                num_applicants=Count(
+                    application_lookup,
+                    distinct=True,
+                    filter=Q(**approved_proposal_filters(application_lookup)),
+                )
             )
-        ).prefetch_related("unified_document__posts")
+            .select_related("funding_pool")
+            .prefetch_related("unified_document__posts")
+        )
 
         grant_applications_prefetch = Prefetch(
             "grant_applications",

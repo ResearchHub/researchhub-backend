@@ -34,7 +34,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         )
         qs = qs.filter(unified_document_id__in=visible_doc_ids)
 
-        return qs.prefetch_related(
+        return qs.select_related("funding_pool").prefetch_related(
             Prefetch(
                 "proposal_reviews",
                 queryset=ProposalReview.objects.prefetch_related("key_insight__items"),
@@ -172,7 +172,10 @@ class GrantViewSet(viewsets.ModelViewSet):
         queryset = (
             Grant.objects.filter(status=Grant.PENDING)
             .select_related(
-                "created_by", "created_by__author_profile", "unified_document"
+                "created_by",
+                "created_by__author_profile",
+                "unified_document",
+                "funding_pool",
             )
             .prefetch_related("unified_document__posts")
             .order_by("-created_date")

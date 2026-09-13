@@ -17,6 +17,11 @@ from research_ai.tests.agent.persistence_test_helpers import (
     tool_turn,
 )
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    NOTE,
+    PREREGISTRATION,
+)
 
 MODEL_SETTINGS = {
     "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
@@ -93,6 +98,32 @@ class AssistantChatServiceTests(TestCase):
         self.assertEqual(self.conversation.title, "Draft a proposal outline.")
         delay.assert_called_once_with(execution.id)
 
+    def test_create_note_preserves_requested_document_type(self):
+        for document_type in (GRANT, PREREGISTRATION):
+            with self.subTest(document_type=document_type):
+                # Arrange
+                execution, _delay = self._submit()
+                title = f"Draft {document_type}"
+
+                # Act
+                self._run(
+                    execution,
+                    [
+                        tool_turn(
+                            "t1",
+                            "create_note",
+                            {"title": title, "document_type": document_type},
+                        ),
+                        text_turn("Created the draft."),
+                    ],
+                )
+
+                # Assert
+                note = Note.objects.get(title=title)
+                self.assertEqual(note.document_type, document_type)
+                self.assertEqual(note.unified_document.document_type, NOTE)
+                self.assertTrue(self.conversation.note_links.filter(note=note).exists())
+
     def test_run_turn_can_create_and_populate_a_note(self):
         # Arrange: the model creates a note, writes into it, and replies.
         execution, _delay = self._submit()
@@ -113,7 +144,14 @@ class AssistantChatServiceTests(TestCase):
         result = self._run(
             execution,
             [
-                tool_turn("t1", "create_note", {"title": "  Proposal   outline "}),
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {
+                        "title": "  Proposal   outline ",
+                        "document_type": PREREGISTRATION,
+                    },
+                ),
                 edit_the_new_note,
                 text_turn("I drafted the outline into a new note."),
             ],
@@ -125,6 +163,8 @@ class AssistantChatServiceTests(TestCase):
         self.assertEqual(result["final_text"], "I drafted the outline into a new note.")
         note = Note.objects.get(title="Proposal outline")
         self.assertEqual(note.created_by, self.user)
+        self.assertEqual(note.document_type, PREREGISTRATION)
+        self.assertEqual(note.unified_document.document_type, NOTE)
         self.assertEqual(note.organization, self.user.organization)
         self.assertEqual(json.loads(note.latest_version.json)["type"], "doc")
         self.assertEqual(note.latest_version.plain_text, "Drafted by the assistant")
@@ -150,7 +190,16 @@ class AssistantChatServiceTests(TestCase):
     def test_later_turns_see_the_created_notes_and_nothing_else(self):
         # Arrange: one note created by this chat, one the user owns otherwise.
         execution, _delay = self._submit()
-        self._run(execution, [tool_turn("t1", "create_note", {"title": "Mine"})])
+        self._run(
+            execution,
+            [
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {"title": "Mine", "document_type": PREREGISTRATION},
+                )
+            ],
+        )
         own_note = self.conversation.note_links.get().note
         other_note, _content = create_note(self.user, organization=None)
 
@@ -178,7 +227,16 @@ class AssistantChatServiceTests(TestCase):
     def test_created_note_does_not_list_the_assistant_chat_on_the_note(self):
         # Arrange
         execution, _delay = self._submit()
-        self._run(execution, [tool_turn("t1", "create_note", {"title": "Mine"})])
+        self._run(
+            execution,
+            [
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {"title": "Mine", "document_type": PREREGISTRATION},
+                )
+            ],
+        )
         note = self.conversation.note_links.get().note
 
         # Act

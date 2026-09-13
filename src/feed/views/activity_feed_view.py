@@ -80,7 +80,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
       - scope: "grants" returns all activity across every grant and
         every preregistration that applied to any grant.
         "peer_reviews" returns only peer review comments.
-        "financial" returns fundraise contribution activity
+        "financial" returns fundraise / funding-pool contribution activity
         (RSC and USD contributions), approved grant post
         feed entries, bounty payouts, and review tips.
       - document_type: PREREGISTRATION, GRANT, etc.
@@ -303,7 +303,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 ),
                 Prefetch(
                     "unified_document__grants",
-                    queryset=Grant.objects.annotate(
+                    queryset=Grant.objects.select_related("funding_pool").annotate(
                         num_applicants=Count("applications", distinct=True),
                     ),
                 ),
@@ -503,8 +503,8 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     @staticmethod
     def _filter_financial_activities(queryset):
         """
-        Return feed entries for fundraise contributions, grant post
-        publications, bounty payouts, and review tips.
+        Return feed entries for fundraise / funding-pool contributions,
+        grant post publications, bounty payouts, and review tips.
         """
         purchase_type = ContentType.objects.get_for_model(Purchase)
         usd_contribution_type = ContentType.objects.get_for_model(
@@ -513,7 +513,10 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         post_ct = ContentType.objects.get_for_model(ResearchhubPost)
         fa_ct = ContentType.objects.get_for_model(FundingActivity)
         contribution_purchase_ids = Purchase.objects.filter(
-            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION
+            purchase_type__in=[
+                Purchase.FUNDRAISE_CONTRIBUTION,
+                Purchase.FUNDING_POOL_CONTRIBUTION,
+            ]
         ).values_list("id", flat=True)
         financial_funding_activity = FundingActivity.objects.filter(
             id=OuterRef("object_id"),

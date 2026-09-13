@@ -97,11 +97,12 @@ class ReferralMetricsService:
 
         total_invited = referred_users.count()
 
-        # Active funders are those who have made at least one contribution
+        # Active funders have made at least one wallet-backed contribution.
         active_funders = (
             referred_users.filter(
                 referred__purchases__purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
                 referred__purchases__paid_status=Purchase.PAID,
+                referred__purchases__funding_distribution__isnull=True,
             )
             .distinct()
             .count()
@@ -178,6 +179,7 @@ class ReferralMetricsService:
             user=self.user,
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
             paid_status=Purchase.PAID,
+            funding_distribution__isnull=True,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
         )["total"] or Decimal(0)
@@ -192,6 +194,7 @@ class ReferralMetricsService:
             user_id__in=referred_user_ids,
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
             paid_status=Purchase.PAID,
+            funding_distribution__isnull=True,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
         )["total"] or Decimal(0)
@@ -282,6 +285,7 @@ class ReferralMetricsService:
             user=user,
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
             paid_status=Purchase.PAID,
+            funding_distribution__isnull=True,
         ).aggregate(
             total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
         )["total"] or Decimal(0)
@@ -299,11 +303,12 @@ class ReferralMetricsService:
         return float(total)
 
     def _is_active_funder(self, user):
-        """Check if a user has made any funding contributions."""
+        """Check if a user has made any wallet-backed funding contributions."""
         return Purchase.objects.filter(
             user=user,
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
             paid_status=Purchase.PAID,
+            funding_distribution__isnull=True,
         ).exists()
 
     def _get_user_profile_image(self, user):

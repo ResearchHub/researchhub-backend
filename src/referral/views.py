@@ -137,11 +137,12 @@ class AggregateReferralMetricsViewSet(viewsets.ViewSet):
         # Total referrals
         total_referrals = ReferralSignup.objects.count()
 
-        # Active referrals (those who have made contributions)
+        # Active referrals (those who have made wallet-backed contributions)
         active_referrals = (
             ReferralSignup.objects.filter(
                 referred__purchases__purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
                 referred__purchases__paid_status=Purchase.PAID,
+                referred__purchases__funding_distribution__isnull=True,
             )
             .distinct()
             .count()
@@ -166,6 +167,7 @@ class AggregateReferralMetricsViewSet(viewsets.ViewSet):
                     filter=Q(
                         referred__purchases__purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
                         referred__purchases__paid_status=Purchase.PAID,
+                        referred__purchases__funding_distribution__isnull=True,
                     ),
                 ),
             )

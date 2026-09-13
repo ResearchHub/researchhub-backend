@@ -153,7 +153,10 @@ class ModeratorFeedViewSet(FeedViewMixin, GenericViewSet):
             queryset = (
                 self._pending_grants_queryset()
                 .select_related(
-                    "created_by", "created_by__author_profile", "unified_document"
+                    "created_by",
+                    "created_by__author_profile",
+                    "unified_document",
+                    "funding_pool",
                 )
                 .prefetch_related(
                     "contacts",

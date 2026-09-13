@@ -39,6 +39,13 @@ def parse_block_edits(raw) -> list[BlockEdit]:
     can expand and schema-validate them, and index bounds wait for
     ``check_block_edits``.
     """
+    if isinstance(raw, str):
+        raise ValueError(
+            "edits must be a non-empty array of operations, not a JSON string. "
+            "Pass the array directly; do not quote or JSON-encode it. "
+            'Example: {"edits": [{"op": "insert", "at": 0, '
+            '"blocks": ["Paragraph text"]}]}'
+        )
     if not isinstance(raw, list) or not raw:
         raise ValueError(
             "edits must be a non-empty array of operations "

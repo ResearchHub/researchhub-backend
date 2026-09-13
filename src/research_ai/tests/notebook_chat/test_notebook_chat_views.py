@@ -38,18 +38,12 @@ class NotebookChatViewTests(APITestCase):
             email="outsider@researchhub_test.com",
         )
         # A collaborator on the note who is neither a hub editor nor a
-        # moderator, to exercise the rollout gate.
+        # moderator, to verify access for regular users.
         self.regular_user = user_model.objects.create_user(
             username="regular@researchhub_test.com",
             password="password",
             email="regular@researchhub_test.com",
         )
-        # The feature is gated to hub editors and moderators for now; note
-        # access is still checked separately, so the outsider is a moderator
-        # too (they must clear the gate to exercise the 404 path).
-        for user in (self.owner, self.viewer, self.outsider):
-            user.moderator = True
-            user.save(update_fields=["moderator"])
         self.note, self.content = create_note(self.owner, organization=None)
         unified_doc_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
         Permission.objects.create(
@@ -167,6 +161,8 @@ class NotebookChatViewTests(APITestCase):
     )
     def test_post_message_records_a_selected_model(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
 
@@ -182,6 +178,8 @@ class NotebookChatViewTests(APITestCase):
 
     def test_post_message_records_effort_and_thinking(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
 
@@ -215,6 +213,8 @@ class NotebookChatViewTests(APITestCase):
 
     def test_post_message_cannot_switch_the_conversation_effort(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
         first_response, _delay = self._post_message(chat_id, effort="low")
@@ -237,6 +237,8 @@ class NotebookChatViewTests(APITestCase):
     )
     def test_post_message_cannot_switch_the_conversation_model(self):
         # Arrange
+        self.owner.moderator = True
+        self.owner.save(update_fields=["moderator"])
         self.client.force_authenticate(self.owner)
         chat_id = self._create_chat_id()
         first_response, _delay = self._post_message(
@@ -311,7 +313,7 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(get_response.status_code, 404)
         self.assertEqual(post_response.status_code, 404)
 
-    def test_gate_blocks_regular_users_even_with_note_access(self):
+    def test_regular_users_can_create_and_list_chats_with_note_access(self):
         # Arrange: full note access, but neither hub editor nor moderator.
         self.client.force_authenticate(self.regular_user)
 
@@ -320,8 +322,8 @@ class NotebookChatViewTests(APITestCase):
         list_response = self.client.get(self.chats_url)
 
         # Assert
-        self.assertEqual(create_response.status_code, 403)
-        self.assertEqual(list_response.status_code, 403)
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(list_response.status_code, 200)
 
     def test_post_message_requires_authentication(self):
         # Act
@@ -356,18 +358,19 @@ class NotebookChatViewTests(APITestCase):
         # Assert
         self.assertEqual(second.status_code, 409)
 
-    def test_busy_chat_blocks_the_users_other_chats(self):
-        # Arrange: a turn is running in the first chat.
+    def test_five_busy_chats_block_the_users_next_chat(self):
+        # Arrange
         self.client.force_authenticate(self.owner)
-        busy_chat = self._create_chat_id()
-        self._post_message(busy_chat)
+        for _ in range(5):
+            busy_chat = self._create_chat_id()
+            posted, _delay = self._post_message(busy_chat)
+            self.assertEqual(posted.status_code, 202)
         other_chat = self._create_chat_id()
 
         # Act
         response, _delay = self._post_message(other_chat, "Separate thread")
 
-        # Assert: budget admission is per user so parallel chats cannot race
-        # against the same usage snapshot.
+        # Assert
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data["code"], "usage_work_in_progress")
 
@@ -424,14 +427,11 @@ class NotebookChatViewTests(APITestCase):
         )
 
     def test_cancel_idle_chat_does_not_touch_the_users_running_chat(self):
-        # Arrange: a turn is running in one chat and single-flight admission
-        # refuses a second turn in another chat.
+        # Arrange: one chat is running and another is idle.
         self.client.force_authenticate(self.owner)
         first_chat = self._create_chat_id()
         first_posted, _delay = self._post_message(first_chat)
         second_chat = self._create_chat_id()
-        second_posted, _delay = self._post_message(second_chat)
-        self.assertEqual(second_posted.status_code, 409)
 
         # Act
         response = self._cancel(second_chat)
@@ -439,6 +439,29 @@ class NotebookChatViewTests(APITestCase):
         # Assert
         self.assertFalse(response.data["cancelled"])
         self.assertIsNone(response.data["execution_id"])
+        self.assertEqual(
+            AgentExecution.objects.get(id=first_posted.data["execution_id"]).status,
+            AgentExecution.Status.PENDING,
+        )
+
+    def test_cancel_one_running_chat_leaves_another_running(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        first_chat = self._create_chat_id()
+        first_posted, _delay = self._post_message(first_chat)
+        second_chat = self._create_chat_id()
+        second_posted, _delay = self._post_message(second_chat)
+        self.assertEqual(first_posted.status_code, 202)
+        self.assertEqual(second_posted.status_code, 202)
+
+        # Act
+        response = self._cancel(second_chat)
+
+        # Assert
+        self.assertTrue(response.data["cancelled"])
+        self.assertEqual(
+            response.data["execution_id"], second_posted.data["execution_id"]
+        )
         self.assertEqual(
             AgentExecution.objects.get(id=first_posted.data["execution_id"]).status,
             AgentExecution.Status.PENDING,
@@ -495,7 +518,7 @@ class NotebookChatViewTests(APITestCase):
         )
         self.assertIsNotNone(response.data["messages"][0]["created_date"])
         self.assertEqual(len(response.data["executions"]), 1)
-        self.assertEqual(response.data["executions"][0]["effort"], "low")
+        self.assertEqual(response.data["executions"][0]["effort"], "none")
         self.assertEqual(
             response.data["executions"][0]["status"],
             AgentExecution.Status.PENDING,

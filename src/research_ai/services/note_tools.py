@@ -40,6 +40,10 @@ from research_ai.services.note_block_edits import (
     check_block_edits,
     parse_block_edits,
 )
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
 
 logger = logging.getLogger(__name__)
@@ -49,11 +53,15 @@ EDIT_NOTE = "edit_note"
 CREATE_NOTE = "create_note"
 _MAX_BLOCKS_PER_READ = 50
 _MAX_TITLE_CHARS = 255
+_CREATABLE_NOTE_TYPES = (PREREGISTRATION, GRANT)
 
 _BLOCK_FORMAT = (
     "Blocks use a compact Tiptap form: a bare string at block level is a "
     "plain paragraph; inside a block's `content`, a bare string is unmarked "
-    "text; attributes equal to the editor default are omitted."
+    "text; attributes equal to the editor default are omitted. "
+    "Reference URLs must be clickable: use text nodes with "
+    'marks: [{"type": "link", "attrs": {"href": "https://..."}}]. '
+    "Do not write Markdown link syntax into note text."
 )
 
 
@@ -62,8 +70,9 @@ class NoteToolset:
 
     ``note_ids``, when given, restricts every tool to those notes regardless
     of what else the user could access. ``note_creator``, when given, adds a
-    ``create_note`` tool: it is called with the title and must return the new
-    ``Note`` (owned by ``user``); the toolset widens ``note_ids`` to include it.
+    ``create_note`` tool: it is called with the title and document type and
+    returns the new ``Note`` (owned by ``user``); the toolset widens
+    ``note_ids`` to include it.
 
     Best-effort contract: handlers never raise; failures come back to the
     model as ``{"error": ...}`` so a bad note id or a stale edit is a turn
@@ -76,7 +85,7 @@ class NoteToolset:
         user,
         service: NoteContentService | None = None,
         note_ids: Collection[int] | None = None,
-        note_creator: Callable[[str], Note] | None = None,
+        note_creator: Callable[[str, str], Note] | None = None,
     ):
         self._user = user
         self._service = service or NoteContentService()
@@ -105,9 +114,19 @@ class NoteToolset:
                             "title": {
                                 "type": "string",
                                 "description": "A short title for the note.",
-                            }
+                            },
+                            "document_type": {
+                                "type": "string",
+                                "enum": list(_CREATABLE_NOTE_TYPES),
+                                "description": (
+                                    "GRANT for an RFP or call for proposals; "
+                                    "PREREGISTRATION for a research proposal or "
+                                    "funding application (including an RFP response). "
+                                    "Only these two document types can be created."
+                                ),
+                            },
                         },
-                        "required": ["title"],
+                        "required": ["title", "document_type"],
                     },
                     handler=self._create_note,
                 )
@@ -168,6 +187,9 @@ class NoteToolset:
                     "delete one. Indices refer to the `blocks` map from "
                     "read_note; all edits in one call apply together against "
                     "that same numbering, so they never shift each other. "
+                    "Call edit_note directly, including retries; it is not "
+                    "available inside code_execution. Pass edits as an actual "
+                    "array of operation objects, never a JSON-encoded string. "
                     "Pass the version_id from your latest read_note or "
                     "edit_note result as expected_version_id; the edit is "
                     "rejected as stale if the note changed since. "
@@ -188,8 +210,10 @@ class NoteToolset:
                         "expected_version_id": {
                             "type": ["integer", "null"],
                             "description": (
-                                "version_id from read_note. Pass null only if "
-                                "read_note reported no version."
+                                "version_id from the latest read_note or "
+                                "edit_note result. Pass null for a freshly "
+                                "created note when create_note or read_note "
+                                "reported no version."
                             ),
                         },
                         "edits": {
@@ -197,7 +221,10 @@ class NoteToolset:
                             "minItems": 1,
                             "description": (
                                 "Operations on the block indices you read, "
-                                "applied as one batch."
+                                "applied as one batch. Supply an array, not a "
+                                "string containing JSON. Example: "
+                                '[{"op": "insert", "at": 0, '
+                                '"blocks": ["Paragraph text"]}]'
                             ),
                             "items": {
                                 "type": "object",
@@ -259,8 +286,11 @@ class NoteToolset:
         title = " ".join(title.split())
         if len(title) > _MAX_TITLE_CHARS:
             return {"error": f"title must be at most {_MAX_TITLE_CHARS} characters"}
+        document_type = input.get("document_type")
+        if document_type not in _CREATABLE_NOTE_TYPES:
+            return {"error": "document_type must be PREREGISTRATION or GRANT"}
         try:
-            note = self._note_creator(title)
+            note = self._note_creator(title, document_type)
         except Exception as exc:  # noqa: BLE001 - reported to the model
             logger.exception("create_note failed for user %s", self._user.id)
             return {"error": f"could not create the note: {exc}"}
@@ -269,6 +299,7 @@ class NoteToolset:
         return {
             "note_id": note.id,
             "title": note.title,
+            "document_type": note.document_type,
             "version_id": None,
             "created": True,
         }
@@ -379,7 +410,14 @@ class NoteToolset:
                     except ValueError as exc:
                         raise ValueError(f"edits[{index}]: {exc}") from exc
         except ValueError as exc:
-            return {"error": str(exc)}
+            return {
+                "error": (
+                    f"{exc}. No edits were saved by this call. "
+                    "Correct the arguments and retry edit_note directly with "
+                    "the intended content and the same expected_version_id; "
+                    "edit_note is not available inside code_execution."
+                )
+            }
 
         expected = input.get("expected_version_id")
         try:

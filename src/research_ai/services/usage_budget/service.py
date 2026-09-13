@@ -28,6 +28,7 @@ from research_ai.services.agent.types import TurnUsage
 from research_ai.services.credit_service import credits_from_microusd
 from research_ai.services.usage_budget.config import (
     BUDGETS_ENFORCED,
+    MAX_IN_FLIGHT_JOBS_PER_USER,
     TierPolicy,
     tier_policies,
 )
@@ -238,12 +239,14 @@ def check_budget_admission(user) -> BudgetStatus:
     return status
 
 
-def _has_in_flight_work(user) -> bool:
-    """Whether a budgeted user already has spend-producing work reserved."""
+def _in_flight_job_count(user) -> int:
+    """Count top-level jobs, including cancelled calls still holding a lease."""
     now = timezone.now()
     return (
         AgentExecution.objects.filter(
             conversation__user=user,
+            # A proposal's trace belongs to the draft counted below.
+            conversation__proposal_draft__isnull=True,
         )
         .filter(
             Q(
@@ -257,8 +260,8 @@ def _has_in_flight_work(user) -> bool:
                 usage_reservation_expires_at__gt=now,
             )
         )
-        .exists()
-        or ProposalDraft.objects.filter(
+        .count()
+        + ProposalDraft.objects.filter(
             created_by=user,
         )
         .filter(
@@ -273,7 +276,7 @@ def _has_in_flight_work(user) -> bool:
                 usage_reservation_expires_at__gt=now,
             )
         )
-        .exists()
+        .count()
     )
 
 
@@ -289,15 +292,21 @@ def atomic_turn_admission(
 
     The caller must create its pending execution or draft before leaving
     this context. That row is the reservation observed by the next admission.
-    Restricting budgeted users to one in-flight top-level job keeps soft
-    enforcement's overshoot bounded to the currently running provider call.
+    The user row lock serializes admission so simultaneous requests cannot
+    exceed the job limit. Soft budget enforcement can overshoot by the
+    provider calls already in flight across the admitted jobs.
     """
     with transaction.atomic():
         locked_user = type(user)._default_manager.select_for_update().get(pk=user.pk)
         policy = resolve_ai_tier(locked_user)
-        if BUDGETS_ENFORCED and policy.is_budgeted and _has_in_flight_work(locked_user):
+        if (
+            BUDGETS_ENFORCED
+            and policy.is_budgeted
+            and _in_flight_job_count(locked_user) >= MAX_IN_FLIGHT_JOBS_PER_USER
+        ):
             raise UsageWorkInProgressError(
-                "Another Research AI request is still in progress"
+                f"At most {MAX_IN_FLIGHT_JOBS_PER_USER} Research AI requests "
+                "can be in progress at once"
             )
         status = (
             check_turn_admission(
