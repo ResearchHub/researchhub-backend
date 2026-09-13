@@ -39,7 +39,6 @@ class AutoPaymentPagination(PageNumberPagination):
 
 
 class AuditViewSet(viewsets.GenericViewSet):
-    queryset = Action.objects.all()
     permission_classes = [UserIsEditor | IsModerator]
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
@@ -53,12 +52,6 @@ class AuditViewSet(viewsets.GenericViewSet):
         )
 
     def get_queryset(self):
-        if self.action == "flagged":
-            return (
-                Flag.objects.filter(content_type__in=self._get_allowed_models())
-                .select_related("content_type")
-                .prefetch_related("verdict__created_by")
-            )
         if self.action == "auto_payments":
             return (
                 Distribution.objects.filter(
@@ -67,7 +60,11 @@ class AuditViewSet(viewsets.GenericViewSet):
                 .select_related("recipient", "recipient__author_profile")
                 .order_by("-created_date")
             )
-        return super().get_queryset()
+        return (
+            Flag.objects.filter(content_type__in=self._get_allowed_models())
+            .select_related("content_type")
+            .prefetch_related("verdict__created_by")
+        )
 
     def get_filtered_queryset(self):
         qs = self.get_queryset()

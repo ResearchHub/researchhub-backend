@@ -8,7 +8,7 @@ from discussion.constants.flag_reasons import (
 )
 from discussion.models import Flag
 from reputation.related_models.distribution import Distribution
-from user.models import Action, User
+from user.models import User
 from user.related_models.risk_score_model import RiskScoreEvent
 
 
@@ -43,12 +43,6 @@ class FlagDashboardFilter(filters.FilterSet):
             expr = f"{name}__is_content_removed"
             filters[expr] = True
         return qs.filter(**filters)
-
-
-class ActionDashboardFilter(filters.FilterSet):
-    class Meta:
-        model = Action
-        fields = ["hubs"]
 
 
 EDITOR_PAYMENT_TYPES = ["EDITOR_PAYOUT", "EDITOR_COMPENSATION"]
@@ -93,7 +87,7 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
         elif view.action == "auto_payments":
             filterset_class = AutoPaymentFilter
         else:
-            filterset_class = ActionDashboardFilter
+            return None
 
         filterset_model = filterset_class._meta.model
 
