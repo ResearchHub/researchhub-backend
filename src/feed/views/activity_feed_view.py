@@ -72,7 +72,8 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     """
     Feed of activity on documents, excluding paper/preprint-associated
     entries. Peer reviews are limited to proposals (PREREGISTRATION), except
-    on ``author_activity``, which lists every review its author wrote.
+    on ``author_activity``, which also includes reviews on other post
+    documents such as registered reports and grants.
     Entries are limited to documents the requester is allowed to see.
     These filters apply to every request.
 
@@ -335,8 +336,8 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             user__email=AI_EXPERT_EMAIL,
         )
         queryset = self._exclude_paper_documents(queryset)
-        # A profile lists every review its author wrote, including those on
-        # registered reports and grants. Discovery feeds stay proposal-only.
+        # A profile also shows reviews on registered reports and grants.
+        # Discovery feeds stay proposal-only.
         if self.action != "list_author_activity":
             queryset = self._exclude_non_proposal_peer_reviews(queryset)
 
