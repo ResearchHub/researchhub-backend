@@ -40,6 +40,7 @@ from research_ai.services.notebook_chat.grant_tools import (
 from research_ai.services.notebook_chat.researcher_profile_tools import (
     GET_RESEARCHER_PROFILE,
 )
+from research_ai.services.question_tool_service import ASK_QUESTION
 from research_ai.services.researcher_profile.openalex_tools import (
     GET_WORK_ABSTRACT,
     GET_WORK_FULLTEXT,
@@ -53,6 +54,7 @@ GET_AUTHOR = "get_author"
 GET_AUTHOR_WORKS = "get_author_works"
 
 _LABELS = {
+    ASK_QUESTION: "Asked a question",
     CREATE_NOTE: "Created a note",
     READ_NOTE: "Read the note",
     EDIT_NOTE: "Edited the note",
@@ -73,6 +75,7 @@ _LABELS = {
 # What each tool is doing while the call is still open, for the live phase.
 # Distinct from _LABELS, which reads as a completed step.
 _ACTIVE_LABELS = {
+    ASK_QUESTION: "Asking a question",
     CREATE_NOTE: "Creating a note",
     READ_NOTE: "Reading the note",
     EDIT_NOTE: "Editing the note",
@@ -100,6 +103,7 @@ _DRAFTING_LABELS = {
 # The input field per tool whose value is the user's own kind of text -- safe
 # and meaningful to echo as the event detail.
 _DETAIL_INPUT_FIELDS = {
+    ASK_QUESTION: "question",
     WEB_SEARCH: "query",
     SEARCH_GRANTS: "query",
     SEARCH_INSTITUTIONS: "query",

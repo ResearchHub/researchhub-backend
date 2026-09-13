@@ -21,6 +21,22 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 
+@dataclass(frozen=True)
+class UserInputRequest:
+    """A bounded question that ends a run until the next human message."""
+
+    question: str
+    options: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict:
+        return {"question": self.question, "options": self.options}
+
+    @property
+    def text(self) -> str:
+        """Readable fallback for chat clients without question controls."""
+        return "\n".join([self.question, *[f"- {option}" for option in self.options]])
+
+
 class StopReason(StrEnum):
     """Why a single model turn ended (provider stop reasons, normalized)."""
 

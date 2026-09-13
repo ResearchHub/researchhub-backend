@@ -1078,6 +1078,7 @@ class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
 
     message = serializers.CharField(max_length=20000)
     model = ModelSelectionField()
+    question_execution_id = serializers.IntegerField(required=False, min_value=1)
 
 
 class NotebookChatCreateSerializer(serializers.Serializer):

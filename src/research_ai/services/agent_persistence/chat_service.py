@@ -33,6 +33,18 @@ logger = logging.getLogger(__name__)
 RecorderFactory = Callable[..., DatabaseAgentRecorder]
 
 
+def execution_question(execution: AgentExecution | None) -> dict | None:
+    """Question durably published by a completed user-input turn, if any."""
+    if (
+        execution is not None
+        and execution.status == AgentExecution.Status.SUCCEEDED
+        and execution.stop_reason == "user_input"
+        and isinstance(execution.final_output, dict)
+    ):
+        return execution.final_output.get("question")
+    return None
+
+
 def _has_publishable_output(execution: AgentExecution) -> bool:
     """Report whether a successful attempt left text the chat can show.
 
@@ -357,6 +369,7 @@ class AgentChatService:
                 "retry_of_id": execution.retry_of_id,
                 "context_parent_id": execution.context_parent_id,
                 "stop_reason": execution.stop_reason,
+                "question": execution_question(execution),
                 # Progress signals. ``last_activity_at`` is the run's heartbeat
                 # -- the recorder stamps it on every durable write -- so a
                 # client can tell a turn that is working slowly from one that
@@ -384,6 +397,13 @@ class AgentChatService:
             "title": conversation.title,
             "messages": messages,
             "executions": executions,
+            # A subsequent message (even a topic change) consumes the pending
+            # question. Old questions remain on their originating executions.
+            "pending_question": (
+                {"execution_id": executions[-1]["id"], **executions[-1]["question"]}
+                if executions and executions[-1]["question"] is not None
+                else None
+            ),
         }
 
     def repair_pending_outputs(self, conversation: AgentConversation) -> None:

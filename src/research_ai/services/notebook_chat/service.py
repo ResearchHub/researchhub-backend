@@ -77,6 +77,7 @@ from research_ai.services.agent_persistence import (
 from research_ai.services.agent_persistence.activity import (
     conversation_activity_events,
 )
+from research_ai.services.agent_persistence.chat_service import execution_question
 from research_ai.services.note_tools import NoteToolset
 from research_ai.services.notebook_chat.activity import (
     PHASE_RESPONDING,
@@ -482,6 +483,7 @@ class NotebookChatService:
         effort: str | None = None,
         thinking: str | None = None,
         temperature: float | None = None,
+        question_execution_id: int | None = None,
     ) -> AgentExecution:
         """Record the user's message on ``conversation`` and schedule the turn.
 
@@ -492,6 +494,9 @@ class NotebookChatService:
         name from this message. ``model_ref`` selects the model for the first
         turn. Later turns reuse that model and effort; requesting a different
         provider, model, or effort raises ``ValueError``.
+        ``question_execution_id`` optionally correlates a reply with the latest
+        pending question; stale/foreign IDs are rejected under the conversation
+        lock. Ordinary messages may also answer a question or change direction.
         Raises ``ValueError`` on an empty or oversized message or a model not
         in the selectable catalog, and lets ``AgentConversationBusyError``
         propagate when a turn is already running on this conversation (the
@@ -535,6 +540,14 @@ class NotebookChatService:
                 .values_list("model", flat=True)
                 .first()
             )
+            if question_execution_id is not None:
+                latest = locked_conversation.executions.order_by("-attempt").first()
+                if (
+                    latest is None
+                    or latest.id != question_execution_id
+                    or execution_question(latest) is None
+                ):
+                    raise ValueError("This question is no longer awaiting an answer.")
             if (
                 conversation_model is not None
                 and selected_model is not None
@@ -599,6 +612,8 @@ class NotebookChatService:
                     configuration["effort"] = effort
                 if thinking is not None:
                     configuration["thinking"] = thinking
+                if question_execution_id is not None:
+                    configuration["question_execution_id"] = question_execution_id
 
                 prepared = self.chat.prepare_turn(
                     locked_conversation,
