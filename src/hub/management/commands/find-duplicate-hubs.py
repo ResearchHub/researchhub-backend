@@ -14,7 +14,6 @@ from discussion.models import Flag
 from feed.models import FeedEntry
 from hub.models import Hub, HubMembership
 from reputation.related_models.distribution import Distribution
-from reputation.related_models.paper_reward import HubCitationValue
 from reputation.related_models.score import AlgorithmVariables, Score
 from researchhub_document.related_models.featured_content_model import FeaturedContent
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -39,7 +38,6 @@ class Command(BaseCommand):
         "scores",
         "distributions",
         "featured_content",
-        "citation_values",
         "algorithm_vars",
         "actions",
         "feed_entries",
@@ -90,7 +88,7 @@ class Command(BaseCommand):
             help=(
                 "Comma-separated list of steps to run. "
                 "Available: documents, follows, memberships, flags, scores, "
-                "distributions, featured_content, citation_values, algorithm_vars, "
+                "distributions, featured_content, algorithm_vars, "
                 "actions, feed_entries. If not specified, all steps will run."
             ),
         )
@@ -205,7 +203,6 @@ class Command(BaseCommand):
         total_scores_updated = 0
         total_distributions_updated = 0
         total_featured_content_updated = 0
-        total_citation_values_updated = 0
         total_algorithm_vars_updated = 0
         total_actions_updated = 0
         total_feed_entries_updated = 0
@@ -262,7 +259,6 @@ class Command(BaseCommand):
                 total_scores_updated += result["scores_updated"]
                 total_distributions_updated += result["distributions_updated"]
                 total_featured_content_updated += result["featured_content_updated"]
-                total_citation_values_updated += result["citation_values_updated"]
                 total_algorithm_vars_updated += result["algorithm_vars_updated"]
                 total_actions_updated += result["actions_updated"]
                 total_feed_entries_updated += result["feed_entries_updated"]
@@ -328,12 +324,6 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(
                     self.style.WARNING(
-                        f"DRY RUN: Would update {total_citation_values_updated} "
-                        f"hub citation values"
-                    )
-                )
-                self.stdout.write(
-                    self.style.WARNING(
                         f"DRY RUN: Would update {total_algorithm_vars_updated} "
                         f"algorithm variables"
                     )
@@ -395,11 +385,6 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"Updated {total_featured_content_updated} featured content"
-                    )
-                )
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Updated {total_citation_values_updated} citation values"
                     )
                 )
                 self.stdout.write(
@@ -492,7 +477,6 @@ class Command(BaseCommand):
         scores_updated = 0
         distributions_updated = 0
         featured_content_updated = 0
-        citation_values_updated = 0
         algorithm_vars_updated = 0
         actions_updated = 0
         feed_entries_updated = 0
@@ -524,7 +508,6 @@ class Command(BaseCommand):
                 scores_updated += result["scores"]
                 distributions_updated += result["distributions"]
                 featured_content_updated += result["featured_content"]
-                citation_values_updated += result["citation_values"]
                 algorithm_vars_updated += result["algorithm_vars"]
                 actions_updated += result["actions"]
                 feed_entries_updated += result["feed_entries"]
@@ -559,7 +542,6 @@ class Command(BaseCommand):
             "scores_updated": scores_updated,
             "distributions_updated": distributions_updated,
             "featured_content_updated": featured_content_updated,
-            "citation_values_updated": citation_values_updated,
             "algorithm_vars_updated": algorithm_vars_updated,
             "actions_updated": actions_updated,
             "feed_entries_updated": feed_entries_updated,
@@ -618,35 +600,28 @@ class Command(BaseCommand):
                 duplicate_hub, primary_hub, dry_run
             )
 
-        # Step 8: Consolidate hub citation values
-        citation_count = 0
-        if "citation_values" in self.steps_to_run:
-            citation_count = self._consolidate_citation_values(
-                duplicate_hub, primary_hub, dry_run
-            )
-
-        # Step 9: Consolidate algorithm variables
+        # Step 8: Consolidate algorithm variables
         algo_count = 0
         if "algorithm_vars" in self.steps_to_run:
             algo_count = self._consolidate_algorithm_vars(
                 duplicate_hub, primary_hub, dry_run
             )
 
-        # Step 10: Consolidate user actions
+        # Step 9: Consolidate user actions
         action_count = 0
         if "actions" in self.steps_to_run:
             action_count = self._consolidate_actions(
                 duplicate_hub, primary_hub, dry_run
             )
 
-        # Step 11: Consolidate feed entries
+        # Step 10: Consolidate feed entries
         feed_count = 0
         if "feed_entries" in self.steps_to_run:
             feed_count = self._consolidate_feed_entries(
                 duplicate_hub, primary_hub, dry_run
             )
 
-        # Step 12: Mark duplicate hub as removed (only if running all steps)
+        # Step 11: Mark duplicate hub as removed (only if running all steps)
         if self.steps_to_run == set(self.AVAILABLE_STEPS):
             self._mark_hub_as_removed(duplicate_hub, dry_run)
         else:
@@ -664,7 +639,6 @@ class Command(BaseCommand):
             "scores": score_count,
             "distributions": distribution_count,
             "featured_content": featured_count,
-            "citation_values": citation_count,
             "algorithm_vars": algo_count,
             "actions": action_count,
             "feed_entries": feed_count,
@@ -889,28 +863,6 @@ class Command(BaseCommand):
                 featured_content.update(hub=primary_hub)
 
         return featured_count
-
-    def _consolidate_citation_values(self, duplicate_hub, primary_hub, dry_run):
-        """
-        Consolidate hub citation values from duplicate hub to primary hub.
-
-        Updates all HubCitationValue entries to point to the primary hub.
-
-        Returns the number of citation value entries updated.
-        """
-        citation_values = HubCitationValue.objects.filter(hub=duplicate_hub)
-        citation_count = citation_values.count()
-
-        if citation_count > 0:
-            self.stdout.write(
-                f"  → Updating {citation_count} hub citation values "
-                f"from hub {duplicate_hub.id} ({duplicate_hub.slug})"
-            )
-
-            if not dry_run:
-                citation_values.update(hub=primary_hub)
-
-        return citation_count
 
     def _consolidate_algorithm_vars(self, duplicate_hub, primary_hub, dry_run):
         """
