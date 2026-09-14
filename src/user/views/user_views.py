@@ -27,6 +27,7 @@ from user.permissions import (
     UserIsEditor,
 )
 from user.serializers import (
+    CheckAccountSerializer,
     MajorSerializer,
     UniversitySerializer,
     UserEditableSerializer,
@@ -92,7 +93,9 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def check_account(self, request):
-        email = request.data["email"].strip()
+        serializer = CheckAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
         user = User.all_objects.filter(email__iexact=email).first()
         if user:
             # Filtering by provider == google because we only have google login

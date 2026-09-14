@@ -47,3 +47,27 @@ class CheckAccountTests(AWSMockTestCase):
 
         # Assert
         self.assertEqual(response.data, {"exists": False})
+
+    def test_invalid_email_returns_validation_error(self):
+        # Arrange
+        payloads = [
+            {},
+            {"email": None},
+            {"email": ""},
+            {"email": "   "},
+            {"email": "not-an-email"},
+            {"email": 123},
+            {"email": True},
+            {"email": []},
+            {"email": {}},
+        ]
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                # Act
+                response = APIClient().post(
+                    "/api/user/check_account/", payload, format="json"
+                )
+
+                # Assert
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("email", response.data)

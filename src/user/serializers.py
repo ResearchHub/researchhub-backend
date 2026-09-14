@@ -662,6 +662,10 @@ class UserEditableSerializer(ModelSerializer):
             return None
 
 
+class CheckAccountSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     username = CharField(
         max_length=rest_auth_serializers.get_username_max_length(),
