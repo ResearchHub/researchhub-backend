@@ -18,7 +18,7 @@ from hub.serializers import HubSerializer, SimpleHubSerializer
 from institution.serializers import DynamicInstitutionSerializer
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
-from reputation.models import Contribution, Distribution, Score, Withdrawal
+from reputation.models import Contribution, Distribution, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -162,8 +162,6 @@ class AuthorSerializer(ModelSerializer):
     num_posts = SerializerMethodField()
     orcid_id = SerializerMethodField()
     reputation = SerializerMethodField()
-    reputation_v2 = SerializerMethodField()
-    reputation_list = SerializerMethodField()
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
@@ -180,8 +178,6 @@ class AuthorSerializer(ModelSerializer):
             "orcid_id",
             "is_orcid_connected",
             "reputation",
-            "reputation_v2",
-            "reputation_list",
             "suspended_status",
             "total_score",
             "university",
@@ -203,33 +199,6 @@ class AuthorSerializer(ModelSerializer):
 
     def get_is_verified(self, obj):
         return obj.is_verified
-
-    def get_reputation_v2(self, author):
-        score = Score.objects.filter(author=author).order_by("-score").first()
-
-        if score is None:
-            return None
-
-        hub = Hub.objects.get(id=score.hub_id)
-
-        return {
-            "hub": {
-                "id": hub.id,
-                "name": hub.name,
-                "slug": hub.slug,
-            },
-            "score": score.score,
-            "percentile": score.percentile,
-            "bins": [
-                [0, 1000],
-                [1000, 10000],
-                [10000, 100000],
-                [100000, 1000000],
-            ],  # FIXME: Replace with bins from algo vars table
-        }
-
-    def get_reputation_list(self, author):
-        return author.reputation_list
 
     def get_orcid_id(self, author):
         return author.orcid_id
@@ -980,8 +949,6 @@ class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
 class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     institutions = SerializerMethodField()
     coauthors = SerializerMethodField()
-    reputation = SerializerMethodField()
-    reputation_list = SerializerMethodField()
     summary_stats = SerializerMethodField()
     achievements = SerializerMethodField()
     headline = SerializerMethodField()
@@ -1022,57 +989,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         }
 
         return stats
-
-    def get_reputation(self, author):
-        score = Score.objects.filter(author=author).order_by("-score").first()
-
-        if score is None:
-            return None
-
-        hub = Hub.objects.get(id=score.hub_id)
-
-        return {
-            "hub": {
-                "id": hub.id,
-                "name": hub.name,
-                "slug": hub.slug,
-            },
-            "score": score.score,
-            "percentile": score.percentile,
-            "bins": [
-                [0, 1000],
-                [1000, 10000],
-                [10000, 100000],
-                [100000, 1000000],
-            ],  # FIXME: Replace with bins from algo vars table
-        }
-
-    def get_reputation_list(self, author):
-        scores = (
-            Score.objects.filter(author=author, score__gt=0)
-            .select_related("hub")
-            .order_by("-score")
-        )
-        reputation_list = [
-            {
-                "hub": {
-                    "id": score.hub.id,
-                    "name": score.hub.name,
-                    "slug": score.hub.slug,
-                },
-                "score": score.score,
-                "percentile": score.percentile,
-                "bins": [
-                    [0, 1000],
-                    [1000, 10000],
-                    [10000, 100000],
-                    [100000, 1000000],
-                ],  # FIXME: Replace with bins from algo vars table
-            }
-            for score in scores
-        ]
-
-        return reputation_list
 
     def get_institutions(self, author):
         context = self.context

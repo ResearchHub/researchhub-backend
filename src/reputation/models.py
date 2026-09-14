@@ -5,7 +5,6 @@ from reputation.related_models.deposit import Deposit
 from reputation.related_models.distribution import Distribution
 from reputation.related_models.escrow import Escrow
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from reputation.related_models.paper_reward import HubCitationValue, PaperReward
 from reputation.related_models.score import AlgorithmVariables, Score, ScoreChange
 from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
 from reputation.related_models.staking_user_snapshot import StakingUserSnapshot
@@ -23,9 +22,7 @@ __all__ = [
     "Deposit",
     "Distribution",
     "Escrow",
-    "HubCitationValue",
     "PaidStatusModelMixin",
-    "PaperReward",
     "Score",
     "ScoreChange",
     "StakingGlobalSnapshot",
