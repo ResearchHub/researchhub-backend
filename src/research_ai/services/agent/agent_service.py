@@ -2,7 +2,7 @@
 
 Wires an injected provider to a caller-supplied toolset and prompt. The
 constructor takes no defaults: callers pass each value explicitly (their own
-``max_iterations`` ceiling, and the provider they want -- e.g.
+``max_iterations`` ceiling (None for no ceiling), and the provider they want -- e.g.
 ``resolve_provider()`` for the configured generator, or a specific adapter).
 Name->provider resolution lives in ``providers.registry``, not here.
 """
@@ -16,7 +16,7 @@ from research_ai.services.agent.tools import Toolset
 class AgentService:
     """Builds ``Agent``s from a provider + toolset + prompts."""
 
-    def __init__(self, *, provider: LLMProvider, max_iterations: int):
+    def __init__(self, *, provider: LLMProvider, max_iterations: int | None):
         self._provider = provider
         self._max_iterations = max_iterations
 

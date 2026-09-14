@@ -3,7 +3,8 @@ import logging
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from allauth.account.adapter import get_adapter
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Q, Value
+from django.db.models.functions import Lower
 from rest_framework import serializers
 from rest_framework.serializers import (
     CharField,
@@ -20,7 +21,7 @@ from paper.models import Paper
 from purchase.models import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
-from reputation.models import Bounty, Contribution, Distribution, Score, Withdrawal
+from reputation.models import Bounty, Contribution, Distribution, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -50,6 +51,7 @@ from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.related_models.risk_score_model import RiskScoreEvent
+from utils.turnstile import TurnstileService
 
 logger = logging.getLogger(__name__)
 
@@ -168,8 +170,6 @@ class AuthorSerializer(ModelSerializer):
     num_posts = SerializerMethodField()
     orcid_id = SerializerMethodField()
     reputation = SerializerMethodField()
-    reputation_v2 = SerializerMethodField()
-    reputation_list = SerializerMethodField()
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
@@ -186,8 +186,6 @@ class AuthorSerializer(ModelSerializer):
             "orcid_id",
             "is_orcid_connected",
             "reputation",
-            "reputation_v2",
-            "reputation_list",
             "suspended_status",
             "total_score",
             "university",
@@ -209,33 +207,6 @@ class AuthorSerializer(ModelSerializer):
 
     def get_is_verified(self, obj):
         return obj.is_verified
-
-    def get_reputation_v2(self, author):
-        score = Score.objects.filter(author=author).order_by("-score").first()
-
-        if score is None:
-            return None
-
-        hub = Hub.objects.get(id=score.hub_id)
-
-        return {
-            "hub": {
-                "id": hub.id,
-                "name": hub.name,
-                "slug": hub.slug,
-            },
-            "score": score.score,
-            "percentile": score.percentile,
-            "bins": [
-                [0, 1000],
-                [1000, 10000],
-                [10000, 100000],
-                [100000, 1000000],
-            ],  # FIXME: Replace with bins from algo vars table
-        }
-
-    def get_reputation_list(self, author):
-        return author.reputation_list
 
     def get_orcid_id(self, author):
         return author.orcid_id
@@ -692,6 +663,10 @@ class UserEditableSerializer(ModelSerializer):
             return None
 
 
+class CheckAccountSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     username = CharField(
         max_length=rest_auth_serializers.get_username_max_length(),
@@ -703,6 +678,26 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     first_name = CharField(max_length=150, allow_blank=True, required=False)
     last_name = CharField(max_length=150, allow_blank=True, required=False)
     referral_code = CharField(max_length=100, allow_blank=True, required=False)
+    turnstile_token = CharField(
+        max_length=2048, allow_blank=True, required=False, write_only=True
+    )
+
+    def validate(self, attrs):
+        """
+        Validates the request and rejects it if the Turnstile challenge is not passed.
+        """
+        service = TurnstileService()
+        if not service.is_enabled():
+            return super().validate(attrs)
+
+        token = attrs.get("turnstile_token", "")
+        request = self.context.get("request")
+        if not service.verify(token, request):
+            raise serializers.ValidationError(
+                {"turnstile_token": "Challenge verification failed."}
+            )
+
+        return super().validate(attrs)
 
     def validate_username(self, username):
         if username:
@@ -712,9 +707,17 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     def validate_email(self, email):
         # Call parent validation first
         email = super().validate_email(email)
-        # Since User.save() sets username=email, we need to check for existing
-        # users with this email as username to avoid IntegrityError
-        if email and User.all_objects.filter(username=email).exists():
+
+        # Existing accounts can have a username that differs from their email.
+        # User.save() sets the new username to email, so guard against collisions.
+        username_exists = User.all_objects.filter(username=email).exists()
+        # Match the existing LOWER(email) index for case-insensitive duplicates.
+        email_exists = (
+            User.all_objects.alias(normalized_email=Lower("email"))
+            .filter(normalized_email=Lower(Value(email)))
+            .exists()
+        )
+        if username_exists or email_exists:
             raise serializers.ValidationError(
                 "A user is already registered with this e-mail address."
             )
@@ -1043,8 +1046,6 @@ class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
 class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     institutions = SerializerMethodField()
     coauthors = SerializerMethodField()
-    reputation = SerializerMethodField()
-    reputation_list = SerializerMethodField()
     activity_by_year = SerializerMethodField()
     summary_stats = SerializerMethodField()
     achievements = SerializerMethodField()
@@ -1098,57 +1099,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
-
-    def get_reputation(self, author):
-        score = Score.objects.filter(author=author).order_by("-score").first()
-
-        if score is None:
-            return None
-
-        hub = Hub.objects.get(id=score.hub_id)
-
-        return {
-            "hub": {
-                "id": hub.id,
-                "name": hub.name,
-                "slug": hub.slug,
-            },
-            "score": score.score,
-            "percentile": score.percentile,
-            "bins": [
-                [0, 1000],
-                [1000, 10000],
-                [10000, 100000],
-                [100000, 1000000],
-            ],  # FIXME: Replace with bins from algo vars table
-        }
-
-    def get_reputation_list(self, author):
-        scores = (
-            Score.objects.filter(author=author, score__gt=0)
-            .select_related("hub")
-            .order_by("-score")
-        )
-        reputation_list = [
-            {
-                "hub": {
-                    "id": score.hub.id,
-                    "name": score.hub.name,
-                    "slug": score.hub.slug,
-                },
-                "score": score.score,
-                "percentile": score.percentile,
-                "bins": [
-                    [0, 1000],
-                    [1000, 10000],
-                    [10000, 100000],
-                    [100000, 1000000],
-                ],  # FIXME: Replace with bins from algo vars table
-            }
-            for score in scores
-        ]
-
-        return reputation_list
 
     def get_institutions(self, author):
         context = self.context

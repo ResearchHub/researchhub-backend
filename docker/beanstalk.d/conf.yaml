@@ -1,0 +1,21 @@
+logs:
+  - type: file
+    path: /host/var/log/eb-engine.log
+    service: beanstalk
+    source: beanstalk
+    sourcecategory: deployment
+  - type: file
+    path: /host/var/log/eb-hooks.log
+    service: beanstalk
+    source: beanstalk
+    sourcecategory: deployment
+  - type: file
+    path: /host/var/log/cfn-init.log
+    service: beanstalk
+    source: beanstalk
+    sourcecategory: deployment
+  - type: file
+    path: /host/var/log/cfn-init-cmd.log
+    service: beanstalk
+    source: beanstalk
+    sourcecategory: deployment

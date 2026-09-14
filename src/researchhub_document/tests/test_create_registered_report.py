@@ -6,7 +6,6 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from hub.tests.helpers import create_hub
 from note.models import Note, NoteContent
 from note.tests.helpers import create_note
 from paper.related_models.paper_version import PaperVersion
@@ -41,7 +40,6 @@ class CreateRegisteredReportTests(APITestCase):
         """Create users and authenticate a registered report moderator."""
         self.user = create_random_default_user("rr_owner")
         self.moderator = create_random_default_user("rr_moderator", moderator=True)
-        self.hub = create_hub("registered report hub")
         self.organization = create_organization(
             name="Registered Report Org",
             slug="registered-report-org",
@@ -86,10 +84,6 @@ class CreateRegisteredReportTests(APITestCase):
         )
         self.assertTrue(report.unified_document.is_public)
         self.assertEqual(report.ordered_authors, proposal_authors)
-        self.assertCountEqual(
-            report.unified_document.hubs.all(),
-            proposal.unified_document.hubs.all(),
-        )
         self.assertEqual(report.image, proposal.image)
         self.assertEqual(report.preview_img, proposal.preview_img)
         self.assertEqual(report.doi, self.mock_doi.doi)
@@ -513,7 +507,6 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertEqual(proposal_data["doi"], proposal.doi)
         self.assertEqual(proposal_data["document_type"], PREREGISTRATION)
         self.assertEqual(proposal_data["status"], proposal.unified_document.status)
-        self.assertEqual(proposal_data["hubs"][0]["id"], self.hub.id)
         self.assertEqual(proposal_data["authors"][0]["id"], self.user.author_profile.id)
         self.assertEqual(proposal_data["created_by"]["id"], self.user.id)
         self.assertEqual(len(proposal_data["peer_reviews"]), 1)
@@ -693,7 +686,6 @@ class CreateRegisteredReportTests(APITestCase):
             title=f"{user.id} proposal title",
         )
         proposal.authors.add(user.author_profile)
-        proposal.unified_document.hubs.add(self.hub)
         proposal.image = "proposal-cover-image-key"
         proposal.preview_img = "https://example.com/proposal-preview.png"
         proposal.save(update_fields=["image", "preview_img"])

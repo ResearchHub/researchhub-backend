@@ -26,6 +26,7 @@ Importing this package has no side effects (no network, no Django models).
 from research_ai.services.agent.agent_service import AgentService
 from research_ai.services.agent.errors import (
     AgentRunError,
+    BudgetExceededError,
     IncompleteTurnError,
     IterationLimitError,
     ProviderError,
@@ -70,6 +71,7 @@ __all__ = [
     "AgentService",
     "AssistantTurn",
     "BedrockProvider",
+    "BudgetExceededError",
     "ClaudePlatformProvider",
     "IncompleteTurnError",
     "IterationLimitError",

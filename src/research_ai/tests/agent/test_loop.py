@@ -19,6 +19,7 @@ from research_ai.services.agent.types import (
     TextStreamDelta,
     ThinkingBlock,
     ToolUseBlock,
+    TurnUsage,
 )
 
 
@@ -96,8 +97,12 @@ class RecordingRecorder:
         self.messages = []  # (message, turn) pairs, in recording order
         self.finished = []
         self.failed = []
+        self.usages = []
         self.stream_events = []
         self.stream_flushes = 0
+
+    def record_usage(self, usage):
+        self.usages.append(usage)
 
     def record_message(self, message, *, turn=None):
         self.messages.append((message, turn))
@@ -175,6 +180,32 @@ class ServerResultSummaryTests(SimpleTestCase):
 
 
 class AgentLoopTests(SimpleTestCase):
+    def test_provider_usage_reaches_recorder_before_provider_failure(self):
+        # Arrange: a provider received a billable response but rejected it
+        # before it could return an AssistantTurn to the loop.
+        usage = TurnUsage(input_tokens=10, output_tokens=3)
+
+        class RespondingThenFailingProvider(FakeProvider):
+            def complete(self, *, on_usage, **kwargs):
+                on_usage(usage)
+                raise ProviderError("response could not be replayed")
+
+        recorder = RecordingRecorder()
+        agent = _build_agent(
+            RespondingThenFailingProvider([]),
+            _build_toolset(),
+            recorder=recorder,
+        )
+
+        # Act
+        with self.assertRaises(ProviderError):
+            agent.run("research")
+
+        # Assert
+        self.assertEqual(recorder.usages, [usage])
+        self.assertEqual(recorder.messages[0][0].role, "user")
+        self.assertEqual(len(recorder.messages), 1)
+
     def test_provider_retry_rechecks_execution_activity(self):
         # Arrange: the run is active before its first provider request, then is
         # cancelled while that request is in flight.
@@ -200,7 +231,9 @@ class AgentLoopTests(SimpleTestCase):
 
         recorder = CancellingRecorder()
         provider = InternallyRetryingProvider()
-        agent = _build_agent(provider, _build_toolset(), recorder=recorder)
+        agent = _build_agent(
+            provider, _build_toolset(), max_iterations=None, recorder=recorder
+        )
 
         # Act
         with self.assertRaises(InterruptedError):
@@ -301,6 +334,22 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(ctx.exception.iterations, 1)
         # The partial assistant turn is on the transcript, not lost.
         self.assertEqual(ctx.exception.messages[-1].role, "assistant")
+
+    def test_unlimited_iterations_continue_until_completion(self):
+        # Arrange
+        provider = FakeProvider(
+            [_build_tool_turn(f"t{i}", "search", {}) for i in range(31)]
+            + [_build_text_turn("Done.")]
+        )
+        agent = _build_agent(provider, _build_toolset(), max_iterations=None)
+
+        # Act
+        result = agent.run("Keep researching")
+
+        # Assert
+        self.assertEqual(result.final_text, "Done.")
+        self.assertEqual(result.iterations, 32)
+        self.assertEqual(len(provider.calls), 32)
 
     def test_exceeding_max_iterations_raises(self):
         # Arrange: the model never stops calling tools.

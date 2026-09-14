@@ -11,6 +11,7 @@ from .endaoment_auth_views import (
 )
 from .endaoment_viewset import EndaomentViewSet
 from .funder_view import FunderViewSet
+from .funding_pool_view import FundingPoolViewSet
 from .fundraise_view import FundraiseViewSet
 from .grant_view import GrantViewSet
 from .payment_intent_view import PaymentIntentView
@@ -29,6 +30,7 @@ __all__ = [
     "EndaomentStatusView",
     "EndaomentViewSet",
     "FunderViewSet",
+    "FundingPoolViewSet",
     "FundraiseViewSet",
     "GrantViewSet",
     "PaymentIntentView",

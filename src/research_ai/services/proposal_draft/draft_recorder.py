@@ -142,6 +142,7 @@ class DraftRecorder:
             status=ProposalDraft.Status.COMPLETED,
             step=ProposalDraft.Step.DONE,
             completed_at=timezone.now(),
+            usage_reservation_expires_at=None,
         ):
             raise ProposalDraftCancelledError(
                 f"proposal draft {self.draft.id} was cancelled before it shipped"
@@ -176,6 +177,7 @@ class DraftRecorder:
             final_scores=scores,
             status=ProposalDraft.Status.FAILED,
             error_message=message,
+            usage_reservation_expires_at=None,
         ):
             # Cancelled in the gap between the check above and this write. The
             # decision wins over the failure it interrupted.
@@ -214,6 +216,12 @@ class DraftRecorder:
         so as with a failure this is the only place its draft survives.
         """
         self.persist_round()
+        # Cancellation made the lifecycle terminal immediately, but a running
+        # job kept its budget lease. This method is reached by that worker only
+        # after its current provider call has returned and it has unwound.
+        ProposalDraft.objects.filter(id=self.draft.id).update(
+            usage_reservation_expires_at=None
+        )
         self.draft.refresh_from_db()
         return {
             "status": ProposalDraft.Status.CANCELLED,

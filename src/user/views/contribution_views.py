@@ -174,14 +174,6 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "slug",
                 ]
             },
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "hub_image",
-                    "slug",
-                ]
-            },
             "doc_duds_get_documents": {
                 "_include_fields": [
                     "id",

@@ -6,7 +6,12 @@ from django.test import TestCase
 
 from note.models import NoteContent
 from note.tests.helpers import create_note
-from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE, NoteToolset
+from research_ai.services.note_tools import (
+    CREATE_NOTE,
+    EDIT_NOTE,
+    READ_NOTE,
+    NoteToolset,
+)
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -125,6 +130,123 @@ class NoteToolsetTests(TestCase):
 
         # Assert
         self.assertIn("could not be read", result["error"])
+
+    def test_read_note_returns_bounded_windows_with_global_indices(self):
+        # Arrange: enough compact paragraph blocks to require two reads.
+        document = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": f"Block {i}"}],
+                }
+                for i in range(75)
+            ],
+        }
+        seeded = self._seed_version(document)
+
+        # Act
+        first, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        second, _ = self.toolset.dispatch(
+            READ_NOTE,
+            {
+                "note_id": self.note.id,
+                "version_id": seeded.id,
+                "start_block": 50,
+                "max_blocks": 25,
+            },
+        )
+
+        # Assert
+        self.assertEqual(first["version_id"], seeded.id)
+        self.assertEqual(first["block_count"], 75)
+        self.assertEqual(first["returned_block_count"], 50)
+        self.assertEqual(first["next_start_block"], 50)
+        self.assertEqual(first["blocks"]["49"], "Block 49")
+        self.assertEqual(second["start_block"], 50)
+        self.assertEqual(second["returned_block_count"], 25)
+        self.assertIsNone(second["next_start_block"])
+        self.assertEqual(second["blocks"]["50"], "Block 50")
+        self.assertEqual(second["blocks"]["74"], "Block 74")
+
+    def test_read_note_continuation_stays_on_the_requested_version(self):
+        # Arrange: read the first page, then append a newer version whose
+        # insertion would shift every later global block index.
+        original = self._seed_version(
+            {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": f"Block {i}"}],
+                    }
+                    for i in range(75)
+                ],
+            }
+        )
+        first, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        edit, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": original.id,
+                "edits": _insert(["New first block"]),
+            },
+        )
+
+        # Act
+        continuation, _ = self.toolset.dispatch(
+            READ_NOTE,
+            {
+                "note_id": self.note.id,
+                "version_id": first["version_id"],
+                "start_block": first["next_start_block"],
+            },
+        )
+
+        # Assert: the page uses the original immutable content even though the
+        # note now has a newer latest version.
+        self.assertTrue(edit["saved"])
+        self.assertNotEqual(edit["version_id"], original.id)
+        self.assertEqual(continuation["version_id"], original.id)
+        self.assertEqual(continuation["block_count"], 75)
+        self.assertEqual(continuation["blocks"]["50"], "Block 50")
+
+    def test_read_note_continuation_requires_version_id(self):
+        # Act
+        result, _ = self.toolset.dispatch(
+            READ_NOTE, {"note_id": self.note.id, "start_block": 1}
+        )
+
+        # Assert
+        self.assertIn("version_id is required", result["error"])
+
+    def test_read_note_rejects_version_from_another_note(self):
+        # Arrange
+        other_note, other_version = create_note(self.owner, organization=None)
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            READ_NOTE,
+            {"note_id": self.note.id, "version_id": other_version.id},
+        )
+
+        # Assert: a version can only be read through its own accessible note.
+        self.assertNotEqual(other_note.id, self.note.id)
+        self.assertIn("not found for note", result["error"])
+
+    def test_read_note_rejects_invalid_bounds(self):
+        # Act
+        too_wide, _ = self.toolset.dispatch(
+            READ_NOTE, {"note_id": self.note.id, "max_blocks": 51}
+        )
+        negative, _ = self.toolset.dispatch(
+            READ_NOTE, {"note_id": self.note.id, "start_block": -1}
+        )
+
+        # Assert
+        self.assertIn("between 1 and 50", too_wide["error"])
+        self.assertIn("at least 0", negative["error"])
 
     def test_read_note_denied_for_user_without_access(self):
         # Arrange
@@ -320,6 +442,45 @@ class NoteToolsetTests(TestCase):
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, self.content.id)
 
+    def test_edit_note_recovers_from_encoded_edits_without_partial_save(self):
+        # Arrange
+        edits = _insert(["Intended paragraph"])
+        version_count = NoteContent.objects.filter(note=self.note).count()
+        args = {
+            "note_id": self.note.id,
+            "expected_version_id": self.content.id,
+            "edits": json.dumps(edits),
+        }
+
+        # Act
+        rejected, _ = self.toolset.dispatch(EDIT_NOTE, args)
+
+        # Assert: rejection preserves the version, so a corrected call can retry.
+        self.assertIn("not a JSON string", rejected["error"])
+        self.assertIn("No edits were saved", rejected["error"])
+        self.assertIn("retry edit_note directly", rejected["error"])
+        self.assertIn("not available inside code_execution", rejected["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version_id, self.content.id)
+        self.assertEqual(
+            NoteContent.objects.filter(note=self.note).count(), version_count
+        )
+
+        # Act
+        saved, _ = self.toolset.dispatch(EDIT_NOTE, {**args, "edits": edits})
+
+        # Assert
+        self.assertTrue(saved["saved"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version_id, saved["version_id"])
+        self.assertEqual(
+            NoteContent.objects.filter(note=self.note).count(), version_count + 1
+        )
+        document = json.loads(self.note.latest_version.json)
+        self.assertEqual(
+            document["content"][0]["content"][0]["text"], "Intended paragraph"
+        )
+
     def test_edit_note_rejects_stale_version(self):
         # Arrange: another writer saved a version after our read.
         newer, _ = self.toolset.dispatch(
@@ -405,3 +566,98 @@ class NoteToolsetTests(TestCase):
         self.assertIn("not found or not accessible", edit_result["error"])
         other_note.refresh_from_db()
         self.assertEqual(other_note.latest_version_id, other_content.id)
+
+
+class NoteToolsetCreateNoteTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user(
+            username="owner@researchhub_test.com",
+            password="password",
+            email="owner@researchhub_test.com",
+        )
+        self.created = []
+
+        def creator(title, document_type):
+            note, _content = create_note(self.owner, organization=None, title=title)
+            Permission.objects.create(
+                access_type=ADMIN,
+                content_type=ContentType.objects.get_for_model(
+                    ResearchhubUnifiedDocument
+                ),
+                object_id=note.unified_document.id,
+                user=self.owner,
+            )
+            note.document_type = document_type
+            note.save(update_fields=["document_type"])
+            self.created.append(note)
+            return note
+
+        self.toolset = NoteToolset(
+            user=self.owner, note_ids=set(), note_creator=creator
+        )
+        self.tools = {tool.name: tool for tool in self.toolset.build_tools()}
+
+    def test_create_note_is_offered_only_with_a_creator(self):
+        # Act
+        without = {tool.name for tool in NoteToolset(user=self.owner).build_tools()}
+
+        # Assert
+        self.assertIn(CREATE_NOTE, self.tools)
+        self.assertNotIn(CREATE_NOTE, without)
+
+    def test_create_note_returns_the_note_and_widens_the_scope(self):
+        # Arrange
+        outside, _content = create_note(self.owner, organization=None)
+
+        # Act
+        result = self.tools[CREATE_NOTE].handler(
+            {"title": "  New   idea ", "document_type": "PREREGISTRATION"}
+        )
+        read = self.tools[READ_NOTE].handler({"note_id": result["note_id"]})
+        outside_read = self.tools[READ_NOTE].handler({"note_id": outside.id})
+
+        # Assert
+        self.assertEqual(result["title"], "New idea")
+        self.assertEqual(result["note_id"], self.created[0].id)
+        self.assertIsNone(result["version_id"])
+        self.assertEqual(read["title"], "New idea")
+        self.assertIn("error", outside_read)
+
+    def test_create_note_rejects_missing_or_unsupported_document_type(self):
+        for document_type in (None, "NOTE", "RFP", "PAPER", "", ["GRANT"]):
+            with self.subTest(document_type=document_type):
+                # Arrange
+                payload = {"title": "Draft"}
+                if document_type is not None:
+                    payload["document_type"] = document_type
+
+                # Act
+                result = self.tools[CREATE_NOTE].handler(payload)
+
+                # Assert
+                self.assertIn("error", result)
+                self.assertEqual(self.created, [])
+
+    def test_create_note_rejects_a_blank_title(self):
+        # Act
+        result = self.tools[CREATE_NOTE].handler({"title": "   "})
+
+        # Assert
+        self.assertIn("error", result)
+        self.assertEqual(self.created, [])
+
+    def test_create_note_reports_creator_failures_to_the_model(self):
+        # Arrange
+        def failing(title, document_type):
+            raise RuntimeError("database is away")
+
+        toolset = NoteToolset(user=self.owner, note_ids=set(), note_creator=failing)
+        create = {tool.name: tool for tool in toolset.build_tools()}[CREATE_NOTE]
+
+        # Act
+        result = create.handler(
+            {"title": "Anything", "document_type": "PREREGISTRATION"}
+        )
+
+        # Assert
+        self.assertIn("database is away", result["error"])

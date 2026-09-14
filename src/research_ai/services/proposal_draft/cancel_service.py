@@ -87,8 +87,15 @@ class ProposalDraftCancelService:
                 # writing a failure string for a deliberate stop is what
                 # CANCELLED exists to avoid. ``step`` is left where the run got
                 # to, so the record still shows how far it had gone.
+                was_pending = locked.status == ProposalDraft.Status.PENDING
                 locked.status = ProposalDraft.Status.CANCELLED
-                locked.save(update_fields=["status", "updated_date"])
+                update_fields = ["status", "updated_date"]
+                if was_pending:
+                    # A queued job has no worker or provider call to wait for; a
+                    # running one keeps the lease its worker's heartbeat renews.
+                    locked.usage_reservation_expires_at = None
+                    update_fields.append("usage_reservation_expires_at")
+                locked.save(update_fields=update_fields)
         draft.refresh_from_db()
         if already_terminal:
             # Only for a draft someone already cancelled: a COMPLETED or FAILED

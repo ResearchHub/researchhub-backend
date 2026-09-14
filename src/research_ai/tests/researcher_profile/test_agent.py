@@ -67,7 +67,26 @@ def _scripted_provider(calls, *, final_text=None):
 
 def _oa_client_returning(*works):
     client = MagicMock()
-    client.get_works_typed.return_value = list(works)
+    client.get_works.return_value = (
+        [
+            {
+                "id": work.source_url,
+                "doi": work.source_url,
+                "display_name": work.title,
+                "publication_date": work.publication_date,
+                "publication_year": work.publication_year,
+                "primary_location": {
+                    "pdf_url": work.pdf_url,
+                    "version": "publishedVersion",
+                },
+                "locations": [],
+                "open_access": {"is_oa": work.is_oa},
+                "abstract_inverted_index": {"Abstract": [0], "text": [1]},
+            }
+            for work in works
+        ],
+        None,
+    )
     return client
 
 

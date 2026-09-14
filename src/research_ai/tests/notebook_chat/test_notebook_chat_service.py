@@ -1,17 +1,24 @@
 import json
+from datetime import timedelta
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 
 from note.tests.helpers import create_note
 from research_ai.models import (
     AgentConversation,
     AgentExecution,
+    Expert,
+    ExpertSearch,
     NoteAgentConversation,
+    ProposalDraft,
+    SearchExpert,
 )
-from research_ai.services.agent.types import StopReason
+from research_ai.services.agent.providers import claude_platform, openrouter
+from research_ai.services.agent.types import StopReason, TurnUsage
 from research_ai.services.agent_persistence import (
     AgentConversationBusyError,
     DatabaseAgentRecorder,
@@ -30,6 +37,11 @@ from research_ai.services.notebook_chat.events import (
     ConversationEventPublisher,
 )
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
+from research_ai.services.usage_budget import (
+    ReservationHeartbeat,
+    UsageWorkInProgressError,
+    budget_status,
+)
 from research_ai.tests.agent.persistence_test_helpers import (
     FakeProvider,
     text_turn,
@@ -44,6 +56,11 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 # edit_note input: block operations in the compact dialect (a bare string
 # block is a paragraph).
 EDIT_NOTE_EDITS = [{"op": "insert", "at": 0, "blocks": ["Edited by the assistant"]}]
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
+}
 
 
 def _make_service(provider=None, **kwargs):
@@ -67,6 +84,7 @@ class CapturingProvider(FakeProvider):
         return super().complete(**kwargs)
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatServiceTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -74,6 +92,7 @@ class NotebookChatServiceTests(TestCase):
             username="owner@researchhub_test.com",
             password="password",
             email="owner@researchhub_test.com",
+            is_staff=True,
         )
         self.note, self.content = create_note(self.user, organization=None)
         Permission.objects.create(
@@ -154,33 +173,110 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.configuration["effort"], "high")
         self.assertEqual(execution.configuration["thinking"], "disabled")
 
-    @override_settings(
-        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
-    )
-    def test_submit_message_accepts_temperature_for_haiku(self):
+    def test_later_messages_inherit_or_repeat_the_effort(self):
+        # Arrange
+        first, _delay = self._submit(effort="high")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+
+        for options in ({}, {"effort": "high"}):
+            with self.subTest(options=options):
+                # Act
+                execution, _delay = self._submit("Continue", **options)
+
+                # Assert
+                self.assertEqual(execution.configuration["effort"], "high")
+                execution.status = AgentExecution.Status.SUCCEEDED
+                execution.save(update_fields=["status"])
+
+    def test_later_messages_cannot_change_effort(self):
+        # Arrange
+        first, _delay = self._submit(effort="low")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "effort cannot be changed"):
+            self._submit("Think harder", effort="high")
+        self.assertEqual(self.conversation.executions.count(), 1)
+        self.assertEqual(self.conversation.chat_messages.count(), 1)
+
+    def test_new_conversation_can_choose_a_different_effort(self):
+        # Arrange
+        first, _delay = self._submit(effort="low")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+        conversation = self.service.create_conversation(self.note, self.user)
+
+        # Act
+        second, _delay = self._submit(conversation=conversation, effort="high")
+
+        # Assert
+        self.assertEqual(second.configuration["effort"], "high")
+        self.assertNotEqual(second.conversation_id, first.conversation_id)
+
+    def test_default_effort_is_pinned_across_adapter_default_changes(self):
+        for adapter, model_ref in (
+            (claude_platform, "claude_platform:claude-opus-5"),
+            (openrouter, "openrouter:openai/gpt-5.6-sol"),
+        ):
+            with self.subTest(model=model_ref):
+                # Arrange
+                conversation = self.service.create_conversation(self.note, self.user)
+                first, _delay = self._submit(
+                    conversation=conversation, model_ref=model_ref
+                )
+                first.status = AgentExecution.Status.SUCCEEDED
+                first.save(update_fields=["status"])
+
+                # Act
+                with patch.object(adapter, "EFFORT", "high"):
+                    second, _delay = self._submit(conversation=conversation)
+
+                # Assert
+                self.assertEqual(first.configuration["effort"], "low")
+                self.assertEqual(second.configuration["effort"], "low")
+                second.status = AgentExecution.Status.SUCCEEDED
+                second.save(update_fields=["status"])
+
+    def test_legacy_conversation_without_effort_uses_adapter_default(self):
+        # Arrange
+        first, _delay = self._submit()
+        first.configuration.pop("effort")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["configuration", "status"])
+
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "effort cannot be changed"):
+            self._submit(effort="high")
+        second, _delay = self._submit()
+        self.assertEqual(second.configuration["effort"], "low")
+
+    def test_legacy_conversation_keeps_its_latest_effort(self):
+        # Arrange: before locking, an existing chat could change effort.
+        first, _delay = self._submit(effort="low")
+        first.status = AgentExecution.Status.SUCCEEDED
+        first.save(update_fields=["status"])
+        second, _delay = self._submit()
+        second.configuration["effort"] = "high"
+        second.status = AgentExecution.Status.SUCCEEDED
+        second.save(update_fields=["configuration", "status"])
+
+        # Act
+        third, _delay = self._submit()
+
+        # Assert
+        self.assertEqual(third.configuration["effort"], "high")
+
+    def test_submit_message_accepts_temperature_for_gemini(self):
         # Act
         execution, _delay = self._submit(
-            model_ref="claude_platform:claude-haiku-4-5",
+            model_ref="openrouter:google/gemini-3.8-flash",
             temperature=0.4,
         )
 
         # Assert
         self.assertEqual(execution.configuration["temperature"], 0.4)
-
-    @override_settings(
-        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
-    )
-    def test_submit_message_rejects_effort_for_haiku(self):
-        # Act / Assert
-        with self.assertRaisesRegex(ValueError, "does not support effort"):
-            self.service.submit_message(
-                self.note,
-                self.conversation,
-                "hi",
-                model_ref="claude_platform:claude-haiku-4-5",
-                effort="high",
-            )
-        self.assertFalse(AgentExecution.objects.exists())
 
     def test_submit_message_rejects_a_model_outside_the_catalog(self):
         # Act & Assert
@@ -215,6 +311,7 @@ class NotebookChatServiceTests(TestCase):
         resolve.assert_called_once_with(
             "claude_platform:claude-sonnet-5",
             native_tools=frozenset({"web_search"}),
+            effort="low",
         )
 
     def test_second_message_continues_the_same_conversation(self):
@@ -297,17 +394,96 @@ class NotebookChatServiceTests(TestCase):
         with self.assertRaises(AgentConversationBusyError):
             self.service.submit_message(self.note, self.conversation, "again")
 
-    def test_busy_chat_does_not_block_the_users_other_chats(self):
-        # Arrange: a turn is pending on the first chat.
+    def test_five_busy_chats_block_the_users_next_chat(self):
+        # Arrange
         self._submit()
+        for _ in range(4):
+            conversation = self.service.create_conversation(self.note, self.user)
+            self._submit(conversation=conversation)
+        second = self.service.create_conversation(self.note, self.user)
+
+        # Act / Assert
+        with self.assertRaises(UsageWorkInProgressError):
+            self._submit("Different thread", conversation=second)
+
+    def _lose_worker(self, execution):
+        """Leave ``execution`` as a dead worker does: RUNNING, lease lapsed."""
+        AgentExecution.objects.filter(id=execution.id).update(
+            status=AgentExecution.Status.RUNNING,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+    def test_submit_message_replaces_a_turn_whose_worker_was_lost(self):
+        # Arrange
+        lost, _delay = self._submit()
+        self._lose_worker(lost)
+
+        # Act: neither the chat's busy check nor budget admission refuses.
+        execution, _delay = self._submit("Still there?")
+
+        # Assert: the lost turn is sealed and the new one continues from it.
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, AgentExecution.Status.FAILED)
+        self.assertEqual(lost.stop_reason, "worker_lost")
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        self.assertEqual(execution.context_parent_id, lost.id)
+
+    def test_a_lost_turn_in_another_chat_stops_blocking_the_user(self):
+        # Arrange
+        lost, _delay = self._submit()
+        self._lose_worker(lost)
         second = self.service.create_conversation(self.note, self.user)
 
         # Act
         execution, _delay = self._submit("Different thread", conversation=second)
 
-        # Assert: each chat serializes its own turns independently.
-        self.assertEqual(execution.conversation_id, second.id)
+        # Assert
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, AgentExecution.Status.FAILED)
+
+    def test_submit_message_replaces_a_draft_whose_worker_was_lost(self):
+        # Arrange: the user's proposal draft died mid-run; it, too, holds
+        # one of the user's budget slots.
+        search_expert = SearchExpert.objects.create(
+            expert_search=ExpertSearch.objects.create(
+                created_by=self.user, query="protein folding"
+            ),
+            expert=Expert.objects.create(email="jane@example.edu"),
+        )
+        lost = ProposalDraft.objects.create(
+            search_expert=search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PROCESSING,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert
+        self.assertEqual(execution.status, AgentExecution.Status.PENDING)
+        lost.refresh_from_db()
+        self.assertEqual(lost.status, ProposalDraft.Status.FAILED)
+
+    def test_run_turn_heartbeats_the_turns_lease_while_it_runs(self):
+        # Arrange
+        execution, _delay = self._submit()
+        service = _make_service(provider=FakeProvider([text_turn("Answer")]))
+
+        # Act
+        with (
+            patch.object(ReservationHeartbeat, "start", autospec=True) as start,
+            patch.object(ReservationHeartbeat, "stop", autospec=True) as stop,
+        ):
+            service.run_turn(execution.id)
+
+        # Assert: the claimed turn's lease is what the heartbeat renews.
+        (heartbeat,) = start.call_args.args
+        self.assertEqual([target.id for target in heartbeat.targets], [execution.id])
+        stop.assert_called_once()
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
 
     def test_run_turn_edits_note_and_publishes_reply(self):
         # Arrange
@@ -426,7 +602,7 @@ class NotebookChatServiceTests(TestCase):
         # the row still names the model it was submitted with.
         execution, _delay = self._submit()
         AgentExecution.objects.filter(id=execution.id).update(
-            model="bedrock:pinned-model"
+            model="claude_platform:claude-sonnet-5"
         )
         provider = FakeProvider([text_turn("Done.")])
         service = _make_service()
@@ -440,7 +616,9 @@ class NotebookChatServiceTests(TestCase):
 
         # Assert
         resolver.assert_called_once_with(
-            "bedrock:pinned-model", native_tools=frozenset({"web_search"})
+            "claude_platform:claude-sonnet-5",
+            native_tools=frozenset({"web_search"}),
+            effort="low",
         )
         self.assertEqual(result["final_text"], "Done.")
 
@@ -497,6 +675,57 @@ class NotebookChatServiceTests(TestCase):
         # Assert
         self.assertEqual(result["final_text"], "Done.")
         selected_rfp_toolset.assert_not_called()
+
+    def test_run_turn_continues_past_the_former_model_call_limit(self):
+        # Arrange
+        execution, _delay = self._submit()
+        provider = FakeProvider(
+            [
+                tool_turn(f"t{i}", "read_note", {"note_id": self.note.id})
+                for i in range(31)
+            ]
+            + [text_turn("Done.")]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertIsNone(execution.configuration["max_iterations"])
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(result["final_text"], "Done.")
+        self.assertEqual(result["iterations"], 32)
+        self.assertEqual(len(provider.calls), 32)
+
+    def test_run_turn_records_credit_usage_once(self):
+        # Arrange
+        execution, _delay = self._submit(model_ref="claude_platform:claude-opus-5")
+
+        class UsageReportingProvider(FakeProvider):
+            def complete(self, **kwargs):
+                turn = super().complete(**kwargs)
+                kwargs["on_usage"](turn.usage)
+                return turn
+
+        provider = UsageReportingProvider(
+            [text_turn("Done.", usage=TurnUsage(input_tokens=1000, output_tokens=100))]
+        )
+        service = _make_service(provider=provider)
+
+        # Act
+        result = service.run_turn(execution.id)
+        service.run_turn(execution.id)  # Redelivery must not charge twice.
+
+        # Assert
+        event = execution.usage_events.get()
+        self.assertEqual(result["final_text"], "Done.")
+        self.assertEqual(event.user, self.user)
+        self.assertEqual(event.feature, "notebook_chat")
+        self.assertEqual(event.cost_microusd, 7500)
+        self.assertEqual(len(provider.calls), 1)
+        self.assertEqual(budget_status(self.user).as_dict()["credits"]["used"], "7.5")
 
     def test_run_turn_honors_the_recorded_iteration_limit(self):
         # Arrange: the turn was submitted with a one-iteration budget; the
@@ -740,6 +969,7 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(AgentConversation.objects.filter(user=self.user).count(), 1)
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatTitleTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -822,6 +1052,7 @@ class NotebookChatTitleTests(TestCase):
         self.assertEqual(self.conversation.title, "Literature review")
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatResolutionTests(TestCase):
     def setUp(self):
         user_model = get_user_model()
@@ -915,6 +1146,7 @@ class CancellingProvider(FakeProvider):
         return super().complete(**kwargs)
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatEventEmissionTests(TestCase):
     """Where the service nudges the chat's WebSocket group.
 
@@ -983,6 +1215,24 @@ class NotebookChatEventEmissionTests(TestCase):
         for conversation_id, execution_id, _ in events:
             self.assertEqual(conversation_id, self.conversation.id)
             self.assertEqual(execution_id, execution.id)
+
+    def test_reclaiming_a_lost_turn_publishes_turn_failed(self):
+        # Arrange: the worker died mid-run and its lease lapsed.
+        execution = self._submit()
+        AgentExecution.objects.filter(id=execution.id).update(
+            status=AgentExecution.Status.RUNNING,
+            usage_reservation_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+        self.publisher.reset_mock()
+
+        # Act
+        reclaimed = self.service.reclaim_lost_turns(user=self.user)
+
+        # Assert
+        self.assertEqual([item.id for item in reclaimed], [execution.id])
+        self.publisher.publish.assert_called_once_with(
+            self.conversation.id, execution.id, TURN_FAILED
+        )
 
     def test_run_turn_provider_failure_publishes_turn_failed(self):
         # Arrange
@@ -1175,6 +1425,7 @@ class NotebookChatEventEmissionTests(TestCase):
         self.publisher.publish.assert_not_called()
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatEventSendOrderTests(TransactionTestCase):
     """Send order under autocommit, where ``on_commit`` runs immediately.
 

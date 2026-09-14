@@ -21,7 +21,6 @@ from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.throttles import THROTTLE_CLASSES
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,6 @@ class PaperViewSet(
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
-    throttle_classes = THROTTLE_CLASSES
     moderation_model = Paper
 
     permission_classes = [

@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -37,6 +37,12 @@ PUBLIC_EVENT_KEYS = {
     "detail",
     "note_version_id",
     "sources",
+}
+
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
 }
 
 PUBLIC_NARRATION_KEYS = {"type", "text", "at"}
@@ -81,6 +87,7 @@ def _settle_beyond_grace(execution_id):
     )
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatActivityTests(TestCase):
     """Activity feeds produced by real turns, read via ``representation``."""
 
@@ -289,20 +296,30 @@ class NotebookChatActivityTests(TestCase):
 
     def test_scholarly_tools_report_names_and_citation_sources(self):
         # Arrange: a resolved author whose works ground the turn's citations.
-        # The work has no readable PDF, so the full-text read falls back to
-        # the abstract without touching the network.
         author = {"id": "https://openalex.org/A1", "display_name": "Jennifer Doudna"}
-        work = Mock()
-        work.as_dict.return_value = {
-            "title": "CRISPR paper",
-            "source_url": "https://doi.org/10.1000/crispr",
-            "pdf_url": "",
-            "abstract": "An abstract the user never needs to see raw.",
+        work = {
+            "id": "https://openalex.org/W1",
+            "doi": "https://doi.org/10.1000/crispr",
+            "display_name": "CRISPR paper",
+            "primary_location": {},
+            "locations": [],
+            "open_access": {"is_oa": True},
+            "abstract_inverted_index": {
+                "An": [0],
+                "abstract": [1],
+                "the": [2],
+                "user": [3],
+                "never": [4],
+                "needs": [5],
+                "to": [6],
+                "see": [7],
+                "raw.": [8],
+            },
         }
         oa_client = Mock()
         oa_client.search_authors_via_name.return_value = {"results": [author]}
         oa_client.get_author.return_value = author
-        oa_client.get_works_typed.return_value = [work]
+        oa_client.get_works.return_value = ([work], None)
         execution = self._run_turn(
             [
                 tool_turn("t1", "search_authors", {"name": "Jennifer Doudna"}),
@@ -312,7 +329,7 @@ class NotebookChatActivityTests(TestCase):
                 ),
                 tool_turn(
                     "t4",
-                    "get_work_fulltext",
+                    "get_work_abstract",
                     {"source_url": "https://doi.org/10.1000/crispr"},
                 ),
                 text_turn("Done."),
@@ -337,7 +354,7 @@ class NotebookChatActivityTests(TestCase):
         self.assertEqual(works["label"], "Fetched an author's publications")
         self.assertEqual(works["status"], "succeeded")
         self.assertEqual(works["sources"], [expected_source])
-        self.assertEqual(read_paper["label"], "Read a paper")
+        self.assertEqual(read_paper["label"], "Read a paper abstract")
         self.assertEqual(read_paper["status"], "succeeded")
         self.assertEqual(read_paper["sources"], [expected_source])
         for event in _tool_calls(activity):
@@ -501,6 +518,7 @@ class NotebookChatActivityTests(TestCase):
         self.assertNotIn("not configured", json.dumps(activity, default=str))
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatActivityProjectionTests(TestCase):
     """Trace shapes a live run cannot conveniently produce, built directly."""
 
@@ -1484,6 +1502,7 @@ class NotebookChatActivityProjectionTests(TestCase):
         self.assertNotIn("max_uses_exceeded", json.dumps(event, default=str))
 
 
+@override_settings(**MODEL_SETTINGS)
 class NotebookChatActivityViewTests(APITestCase):
     def setUp(self):
         user_model = get_user_model()

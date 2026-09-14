@@ -178,6 +178,7 @@ def _complete(
     max_tokens=100,
     temperature=0.0,
     before_retry=None,
+    on_usage=None,
 ):
     return provider.complete(
         system_prompt="sys",
@@ -186,6 +187,7 @@ def _complete(
         max_tokens=max_tokens,
         temperature=temperature,
         before_retry=before_retry,
+        on_usage=on_usage,
     )
 
 
@@ -220,6 +222,33 @@ class RenderToolsTests(SimpleTestCase):
                 },
             ],
         )
+
+    def test_eager_input_streaming_is_opt_in_per_tool(self):
+        # Arrange: only the document writer needs unbuffered input fragments.
+        provider = _build_provider(web_search=True)
+        tools = [
+            Tool(
+                name="write_document",
+                description="Write document prose",
+                input_schema={"type": "object", "properties": {}},
+                handler=lambda input: {},
+                eager_input_streaming=True,
+            ),
+            Tool(
+                name="lookup",
+                description="Look something up",
+                input_schema={"type": "object", "properties": {}},
+                handler=lambda input: {},
+            ),
+        ]
+
+        # Act
+        rendered = provider.render_tools(tools)
+
+        # Assert: opt in on the writer, leaving other and native tools alone.
+        self.assertIs(rendered[0]["eager_input_streaming"], True)
+        self.assertNotIn("eager_input_streaming", rendered[1])
+        self.assertNotIn("eager_input_streaming", rendered[2])
 
     def test_web_search_off_renders_only_the_callers_tools(self):
         # Arrange: native search is opt-in, so unrelated agents do not receive it.
@@ -609,6 +638,25 @@ class CompleteAndParseTests(SimpleTestCase):
             ),
         )
         self.assertIsNotNone(turn.latency_ms)
+
+    def test_usage_includes_billed_web_search_requests(self):
+        # Arrange
+        provider = _build_provider([])
+        response = SimpleNamespace(
+            usage=SimpleNamespace(
+                input_tokens=10,
+                output_tokens=3,
+                cache_read_input_tokens=0,
+                cache_creation_input_tokens=0,
+                server_tool_use=SimpleNamespace(web_search_requests=2),
+            )
+        )
+
+        # Act
+        usage = provider._parse_usage(response)
+
+        # Assert
+        self.assertEqual(usage.web_search_requests, 2)
 
     def test_refusal_stop_reason_maps_to_content_filtered(self):
         # Arrange: a policy decline is a 200 with empty content, not an error.
@@ -1206,12 +1254,20 @@ class ServerSideToolTests(SimpleTestCase):
                 _build_response([unresolved], stop_reason="pause_turn"),
             ]
         )
+        observed_usage = []
 
         # Act / Assert: the provider fails before returning an AssistantTurn,
-        # so the agent recorder cannot append either unreplayable response.
+        # but both completed responses still report their billable usage.
         with self.assertRaisesMessage(ProviderError, "unreplayable response"):
-            _complete(provider)
+            _complete(provider, on_usage=observed_usage.append)
         self.assertEqual(len(provider._client.messages.calls), 2)
+        self.assertEqual(
+            observed_usage,
+            [
+                TurnUsage(input_tokens=10, output_tokens=3),
+                TurnUsage(input_tokens=10, output_tokens=3),
+            ],
+        )
 
     def test_cancellation_probe_stops_missing_container_retry(self):
         # Arrange

@@ -10,7 +10,6 @@ from rest_framework.test import APIClient
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry
-from hub.models import Hub
 from note.models import Note
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
@@ -64,7 +63,6 @@ class PrivatePreregistrationCreateTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
         self.author = _make_user("author")
-        self.hub = Hub.objects.create(name=f"hub-{uuid.uuid4().hex[:8]}")
         RscExchangeRate.objects.create(rate=1.0)
         self.client = APIClient()
         self.client.force_authenticate(self.author)
@@ -76,20 +74,24 @@ class PrivatePreregistrationCreateTests(AWSMockTestCase):
             "full_src": "body",
             "renderable_text": LONG_BODY,
             "title": LONG_TITLE,
-            "hubs": [self.hub.id],
             "fundraise_goal_amount": 1000,
         }
         payload.update(overrides)
         return payload
 
-    def test_default_post_is_public(self):
-        response = self.client.post(
-            "/api/researchhubpost/", self._payload(), format="json"
-        )
+    def test_defaults_published_preregistration_values(self):
+        """Publishing defaults visibility to public and blank currency to USD."""
+        # Arrange
+        payload = self._payload(fundraise_goal_currency="")
 
+        # Act
+        response = self.client.post("/api/researchhubpost/", payload, format="json")
+
+        # Assert
         self.assertEqual(response.status_code, 200)
         post = ResearchhubPost.objects.get(id=response.data["id"])
         self.assertTrue(post.unified_document.is_public)
+        self.assertEqual(response.data["fundraise"]["goal_currency"], USD)
 
     def test_is_public_false_marks_unified_doc_private(self):
         response = self.client.post(
@@ -1065,7 +1067,6 @@ class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
         super().setUp()
         self.author = _make_user("author")
         self.grant_owner = _make_user("grant_owner")
-        self.hub = Hub.objects.create(name=f"hub-{uuid.uuid4().hex[:8]}")
         RscExchangeRate.objects.create(rate=1.0)
 
         self.optional_grant = self._make_grant(Grant.APPLICATION_VISIBILITY_OPTIONAL)
@@ -1105,7 +1106,6 @@ class GrantEnforcedApplicationVisibilityTests(AWSMockTestCase):
             "full_src": "body",
             "renderable_text": LONG_BODY,
             "title": LONG_TITLE,
-            "hubs": [self.hub.id],
             "fundraise_goal_amount": 1000,
         }
         payload.update(overrides)

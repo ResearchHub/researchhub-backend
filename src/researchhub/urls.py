@@ -172,6 +172,10 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 
 router.register(r"funder", purchase.views.FunderViewSet, basename="funder")
 
+router.register(
+    r"funding_pool", purchase.views.FundingPoolViewSet, basename="funding_pool"
+)
+
 router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
 
 router.register(r"activity_feed", ActivityFeedViewSet, basename="activity_feed")
@@ -278,7 +282,6 @@ urlpatterns = [
         NonprofitFundraiseLinkViewSet.as_view({"get": "get_by_fundraise"}),
         name="nonprofit-get-by-fundraise",
     ),
-    path("api/auth/captcha_verify/", oauth.views.captcha_verify, name="captcha_verify"),
     path(
         "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"
     ),

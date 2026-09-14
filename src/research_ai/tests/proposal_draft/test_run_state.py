@@ -5,6 +5,7 @@ import unittest
 
 from research_ai.services.agent import (
     AgentRunError,
+    BudgetExceededError,
     IncompleteTurnError,
     IterationLimitError,
 )
@@ -282,6 +283,18 @@ class ProposalRunStateFailureMessageTests(unittest.TestCase):
         # Act & Assert
         self.assertIn("50-iteration cap", state.failure_message())
         self.assertIn("2 of 4 rounds", state.failure_message())
+
+    def test_usage_budget_exhausted(self):
+        # Arrange
+        state = ProposalRunState(_build_config())
+        state.rounds_used = 2
+        state.record_agent_error(BudgetExceededError("raw budget details"))
+
+        # Act & Assert
+        self.assertEqual(
+            state.failure_message(),
+            "daily Research AI usage limit reached; try again after it resets",
+        )
 
     def test_incomplete_turn_after_a_submit(self):
         # Arrange

@@ -12,6 +12,11 @@ from .execution_service import (
     AgentExecutionService,
     AgentStaleRetryError,
 )
+from .liveness_service import (
+    WORKER_LOST_STOP_REASON,
+    AgentExecutionLivenessService,
+    WorkerLostError,
+)
 from .recorder import DatabaseAgentRecorder
 from .retention_service import AgentRetentionService
 from .run_details_service import (
@@ -20,11 +25,13 @@ from .run_details_service import (
 )
 
 __all__ = [
+    "WORKER_LOST_STOP_REASON",
     "AgentChatService",
     "AgentContextService",
     "AgentConversationBusyError",
     "AgentConversationService",
     "AgentExecutionCancelService",
+    "AgentExecutionLivenessService",
     "AgentExecutionService",
     "AgentRetentionService",
     "AgentRunDetails",
@@ -33,4 +40,5 @@ __all__ = [
     "DatabaseAgentRecorder",
     "NoteAgentConversationService",
     "PreparedAgentExecution",
+    "WorkerLostError",
 ]

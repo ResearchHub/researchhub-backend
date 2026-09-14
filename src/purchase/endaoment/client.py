@@ -198,7 +198,7 @@ class EndaomentClient:
             return self._do_request("GET", f"/v1/funds/{fund_id}", access_token)
         except requests.HTTPError as e:
             if e.response.status_code == 404:
-                logger.warning(f"Fund with ID {fund_id} not found: {e}")
+                logger.warning("Fund ID %s not found: %s", fund_id, e)
                 return None
             else:
                 raise

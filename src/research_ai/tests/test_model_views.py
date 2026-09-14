@@ -1,8 +1,13 @@
 """API tests for the selectable-model listing."""
 
+from unittest.mock import patch
+
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from research_ai.services.usage_budget import TierPolicy
+from research_ai.views import model_views
 from user.tests.helpers import create_random_authenticated_user
 
 URL = "/api/research_ai/models/"
@@ -13,6 +18,27 @@ class AvailableModelsViewTests(APITestCase):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.user = create_random_authenticated_user("user", moderator=False)
 
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
+    def test_unpriced_model_is_disabled_even_for_an_unlimited_tier(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+        policy = TierPolicy("privileged", None, None, None, None)
+
+        # Act
+        with patch.object(model_views, "resolve_ai_tier", return_value=policy):
+            response = self.client.get(URL)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        unpriced = next(
+            model for model in data["models"] if model["provider"] == "bedrock"
+        )
+        self.assertFalse(unpriced["allowed"])
+        self.assertIsNone(unpriced["credit_rates"])
+        self.assertIsNone(unpriced["multiplier"])
+        self.assertEqual(data["default"], "claude_platform:claude-opus-5")
+
     def test_requires_authentication(self):
         # Act
         response = self.client.get(URL)
@@ -20,7 +46,7 @@ class AvailableModelsViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_requires_editor_or_moderator(self):
+    def test_default_user_receives_tier_catalog(self):
         # Arrange
         self.client.force_authenticate(self.user)
 
@@ -28,7 +54,11 @@ class AvailableModelsViewTests(APITestCase):
         response = self.client.get(URL)
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json()["default"],
+            "openrouter:deepseek/deepseek-v4-flash-0731",
+        )
 
     def test_lists_models_and_the_default(self):
         # Arrange
@@ -47,7 +77,16 @@ class AvailableModelsViewTests(APITestCase):
         for model in data["models"]:
             self.assertEqual(
                 sorted(model),
-                ["capabilities", "description", "label", "provider", "ref"],
+                [
+                    "allowed",
+                    "capabilities",
+                    "credit_rates",
+                    "description",
+                    "label",
+                    "multiplier",
+                    "provider",
+                    "ref",
+                ],
             )
 
         opus = next(
@@ -58,3 +97,13 @@ class AvailableModelsViewTests(APITestCase):
         self.assertIn("low", opus["capabilities"]["effort"])
         self.assertEqual(opus["capabilities"]["thinking"], ["adaptive", "disabled"])
         self.assertFalse(opus["capabilities"]["temperature"])
+        self.assertEqual(opus["multiplier"], "3.75")
+        self.assertEqual(opus["credit_rates"]["input_per_million_tokens"], "5000")
+        self.assertEqual(
+            data["credit_pricing"],
+            {
+                "multiplier_base_model": "openrouter:x-ai/grok-4.6",
+                "multiplier_basis": "equal_input_output_tokens",
+                "multiplier_is_estimate": True,
+            },
+        )

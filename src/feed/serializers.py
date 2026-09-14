@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from hub.models import Hub
@@ -9,6 +10,7 @@ from paper.models import Paper
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers import DynamicPurchaseSerializer
+from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub_document.related_models.constants import document_type
@@ -435,6 +437,7 @@ class PostSerializer(ContentObjectSerializer):
                     "created_by",
                     "contacts",
                     "applications",
+                    "funding_pool",
                 ],
             )
             return serializer.data
@@ -544,8 +547,8 @@ class BountySerializer(serializers.Serializer):
 
 class FundraiseContributionContentSerializer(serializers.Serializer):
     """
-    Serializer for fundraise contribution feed items (Purchase or
-    UsdFundraiseContribution).
+    Serializer for contribution feed items (fundraise Purchase,
+    funding-pool Purchase, or UsdFundraiseContribution).
     """
 
     id = serializers.IntegerField()
@@ -561,12 +564,21 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
 
     def _get_unified_document(self, obj):
         """
-        Get unified document from the contribution's fundraise.
+        Get unified document from the contribution target (fundraise or
+        funding pool / grant).
         """
-        from purchase.models import Fundraise
+        from purchase.models import FundingPool, Fundraise
+        from purchase.related_models.purchase_model import Purchase
 
         if hasattr(obj, "purchase_type"):
-            # Purchase - object_id points to Fundraise
+            if obj.purchase_type == Purchase.FUNDING_POOL_CONTRIBUTION:
+                try:
+                    pool = FundingPool.objects.select_related(
+                        "grant__unified_document"
+                    ).get(id=obj.object_id)
+                    return getattr(pool.grant, "unified_document", None)
+                except FundingPool.DoesNotExist:
+                    return None
             try:
                 fundraise = Fundraise.objects.select_related("unified_document").get(
                     id=obj.object_id
@@ -1126,11 +1138,29 @@ class RelatedWorkSerializer(serializers.Serializer):
         if num_applicants is None:
             num_applicants = grant.applications.count()
 
+        try:
+            pool = grant.funding_pool
+        except ObjectDoesNotExist:
+            funding_pool = None
+        else:
+            funding_pool = DynamicFundingPoolSerializer(
+                pool,
+                context=self.context,
+                _include_fields=(
+                    "id",
+                    "amount_holding",
+                    "amount_distributed",
+                    "amount_raised",
+                    "status",
+                ),
+            ).data
+
         return {
             "status": grant.status,
             "amount": _grant_amount(grant),
             "organization": grant.organization,
             "application_count": num_applicants,
+            "funding_pool": funding_pool,
         }
 
     def get_fundraise(self, unified_document):
@@ -1373,6 +1403,7 @@ MODERATOR_GRANT_FEED_ITEM_FIELDS = (
     "created_by",
     "contacts",
     "post_id",
+    "funding_pool",
 )
 MODERATOR_GRANT_FEED_USER_FIELDS = (
     "id",

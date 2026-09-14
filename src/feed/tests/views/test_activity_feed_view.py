@@ -16,7 +16,7 @@ from discussion.models import Vote
 from feed.models import FeedEntry
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Paper
-from purchase.models import Fundraise
+from purchase.models import FundingPool, Fundraise
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.grant_application_model import GrantApplication
@@ -191,6 +191,13 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
             status=Grant.OPEN,
             organization="Test Org",
         )
+        self.funding_pool = FundingPool.objects.create(
+            grant=self.grant,
+            created_by=self.user,
+            amount_holding=Decimal("100.00"),
+            amount_distributed=Decimal("25.00"),
+            status=FundingPool.OPEN,
+        )
         self.fundraise = Fundraise.objects.create(
             unified_document=self.prereg_doc,
             created_by=self.user,
@@ -236,6 +243,14 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         self.assertIn("amount", related_work["grant"])
         self.assertEqual(related_work["grant"]["amount"]["usd"], 10000.0)
         self.assertIn("application_count", related_work["grant"])
+        self.assertIn("funding_pool", related_work["grant"])
+        funding_pool = related_work["grant"]["funding_pool"]
+        self.assertEqual(funding_pool["id"], self.funding_pool.id)
+        self.assertEqual(funding_pool["status"], FundingPool.OPEN)
+        self.assertEqual(float(funding_pool["amount_holding"]["rsc"]), 100.0)
+        self.assertEqual(float(funding_pool["amount_distributed"]["rsc"]), 25.0)
+        self.assertEqual(float(funding_pool["amount_raised"]["rsc"]), 125.0)
+        self.assertEqual(funding_pool["amount_holding"]["usd"], 300.0)
 
     def test_related_work_on_prereg_comment(self):
         # Act
@@ -1400,12 +1415,30 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
             document_type=GRANT,
             unified_document=self.grant_doc,
         )
-        Grant.objects.create(
+        self.grant = Grant.objects.create(
             created_by=self.user,
             unified_document=self.grant_doc,
             amount=5000,
             currency="USD",
             status=Grant.OPEN,
+        )
+        self.funding_pool = FundingPool.objects.create(
+            grant=self.grant, created_by=self.user
+        )
+        pool_ct = ContentType.objects.get_for_model(FundingPool)
+        self.pool_contribution = Purchase.objects.create(
+            user=self.user,
+            content_type=pool_ct,
+            object_id=self.funding_pool.id,
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="75",
+        )
+        self.pool_entry = _make_feed_entry(
+            Purchase,
+            self.pool_contribution.id,
+            self.grant_doc,
+            user=self.user,
         )
         self.grant_entry = _make_feed_entry(
             ResearchhubPost,
@@ -1476,6 +1509,7 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         ids = {entry["id"] for entry in resp.data["results"]}
         self.assertIn(self.rsc_entry.id, ids)
         self.assertIn(self.usd_entry.id, ids)
+        self.assertIn(self.pool_entry.id, ids)
         self.assertNotIn(self.unrelated_entry.id, ids)
         self.assertNotIn(self.boost_entry.id, ids)
 

@@ -6,7 +6,6 @@ from rest_framework import serializers
 from feed.hot_score_utils import calculate_adjusted_score
 from feed.models import FeedEntry
 from feed.serializers import SimpleAuthorSerializer, SimpleUserSerializer
-from hub.serializers import SimpleHubSerializer
 from note.models import parse_note_json
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.journey_stage import (
@@ -96,7 +95,6 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "doi": post.doi,
             "editor_type": post.editor_type,
             "full_json": self.get_full_json(post),
-            "hubs": SimpleHubSerializer(post.unified_document.hubs, many=True).data,
             "image_url": self.get_image_url(post),
             "is_removed": post.unified_document.is_removed,
             "preview_img": post.preview_img,
@@ -141,10 +139,6 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "created_by": self.serialize_created_by(proposal),
             "created_date": proposal.created_date,
             "document_type": proposal.document_type,
-            "hubs": SimpleHubSerializer(
-                proposal.unified_document.hubs,
-                many=True,
-            ).data,
             "image_url": self.get_image_url(proposal),
             "peer_reviews": self.serialize_peer_reviews(proposal),
             "status": proposal.unified_document.status,

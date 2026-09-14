@@ -14,6 +14,7 @@ from research_ai.models import (
     AgentExecutionMessage,
 )
 from research_ai.services.agent.errors import (
+    BudgetExceededError,
     IncompleteTurnError,
     IterationLimitError,
     ProviderError,
@@ -259,7 +260,7 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         prepared = chat.prepare_turn(
             self.conversation,
             "Question",
-            configuration={"max_iterations": 12},
+            configuration={"max_iterations": 12, "effort": "high"},
         )
 
         # Act
@@ -272,6 +273,7 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         self.assertIsNotNone(entry["last_activity_at"])
         self.assertEqual(entry["iterations"], 1)
         self.assertEqual(entry["max_iterations"], 12)
+        self.assertEqual(entry["effort"], "high")
 
     def test_max_iterations_is_absent_when_the_attempt_recorded_none(self):
         # Arrange: max_iterations is read from the attempt's own configuration
@@ -286,6 +288,7 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
 
         # Assert
         self.assertIsNone(entry["max_iterations"])
+        self.assertIsNone(entry["effort"])
 
     def test_a_running_turn_reports_a_heartbeat_and_no_finish(self):
         # Arrange: a turn in flight, no terminal hook called.
@@ -911,6 +914,15 @@ class PublicErrorTaxonomyTests(AgentPersistenceTestCase):
         self.assertEqual(error["code"], "agent_interrupted")
         self.assertFalse(error["retryable"])
         self.assertNotIn("execution", error["message"])
+
+    def test_budget_exhaustion_renders_usage_limit(self):
+        # Arrange / Act
+        error = self._fail_with(BudgetExceededError("raw budget details"))
+
+        # Assert
+        self.assertEqual(error["code"], "usage_limit_exceeded")
+        self.assertFalse(error["retryable"])
+        self.assertNotIn("raw budget details", error["message"])
 
     def test_cancelled_execution_renders_no_error(self):
         # Arrange: a cancellation is the user's own stop, not a failure.

@@ -1,10 +1,11 @@
 """Notebook note tools for the agent core.
 
 ``NoteToolset`` lets an agent read and edit Tiptap notes on behalf of a
-specific user. Reads hand the model the note's top-level blocks in the
-compact dialect of ``utils.prosemirror``, indexed by position, plus a version
-id. Edits are block-level operations (insert/replace/delete) against those
-indices, guarded by that version id (optimistic concurrency), with the new
+specific user. Reads hand the model a bounded window of the note's top-level
+blocks in the compact dialect of ``utils.prosemirror``, indexed by global
+position, plus a version id. Edits are block-level operations
+(insert/replace/delete) against those indices, guarded by that version id
+(optimistic concurrency), with the new
 blocks validated against the vendored editor schema before anything is
 stored. Tool traffic thus stays proportional to the change, not to the note:
 the model never receives or regenerates the parts of the document it is not
@@ -21,11 +22,13 @@ reads use the ``HasAccessPermission`` predicate (any non-NO_ACCESS
 permission), writes the stricter ``HasEditingPermission`` one (editor or
 admin). A toolset built for a single-note surface can additionally be
 scoped with ``note_ids``; notes outside the scope get the same not-found
-error as inaccessible ones.
+error as inaccessible ones. A surface that starts without a note can pass a
+``note_creator`` to expose ``create_note``; a note it creates joins the scope
+for the rest of the turn.
 """
 
 import logging
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 
 from django.db import transaction
 
@@ -37,17 +40,28 @@ from research_ai.services.note_block_edits import (
     check_block_edits,
     parse_block_edits,
 )
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
 
 logger = logging.getLogger(__name__)
 
 READ_NOTE = "read_note"
 EDIT_NOTE = "edit_note"
+CREATE_NOTE = "create_note"
+_MAX_BLOCKS_PER_READ = 50
+_MAX_TITLE_CHARS = 255
+_CREATABLE_NOTE_TYPES = (PREREGISTRATION, GRANT)
 
 _BLOCK_FORMAT = (
     "Blocks use a compact Tiptap form: a bare string at block level is a "
     "plain paragraph; inside a block's `content`, a bare string is unmarked "
-    "text; attributes equal to the editor default are omitted."
+    "text; attributes equal to the editor default are omitted. "
+    "Reference URLs must be clickable: use text nodes with "
+    'marks: [{"type": "link", "attrs": {"href": "https://..."}}]. '
+    "Do not write Markdown link syntax into note text."
 )
 
 
@@ -55,7 +69,10 @@ class NoteToolset:
     """Note read/edit tools acting with ``user``'s permissions.
 
     ``note_ids``, when given, restricts every tool to those notes regardless
-    of what else the user could access.
+    of what else the user could access. ``note_creator``, when given, adds a
+    ``create_note`` tool: it is called with the title and document type and
+    returns the new ``Note`` (owned by ``user``); the toolset widens
+    ``note_ids`` to include it.
 
     Best-effort contract: handlers never raise; failures come back to the
     model as ``{"error": ...}`` so a bad note id or a stale edit is a turn
@@ -68,22 +85,65 @@ class NoteToolset:
         user,
         service: NoteContentService | None = None,
         note_ids: Collection[int] | None = None,
+        note_creator: Callable[[str, str], Note] | None = None,
     ):
         self._user = user
         self._service = service or NoteContentService()
-        self._note_ids = None if note_ids is None else frozenset(note_ids)
+        self._note_ids = None if note_ids is None else set(note_ids)
+        self._note_creator = note_creator
 
     # -- tool construction ------------------------------------------------
 
     def build_tools(self) -> list[Tool]:
-        return [
+        tools = []
+        if self._note_creator is not None:
+            tools.append(
+                Tool(
+                    name=CREATE_NOTE,
+                    description=(
+                        "Create a new, empty notebook note owned by the user "
+                        "and return its note_id. Use it when the user wants "
+                        "something drafted, saved, or kept as a document "
+                        "rather than answered in chat, and no suitable note "
+                        "exists yet. The note has no content: populate it "
+                        "with an edit_note insert (expected_version_id null)."
+                    ),
+                    input_schema={
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "A short title for the note.",
+                            },
+                            "document_type": {
+                                "type": "string",
+                                "enum": list(_CREATABLE_NOTE_TYPES),
+                                "description": (
+                                    "GRANT for an RFP or call for proposals; "
+                                    "PREREGISTRATION for a research proposal or "
+                                    "funding application (including an RFP response). "
+                                    "Only these two document types can be created."
+                                ),
+                            },
+                        },
+                        "required": ["title", "document_type"],
+                    },
+                    handler=self._create_note,
+                )
+            )
+        return tools + [
             Tool(
                 name=READ_NOTE,
                 description=(
                     "Read a ResearchHub notebook note. Returns the note "
                     "title, the version_id that edit_note requires, "
-                    "block_count, and the note body as `blocks`: a map from "
-                    'top-level block index ("0", "1", ...) to that block. '
+                    "total block_count, and a bounded window of the note body "
+                    "as `blocks`: a map from global top-level block index "
+                    '("0", "1", ...) to that block. Use start_block and '
+                    "max_blocks to continue through a long note; next_start_block "
+                    "is null at the end. Pass the first response's version_id "
+                    "on every continuation read so all pages come from the same "
+                    "immutable note version. "
                     f"{_BLOCK_FORMAT} A note with no content yet reads as "
                     "`blocks` null; populate it with an insert."
                 ),
@@ -94,6 +154,26 @@ class NoteToolset:
                             "type": "integer",
                             "description": "Id of the note to read.",
                         },
+                        "start_block": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "First global block index (default 0).",
+                        },
+                        "max_blocks": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": _MAX_BLOCKS_PER_READ,
+                            "description": (
+                                "Maximum blocks to return (default and limit 50)."
+                            ),
+                        },
+                        "version_id": {
+                            "type": "integer",
+                            "description": (
+                                "Version returned by the first read. Required "
+                                "when start_block is greater than 0."
+                            ),
+                        },
                     },
                     "required": ["note_id"],
                 },
@@ -101,12 +181,16 @@ class NoteToolset:
             ),
             Tool(
                 name=EDIT_NOTE,
+                eager_input_streaming=True,
                 description=(
                     "Edit a note with block operations: insert new blocks at "
                     "a position, replace an inclusive range of blocks, or "
                     "delete one. Indices refer to the `blocks` map from "
                     "read_note; all edits in one call apply together against "
                     "that same numbering, so they never shift each other. "
+                    "Call edit_note directly, including retries; it is not "
+                    "available inside code_execution. Pass edits as an actual "
+                    "array of operation objects, never a JSON-encoded string. "
                     "Pass the version_id from your latest read_note or "
                     "edit_note result as expected_version_id; the edit is "
                     "rejected as stale if the note changed since. "
@@ -127,8 +211,10 @@ class NoteToolset:
                         "expected_version_id": {
                             "type": ["integer", "null"],
                             "description": (
-                                "version_id from read_note. Pass null only if "
-                                "read_note reported no version."
+                                "version_id from the latest read_note or "
+                                "edit_note result. Pass null for a freshly "
+                                "created note when create_note or read_note "
+                                "reported no version."
                             ),
                         },
                         "edits": {
@@ -136,7 +222,10 @@ class NoteToolset:
                             "minItems": 1,
                             "description": (
                                 "Operations on the block indices you read, "
-                                "applied as one batch."
+                                "applied as one batch. Supply an array, not a "
+                                "string containing JSON. Example: "
+                                '[{"op": "insert", "at": 0, '
+                                '"blocks": ["Paragraph text"]}]'
                             ),
                             "items": {
                                 "type": "object",
@@ -189,14 +278,52 @@ class NoteToolset:
 
     # -- handlers ---------------------------------------------------------
 
+    def _create_note(self, input: dict) -> dict:
+        if self._user is None or getattr(self._user, "is_anonymous", False):
+            return {"error": "a signed-in user is required to create a note"}
+        title = input.get("title")
+        if not isinstance(title, str) or not title.strip():
+            return {"error": "title must be a non-empty string"}
+        title = " ".join(title.split())
+        if len(title) > _MAX_TITLE_CHARS:
+            return {"error": f"title must be at most {_MAX_TITLE_CHARS} characters"}
+        document_type = input.get("document_type")
+        if document_type not in _CREATABLE_NOTE_TYPES:
+            return {"error": "document_type must be PREREGISTRATION or GRANT"}
+        try:
+            note = self._note_creator(title, document_type)
+        except Exception as exc:  # noqa: BLE001 - reported to the model
+            logger.exception("create_note failed for user %s", self._user.id)
+            return {"error": f"could not create the note: {exc}"}
+        if self._note_ids is not None:
+            self._note_ids.add(note.id)
+        return {
+            "note_id": note.id,
+            "title": note.title,
+            "document_type": note.document_type,
+            "version_id": None,
+            "created": True,
+        }
+
     def _read_note(self, input: dict) -> dict:
         note = self._get_readable_note(input.get("note_id"))
         if note is None:
             return {"error": f"note {input.get('note_id')} not found or not accessible"}
-        latest = note.latest_version
+        try:
+            start = self._read_bound(input.get("start_block"), default=0, minimum=0)
+            limit = self._read_bound(
+                input.get("max_blocks"),
+                default=_MAX_BLOCKS_PER_READ,
+                minimum=1,
+                maximum=_MAX_BLOCKS_PER_READ,
+            )
+            version = self._read_version(note, input.get("version_id"), start=start)
+        except ValueError as exc:
+            return {"error": str(exc)}
+
         # Stored JSON may be a JSON-encoded string rather than a dict;
         # normalize before block extraction.
-        doc = parse_note_json(latest.json) if latest else None
+        doc = parse_note_json(version.json) if version else None
         if doc is None:
             blocks = None
         else:
@@ -207,18 +334,59 @@ class NoteToolset:
                 # cleaned up), so surface the mismatch instead of hiding it.
                 logger.warning("note %s content fails the editor schema", note.id)
                 return {"error": f"note {note.id} content could not be read: {exc}"}
+        block_count = 0 if blocks is None else len(blocks)
+        if start > block_count:
+            return {
+                "error": (
+                    f"start_block {start} is out of range; note {note.id} has "
+                    f"{block_count} blocks"
+                )
+            }
+        end = min(start + limit, block_count)
         result = {
             "note_id": note.id,
             "title": note.title,
-            "version_id": latest.id if latest else None,
-            "block_count": 0 if blocks is None else len(blocks),
+            "version_id": version.id if version else None,
+            "block_count": block_count,
+            "start_block": start,
+            "returned_block_count": end - start,
+            "next_start_block": end if end < block_count else None,
             "blocks": (
                 None
                 if blocks is None
-                else {str(index): block for index, block in enumerate(blocks)}
+                else {str(index): blocks[index] for index in range(start, end)}
             ),
         }
         return result
+
+    @staticmethod
+    def _read_version(note: Note, version_id, *, start: int) -> NoteContent | None:
+        """Resolve one immutable version and require it for continuation reads."""
+        if version_id is None:
+            if start > 0:
+                raise ValueError(
+                    "version_id is required when start_block is greater than 0; "
+                    "pass the version_id from the first read_note response"
+                )
+            return note.latest_version
+        if isinstance(version_id, bool) or not isinstance(version_id, int):
+            raise ValueError("read_note version_id must be an integer")
+        version = NoteContent.objects.filter(note_id=note.id, id=version_id).first()
+        if version is None:
+            raise ValueError(f"version {version_id} not found for note {note.id}")
+        return version
+
+    @staticmethod
+    def _read_bound(value, *, default: int, minimum: int, maximum: int | None = None):
+        if value is None:
+            return default
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError("read_note bounds must be integers")
+        if value < minimum or (maximum is not None and value > maximum):
+            if maximum is None:
+                raise ValueError(f"read_note bound must be at least {minimum}")
+            raise ValueError(f"read_note bound must be between {minimum} and {maximum}")
+        return value
 
     def _edit_note(self, input: dict) -> dict:
         note = self._get_readable_note(input.get("note_id"))
@@ -243,7 +411,14 @@ class NoteToolset:
                     except ValueError as exc:
                         raise ValueError(f"edits[{index}]: {exc}") from exc
         except ValueError as exc:
-            return {"error": str(exc)}
+            return {
+                "error": (
+                    f"{exc}. No edits were saved by this call. "
+                    "Correct the arguments and retry edit_note directly with "
+                    "the intended content and the same expected_version_id; "
+                    "edit_note is not available inside code_execution."
+                )
+            }
 
         expected = input.get("expected_version_id")
         try:

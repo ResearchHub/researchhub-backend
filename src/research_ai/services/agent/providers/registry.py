@@ -13,6 +13,7 @@ configuration without constructing clients or requiring credentials.
 
 from django.conf import settings
 
+from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers import bedrock, claude_platform, openrouter
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.providers.bedrock import BedrockProvider
@@ -49,6 +50,16 @@ def generator_model_ref() -> str:
         OPENROUTER: openrouter.MODEL_ID,
     }
     return f"{name}:{model_ids[name]}"
+
+
+def default_effort(model_ref: str) -> str | None:
+    """Resolve the adapter's supported effort default without building a client."""
+    provider_name, model_id = split_model_ref(model_ref)
+    if provider_name == BEDROCK:
+        return None
+    adapter = openrouter if provider_name == OPENROUTER else claude_platform
+    capabilities = model_capabilities(provider_name, model_id or adapter.MODEL_ID)
+    return adapter.EFFORT if adapter.EFFORT in capabilities.effort else None
 
 
 def resolve_provider(

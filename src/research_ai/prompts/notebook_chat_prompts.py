@@ -1,8 +1,8 @@
 """Prompt builder for the notebook chat assistant.
 
 The system prompt pins the agent to one note (id + title) and states the
-tool contract: research via OpenAlex/web tools, note edits via read_note /
-edit_note with full-document replaces. The user prompt is the user's chat
+tool contract: research via OpenAlex/web tools, note edits via bounded read_note /
+edit_note block operations. The user prompt is the user's chat
 message verbatim, so there is no user-prompt builder here.
 """
 

@@ -29,6 +29,7 @@ from research_ai.services.agent.types import (
     StopReason,
     TextBlock,
     ToolResultBlock,
+    TurnUsage,
 )
 
 logger = logging.getLogger(__name__)
@@ -145,7 +146,7 @@ class Agent:
         toolset: Toolset,
         *,
         system_prompt: str,
-        max_iterations: int,
+        max_iterations: int | None,
         max_tokens: int | None,
         temperature: float,
         recorder: AgentRecorder | None = None,
@@ -228,6 +229,13 @@ class Agent:
         if not active:
             raise InterruptedError("agent execution is no longer running")
 
+    def _ensure_can_spend(self) -> None:
+        """Check cancellation and an optional recorder-owned spend guard."""
+        self._ensure_active()
+        before_model_call = getattr(self.recorder, "before_model_call", None)
+        if before_model_call is not None:
+            before_model_call()
+
     def _record_terminal(self, hook: str, *args) -> None:
         """Best-effort terminal observation must not mask the run outcome."""
         if self.recorder is None:
@@ -245,7 +253,8 @@ class Agent:
                 rendered_tools=rendered_tools,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                before_retry=self._ensure_active,
+                before_retry=self._ensure_can_spend,
+                on_usage=self._record_usage,
                 on_event=lambda event: self._record_stream_event(iteration, event),
             )
         except AgentRunError as exc:
@@ -268,6 +277,18 @@ class Agent:
             ) from exc
         finally:
             self._flush_stream_events()
+
+    def _record_usage(self, usage: TurnUsage) -> None:
+        """Deliver one completed provider response's billable usage."""
+        callback = getattr(self.recorder, "record_usage", None)
+        if callback is None:
+            return
+        try:
+            callback(usage)
+        except Exception:  # noqa: BLE001 - observers are best-effort by default
+            if getattr(self.recorder, "requires_durable_usage", False):
+                raise
+            logger.warning("agent recorder record_usage failed", exc_info=True)
 
     def _record_stream_event(self, iteration: int, event) -> None:
         """Best-effort delivery of transient model output to an observer."""
@@ -360,16 +381,18 @@ class Agent:
     def _loop(self, messages: list[Message]) -> AgentResult:
         rendered_tools = self.toolset.render_specs(self.provider)
         logger.info(
-            "agent run start: tools=[%s] max_iterations=%d",
+            "agent run start: tools=[%s] max_iterations=%s",
             ", ".join(self.toolset.names),
             self.max_iterations,
         )
-        for iteration in range(1, self.max_iterations + 1):
+        iteration = 0
+        while self.max_iterations is None or iteration < self.max_iterations:
+            iteration += 1
             # Before spending on the model, not only before a tool: a provider
             # call is the most expensive thing an iteration does and can hold the
             # worker for the vendor SDK's whole retry budget, so a run that was
             # stopped must not start another one.
-            self._ensure_active()
+            self._ensure_can_spend()
             turn = self._complete_turn(messages, rendered_tools, iteration)
             # The turn is replayed exactly as the provider sent it: reasoning
             # blocks are signed and must lead, and a server-side tool's result
@@ -403,9 +426,9 @@ class Agent:
                 # calls and handed the turn back mid-flight. Nothing is owed in
                 # reply: sending the conversation back with this turn appended
                 # and no user turn after it resumes where it left off. It counts
-                # as an iteration, which is what bounds a pathological pause
-                # loop. (A paused turn that *also* called a client tool falls
-                # through to the dispatch below -- those results resume it too.)
+                # as an iteration toward any configured limit. A paused turn
+                # that also called a client tool falls through to the dispatch
+                # below -- those results resume it too.
                 logger.info("iter %d pause_turn: resuming server-side work", iteration)
                 continue
             if not turn.tool_calls:

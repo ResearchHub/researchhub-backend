@@ -2,7 +2,17 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      git_ref:
+        description: "Git hash or branch to build"
+        required: false
+        type: string
   workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Enter Git hash or branch"
+        required: false
+        type: string
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
@@ -18,6 +28,8 @@ jobs:
     steps:
       - name: Check out sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.git_ref }}
 
       - name: Get Git SHA
         id: git_sha
@@ -32,13 +44,13 @@ jobs:
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Log in to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
 
       - name: Build and push image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -49,3 +61,15 @@ jobs:
           tags: ${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
           cache-from: type=gha,scope=researchhub-backend-arm64
           cache-to: type=gha,mode=max,scope=researchhub-backend-arm64
+
+      - name: Summary
+        env:
+          GIT_REF: ${{ inputs.git_ref || github.ref_name }}
+          GIT_SHA: ${{ steps.git_sha.outputs.long }}
+          IMAGE: ${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
+        run: |
+          {
+            echo "Given Git ref: \`$GIT_REF\`"
+            echo "Commit: \`$GIT_SHA\`"
+            echo "Image: \`$IMAGE\`"
+          } >> "$GITHUB_STEP_SUMMARY"

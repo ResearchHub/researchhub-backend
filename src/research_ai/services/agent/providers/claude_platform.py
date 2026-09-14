@@ -379,6 +379,13 @@ class ClaudePlatformProvider(LLMProvider):
                 "name": tool.name,
                 "description": tool.description,
                 "input_schema": tool.input_schema,
+                # Note prose lives in a large tool argument. Without this the
+                # API buffers the argument before our preview can receive it.
+                **(
+                    {"eager_input_streaming": True}
+                    if tool.eager_input_streaming
+                    else {}
+                ),
             }
             for tool in tools
         ]
@@ -401,6 +408,7 @@ class ClaudePlatformProvider(LLMProvider):
         max_tokens: int | None,
         temperature: float,
         before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         return self.complete_with_events(
             system_prompt=system_prompt,
@@ -409,6 +417,7 @@ class ClaudePlatformProvider(LLMProvider):
             max_tokens=max_tokens,
             temperature=temperature,
             before_retry=before_retry,
+            on_usage=on_usage,
         )
 
     def complete_with_events(
@@ -421,6 +430,7 @@ class ClaudePlatformProvider(LLMProvider):
         temperature: float,
         on_event: Callable[[ProviderStreamEvent], None] | None = None,
         before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         if self._client is None:
             raise ProviderError(
@@ -491,6 +501,9 @@ class ClaudePlatformProvider(LLMProvider):
                 ) from e
             responses.append(response)
             self._log_usage(response)
+            usage = self._parse_usage(response)
+            if usage is not None and on_usage is not None:
+                on_usage(usage)
             self._log_continuation_state(response)
             if not self._response_missing_required_container(
                 response, request_container_id=kwargs.get("container")
@@ -760,11 +773,12 @@ class ClaudePlatformProvider(LLMProvider):
             return
         logger.info(
             "claude platform usage: input=%s cache_read=%s cache_write=%s "
-            "output=%s container_returned=%s",
+            "output=%s web_searches=%s container_returned=%s",
             getattr(usage, "input_tokens", None),
             getattr(usage, "cache_read_input_tokens", None),
             getattr(usage, "cache_creation_input_tokens", None),
             getattr(usage, "output_tokens", None),
+            self._server_tool_usage(usage, "web_search_requests"),
             getattr(response, "container", None) is not None,
         )
 
@@ -829,6 +843,7 @@ class ClaudePlatformProvider(LLMProvider):
             output_tokens=total("output_tokens"),
             cache_read_tokens=total("cache_read_tokens"),
             cache_write_tokens=total("cache_write_tokens"),
+            web_search_requests=total("web_search_requests"),
         )
 
     def _parse_turn(self, response: Any, *, latency_ms: int | None = None):
@@ -930,4 +945,12 @@ class ClaudePlatformProvider(LLMProvider):
             output_tokens=getattr(usage, "output_tokens", None),
             cache_read_tokens=getattr(usage, "cache_read_input_tokens", None),
             cache_write_tokens=getattr(usage, "cache_creation_input_tokens", None),
+            web_search_requests=self._server_tool_usage(usage, "web_search_requests"),
         )
+
+    @staticmethod
+    def _server_tool_usage(usage: Any, name: str) -> int | None:
+        server_usage = getattr(usage, "server_tool_use", None)
+        if isinstance(server_usage, dict):
+            return server_usage.get(name)
+        return getattr(server_usage, name, None)

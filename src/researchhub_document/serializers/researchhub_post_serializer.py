@@ -19,7 +19,6 @@ from discussion.serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
     GenericReactionSerializerMixin,
 )
-from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from note.models import parse_note_json
 from purchase.models import GrantApplication, Purchase
 from researchhub.serializers import (
@@ -88,7 +87,6 @@ class ResearchhubPostSerializer(
             "editor_type",
             "full_markdown",
             "grants",
-            "hubs",
             "id",
             "image",
             "image_url",
@@ -140,7 +138,6 @@ class ResearchhubPostSerializer(
     peer_reviews = SerializerMethodField()
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
     grants = SerializerMethodField()
-    hubs = SerializerMethodField(method_name="get_hubs")
     image = CharField(write_only=True, required=False, allow_null=True)
     image_url = SerializerMethodField()
     is_removed = SerializerMethodField()
@@ -262,9 +259,6 @@ class ResearchhubPostSerializer(
 
     def get_full_markdown(self, instance):
         return instance.get_full_markdown()
-
-    def get_hubs(self, instance):
-        return SimpleHubSerializer(instance.unified_document.hubs, many=True).data
 
     def get_grants(self, post):
         if post.document_type != PREREGISTRATION:
@@ -399,7 +393,6 @@ class DynamicPostSerializer(
     created_by = SerializerMethodField()
     discussions = SerializerMethodField()
     discussion_aggregates = SerializerMethodField()
-    hubs = SerializerMethodField()
     note = SerializerMethodField()
     peer_reviews = SerializerMethodField()
     purchases = SerializerMethodField()
@@ -538,14 +531,6 @@ class DynamicPostSerializer(
     def get_unified_document_id(self, post):
         unified_document = post.unified_document
         return unified_document.id if unified_document is not None else None
-
-    def get_hubs(self, post):
-        context = self.context
-        _context_fields = context.get("doc_dps_get_hubs", {})
-        serializer = DynamicHubSerializer(
-            post.hubs, many=True, context=context, **_context_fields
-        )
-        return serializer.data
 
     def get_created_by(self, post):
         context = self.context

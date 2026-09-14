@@ -51,6 +51,23 @@ class ParseBlockEditsTests(unittest.TestCase):
             with self.subTest(name), self.assertRaises(ValueError):
                 parse_block_edits(raw)
 
+    def test_rejects_encoded_edits_with_array_guidance(self):
+        # Arrange: both valid and malformed JSON must remain rejected strings.
+        inputs = [
+            '[{"op": "insert", "at": 0, "blocks": ["Paragraph"]}]',
+            '[{"op": "insert", "at": 0, "blocks": ["Unescaped "quote""]}]',
+        ]
+
+        # Act
+        for raw in inputs:
+            with self.subTest(raw=raw):
+                with self.assertRaises(ValueError) as caught:
+                    parse_block_edits(raw)
+
+                # Assert
+                self.assertIn("not a JSON string", str(caught.exception))
+                self.assertIn("Pass the array directly", str(caught.exception))
+
     def test_rejects_bad_operations_with_indexed_messages(self):
         # Arrange
         bad_ops = {

@@ -16,7 +16,7 @@ class OrcidFetchView(APIView):
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: Request) -> Response:
-        """Trigger async paper sync from ORCID."""
+        """Trigger asynchronous ORCID data synchronization."""
         author = Author.objects.filter(user=request.user).first()
         if not author:
             return Response(
@@ -31,4 +31,4 @@ class OrcidFetchView(APIView):
             )
 
         self.sync_task.delay(author.id)
-        return Response({"message": "Paper sync started"})
+        return Response({"message": "ORCID sync started"})

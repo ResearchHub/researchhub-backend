@@ -2,6 +2,7 @@
 
 - ``runner`` -- the bounded-loop driver and the ``run_proposal_draft`` entry
   point (see its module docstring for the design overview).
+- ``create_service`` -- policy-aware admission, persistence, and task enqueueing.
 - ``gates`` -- the deterministic accept/reject checks a submit must clear.
 - ``run_state`` -- the loop-state bookkeeping and failure-reason taxonomy.
 - ``draft_recorder`` -- every ``ProposalDraft`` write and progress emission.
@@ -12,6 +13,16 @@
 - ``tools`` -- the proposal-specific tools the draft agent calls.
 """
 
+from research_ai.services.proposal_draft.create_service import (
+    ProposalDraftAlreadyActiveError,
+    ProposalDraftCreateService,
+    ProposalDraftEnqueueError,
+)
 from research_ai.services.proposal_draft.runner import run_proposal_draft
 
-__all__ = ["run_proposal_draft"]
+__all__ = [
+    "ProposalDraftAlreadyActiveError",
+    "ProposalDraftCreateService",
+    "ProposalDraftEnqueueError",
+    "run_proposal_draft",
+]

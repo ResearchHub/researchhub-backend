@@ -75,7 +75,8 @@ class NoteAgentConversationService:
         # best-effort join-table write failed after the proposal was completed.
         return (
             AgentConversation.objects.filter(
-                Q(note_links__note=note) | Q(proposal_draft__note=note)
+                Q(note_links__note=note) | Q(proposal_draft__note=note),
+                is_removed=False,
             )
             .distinct()
             .order_by("-updated_date", "-id")

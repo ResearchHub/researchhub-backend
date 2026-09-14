@@ -18,13 +18,13 @@ from ai_peer_review.signals import preregistration_substantively_updated
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
-from hub.models import Hub
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from purchase.services.funding_pool_service import FundingPoolService
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
 from researchhub.settings import TESTING
@@ -65,7 +65,6 @@ from researchhub_document.services.unified_document_share_link_service import (
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import Author, User
 from user.services.risk_score_service import RiskScoreService
-from utils.throttles import THROTTLE_CLASSES
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +87,6 @@ class ResearchhubPostViewSet(
     queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
-    throttle_classes = THROTTLE_CLASSES
     moderation_model = ResearchhubPost
 
     def get_permissions(self):
@@ -220,19 +218,37 @@ class ResearchhubPostViewSet(
                 .annotate(
                     registered_report_id=Subquery(registered_reports.values("id")[:1])
                 )
-                .select_related("unified_document")
+                # ResearchhubPostSerializer embeds the note, so the draft
+                # relations it renders load here instead of once per post.
+                .select_related(
+                    "note__grant_settings",
+                    "note__preregistration_settings__nonprofit",
+                    "note__selected_grant",
+                    "note__selected_grant__funding_pool",
+                    "unified_document",
+                )
                 .prefetch_related(
                     "author_links",
+                    "note__author_links",
+                    "note__grant_settings__contacts",
+                    "note__selected_grant__unified_document__posts",
                     Prefetch(
                         "grant_applications",
-                        queryset=GrantApplication.objects.select_related("grant"),
+                        queryset=GrantApplication.objects.select_related(
+                            "grant", "grant__funding_pool"
+                        ),
                     ),
                     Prefetch(
                         "unified_document__proposal_reviews",
                         queryset=ProposalReview.objects.filter(
                             grant__isnull=False,
                         )
-                        .select_related("grant", "unified_document", "key_insight")
+                        .select_related(
+                            "grant",
+                            "grant__funding_pool",
+                            "unified_document",
+                            "key_insight",
+                        )
                         .prefetch_related(
                             "unified_document__"
                             "ai_peer_review_editorial_feedback__categories",
@@ -379,11 +395,6 @@ class ResearchhubPostViewSet(
                 if access_group is not None:
                     unified_document.access_groups = access_group
                 unified_document.save()
-                if registered_report_proposal is not None:
-                    unified_document.hubs.set(
-                        registered_report_proposal.unified_document.hubs.all()
-                    )
-
                 slug = slugify(title)
                 rh_post = ResearchhubPost.objects.create(
                     created_by=created_by,
@@ -415,7 +426,7 @@ class ResearchhubPostViewSet(
                 if goal_amount := data.get("fundraise_goal_amount"):
                     fundraise_data = {
                         "goal_amount": goal_amount,
-                        "goal_currency": data.get("fundraise_goal_currency", USD),
+                        "goal_currency": data.get("fundraise_goal_currency") or USD,
                         "unified_document_id": unified_document.id,
                         "recipient_user_id": created_by.id,
                     }
@@ -443,7 +454,7 @@ class ResearchhubPostViewSet(
                 if grant_amount := data.get("grant_amount"):
                     grant_data = {
                         "amount": grant_amount,
-                        "currency": data.get("grant_currency", USD),
+                        "currency": data.get("grant_currency") or USD,
                         "organization": data.get("grant_organization"),
                         "description": data.get("grant_description"),
                         "unified_document_id": unified_document.id,
@@ -455,11 +466,9 @@ class ResearchhubPostViewSet(
                     if grant_contacts is not None:
                         grant_data["contact_ids"] = grant_contacts
 
-                    if (
-                        application_visibility := data.get(
-                            "grant_application_visibility"
-                        )
-                    ) is not None:
+                    if application_visibility := data.get(
+                        "grant_application_visibility"
+                    ):
                         grant_data["application_visibility"] = application_visibility
 
                     grant_serializer = GrantCreateSerializer(data=grant_data)
@@ -490,6 +499,8 @@ class ResearchhubPostViewSet(
                         grant.contacts.set(contacts)
                     else:
                         grant.contacts.clear()
+
+                    FundingPoolService().create_pool_for_grant(grant)
 
                     # Trusted users skip the grant moderation queue.
                     if risk_score_service.is_trusted(created_by):
@@ -576,6 +587,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_pool",
                     ],
                 ).data
                 if grant
@@ -612,7 +624,6 @@ class ResearchhubPostViewSet(
                     status=400,
                 )
 
-            hubs = data.get("hubs", None)
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
 
@@ -644,10 +655,6 @@ class ResearchhubPostViewSet(
                 self._validate_author_ids(authors)
                 rh_post.reset_post_authors(authors)
 
-            if type(hubs) is list:
-                unified_doc = post.unified_document
-                unified_doc.hubs.set(hubs)
-
             # Handle grant updates
             grant = None
             unified_document = post.unified_document
@@ -661,7 +668,7 @@ class ResearchhubPostViewSet(
             if (grant_amount := data.get("grant_amount")) and existing_grant:
                 grant_data = {
                     "amount": grant_amount,
-                    "currency": data.get("grant_currency", USD),
+                    "currency": data.get("grant_currency") or USD,
                     "organization": data.get("grant_organization"),
                     "description": data.get("grant_description"),
                     "unified_document_id": unified_document.id,
@@ -673,9 +680,7 @@ class ResearchhubPostViewSet(
                 if grant_contacts is not None:
                     grant_data["contact_ids"] = grant_contacts
 
-                if (
-                    application_visibility := data.get("grant_application_visibility")
-                ) is not None:
+                if application_visibility := data.get("grant_application_visibility"):
                     grant_data["application_visibility"] = application_visibility
 
                 grant_serializer = GrantCreateSerializer(data=grant_data)
@@ -761,6 +766,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_pool",
                     ],
                 ).data
                 if grant
@@ -778,7 +784,6 @@ class ResearchhubPostViewSet(
     def create_unified_doc(self, request, target_grant: Grant | None = None):
         try:
             request_data = request.data
-            hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()
             document_type = request_data.get("document_type")
             is_public = True
             # PREREGISTRATION and GRANT posts may be created as private.
@@ -806,12 +811,9 @@ class ResearchhubPostViewSet(
                                 "This grant requires applications to be public."
                             )
                         is_public = True
-            uni_doc = ResearchhubUnifiedDocument.objects.create(
+            return ResearchhubUnifiedDocument.objects.create(
                 document_type=document_type,
                 is_public=is_public,
             )
-            uni_doc.hubs.add(*hubs)
-            uni_doc.save()
-            return uni_doc
         except (KeyError, TypeError):
             logger.exception("Error creating unified document")

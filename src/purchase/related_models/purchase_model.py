@@ -51,6 +51,7 @@ class Purchase(PaidStatusModelMixin):
     BOOST = "BOOST"
     DOI = "DOI"
     FUNDRAISE_CONTRIBUTION = "FUNDRAISE_CONTRIBUTION"
+    FUNDING_POOL_CONTRIBUTION = "FUNDING_POOL_CONTRIBUTION"
 
     PURCHASE_METHOD_CHOICES = [
         (OFF_CHAIN, OFF_CHAIN),
@@ -60,6 +61,7 @@ class Purchase(PaidStatusModelMixin):
         (BOOST, BOOST),
         (DOI, DOI),
         (FUNDRAISE_CONTRIBUTION, FUNDRAISE_CONTRIBUTION),
+        (FUNDING_POOL_CONTRIBUTION, FUNDING_POOL_CONTRIBUTION),
     ]
 
     objects = PurchaseQuerySet.as_manager()

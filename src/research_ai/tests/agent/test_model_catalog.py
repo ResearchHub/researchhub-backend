@@ -2,6 +2,7 @@
 
 from django.test import SimpleTestCase, override_settings
 
+from research_ai.services.agent import model_catalog
 from research_ai.services.agent.model_capabilities import (
     model_capabilities,
     validate_generation_options,
@@ -11,6 +12,8 @@ from research_ai.services.agent.model_catalog import (
     default_model_ref,
     validate_model_ref,
 )
+from research_ai.services.agent.model_pricing import model_pricing
+from research_ai.services.agent.providers.registry import split_model_ref
 
 # Provider keys live on the workers that run turns, not on the API process
 # that serves the catalog, so every assertion below holds with none set.
@@ -23,6 +26,21 @@ NO_PROVIDER_CREDENTIALS = {
 
 @override_settings(**NO_PROVIDER_CREDENTIALS)
 class AvailableModelsTests(SimpleTestCase):
+    def test_every_catalog_model_has_reviewed_pricing(self):
+        # Arrange
+        options = model_catalog._CATALOG
+
+        # Act
+        unpriced = [
+            option.ref
+            for option in options
+            if model_pricing(*split_model_ref(option.ref)) is None
+        ]
+
+        # Assert
+        self.assertTrue(options)
+        self.assertEqual(unpriced, [], "Add reviewed pricing for every catalog model")
+
     def test_catalog_refs_have_valid_structure(self):
         # Act
         options = available_models()
@@ -58,22 +76,6 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertTrue(options)
         self.assertEqual(unreviewed, [])
 
-    def test_haiku_advertises_temperature_but_not_effort_or_thinking(self):
-        # Arrange
-        option = next(
-            option
-            for option in available_models()
-            if option.ref == "claude_platform:claude-haiku-4-5"
-        )
-
-        # Act
-        capabilities = option.capabilities
-
-        # Assert
-        self.assertEqual(capabilities.effort, ())
-        self.assertEqual(capabilities.thinking, ())
-        self.assertTrue(capabilities.temperature)
-
     def test_openrouter_gpt_advertises_reasoning_but_not_temperature(self):
         # Arrange
         option = next(
@@ -91,7 +93,7 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertFalse(capabilities.temperature)
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
-    def test_generator_default_outside_the_catalog_is_still_selectable(self):
+    def test_generator_default_outside_the_catalog_is_still_listed(self):
         # Arrange: no Bedrock ref is catalogued, so the default is not one.
         default = default_model_ref()
 
@@ -145,9 +147,27 @@ class CapabilityLookupTests(SimpleTestCase):
                     model_capabilities(provider, model_id).max_output_tokens
                 )
 
+    def test_glm_flash_requires_reasoning(self):
+        # Act
+        capabilities = model_capabilities("openrouter", "z-ai/glm-5.3-flash")
+
+        # Assert
+        self.assertEqual(capabilities.effort, ("low", "high", "max"))
+        self.assertEqual(capabilities.thinking, ("adaptive",))
+        self.assertEqual(capabilities.max_output_tokens, 131_072)
+
 
 @override_settings(**NO_PROVIDER_CREDENTIALS)
 class ValidateModelRefTests(SimpleTestCase):
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
+    def test_unpriced_configured_default_cannot_be_selected(self):
+        # Arrange
+        default = default_model_ref()
+
+        # Act / Assert
+        with self.assertRaisesMessage(ValueError, "has no reviewed pricing"):
+            validate_model_ref(default)
+
     def test_no_selection_returns_none(self):
         # Act / Assert
         self.assertIsNone(validate_model_ref(None))

@@ -6,14 +6,11 @@ from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Func, Index, JSONField, Q
-from manubot.cite.doi import get_doi_csl_item
-from manubot.cite.unpaywall import Unpaywall
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
 from paper.related_models.citation_model import Citation
 from paper.storage.figure_storage import FigureStorage
-from paper.utils import get_csl_item
 from reputation.models import Score, ScoreChange
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.user_model import User
@@ -246,22 +243,6 @@ class Paper(AbstractGenericReactionModel):
     def created_by(self):
         return self.uploaded_by
 
-    def raw_author_count(self):
-        raw_author_count = 0
-
-        if isinstance(self.raw_authors, list):
-            raw_author_count = len(self.raw_authors)
-            for author in self.raw_authors:
-                if self.authors.filter(
-                    first_name=author.get("first_name"),
-                    last_name=author.get("last_name"),
-                ).exists():
-                    raw_author_count -= 1
-        return raw_author_count
-
-    def get_hub_names(self):
-        return ",".join(self.hubs.values_list("name", flat=True))
-
     def get_discussion_count(self):
         from paper.services.paper_version_service import PaperService
 
@@ -280,47 +261,6 @@ class Paper(AbstractGenericReactionModel):
 
         # Default behavior: only count threads from this paper
         return self.rh_threads.get_discussion_count()
-
-    def get_license(self, save=True):
-        pdf_license = self.pdf_license
-        if pdf_license:
-            return pdf_license
-
-        csl_item = None
-        fields = ["doi", "url", "pdf_url"]
-        for field in fields:
-            item = getattr(self, field)
-            if not item:
-                continue
-            try:
-                if field == "doi":
-                    csl_item = get_doi_csl_item(item)
-                else:
-                    csl_item = get_csl_item(item)
-
-                if csl_item:
-                    break
-            except Exception as e:
-                logger.error(f"Error getting csl_item for paper {self.id}: {e}")
-
-        if not csl_item:
-            return None
-
-        best_openly_licensed_pdf = {}
-        try:
-            unpaywall = Unpaywall.from_csl_item(csl_item)
-            best_openly_licensed_pdf = unpaywall.best_openly_licensed_pdf
-        except Exception as e:
-            logger.error(f"Error getting openly licensed pdf for paper {self.id}: {e}")
-
-        if not best_openly_licensed_pdf:
-            return None
-
-        license = best_openly_licensed_pdf.get("license", None)
-        if save:
-            self.pdf_license = license
-            self.save()
-        return license
 
     def get_image_url(self):
         try:

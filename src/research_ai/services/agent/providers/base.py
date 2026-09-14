@@ -20,7 +20,12 @@ from collections.abc import Callable
 from typing import Any
 
 from research_ai.services.agent.tools import Tool
-from research_ai.services.agent.types import AssistantTurn, Message, ProviderStreamEvent
+from research_ai.services.agent.types import (
+    AssistantTurn,
+    Message,
+    ProviderStreamEvent,
+    TurnUsage,
+)
 
 
 class LLMProvider(ABC):
@@ -53,6 +58,7 @@ class LLMProvider(ABC):
         max_tokens: int | None,
         temperature: float,
         before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         """Run one model turn and return the parsed ``AssistantTurn``.
 
@@ -60,7 +66,10 @@ class LLMProvider(ABC):
         provider; it is passed through opaquely. ``max_tokens=None`` means the
         adapter's own output ceiling for its model. A provider that retries
         internally must invoke ``before_retry`` immediately before spending on
-        another request, when supplied.
+        another request, when supplied. It must invoke ``on_usage`` once for
+        every completed provider response carrying usage, before parsing that
+        response into a turn, so billable malformed or discarded responses are
+        still observable.
         """
         raise NotImplementedError
 
@@ -74,6 +83,7 @@ class LLMProvider(ABC):
         temperature: float,
         on_event: Callable[[ProviderStreamEvent], None] | None = None,
         before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         """Run one turn, optionally reporting normalized incremental output.
 
@@ -88,4 +98,5 @@ class LLMProvider(ABC):
             max_tokens=max_tokens,
             temperature=temperature,
             before_retry=before_retry,
+            on_usage=on_usage,
         )

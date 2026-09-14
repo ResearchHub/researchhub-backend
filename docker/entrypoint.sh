@@ -6,6 +6,7 @@ case "${1:-api}" in
     set -- daphne \
       --bind 0.0.0.0 \
       --port 8000 \
+      --proxy-headers \
       researchhub.asgi:application
     ;;
 

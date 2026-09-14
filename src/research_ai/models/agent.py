@@ -34,6 +34,14 @@ class AgentConversation(DefaultModel):
     )
     next_trace_sequence = models.PositiveBigIntegerField(default=1)
     next_chat_sequence = models.PositiveBigIntegerField(default=1)
+    is_removed = models.BooleanField(
+        default=False,
+        db_comment=(
+            "Soft delete: the user removed the conversation. Rows are kept for "
+            "audit and usage accounting; every user-facing lookup excludes them."
+        ),
+    )
+    removed_date = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "research_ai_agent_conversation"
@@ -136,6 +144,14 @@ class AgentExecution(DefaultModel):
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
     last_activity_at = models.DateTimeField(null=True, blank=True)
+    usage_reservation_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment=(
+            "Renewable lease reserving the user's Research AI budget slot while "
+            "this execution may still be producing spend."
+        ),
+    )
     next_message_sequence = models.PositiveIntegerField(default=1)
     next_context_sequence = models.PositiveIntegerField(default=1)
     publish_output_to_chat = models.BooleanField(

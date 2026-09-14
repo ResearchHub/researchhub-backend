@@ -9,7 +9,6 @@ from rest_framework.test import APITestCase
 
 from ai_peer_review.models import OverallRating, ProposalReview, Status
 from ai_peer_review.serializers import ProposalReviewSerializer
-from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
 from purchase.models import Grant, GrantApplication
@@ -66,8 +65,6 @@ class ViewTests(APITestCase):
             user=self.member_user,
         )
 
-        self.hub = create_hub("hub")
-
         # Add exchange rate for fundraise tests
         RscExchangeRate.objects.create(rate=1.0)
 
@@ -78,7 +75,6 @@ class ViewTests(APITestCase):
     def test_unverified_user_can_create_post(self):
         unverified = create_random_default_user("unverified_no_verification")
         self.client.force_authenticate(unverified)
-        hub = create_hub("hub")
         response = self.client.post(
             "/api/researchhubpost/",
             {
@@ -88,7 +84,6 @@ class ViewTests(APITestCase):
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
                 "title": "x" * MIN_POST_TITLE_LENGTH,
-                "hubs": [hub.id],
             },
         )
         self.assertEqual(response.status_code, 200)
@@ -96,7 +91,6 @@ class ViewTests(APITestCase):
     def test_unverified_user_can_update_own_post(self):
         unverified = create_random_default_user("unverified_owner")
         self.client.force_authenticate(unverified)
-        hub = create_hub("hub")
         create_resp = self.client.post(
             "/api/researchhubpost/",
             {
@@ -106,7 +100,6 @@ class ViewTests(APITestCase):
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
                 "title": "x" * MIN_POST_TITLE_LENGTH,
-                "hubs": [hub.id],
             },
         )
         self.assertEqual(create_resp.status_code, 200)
@@ -121,7 +114,6 @@ class ViewTests(APITestCase):
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
                 "title": "x" * MIN_POST_TITLE_LENGTH,
-                "hubs": [hub.id],
             },
         )
         self.assertEqual(update_resp.status_code, 200)
@@ -130,7 +122,6 @@ class ViewTests(APITestCase):
         verified = create_random_default_user("verified_creator")
         make_user_verified(verified)
         self.client.force_authenticate(verified)
-        hub = create_hub("hub")
         create_resp = self.client.post(
             "/api/researchhubpost/",
             {
@@ -140,7 +131,6 @@ class ViewTests(APITestCase):
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
                 "title": "x" * MIN_POST_TITLE_LENGTH,
-                "hubs": [hub.id],
             },
         )
         self.assertEqual(create_resp.status_code, 200)
@@ -155,7 +145,6 @@ class ViewTests(APITestCase):
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
                 "title": "x" * MIN_POST_TITLE_LENGTH,
-                "hubs": [hub.id],
             },
         )
         self.assertEqual(update_resp.status_code, 200)
@@ -172,8 +161,6 @@ class ViewTests(APITestCase):
     def test_author_can_create_post(self):
         author = create_random_default_user("author")
         make_user_verified(author)
-        hub = create_hub()
-
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
@@ -189,7 +176,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [hub.id],
             },
         )
 
@@ -198,8 +184,6 @@ class ViewTests(APITestCase):
     def test_min_post_title_length(self):
         author = create_random_default_user("author")
         make_user_verified(author)
-        hub = create_hub()
-
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
@@ -211,7 +195,6 @@ class ViewTests(APITestCase):
                 "is_public": True,
                 "renderable_text": "body",
                 "title": "short title",
-                "hubs": [hub.id],
             },
         )
 
@@ -220,8 +203,6 @@ class ViewTests(APITestCase):
     def test_min_post_body_length(self):
         author = create_random_default_user("author")
         make_user_verified(author)
-        hub = create_hub()
-
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
@@ -233,7 +214,6 @@ class ViewTests(APITestCase):
                 "is_public": True,
                 "renderable_text": "short body",
                 "title": "long title long title long title",
-                "hubs": [hub.id],
             },
         )
 
@@ -253,7 +233,6 @@ class ViewTests(APITestCase):
                 "created_by": self.admin_user.id,
                 "document_type": "DISCUSSION",
                 "full_src": "body",
-                "hubs": [self.hub.id],
                 "is_public": True,
                 "note_id": note[0].id,
                 "renderable_text": (
@@ -298,7 +277,6 @@ class ViewTests(APITestCase):
                 "created_by": self.admin_user.id,
                 "document_type": "DISCUSSION",
                 "full_src": "body",
-                "hubs": [self.hub.id],
                 "is_public": True,
                 "note_id": note[0].id,
                 "renderable_text": (
@@ -325,7 +303,6 @@ class ViewTests(APITestCase):
                 "created_by": self.admin_user.id,
                 "document_type": "DISCUSSION",
                 "full_src": "body",
-                "hubs": [self.hub.id],
                 "is_public": True,
                 "note_id": note[0].id,
                 "renderable_text": (
@@ -360,7 +337,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [self.hub.id],
             },
         )
 
@@ -381,7 +357,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body. sufficiently long body. "
                     "sufficiently long body"
                 ),
-                "hubs": [self.hub.id],
             },
         )
 
@@ -411,7 +386,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [self.hub.id],
             },
         )
 
@@ -433,7 +407,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [self.hub.id],
             },
         )
 
@@ -462,7 +435,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [self.hub.id],
             },
         )
         self.assertEqual(doc_response.status_code, 200)
@@ -483,7 +455,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [self.hub.id],
             },
         )
 
@@ -491,8 +462,6 @@ class ViewTests(APITestCase):
         self.assertEqual(updated_response.status_code, 400)
 
     def test_non_author_cannot_update_post(self):
-        hub = create_hub()
-
         author = create_random_default_user("author")
         make_user_verified(author)
         self.client.force_authenticate(author)
@@ -513,7 +482,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [hub.id],
                 "note_id": note[0].id,
             },
         )
@@ -535,7 +503,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [hub.id],
             },
         )
 
@@ -545,8 +512,6 @@ class ViewTests(APITestCase):
         """DOIs are no longer assigned at publish time for any post type."""
         author = create_random_default_user("author")
         make_user_verified(author)
-        hub = create_hub()
-
         self.client.force_authenticate(author)
 
         for document_type in ("DISCUSSION", "PREREGISTRATION"):
@@ -564,7 +529,6 @@ class ViewTests(APITestCase):
                         "sufficiently long body"
                     ),
                     "title": ("sufficiently long title. sufficiently long title."),
-                    "hubs": [hub.id],
                 },
             )
 
@@ -589,7 +553,6 @@ class ViewTests(APITestCase):
     def test_fundraise_in_response_when_preregistration(self):
         author = create_random_default_user("author")
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -606,7 +569,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [hub.id],
                 "fundraise_goal_amount": 1000,
             },
         )
@@ -617,7 +579,6 @@ class ViewTests(APITestCase):
     def test_fundraise_null_in_response_when_not_preregistration(self):
         author = create_random_default_user("author")
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -634,7 +595,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": ("sufficiently long title. sufficiently long title."),
-                "hubs": [hub.id],
             },
         )
 
@@ -645,7 +605,6 @@ class ViewTests(APITestCase):
         """Test that a grant is created when grant_amount is provided"""
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -662,7 +621,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 50000,
                 "grant_currency": "USD",
                 "grant_organization": "Test Foundation",
@@ -683,7 +641,6 @@ class ViewTests(APITestCase):
         """Test that grant is null when no grant_amount is provided"""
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -700,7 +657,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
             },
         )
 
@@ -711,7 +667,6 @@ class ViewTests(APITestCase):
         """Test that a grant can be created with an end date"""
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
         end_date = datetime.now(UTC) + timedelta(days=30)
 
         self.client.force_authenticate(author)
@@ -729,7 +684,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 25000,
                 "grant_organization": "Another Foundation",
                 "grant_description": "Grant with deadline",
@@ -749,7 +703,6 @@ class ViewTests(APITestCase):
         """Test that grant creation fails with invalid data"""
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -767,7 +720,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 50000,
                 "grant_description": "Test grant",
                 # Missing grant_organization
@@ -780,7 +732,6 @@ class ViewTests(APITestCase):
         """Test that both grant and fundraise can be created on the same post"""
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -797,7 +748,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "fundraise_goal_amount": 10000,
                 "grant_amount": 50000,
                 "grant_organization": "Dual Foundation",
@@ -814,11 +764,9 @@ class ViewTests(APITestCase):
     def test_grants_included_in_get_document_metadata(self):
         """Test that grants are included in get_document_metadata endpoint"""
         user = create_random_default_user("grant_metadata_user", moderator=True)
-        hub = create_hub("Metadata Grant Hub")
 
         # Create a grant post
         post = create_post(created_by=user, document_type=GRANT)
-        post.unified_document.hubs.add(hub)
 
         # Create a grant
         grant = Grant.objects.create(
@@ -947,7 +895,6 @@ class ViewTests(APITestCase):
         """Test that an existing grant can be updated when updating a post"""
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -965,7 +912,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 50000,
                 "grant_currency": "USD",
                 "grant_organization": "Original Foundation",
@@ -994,7 +940,6 @@ class ViewTests(APITestCase):
                 "title": (
                     "updated sufficiently long title. updated sufficiently long title."
                 ),
-                "hubs": [hub.id],
                 "grant_amount": 75000,
                 "grant_currency": "USD",
                 "grant_organization": "Updated Foundation",
@@ -1025,7 +970,6 @@ class ViewTests(APITestCase):
         """Test that grants cannot be created during updates (only at post creation)"""
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -1043,7 +987,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
             },
         )
 
@@ -1067,7 +1010,6 @@ class ViewTests(APITestCase):
                 "title": (
                     "updated sufficiently long title. updated sufficiently long title."
                 ),
-                "hubs": [hub.id],
                 "grant_amount": 60000,
                 "grant_currency": "USD",
                 "grant_organization": "New Foundation",
@@ -1091,7 +1033,6 @@ class ViewTests(APITestCase):
         """
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -1109,7 +1050,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 40000,
                 "grant_currency": "USD",
                 "grant_organization": "Preserve Foundation",
@@ -1138,7 +1078,6 @@ class ViewTests(APITestCase):
                 "title": (
                     "updated sufficiently long title. updated sufficiently long title."
                 ),
-                "hubs": [hub.id],
                 # No grant_amount or other grant fields
             },
         )
@@ -1162,7 +1101,6 @@ class ViewTests(APITestCase):
         """Test that grant end date can be updated"""
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
         initial_end_date = datetime.now(UTC) + timedelta(days=30)
         updated_end_date = datetime.now(UTC) + timedelta(days=60)
 
@@ -1182,7 +1120,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 45000,
                 "grant_organization": "Date Foundation",
                 "grant_description": "Grant with end date",
@@ -1210,7 +1147,6 @@ class ViewTests(APITestCase):
                 "title": (
                     "updated sufficiently long title. updated sufficiently long title."
                 ),
-                "hubs": [hub.id],
                 "grant_amount": 45000,
                 "grant_organization": "Date Foundation",
                 "grant_description": "Grant with updated end date",
@@ -1232,7 +1168,6 @@ class ViewTests(APITestCase):
         """Test that grant update fails with invalid data"""
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -1250,7 +1185,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 50000,
                 "grant_organization": "Test Foundation",
                 "grant_description": "Test grant",
@@ -1276,7 +1210,6 @@ class ViewTests(APITestCase):
                 "title": (
                     "updated sufficiently long title. updated sufficiently long title."
                 ),
-                "hubs": [hub.id],
                 "grant_amount": 60000,
                 "grant_description": "Updated grant description",
                 # Missing grant_organization
@@ -1291,7 +1224,6 @@ class ViewTests(APITestCase):
         """
         author = create_random_default_user("author", moderator=True)
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -1309,7 +1241,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 50000,
                 "grant_organization": "Test Foundation",
                 "grant_description": "Test grant with end date",
@@ -1337,7 +1268,6 @@ class ViewTests(APITestCase):
                 "title": (
                     "updated sufficiently long title. updated sufficiently long title."
                 ),
-                "hubs": [hub.id],
                 "grant_amount": 50000,
                 "grant_organization": "Test Foundation",
                 "grant_description": "Test grant without end date",
@@ -1357,7 +1287,6 @@ class ViewTests(APITestCase):
         make_user_verified(author)
         contact1 = create_random_default_user("contact1")
         contact2 = create_random_default_user("contact2")
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -1374,7 +1303,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 50000,
                 "grant_currency": "USD",
                 "grant_organization": "Contact Foundation",
@@ -1405,7 +1333,6 @@ class ViewTests(APITestCase):
         make_user_verified(author)
         contact1 = create_random_default_user("contact1")
         contact2 = create_random_default_user("contact2")
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -1423,7 +1350,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 40000,
                 "grant_organization": "Update Foundation",
                 "grant_description": "Grant to add contacts",
@@ -1449,7 +1375,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body. updated sufficiently long body"
                 ),
                 "title": "updated title. updated title. updated title.",
-                "hubs": [hub.id],
                 "grant_amount": 40000,
                 "grant_organization": "Update Foundation",
                 "grant_description": "Grant with added contacts",
@@ -1477,7 +1402,6 @@ class ViewTests(APITestCase):
         make_user_verified(author)
         contact1 = create_random_default_user("contact1")
         contact2 = create_random_default_user("contact2")
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -1495,7 +1419,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 35000,
                 "grant_organization": "Remove Foundation",
                 "grant_description": "Grant to remove contacts",
@@ -1522,7 +1445,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body. updated sufficiently long body"
                 ),
                 "title": "updated title. updated title. updated title.",
-                "hubs": [hub.id],
                 "grant_amount": 35000,
                 "grant_organization": "Remove Foundation",
                 "grant_description": "Grant with removed contacts",
@@ -1548,7 +1470,6 @@ class ViewTests(APITestCase):
         contact1 = create_random_default_user("contact1")
         contact2 = create_random_default_user("contact2")
         contact3 = create_random_default_user("contact3")
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -1566,7 +1487,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body"
                 ),
                 "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
                 "grant_amount": 45000,
                 "grant_organization": "Change Foundation",
                 "grant_description": "Grant to change contacts",
@@ -1593,7 +1513,6 @@ class ViewTests(APITestCase):
                     "sufficiently long body. updated sufficiently long body"
                 ),
                 "title": "updated title. updated title. updated title.",
-                "hubs": [hub.id],
                 "grant_amount": 45000,
                 "grant_organization": "Change Foundation",
                 "grant_description": "Grant with changed contacts",
@@ -1623,7 +1542,6 @@ class ViewTests(APITestCase):
         """Test that the get_queryset method filters posts by document_type parameter"""
         author = create_random_default_user("author")
         make_user_verified(author)
-        hub = create_hub()
 
         self.client.force_authenticate(author)
 
@@ -1640,7 +1558,6 @@ class ViewTests(APITestCase):
                     "discussion body. sufficiently long discussion body."
                 ),
                 "title": "Discussion Post Title - Long Enough",
-                "hubs": [hub.id],
             },
         )
 
@@ -1656,7 +1573,6 @@ class ViewTests(APITestCase):
                     "question body. sufficiently long question body."
                 ),
                 "title": "Question Post Title - Long Enough",
-                "hubs": [hub.id],
             },
         )
 
@@ -1672,7 +1588,6 @@ class ViewTests(APITestCase):
                     "preregistration body. sufficiently long preregistration body."
                 ),
                 "title": "Preregistration Post Title - Long Enough",
-                "hubs": [hub.id],
             },
         )
 
@@ -1747,7 +1662,6 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
     def setUp(self):
         self.user = create_random_default_user("prereg_user")
         make_user_verified(self.user)
-        self.hub = create_hub("test_hub")
 
         self.moderator = create_random_default_user("grant_mod")
         make_user_verified(self.moderator)
@@ -1770,7 +1684,6 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
             "is_public": True,
             "renderable_text": "x" * MIN_POST_BODY_LENGTH,
             "title": "x" * MIN_POST_TITLE_LENGTH,
-            "hubs": [self.hub.id],
         }
         if extra_data:
             payload.update(extra_data)
@@ -1879,7 +1792,6 @@ class PreregistrationGrantsPayloadTests(APITestCase):
     def setUp(self):
         self.user = create_random_default_user("prereg_grants_user")
         make_user_verified(self.user)
-        self.hub = create_hub("prereg_grants_hub")
         self.moderator = create_random_default_user("prereg_grants_mod")
         make_user_verified(self.moderator)
 

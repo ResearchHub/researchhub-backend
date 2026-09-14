@@ -30,7 +30,6 @@ from reputation.utils import calculate_support_fees, deduct_support_fees
 from researchhub.settings import BASE_FRONTEND_URL
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
-from utils.throttles import THROTTLE_CLASSES
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,6 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
     serializer_class = PurchaseSerializer
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
     pagination_class = PageNumberPagination
-    throttle_classes = THROTTLE_CLASSES
     ALLOWED_CONTENT_TYPES = ("rhcommentmodel", "researchhubpost")
 
     def get_queryset(self):
