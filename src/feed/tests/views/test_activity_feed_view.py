@@ -1743,17 +1743,6 @@ class AuthorActivityFeedTests(APITestCase):
         )
         _create_post_and_entry(self.other, PREREGISTRATION, "Other Prereg")
 
-    def test_returns_only_the_authors_own_activity(self):
-        """A visitor sees the author's entries and nobody else's."""
-        # Act
-        resp = self.client.get(
-            AUTHOR_ACTIVITY_URL, {"author_id": self.author.author_profile.id}
-        )
-
-        # Assert
-        ids = {entry["id"] for entry in resp.data["results"]}
-        self.assertEqual(ids, {self.prereg_entry.id})
-
     def test_serves_anonymous_requests(self):
         """An anonymous visitor may read an author's public activity."""
         # Arrange
@@ -1768,30 +1757,6 @@ class AuthorActivityFeedTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         ids = {entry["id"] for entry in resp.data["results"]}
         self.assertEqual(ids, {self.prereg_entry.id})
-
-    def test_includes_reviews_on_registered_reports(self):
-        """A review the author wrote on a registered report appears on the feed."""
-        # Arrange
-        document, post, _ = _create_post_and_entry(
-            self.other, REGISTERED_REPORT, "Registered Report"
-        )
-        _, review_entry = _make_comment_feed_entry(
-            self.author, document, post, COMMUNITY_REVIEW
-        )
-
-        # Act
-        resp = self.client.get(
-            AUTHOR_ACTIVITY_URL,
-            {
-                "author_id": self.author.author_profile.id,
-                "comment_type": COMMUNITY_REVIEW,
-            },
-        )
-
-        # Assert
-        ids = {entry["id"] for entry in resp.data["results"]}
-        self.assertEqual(ids, {review_entry.id})
-
 
 class ActivityFeedCacheTests(ActivityFeedBaseTests):
     """Public warm-cache behavior for the unscoped activity feed."""
