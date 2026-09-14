@@ -1,14 +1,9 @@
 import json
-import logging
 
 from django.apps import apps
-from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 
-from mailing_list.services import EmailService
 from researchhub.celery import QUEUE_NOTIFICATION, app
-
-logger = logging.getLogger(__name__)
 
 
 @app.task()
@@ -26,95 +21,32 @@ def celery_create_comment_content_src(comment_id, comment_content):
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
-def celery_create_mention_notification(comment_id, recipients):
-    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")  # noqa: N806
-    Notification = apps.get_model("notification.Notification")  # noqa: N806
+def celery_create_mention_notification(comment_id: int, recipients: list[int]) -> None:
+    """Notify each mentioned user about the comment, skipping duplicates."""
+    # Imported here because notification.models pulls in the unified document
+    # model, which imports this app's models, which import this module.
+    from notification.models import Notification
+    from notification.services import NotificationService
+    from researchhub_comment.models import RhCommentModel
+    from user.models import User
 
-    comment = RhCommentModel.objects.get(id=comment_id)
-    thread = comment.thread
+    comment = RhCommentModel.objects.select_related(
+        "created_by", "thread__unified_document"
+    ).get(id=comment_id)
+    author = comment.created_by
+    unified_document = comment.thread.unified_document
+    notifications = NotificationService()
 
-    unified_document = thread.unified_document
-    email_service = EmailService()
-
-    for recipient in recipients:
-        if (
-            recipient
-            and not Notification.objects.filter(
-                object_id=comment.id,
-                content_type=ContentType.objects.get_for_model(RhCommentModel),
-                recipient_id=recipient,
-                action_user=comment.created_by,
-                notification_type=Notification.COMMENT_USER_MENTION,
-            ).exists()
-        ):
-            comment_created_by = comment.created_by
-            notification = Notification.objects.create(
-                item=comment,
-                action_user=comment_created_by,
-                recipient_id=recipient,
-                unified_document=unified_document,
-                notification_type=Notification.COMMENT_USER_MENTION,
-            )
-            notification.send_notification()
-
-            outer_subject = "You were Mentioned in a Comment"
-            context = {
-                "action": {
-                    "message": f"{comment_created_by.first_name} {comment_created_by.last_name} has you mention in their comment",  # noqa: E501
-                    "frontend_view_link": f"{unified_document.frontend_view_link()}#comments",  # noqa: E501
-                },
-                "subject": outer_subject,
-            }
-            email_service.send_email(
-                [notification.recipient.email],
-                outer_subject,
-                context,
-                template="general_email_message",
-            )
-
-
-@app.task(queue=QUEUE_NOTIFICATION)
-def send_author_update_email_notifications(comment_id, follower_user_ids):
-    """
-    Send email notifications to followers about preregistration author updates.
-    This runs asynchronously to avoid blocking the main transaction.
-    """
-    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")  # noqa: N806
-    User = apps.get_model("user.User")  # noqa: N806
-
-    try:
-        comment = RhCommentModel.objects.get(id=comment_id)
-        document = comment.unified_document.get_document()
-        author = comment.created_by
-
-        context = {
-            "action": {
-                "message": f"{author.first_name} {author.last_name} posted an update to a preregistration you're following",  # noqa: E501
-                "frontend_view_link": comment.unified_document.frontend_view_link(),
-            },
-            "document_title": document.title,
-            "author_name": author.full_name(),
-        }
-
-        subject = "Update on Preregistration You're Following"
-        email_service = EmailService()
-
-        for user_id in follower_user_ids:
-            try:
-                user = User.objects.get(id=user_id)
-                email_service.send_email(
-                    [user.email],
-                    subject,
-                    context,
-                    template="general_email_message",
-                )
-            except Exception as e:
-                # Log individual user failures but continue with others
-                logger.error(
-                    f"Failed to send author update email to user {user_id}: {e}"
-                )
-
-    except Exception as e:
-        logger.error(
-            f"Failed to send author update emails for comment {comment_id}: {e}"
+    for recipient in User.objects.filter(id__in=recipients):
+        notifications.send_once(
+            Notification.COMMENT_USER_MENTION,
+            recipient=recipient,
+            action_user=author,
+            item=comment,
+            unified_document=unified_document,
+            email_subject="You were Mentioned in a Comment",
+            email_message=(
+                f"{author.first_name} {author.last_name} mentioned you in "
+                "their comment"
+            ),
         )

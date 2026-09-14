@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from feed.tasks import publish_to_feed
 from notification.models import Notification
+from notification.services import NotificationService
 from paper.related_models.paper_model import Paper
 from purchase.related_models.grant_model import Grant
 from purchase.services.grant_service import GrantModerationService
@@ -15,10 +16,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.related_models.user_model import User
-from user.services.moderation import (
-    create_removal_verdict,
-    send_moderation_notification,
-)
+from user.services.moderation import create_removal_verdict
 
 # A work this service can moderate directly (grants are delegated to
 # GrantModerationService). Papers and posts gate visibility through their
@@ -137,9 +135,10 @@ class ContentModerationService:
     def _notify(
         self, content: ModerationTarget, action_user: User, notification_type: str
     ) -> None:
-        send_moderation_notification(
+        NotificationService().send_after_commit(
             notification_type,
             recipient=self._author(content),
             action_user=action_user,
             item=content,
+            unified_document=content.unified_document,
         )

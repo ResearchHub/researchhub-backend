@@ -14,6 +14,7 @@ from discussion.serializers import DynamicFlagSerializer, FlagSerializer
 from discussion.views import censor
 from mailing_list.services import EmailService
 from notification.models import Notification
+from notification.services import NotificationService
 from reputation.models import Distribution
 from reputation.serializers import DynamicDistributionSerializer
 from researchhub.settings import EMAIL_DOMAIN
@@ -492,36 +493,31 @@ class AuditViewSet(viewsets.GenericViewSet):
         if content_creator is None:
             return
 
-        anon_remover = User.objects.get_community_account()
-        notification = Notification.objects.create(
-            action_user=anon_remover,
-            item=verdict,
+        NotificationService().send(
+            Notification.FLAGGED_CONTENT_VERDICT,
             recipient=content_creator,
+            action_user=User.objects.get_community_account(),
+            item=verdict,
             unified_document=flagged_content.unified_document,
-            notification_type=Notification.FLAGGED_CONTENT_VERDICT,
         )
-        notification.send_notification()
         if send_email:
             self._send_email_notification_to_content_creator(
-                flag, notification, verdict
+                flag, content_creator, verdict
             )
 
-    def _send_email_notification_to_content_creator(self, flag, notification, verdict):
-        receiver = notification.recipient
+    def _send_email_notification_to_content_creator(self, flag, recipient, verdict):
         action = Action.objects.get(
             content_type=flag.content_type, object_id=flag.object_id
         )
-        name = f"{receiver.first_name} {receiver.last_name}"
         email_context = {
-            "user_name": name,
+            "user_name": f"{recipient.first_name} {recipient.last_name}",
             "verdict_choice": verdict.verdict_choice.replace("_", " "),
             "actions": (action.email_context(),),
         }
 
-        recipient = [receiver.email]
         subject = "ResearchHub | Notice of Flagged and Removed Content"
         EmailService().send_transactional_email(
-            recipient,
+            [recipient.email],
             subject,
             email_context,
             template="flagged_and_removed_content",

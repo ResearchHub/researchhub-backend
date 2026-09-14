@@ -16,6 +16,7 @@ from mailing_list.services.email_subscription_service import EmailSubscriptionSe
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEND_INTERVAL_SECONDS = 0.2
+NOTIFICATION_EMAIL_TEMPLATE = "general_email_message"
 
 
 class EmailService:
@@ -100,6 +101,64 @@ class EmailService:
             unsubscribable=False,
         )
 
+    def send_notification_email(
+        self,
+        recipients: str | list[str],
+        subject: str,
+        message: str,
+        *,
+        link: str | None = None,
+        heading: str | None = None,
+    ) -> None:
+        """
+        Send the standard notification layout: a message under the ResearchHub
+        banner, followed by a "View" button when `link` is given.
+
+        `heading` is the banner inside the email. It sits directly beneath the
+        logo, so it is often shorter than the inbox `subject` it defaults to.
+        """
+        self.send_email(
+            recipients,
+            subject,
+            {
+                "subject": heading or subject,
+                "action": {"message": message, "frontend_view_link": link},
+            },
+            template=NOTIFICATION_EMAIL_TEMPLATE,
+        )
+
+    def send_html_email(
+        self,
+        recipient: str,
+        subject: str,
+        body: str,
+        *,
+        sender: str | None = None,
+        reply_to: list[str] | None = None,
+        cc: list[str] | None = None,
+    ) -> str | None:
+        """
+        Send one message whose HTML body is supplied directly instead of rendered
+        from a template, and return its SES message ID.
+
+        For mail composed per recipient outside ResearchHub's templates, such as
+        expert outreach. Unlike the templated methods it raises on failure so the
+        caller can record the send, and it skips opt-outs, unsubscribe links, and
+        the non-production recipient whitelist, so callers gate their own sending.
+        """
+        message = EmailMultiAlternatives(
+            subject=self._prepare_subject(subject),
+            body=self._html_to_text(body) or "(No content)",
+            from_email=sender or self._sender,
+            to=[recipient],
+            reply_to=reply_to,
+            cc=cc,
+        )
+        message.attach_alternative(body, "text/html")
+        message.send(fail_silently=False)
+
+        return message.extra_headers.get("message_id")
+
     def _send(
         self,
         recipients: str | list[str],
@@ -118,13 +177,10 @@ class EmailService:
         Sends are best-effort: a recipient that fails is logged and skipped so one
         bad address cannot abort the rest of the batch.
         """
-        subject = subject.replace("\n", "").replace("\r", "")
+        subject = self._prepare_subject(subject)
 
         if not isinstance(recipients, list):
             recipients = [recipients]
-
-        if not settings.PRODUCTION:
-            subject = "[Staging] " + subject
 
         html_template = get_template(f"{template}.html")
         try:
@@ -185,6 +241,16 @@ class EmailService:
                 logger.exception("Email send failed to %s", recipient)
 
             sleep(self._send_interval_seconds)
+
+    @staticmethod
+    def _prepare_subject(subject: str) -> str:
+        """
+        Strip the newlines that would let a subject inject headers, and mark
+        anything sent outside production as staging.
+        """
+        subject = subject.replace("\n", "").replace("\r", "")
+
+        return subject if settings.PRODUCTION else f"[Staging] {subject}"
 
     @staticmethod
     def _html_to_text(html: str) -> str:

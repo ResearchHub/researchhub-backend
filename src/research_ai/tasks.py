@@ -11,7 +11,7 @@ from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.outreach.email_generator import generate_expert_email
-from research_ai.services.outreach.email_sender import send_plain_email
+from research_ai.services.outreach.email_sender import send_outreach_email
 from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
@@ -571,7 +571,7 @@ def send_queued_emails_task(
             failed += 1
             continue
         try:
-            ses_message_id = send_plain_email(
+            ses_message_id = send_outreach_email(
                 rec.expert_email,
                 rec.email_subject,
                 rec.email_body,

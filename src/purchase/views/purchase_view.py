@@ -15,6 +15,7 @@ from rest_framework.viewsets import GenericViewSet
 from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from notification.models import Notification
+from notification.services import NotificationService
 from purchase.models import Balance, Purchase, RscExchangeRate
 from purchase.related_models.constants.support import (
     MAXIMUM_SUPPORT_AMOUNT_RSC,
@@ -206,20 +207,18 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         if creator == recipient:
             return
 
-        content_type = ContentType.objects.get_for_model(purchase)
         Action.objects.create(
             user=recipient,
-            content_type=content_type,
+            content_type=ContentType.objects.get_for_model(purchase),
             object_id=purchase.id,
         )
-        notification = Notification.objects.create(
-            unified_document=unified_doc,
+        NotificationService().send(
+            notification_type,
             recipient=recipient,
             action_user=creator,
             item=purchase,
-            notification_type=notification_type,
+            unified_document=unified_doc,
         )
-        notification.send_notification()
 
     def send_purchase_email(self, purchase, recipient, unified_doc):
         sender = purchase.user

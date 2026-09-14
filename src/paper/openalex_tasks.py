@@ -1,6 +1,7 @@
 import logging
 
 from notification.models import Notification
+from notification.services import NotificationService
 from paper.openalex_util import process_openalex_works
 from reputation.tasks import find_bounties_for_user_and_notify
 from researchhub.celery import QUEUE_PULL_PAPERS, app
@@ -38,14 +39,12 @@ def pull_openalex_author_works_batch(
         except Exception:
             logger.exception("Failed to calculate hub scores for user %s", user.id)
 
-        notification = Notification.objects.create(
-            item=user,
-            notification_type=Notification.PUBLICATIONS_ADDED,
+        NotificationService().send(
+            Notification.PUBLICATIONS_ADDED,
             recipient=user,
             action_user=user,
+            item=user,
         )
-
-        notification.send_notification()
 
         if TESTING:
             find_bounties_for_user_and_notify(user.id)

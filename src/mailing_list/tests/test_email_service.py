@@ -1,7 +1,10 @@
+from typing import Any
+from unittest.mock import patch
 from urllib.parse import unquote
 
 from django.conf import settings
 from django.core import mail
+from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.test import TestCase, override_settings
 
@@ -338,3 +341,49 @@ class SendTransactionalEmailTests(TestCase):
         # Assert
         html_body = mail.outbox[0].alternatives[0][0]
         self.assertIn(f"{settings.ASSETS_BASE_URL}/email_assets/", html_body)
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    PRODUCTION=False,
+)
+class SendHtmlEmailTests(TestCase):
+    """`EmailService.send_html_email` sends a body the caller composed itself."""
+
+    def test_sends_the_given_html_with_a_readable_plain_text_alternative(self) -> None:
+        """The caller's HTML goes out as-is alongside a plain text rendering."""
+        # Act
+        EmailService().send_html_email(
+            "expert@example.com",
+            "Subject",
+            "<p>Hello</p>",
+            reply_to=["reply@example.com"],
+            cc=["cc@example.com"],
+        )
+
+        # Assert
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["expert@example.com"])
+        self.assertEqual(message.reply_to, ["reply@example.com"])
+        self.assertEqual(message.cc, ["cc@example.com"])
+        self.assertEqual(message.subject, "[Staging] Subject")
+        self.assertEqual(message.body, "Hello")
+        self.assertEqual(message.alternatives[0][0], "<p>Hello</p>")
+
+    def test_returns_the_ses_message_id(self) -> None:
+        """Return the ID the backend records so the caller can track the send."""
+        # Arrange
+        def record_message_id(message: EmailMultiAlternatives, **kwargs: Any) -> None:
+            """Stand in for the SES backend, which writes the ID back on send."""
+            message.extra_headers["message_id"] = "messageId1"
+
+        # Act
+        with patch.object(
+            EmailMultiAlternatives, "send", autospec=True, side_effect=record_message_id
+        ):
+            ses_message_id = EmailService().send_html_email(
+                "expert@example.com", "Subject", "<p>Hello</p>"
+            )
+
+        # Assert
+        self.assertEqual(ses_message_id, "messageId1")

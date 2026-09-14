@@ -265,7 +265,7 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         )
         self.assertEqual(notifications.count(), 0)
 
-    @patch("researchhub_comment.signals.send_author_update_email_notifications.delay")
+    @patch("researchhub_comment.signals.email_notification_recipients.delay")
     def test_reply_to_author_update_only_notifies_author(self, mock_send_update_emails):
         # Arrange
         thread = RhCommentThreadModel.objects.create(

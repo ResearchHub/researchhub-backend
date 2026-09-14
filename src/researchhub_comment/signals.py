@@ -8,6 +8,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from notification.models import Notification
+from notification.services import NotificationService
+from notification.tasks import email_notification_recipients
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_preregistration_update_reward_distribution
@@ -15,7 +17,6 @@ from reputation.distributor import Distributor
 from reputation.related_models.distribution import Distribution as DistributionModel
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
-from researchhub_comment.tasks import send_author_update_email_notifications
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.follow_model import Follow
@@ -36,16 +37,16 @@ def create_thread_notification(sender, instance, created, **kwargs):
         else:
             notification_type = Notification.COMMENT
 
+        notifications = NotificationService()
         for recipient in instance.users_to_notify:
             if recipient and recipient != creator:
-                notification = Notification.objects.create(
-                    item=instance,
-                    unified_document=instance.unified_document,
-                    notification_type=notification_type,
+                notifications.send(
+                    notification_type,
                     recipient=recipient,
                     action_user=creator,
+                    item=instance,
+                    unified_document=instance.unified_document,
                 )
-                notification.send_notification()
 
 
 @receiver(
@@ -74,7 +75,8 @@ def create_author_update_notification(sender, instance, created, **kwargs):
         logger.error(f"Failed to create author update notification: {e}")
 
 
-def _create_author_update_notification(comment: RhCommentModel):
+def _create_author_update_notification(comment: RhCommentModel) -> None:
+    """Notify followers that the preregistration author posted an update."""
     document = comment.unified_document.get_document()
 
     if not (
@@ -88,24 +90,31 @@ def _create_author_update_notification(comment: RhCommentModel):
         logger.debug("Author update was not created by the preregistration author")
         return
 
-    follower_user_ids = []
+    author = comment.created_by
     follows = Follow.objects.filter(
         content_type=ContentType.objects.get_for_model(document),
         object_id=document.id,
-    )
+    ).select_related("user")
+
+    notifications = NotificationService()
+    notification_ids = []
     for follow in follows:
-        notification = Notification.objects.create(
+        notification = notifications.send(
+            Notification.PREREGISTRATION_UPDATE,
+            recipient=follow.user,
+            action_user=author,
             item=comment,
             unified_document=comment.unified_document,
-            notification_type=Notification.PREREGISTRATION_UPDATE,
-            recipient=follow.user,
-            action_user=comment.created_by,
         )
-        notification.send_notification()
-        follower_user_ids.append(follow.user.id)
+        notification_ids.append(notification.id)
 
-    if follower_user_ids:
-        send_author_update_email_notifications.delay(comment.id, follower_user_ids)
+    if notification_ids:
+        email_notification_recipients.delay(
+            notification_ids,
+            "Update on Preregistration You're Following",
+            f"{author.first_name} {author.last_name} posted an update to a "
+            "preregistration you're following",
+        )
 
 
 @receiver(

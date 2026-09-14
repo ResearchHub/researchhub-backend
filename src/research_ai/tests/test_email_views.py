@@ -1,13 +1,14 @@
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.conf import settings
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from invite.models import NoteInvitation
+from mailing_list.services import EmailService
 from purchase.models import Grant
 from research_ai.models import (
     EmailTemplate,
@@ -17,7 +18,7 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
-from research_ai.services.outreach.email_sender import send_plain_email
+from research_ai.services.outreach.email_sender import send_outreach_email
 from research_ai.services.proposal_draft.note_writer import write_proposal_note
 from research_ai.views.email_views import _normalize_template
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -1092,63 +1093,34 @@ class BulkGenerateEmailViewTests(APITestCase):
 
 
 @override_settings(EXPERT_FINDER_OUTREACH_ENABLED=True)
-class SendPlainEmailTests(APITestCase):
-    """Unit tests for send_plain_email service."""
+class SendOutreachEmailTests(TestCase):
+    """`send_outreach_email` hands the drafted message to the email service."""
 
-    @patch("research_ai.services.outreach.email_sender.EmailMultiAlternatives")
-    def test_send_plain_email_calls_send_mail_with_plain_and_html(self, mock_email_alt):
-        mock_instance = mock_email_alt.return_value
-        mock_instance.extra_headers = {"message_id": "messageId1"}
-        ses_message_id = send_plain_email(
+    @patch.object(EmailService, "send_html_email", return_value="messageId1")
+    def test_sends_the_drafted_message_through_the_email_service(
+        self, mock_send: MagicMock
+    ) -> None:
+        """Pass the expert's message on unchanged and return the SES message ID."""
+        # Act
+        ses_message_id = send_outreach_email(
             "to@example.com",
             "Subject",
             "<p>Hello</p>",
-            reply_to=None,
-            cc=None,
-            from_email=None,
-        )
-        mock_email_alt.assert_called_once()
-        call_kwargs = mock_email_alt.call_args[1]
-        self.assertIn("Subject", call_kwargs["subject"])
-        self.assertIn("Hello", call_kwargs["body"])
-        self.assertEqual(call_kwargs["to"], ["to@example.com"])
-        mock_instance.attach_alternative.assert_called_once_with(
-            "<p>Hello</p>", "text/html"
-        )
-        mock_instance.send.assert_called_once()
-        self.assertEqual(ses_message_id, "messageId1")
-
-    @patch("research_ai.services.outreach.email_sender.EmailMultiAlternatives")
-    def test_send_plain_email_with_reply_to_uses_email_multi_alternatives(
-        self, mock_email_alt
-    ):
-        send_plain_email(
-            "to@example.com",
-            "Subject",
-            "Body",
             reply_to=["reply@example.com"],
-            cc=None,
-            from_email=None,
+            cc=["cc@example.com"],
+            from_email="Me <me@example.com>",
         )
-        call_kwargs = mock_email_alt.call_args[1]
-        self.assertEqual(call_kwargs["reply_to"], ["reply@example.com"])
-        mock_email_alt.return_value.attach_alternative.assert_called_once()
-        mock_email_alt.return_value.send.assert_called_once()
 
-    @patch("research_ai.services.outreach.email_sender.EmailMultiAlternatives")
-    def test_send_plain_email_with_multiple_reply_to_addresses(self, mock_email_alt):
-        send_plain_email(
+        # Assert
+        mock_send.assert_called_once_with(
             "to@example.com",
             "Subject",
-            "Body",
-            reply_to=["reply@example.com", "other@example.com"],
-            cc=None,
-            from_email=None,
+            "<p>Hello</p>",
+            sender="Me <me@example.com>",
+            reply_to=["reply@example.com"],
+            cc=["cc@example.com"],
         )
-        call_kwargs = mock_email_alt.call_args[1]
-        self.assertEqual(
-            call_kwargs["reply_to"], ["reply@example.com", "other@example.com"]
-        )
+        self.assertEqual(ses_message_id, "messageId1")
 
 
 class PreviewEmailViewTests(APITestCase):
@@ -1195,7 +1167,7 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("reply_to", response.json())
 
-    @patch("research_ai.views.email_views.send_plain_email")
+    @patch("research_ai.views.email_views.send_outreach_email")
     def test_preview_by_ids_sends_to_current_user(self, mock_send):
         reply_to_emails = ["sender-replies@example.com"]
         email_rec = GeneratedEmail.objects.create(
@@ -1220,7 +1192,7 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(call_kw["reply_to"], reply_to_emails)
         self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, call_kw["from_email"])
 
-    @patch("research_ai.views.email_views.send_plain_email")
+    @patch("research_ai.views.email_views.send_outreach_email")
     def test_preview_accepts_multiple_reply_to_addresses(self, mock_send):
         reply_to_emails = ["reply@example.com", "other@example.com"]
         email_rec = GeneratedEmail.objects.create(
@@ -1315,7 +1287,7 @@ class SendEmailViewTests(APITestCase):
         self.assertIn("ResearchHub", from_email)
         self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, from_email)
 
-    @patch("research_ai.tasks.send_plain_email")
+    @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):
         from research_ai.tasks import send_queued_emails_task
 

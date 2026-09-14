@@ -244,7 +244,7 @@ class SendQueuedEmailsTaskTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("send_user")
 
-    @patch("research_ai.tasks.send_plain_email")
+    @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_empty_expert_email_marks_send_failed(self, mock_send):
         rec = GeneratedEmail.objects.create(
             created_by=self.user,
@@ -268,7 +268,7 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
         mock_send.assert_not_called()
 
-    @patch("research_ai.tasks.send_plain_email")
+    @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_send_raises_marks_send_failed(self, mock_send):
         mock_send.side_effect = Exception("SMTP error")
         rec = GeneratedEmail.objects.create(
@@ -292,7 +292,7 @@ class SendQueuedEmailsTaskTests(TestCase):
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
 
-    @patch("research_ai.tasks.send_plain_email")
+    @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_success_sets_expert_last_email_sent_at(self, mock_send):
         mock_send.return_value = "ses-1"
         Expert.objects.create(
