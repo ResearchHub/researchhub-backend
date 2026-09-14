@@ -707,8 +707,6 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     def validate_email(self, email):
         # Call parent validation first
         email = super().validate_email(email)
-        if not email:
-            return email
 
         # Existing accounts can have a username that differs from their email.
         # User.save() sets the new username to email, so guard against collisions.
