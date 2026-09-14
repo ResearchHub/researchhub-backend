@@ -10,6 +10,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.response import Response
 from rest_framework.test import APIClient, APITestCase
 
 from discussion.models import Vote
@@ -40,6 +41,7 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PAPER,
     PREREGISTRATION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -1728,18 +1730,32 @@ class UserActivityFeedTests(APITestCase):
 
 
 class AuthorActivityFeedTests(APITestCase):
-    """Public activity performed by a specific author."""
+    """Public activity credited to a specific author."""
 
     def setUp(self):
         super().setUp()
         self.author = create_test_user("profile_owner")
-        self.other = create_test_user("profile_other", email="other@example.com")
+        self.coauthor = create_test_user("profile_coauthor", email="co@example.com")
+        self.moderator = create_test_user("profile_mod", email="mod@example.com")
         self.client = APIClient()
 
         _, _, self.prereg_entry = _create_post_and_entry(
             self.author, PREREGISTRATION, "Owned Prereg"
         )
-        _create_post_and_entry(self.other, PREREGISTRATION, "Other Prereg")
+        self.prereg_entry.authors.add(self.author.author_profile)
+
+        _, _, self.report_entry = _create_post_and_entry(
+            self.moderator, REGISTERED_REPORT, "Published Report"
+        )
+        self.report_entry.authors.add(
+            self.author.author_profile, self.coauthor.author_profile
+        )
+
+    def _fetch_activity_for(self, user: User) -> Response:
+        """Return the activity feed response for the user's author profile."""
+        return self.client.get(
+            AUTHOR_ACTIVITY_URL, {"author_id": user.author_profile.id}
+        )
 
     def test_serves_anonymous_requests(self):
         """An anonymous visitor may read an author's public activity."""
@@ -1747,14 +1763,27 @@ class AuthorActivityFeedTests(APITestCase):
         self.client.force_authenticate(user=None)
 
         # Act
-        resp = self.client.get(
-            AUTHOR_ACTIVITY_URL, {"author_id": self.author.author_profile.id}
-        )
+        response = self._fetch_activity_for(self.author)
 
         # Assert
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        ids = {entry["id"] for entry in resp.data["results"]}
-        self.assertEqual(ids, {self.prereg_entry.id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {entry["id"] for entry in response.data["results"]},
+            {self.prereg_entry.id, self.report_entry.id},
+        )
+
+    def test_credits_published_work_to_authors_instead_of_publisher(self):
+        """A report a moderator publishes reaches its authors, not the moderator."""
+        # Act
+        coauthor_response = self._fetch_activity_for(self.coauthor)
+        moderator_response = self._fetch_activity_for(self.moderator)
+
+        # Assert
+        self.assertEqual(
+            {entry["id"] for entry in coauthor_response.data["results"]},
+            {self.report_entry.id},
+        )
+        self.assertEqual(moderator_response.data["results"], [])
 
 
 class ActivityFeedCacheTests(ActivityFeedBaseTests):

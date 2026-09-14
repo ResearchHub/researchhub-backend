@@ -264,7 +264,11 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         url_name="author-activity",
     )
     def list_author_activity(self, request: Request) -> Response:
-        """Return the activity the requested author performed.
+        """Return the activity credited to the requested author.
+
+        Entries match on their credited authors rather than on whoever
+        published them, so a registered report published by a moderator
+        reaches every author of that report instead of the moderator.
 
         Requires ``author_id``. Readable by anyone; private documents appear
         only for requesters allowed to see them.
@@ -273,9 +277,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         query_serializer.is_valid(raise_exception=True)
         author_id = query_serializer.validated_data["author_id"]
 
-        queryset = self.filter_queryset(self.get_queryset()).filter(
-            user__author_profile__id=author_id
-        )
+        queryset = self.filter_queryset(self.get_queryset()).filter(authors=author_id)
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
         response = self.get_paginated_response(serializer.data)
