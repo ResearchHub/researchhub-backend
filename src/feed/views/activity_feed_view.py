@@ -71,9 +71,7 @@ class CountedFeedPagination(PageNumberPagination):
 class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     """
     Feed of activity on documents, excluding paper/preprint-associated
-    entries. Peer reviews are limited to proposals (PREREGISTRATION), except
-    on ``author_activity``, which also includes reviews on other post
-    documents such as registered reports and grants.
+    entries. Peer reviews are limited to proposals (PREREGISTRATION).
     Entries are limited to documents the requester is allowed to see.
     These filters apply to every request.
 
@@ -336,10 +334,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             user__email=AI_EXPERT_EMAIL,
         )
         queryset = self._exclude_paper_documents(queryset)
-        # A profile also shows reviews on registered reports and grants.
-        # Discovery feeds stay proposal-only.
-        if self.action != "list_author_activity":
-            queryset = self._exclude_non_proposal_peer_reviews(queryset)
+        queryset = self._exclude_non_proposal_peer_reviews(queryset)
 
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
