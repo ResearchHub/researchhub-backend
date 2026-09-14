@@ -707,13 +707,19 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     def validate_email(self, email):
         # Call parent validation first
         email = super().validate_email(email)
+        if not email:
+            return email
+
+        # Existing accounts can have a username that differs from their email.
+        # User.save() sets the new username to email, so guard against collisions.
+        username_exists = User.all_objects.filter(username=email).exists()
         # Match the existing LOWER(email) index for case-insensitive duplicates.
-        if (
-            email
-            and User.all_objects.alias(normalized_email=Lower("email"))
+        email_exists = (
+            User.all_objects.alias(normalized_email=Lower("email"))
             .filter(normalized_email=email.lower())
             .exists()
-        ):
+        )
+        if username_exists or email_exists:
             raise serializers.ValidationError(
                 "A user is already registered with this e-mail address."
             )
