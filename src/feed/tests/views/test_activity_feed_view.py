@@ -40,7 +40,6 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PAPER,
     PREREGISTRATION,
-    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -1736,7 +1735,6 @@ class AuthorActivityFeedTests(APITestCase):
         self.author = create_test_user("profile_owner")
         self.other = create_test_user("profile_other", email="other@example.com")
         self.client = APIClient()
-        self.client.force_authenticate(user=self.other)
 
         _, _, self.prereg_entry = _create_post_and_entry(
             self.author, PREREGISTRATION, "Owned Prereg"
@@ -1757,6 +1755,7 @@ class AuthorActivityFeedTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         ids = {entry["id"] for entry in resp.data["results"]}
         self.assertEqual(ids, {self.prereg_entry.id})
+
 
 class ActivityFeedCacheTests(ActivityFeedBaseTests):
     """Public warm-cache behavior for the unscoped activity feed."""
