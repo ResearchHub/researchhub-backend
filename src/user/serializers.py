@@ -3,7 +3,7 @@ import logging
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from allauth.account.adapter import get_adapter
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Q, Value
 from django.db.models.functions import Lower
 from rest_framework import serializers
 from rest_framework.serializers import (
@@ -714,7 +714,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
         # Match the existing LOWER(email) index for case-insensitive duplicates.
         email_exists = (
             User.all_objects.alias(normalized_email=Lower("email"))
-            .filter(normalized_email=email.lower())
+            .filter(normalized_email=Lower(Value(email)))
             .exists()
         )
         if username_exists or email_exists:

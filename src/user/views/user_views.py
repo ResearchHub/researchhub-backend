@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from allauth.account.models import EmailAddress
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Value
 from django.db.models.functions import Lower
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -99,7 +99,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         email = serializer.validated_data["email"]
         user = (
             User.all_objects.alias(normalized_email=Lower("email"))
-            .filter(normalized_email=email.lower())
+            .filter(normalized_email=Lower(Value(email)))
             .first()
         )
         if user:

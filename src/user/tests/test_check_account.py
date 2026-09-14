@@ -38,6 +38,21 @@ class CheckAccountTests(AWSMockTestCase):
                     {"exists": True, "auth": "email", "is_verified": True},
                 )
 
+    def test_recognizes_existing_unicode_email(self):
+        # Arrange
+        self.user.email = "İ@example.com"
+        self.user.save(update_fields=["email", "username"])
+
+        # Act
+        response = self.check_account(self.user.email)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            {"exists": True, "auth": "email", "is_verified": True},
+        )
+
     def test_unknown_email_does_not_exist(self):
         # Arrange
         email = "unknown@example.com"
