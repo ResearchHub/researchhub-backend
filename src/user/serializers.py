@@ -708,12 +708,10 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
         # Call parent validation first
         email = super().validate_email(email)
         # Match the existing LOWER(email) index for case-insensitive duplicates.
-        # Keep the exact username check because User.save() sets username=email
-        # and the database enforces username uniqueness.
         if (
             email
             and User.all_objects.alias(normalized_email=Lower("email"))
-            .filter(Q(normalized_email=email.lower()) | Q(username=email))
+            .filter(normalized_email=email.lower())
             .exists()
         ):
             raise serializers.ValidationError(
