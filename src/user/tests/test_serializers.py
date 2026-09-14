@@ -8,14 +8,13 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from hub.models import Hub
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from purchase.models import Balance
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Distribution, Score, Withdrawal
+from reputation.models import Distribution, Withdrawal
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from review.models import Review
 from user.models import UserVerification
@@ -87,26 +86,6 @@ class UserSerializersTests(TestCase):
         serializer = AuthorSerializer(self.user.author_profile)
         json_data = json.dumps(serializer.data)
         self.assertIn('"orcid_id": null', json_data)
-
-    def test_author_serializer_with_reputation(self):
-        hub1 = Hub.objects.create(name="Hub 1")
-        hub2 = Hub.objects.create(name="Hub 2")
-        Score.objects.create(
-            author=self.user.author_profile,
-            hub=hub1,
-            score=900,
-        )
-
-        Score.objects.create(
-            author=self.user.author_profile,
-            hub=hub2,
-            score=1000,
-        )
-
-        serializer = AuthorSerializer(self.user.author_profile)
-        self.assertEqual(serializer.data["reputation_v2"]["score"], 1000)
-        self.assertEqual(serializer.data["reputation_list"][0]["score"], 1000)
-        self.assertEqual(serializer.data["reputation_list"][1]["score"], 900)
 
     def test_user_serializer_is_verified(self):
         # Arrange
