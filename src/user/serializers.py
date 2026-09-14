@@ -704,7 +704,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
         email = super().validate_email(email)
         # Since User.save() sets username=email, we need to check for existing
         # users with this email as username to avoid IntegrityError
-        if email and User.all_objects.filter(username=email).exists():
+        if email and User.all_objects.filter(username__iexact=email).exists():
             raise serializers.ValidationError(
                 "A user is already registered with this e-mail address."
             )

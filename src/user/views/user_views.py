@@ -92,7 +92,8 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def check_account(self, request):
-        user = User.all_objects.filter(email=request.data["email"]).first()
+        email = request.data["email"].strip()
+        user = User.all_objects.filter(email__iexact=email).first()
         if user:
             # Filtering by provider == google because we only have google login
             # If we ever add a second login, we need to update the provider to include
