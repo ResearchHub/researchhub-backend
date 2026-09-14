@@ -20,31 +20,3 @@ class HubCitationValue(models.Model):
     variables = JSONField(null=True, blank=True, default=None)
 
     created_date = models.DateTimeField(auto_now_add=True)
-
-
-class PaperReward(models.Model):
-    paper = models.ForeignKey("paper.Paper", on_delete=models.CASCADE, db_index=True)
-    author = models.ForeignKey("user.Author", on_delete=models.CASCADE, db_index=True)
-    citation_change = models.PositiveIntegerField()
-    citation_count = models.PositiveIntegerField()
-    rsc_value = models.FloatField()
-    is_open_data = models.BooleanField(default=False)
-    is_preregistered = models.BooleanField(default=False)
-    distribution = models.ForeignKey(
-        "reputation.Distribution",
-        on_delete=models.CASCADE,
-        db_index=True,
-        default=None,
-        null=True,
-        blank=True,
-    )
-    hub_citation_value = models.ForeignKey(
-        "reputation.HubCitationValue",
-        on_delete=models.CASCADE,
-        default=None,
-        null=True,
-        blank=True,
-    )
-
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
