@@ -4,6 +4,7 @@ import dj_rest_auth.registration.serializers as rest_auth_serializers
 from allauth.account.adapter import get_adapter
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
+from django.db.models.functions import Lower
 from rest_framework import serializers
 from rest_framework.serializers import (
     CharField,
@@ -706,9 +707,15 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
     def validate_email(self, email):
         # Call parent validation first
         email = super().validate_email(email)
-        # Since User.save() sets username=email, we need to check for existing
-        # users with this email as username to avoid IntegrityError
-        if email and User.all_objects.filter(username__iexact=email).exists():
+        # Match the existing LOWER(email) index for case-insensitive duplicates.
+        # Keep the exact username check because User.save() sets username=email
+        # and the database enforces username uniqueness.
+        if (
+            email
+            and User.all_objects.alias(normalized_email=Lower("email"))
+            .filter(Q(normalized_email=email.lower()) | Q(username=email))
+            .exists()
+        ):
             raise serializers.ValidationError(
                 "A user is already registered with this e-mail address."
             )
