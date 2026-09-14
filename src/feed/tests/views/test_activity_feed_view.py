@@ -1744,8 +1744,11 @@ class AuthorActivityFeedTests(APITestCase):
         )
         self.prereg_entry.authors.add(self.author.author_profile)
 
-        _, _, self.report_entry = _create_post_and_entry(
+        _, report_post, self.report_entry = _create_post_and_entry(
             self.moderator, REGISTERED_REPORT, "Published Report"
+        )
+        report_post.reset_post_authors(
+            [self.author.author_profile.id, self.coauthor.author_profile.id]
         )
         self.report_entry.authors.add(
             self.author.author_profile, self.coauthor.author_profile
@@ -1782,6 +1785,10 @@ class AuthorActivityFeedTests(APITestCase):
         self.assertEqual(
             {entry["id"] for entry in coauthor_response.data["results"]},
             {self.report_entry.id},
+        )
+        self.assertEqual(
+            coauthor_response.data["results"][0]["author"]["id"],
+            self.author.author_profile.id,
         )
         self.assertEqual(moderator_response.data["results"], [])
 
