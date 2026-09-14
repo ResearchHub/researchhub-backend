@@ -75,10 +75,9 @@ class RecommendationClient:
                 "recommendation_id": recommendation_id,
             }
 
-        except Exception as e:
-            logger.error(
-                f"Error getting recommendations from Personalize "
-                f"for user {user_id}: {str(e)}"
+        except Exception:
+            logger.exception(
+                "Error getting recommendations from Personalize for user %s", user_id
             )
             raise
 

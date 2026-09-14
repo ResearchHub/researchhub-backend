@@ -299,6 +299,7 @@ class GrantLLMContextTextTests(SimpleTestCase):
         grant.description = "Do good science."
         post = MagicMock()
         post.get_full_markdown.return_value = "# Details\nMore"
+        post.renderable_text = "Rendered duplicate details"
         grant.unified_document.posts.first.return_value = post
 
         # Act
@@ -309,6 +310,24 @@ class GrantLLMContextTextTests(SimpleTestCase):
         self.assertIn("NIH", text)
         self.assertIn("Do good science.", text)
         self.assertIn("# Details", text)
+        self.assertNotIn("Rendered duplicate details", text)
+
+    def test_uses_rendered_post_text_when_markdown_is_unavailable(self):
+        # Arrange
+        grant = MagicMock()
+        grant.short_title = "My RFP"
+        grant.organization = "NIH"
+        grant.description = "Do good science."
+        post = MagicMock()
+        post.get_full_markdown.return_value = None
+        post.renderable_text = "Rendered call requirements"
+        grant.unified_document.posts.first.return_value = post
+
+        # Act
+        text = Grant.get_llm_context_text(grant)
+
+        # Assert
+        self.assertIn("Rendered call requirements", text)
 
     def test_handles_missing_post(self):
         # Arrange

@@ -5,6 +5,7 @@ import unittest
 
 from research_ai.services.agent import (
     AgentRunError,
+    BudgetExceededError,
     IncompleteTurnError,
     IterationLimitError,
 )
@@ -217,6 +218,20 @@ class ProposalRunStateFailureMessageTests(unittest.TestCase):
             "judge panel unavailable (no judge returned a score) on round 1",
         )
 
+    def test_panel_unavailable_names_why_when_known(self):
+        # Arrange
+        state = ProposalRunState(_build_config())
+        state.rounds_used = 1
+        state.panel_unavailable = True
+        state.panel_error = "claude-opus-5: turn ended max_tokens with 0 chars"
+
+        # Act & Assert
+        self.assertEqual(
+            state.failure_message(),
+            "judge panel unavailable (no judge returned a score) on round 1: "
+            "claude-opus-5: turn ended max_tokens with 0 chars",
+        )
+
     def test_agent_died_before_submitting_names_the_real_cause(self):
         # Arrange
         state = ProposalRunState(_build_config())
@@ -268,6 +283,18 @@ class ProposalRunStateFailureMessageTests(unittest.TestCase):
         # Act & Assert
         self.assertIn("50-iteration cap", state.failure_message())
         self.assertIn("2 of 4 rounds", state.failure_message())
+
+    def test_usage_budget_exhausted(self):
+        # Arrange
+        state = ProposalRunState(_build_config())
+        state.rounds_used = 2
+        state.record_agent_error(BudgetExceededError("raw budget details"))
+
+        # Act & Assert
+        self.assertEqual(
+            state.failure_message(),
+            "daily Research AI usage limit reached; try again after it resets",
+        )
 
     def test_incomplete_turn_after_a_submit(self):
         # Arrange

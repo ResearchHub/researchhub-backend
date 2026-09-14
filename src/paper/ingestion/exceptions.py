@@ -14,7 +14,9 @@ class ClientError(IngestionError):
 class FetchError(ClientError):
     """Raised when fetching data from an external source fails."""
 
-    def __init__(self, message: str, source: str = None, status_code: int = None):
+    def __init__(
+        self, message: str, source: str | None = None, status_code: int | None = None
+    ):
         super().__init__(message)
         self.source = source
         self.status_code = status_code
@@ -23,7 +25,7 @@ class FetchError(ClientError):
 class TimeoutError(ClientError):
     """Raised when a request times out."""
 
-    def __init__(self, message: str, timeout: float = None):
+    def __init__(self, message: str, timeout: float | None = None):
         super().__init__(message)
         self.timeout = timeout
 
@@ -31,7 +33,7 @@ class TimeoutError(ClientError):
 class RetryExhaustedError(ClientError):
     """Raised when all retry attempts have been exhausted."""
 
-    def __init__(self, message: str, attempts: int = None):
+    def __init__(self, message: str, attempts: int | None = None):
         super().__init__(message)
         self.attempts = attempts
 
@@ -39,7 +41,7 @@ class RetryExhaustedError(ClientError):
 class ValidationError(ClientError):
     """Raised when data validation fails."""
 
-    def __init__(self, message: str, field: str = None, value=None):
+    def __init__(self, message: str, field: str | None = None, value=None):
         super().__init__(message)
         self.field = field
         self.value = value

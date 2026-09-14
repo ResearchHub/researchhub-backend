@@ -12,7 +12,7 @@ from django.core.cache import cache
 from django.db.models import Count, Prefetch, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from feed.cache_segment import get_feed_cache_segment
 from feed.feed_list_dto import (
@@ -39,7 +39,10 @@ from review.models import Review
 from .common import FeedPagination
 
 
-class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
+class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet):
+    """Moderators and hub editors may pass ``?include_private=true``
+    (or ``1``) to include private proposals via ``visible_to``"""
+
     serializer_class = FundingFeedListEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
@@ -52,12 +55,26 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         context.update(self.get_common_serializer_context())
         return context
 
+    @staticmethod
+    def _include_private_for_privileged(request) -> bool:
+        """Whether this request may include private proposals."""
+        param = request.query_params.get("include_private", "").lower()
+        if param not in ("true", "1"):
+            return False
+        user = getattr(request, "user", None)
+        return bool(
+            user
+            and getattr(user, "is_authenticated", False)
+            and user.is_moderator_or_editor()
+        )
+
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         grant_id = request.query_params.get("grant_id", None)
         created_by = request.query_params.get("created_by", None)
         funded_by = request.query_params.get("funded_by", None)
+        self._include_private = self._include_private_for_privileged(request)
         suffix, should_cache = get_feed_cache_segment(request)
         use_cache = (
             should_cache
@@ -65,6 +82,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
             and grant_id is None
             and created_by is None
             and funded_by is None
+            and not self._include_private
         )
         cache_key = (
             (self.get_cache_key(request, "funding") + suffix) if use_cache else None
@@ -110,13 +128,17 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         funded_by = self.request.query_params.get("funded_by")
 
         application_lookup = "applications"
-        annotated_grants = Grant.objects.annotate(
-            num_applicants=Count(
-                application_lookup,
-                distinct=True,
-                filter=Q(**approved_proposal_filters(application_lookup)),
+        annotated_grants = (
+            Grant.objects.annotate(
+                num_applicants=Count(
+                    application_lookup,
+                    distinct=True,
+                    filter=Q(**approved_proposal_filters(application_lookup)),
+                )
             )
-        ).prefetch_related("unified_document__posts")
+            .select_related("funding_pool")
+            .prefetch_related("unified_document__posts")
+        )
 
         grant_applications_prefetch = Prefetch(
             "grant_applications",
@@ -132,7 +154,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
                 "unified_document",
             )
             .prefetch_related(
-                "authors",
+                "author_links",
                 "unified_document__hubs",
                 "unified_document__fundraises",
                 "unified_document__fundraises__nonprofit_links__nonprofit",
@@ -170,7 +192,13 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ModelViewSet):
         # reviewers, and moderators see private preregistrations and grants
         # (e.g. on the author profile's Proposals tab) while everyone else,
         # including anonymous viewers, still only sees public ones.
-        if grant_id or created_by or funded_by:
+        #
+        # This feed stays public-only unless a mod/editor passes
+        # include_private.
+        include_private = getattr(self, "_include_private", None)
+        if include_private is None:
+            include_private = self._include_private_for_privileged(self.request)
+        if grant_id or created_by or funded_by or include_private:
             visible_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
                 "id"
             )

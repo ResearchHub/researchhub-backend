@@ -265,6 +265,73 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         )
         self.assertEqual(notifications.count(), 0)
 
+    @patch("researchhub_comment.signals.send_author_update_email_notifications.delay")
+    def test_reply_to_author_update_only_notifies_author(self, mock_send_update_emails):
+        # Arrange
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=AUTHOR_UPDATE,
+            content_object=self.preregistration,
+            created_by=self.author,
+        )
+        update = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.author,
+            comment_content_json={"text": "This is an author update"},
+            comment_type=AUTHOR_UPDATE,
+        )
+        mock_send_update_emails.reset_mock()
+
+        # Act
+        reply = RhCommentModel.objects.create(
+            thread=thread,
+            parent=update,
+            created_by=self.non_follower,
+            comment_content_json={"text": "This is a reply"},
+            comment_type=GENERIC_COMMENT,
+        )
+
+        # Assert
+        self.assertFalse(
+            Notification.objects.filter(
+                notification_type=Notification.PREREGISTRATION_UPDATE,
+                object_id=reply.id,
+                content_type=ContentType.objects.get_for_model(RhCommentModel),
+            ).exists()
+        )
+        reply_notification = Notification.objects.get(
+            notification_type=Notification.COMMENT_ON_COMMENT,
+            object_id=reply.id,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+        )
+        self.assertEqual(reply_notification.recipient, self.author)
+        self.assertEqual(reply_notification.action_user, self.non_follower)
+        mock_send_update_emails.assert_not_called()
+
+    def test_no_notifications_for_non_author_top_level_update(self):
+        # Arrange
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=AUTHOR_UPDATE,
+            content_object=self.preregistration,
+            created_by=self.non_follower,
+        )
+
+        # Act
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.non_follower,
+            comment_content_json={"text": "Not an update from the author"},
+            comment_type=AUTHOR_UPDATE,
+        )
+
+        # Assert
+        self.assertFalse(
+            Notification.objects.filter(
+                notification_type=Notification.PREREGISTRATION_UPDATE,
+                object_id=comment.id,
+                content_type=ContentType.objects.get_for_model(RhCommentModel),
+            ).exists()
+        )
+
 
 class RewardPreregistrationUpdateSignalTests(TestCase):
     def setUp(self):

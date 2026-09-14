@@ -1,8 +1,10 @@
 FROM mcr.microsoft.com/devcontainers/python:3.13-trixie
 
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONUNBUFFERED=1
 
-RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
+# Remove Yarn apt source since the base image's signing key is stale.
+RUN rm -f /etc/apt/sources.list.d/yarn.list \
+    && apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install --no-install-recommends redis-tools
 
 # Install uv and add to PATH

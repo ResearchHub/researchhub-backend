@@ -53,6 +53,7 @@ uv add --dev <package_name>
 - Keep imports at the top of the file when possible.
 - Use serializers and viewsets for API boundaries.
 - Keep migrations focused and reversible.
+- Prefer soft deletion with SoftDeletableModel when possible.
 - Run the relevant tests before committing.
 
 ## Code Placement
@@ -95,7 +96,7 @@ before writing it.
 - Test behavior, not implementation details.
 - Add Arrange/Act/Assert (AAA) comment markers to tests.
 - Prefer `patch.object()` when patching on classes already imported into the test module.
-  Use string-based `patch("module.path.symbol")` when the test needs to replace the exact 
+  Use string-based `patch("module.path.symbol")` when the test needs to replace the exact
   symbol that the code under test imports or accesses at runtime.
 
 ## CI Reference

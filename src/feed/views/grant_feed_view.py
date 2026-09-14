@@ -9,7 +9,7 @@ from django.db.models import Prefetch, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from ai_peer_review.models import ProposalReview
 from feed.cache_segment import get_feed_cache_segment
@@ -26,7 +26,7 @@ from review.models import Review
 from .common import FeedPagination
 
 
-class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
+class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ReadOnlyModelViewSet):
     serializer_class = GrantFeedListEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
@@ -54,8 +54,11 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
+        organization = request.query_params.get("organization")
         suffix, should_cache = get_feed_cache_segment(request)
-        use_cache = should_cache and page_num <= GRANT_FEED_MAX_CACHED_PAGE
+        use_cache = (
+            should_cache and page_num <= GRANT_FEED_MAX_CACHED_PAGE and not organization
+        )
         cache_key = (
             (self.get_cache_key(request, "grants") + suffix) if use_cache else None
         )
@@ -93,6 +96,7 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
 
         prefetch_related = [
             "unified_document__hubs",
+            "unified_document__grants__funding_pool",
             "unified_document__grants__applications__applicant__author_profile",
             Prefetch(
                 "unified_document__grants__applications__preregistration_post__unified_document__reviews",
@@ -128,7 +132,6 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ModelViewSet):
             .prefetch_related(*prefetch_related)
             .filter(document_type=GRANT, unified_document__is_removed=False)
         )
-
         queryset = queryset.exclude(
             unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]
         )

@@ -10,7 +10,6 @@ from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
 from discussion.models import Vote
-from mailing_list.lib import base_email_context, send_email
 from paper.models import Paper, PaperSubmission
 from reputation.models import Bounty
 from researchhub_access_group.constants import ADMIN
@@ -35,12 +34,6 @@ def add_organization_slug(sender, instance, update_fields, **kwargs):
         instance.slug = slug
 
 
-def doi_updated(update_fields):
-    if update_fields is not None:
-        return "doi" in update_fields
-    return False
-
-
 @receiver(post_save, sender=RhCommentModel, dispatch_uid="creation_rh_comment")
 @receiver(post_save, sender=Paper, dispatch_uid="paper_upload_action")
 @receiver(post_save, sender=Vote, dispatch_uid="discussion_vote_action")
@@ -54,24 +47,12 @@ def create_action(sender, instance, created, **kwargs):
         else:
             user = instance.created_by
 
-        vote_types = [Vote]
-        display = (
-            False
-            if (
-                sender in vote_types
-                or sender == PaperSubmission
-                or (
-                    sender != Vote
-                    and (hasattr(instance, "is_removed") and instance.is_removed)
-                )
-                or (sender == RhCommentModel and not instance.is_public)
-                or (
-                    sender == ResearchhubPost
-                    and not instance.unified_document.is_public
-                )
-                or (sender == Bounty and instance.parent)  # Only show parent bounties
-            )
-            else True
+        display = not (
+            sender in (PaperSubmission, Vote)
+            or getattr(instance, "is_removed", False)
+            or (sender == RhCommentModel and not instance.is_public)
+            or (sender == ResearchhubPost and not instance.unified_document.is_public)
+            or (sender == Bounty and instance.parent)  # Only show parent bounties
         )
 
         action = Action.objects.create(item=instance, user=user, display=display)
@@ -80,44 +61,7 @@ def create_action(sender, instance, created, **kwargs):
         if hubs:
             action.hubs.add(*hubs)
 
-        send_discussion_email_notification(instance, sender, action)
         return action
-
-
-def send_discussion_email_notification(instance, sender, action):
-    if sender != RhCommentModel:
-        return
-
-    for recipient in instance.users_to_notify:
-        creator = instance.created_by
-        if recipient != creator:
-            email_preference = getattr(recipient, "emailrecipient", None)
-            subscription = None
-            try:
-                # Checks if the recipient has an email recipient obj
-                if not email_preference:
-                    return
-
-                subscription = email_preference.comment_subscription
-                subject = "ResearchHub | Someone created a discussion on your post"
-                if (
-                    email_preference.receives_notifications
-                    and subscription
-                    and not subscription.none
-                ):
-                    context = {
-                        **base_email_context,
-                        "actions": [action.email_context()],
-                    }
-                    send_email(
-                        recipient.email,
-                        "notification_email.txt",
-                        subject,
-                        context,
-                        html_template="notification_email.html",
-                    )
-            except Exception:
-                logger.exception("Failed to send discussion email notification")
 
 
 @receiver(post_delete, sender=Paper, dispatch_uid="paper_delete_action")

@@ -42,9 +42,7 @@ def _fetch_public_key(key_id: str) -> str:
     try:
         return client.get_notification_public_key(key_id)
     except Exception:
-        logger.error(
-            "Failed to fetch Circle public key for key_id=%s", key_id, exc_info=True
-        )
+        logger.exception("Failed to fetch Circle public key for key_id=%s", key_id)
         raise
 
 

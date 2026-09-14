@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
@@ -128,8 +128,8 @@ class AmplitudeEventParser:
         """
         timestamp_ms = event.get(time_field)
         if timestamp_ms:
-            return datetime.fromtimestamp(timestamp_ms / 1000)
-        return datetime.now()
+            return datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
+        return datetime.now(UTC)
 
     def parse_amplitude_event(self, event: dict[str, Any]) -> AmplitudeEvent | None:
         """Parse an Amplitude event and return an AmplitudeEvent object."""

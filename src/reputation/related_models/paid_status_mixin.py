@@ -14,13 +14,13 @@ class PaidStatusModelMixin(models.Model):
         (PENDING, PENDING),
     ]
 
-    class Meta:
-        abstract = True
-
     paid_date = models.DateTimeField(default=None, null=True)
     paid_status = models.CharField(
         max_length=255, choices=PAID_STATUS_CHOICES, default=None, null=True
     )
+
+    class Meta:
+        abstract = True
 
     def set_paid_failed(self):
         self.paid_status = self.FAILED

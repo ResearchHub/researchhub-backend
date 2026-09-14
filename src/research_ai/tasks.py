@@ -9,6 +9,7 @@ from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
 from research_ai.services.expert_finder import finder as expert_finder_mod
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
+from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.outreach.email_generator import generate_expert_email
 from research_ai.services.outreach.email_sender import send_plain_email
 from research_ai.services.outreach.invited_experts import (
@@ -22,10 +23,22 @@ from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
 from research_ai.services.proposal_draft import run_proposal_draft
+from research_ai.services.proposal_draft.cancel_service import ACTIVE_STATUSES
+from research_ai.services.proposal_draft.liveness_service import (
+    ProposalDraftLivenessService,
+)
+from research_ai.services.usage_budget import ReservationHeartbeat
+from research_ai.services.usage_budget.reservation import reservation_deadline
 from researchhub.celery import QUEUE_AGENTS, app
 from user.models import User
 
 logger = logging.getLogger(__name__)
+
+# Ceilings against a runaway live worker, not liveness: a killed task's run is
+# reclaimed by ``reclaim_lost_agent_runs`` once its lease lapses.
+NOTEBOOK_CHAT_TURN_TIME_LIMIT = 2 * 60 * 60
+PROPOSAL_DRAFT_TIME_LIMIT = 4 * 60 * 60
+HARD_TIME_LIMIT_GRACE = 5 * 60
 
 
 def _update_search_progress(
@@ -235,7 +248,43 @@ def run_expert_finder_search(
         raise
 
 
+@app.task(
+    queue=QUEUE_AGENTS,
+    soft_time_limit=NOTEBOOK_CHAT_TURN_TIME_LIMIT,
+    time_limit=NOTEBOOK_CHAT_TURN_TIME_LIMIT + HARD_TIME_LIMIT_GRACE,
+)
+def run_notebook_chat_turn_task(execution_id: int):
+    """
+    Background task to run one prepared notebook chat turn.
+    """
+    logger.info("Starting notebook chat turn", extra={"execution_id": execution_id})
+    result = NotebookChatService().run_turn(execution_id)
+    if result.get("error"):
+        logger.warning(
+            "Notebook chat turn ended with an error",
+            extra={"execution_id": execution_id, "error": result["error"]},
+        )
+    return result
+
+
 @app.task(queue=QUEUE_AGENTS)
+def reclaim_lost_agent_runs():
+    """
+    Fail queued or running Research AI jobs whose worker stopped heartbeating.
+    """
+    executions = NotebookChatService().reclaim_lost_turns()
+    drafts = ProposalDraftLivenessService().reclaim_lost()
+    return {
+        "executions": [execution.id for execution in executions],
+        "proposal_drafts": [draft.id for draft in drafts],
+    }
+
+
+@app.task(
+    queue=QUEUE_AGENTS,
+    soft_time_limit=PROPOSAL_DRAFT_TIME_LIMIT,
+    time_limit=PROPOSAL_DRAFT_TIME_LIMIT + HARD_TIME_LIMIT_GRACE,
+)
 def run_proposal_draft_task(draft_id: int):
     """
     Background task to run one headless proposal-drafting job.
@@ -249,7 +298,10 @@ def run_proposal_draft_task(draft_id: int):
     claimed = ProposalDraft.objects.filter(
         id=draft_id,
         status=ProposalDraft.Status.PENDING,
-    ).update(status=ProposalDraft.Status.PROCESSING)
+    ).update(
+        status=ProposalDraft.Status.PROCESSING,
+        usage_reservation_expires_at=reservation_deadline(),
+    )
     if not claimed:
         draft.refresh_from_db(fields=["status"])
         logger.info(
@@ -262,15 +314,39 @@ def run_proposal_draft_task(draft_id: int):
             "skipped": "already_claimed",
         }
 
+    # The claim above set the lease the heartbeat renews; load it.
+    draft.refresh_from_db()
     logger.info("Starting proposal draft", extra={"draft_id": draft_id})
     start_time = timezone.now()
     try:
-        result = run_proposal_draft(draft.search_expert_id, draft_id=draft.id)
+        generation_options = {
+            key: draft.run_config[key]
+            for key in ("effort", "thinking", "temperature")
+            if key in draft.run_config
+        }
+        with ReservationHeartbeat((draft,)) as heartbeat:
+            result = run_proposal_draft(
+                draft.search_expert_id,
+                draft_id=draft.id,
+                model_ref=draft.model_ref or None,
+                heartbeat=heartbeat,
+                **generation_options,
+            )
     except Exception as e:
         logger.exception("Proposal draft task failed", extra={"draft_id": draft_id})
-        ProposalDraft.objects.filter(id=draft_id).update(
+        # Conditional on the draft still being active, like every write the
+        # runner makes. This is the last-resort handler for something that
+        # escaped the runner entirely -- constructing it, or persisting its own
+        # outcome -- and an unguarded write here would report a cancelled draft
+        # as FAILED and stamp an error message on a deliberate stop.
+        ProposalDraft.objects.filter(id=draft_id, status__in=ACTIVE_STATUSES).update(
             status=ProposalDraft.Status.FAILED,
             error_message=str(e)[:10000],
+        )
+        # The worker is exiting even if a concurrent cancellation won the
+        # lifecycle update above, so its separate usage reservation can now go.
+        ProposalDraft.objects.filter(id=draft_id).update(
+            usage_reservation_expires_at=None
         )
         raise
     processing_time = (timezone.now() - start_time).total_seconds()
@@ -342,7 +418,7 @@ def _resolved_expert_dict_for_bulk(rec: GeneratedEmail) -> dict:
         "affiliation": rec.expert_affiliation or "",
         "expertise": rec.expertise or "",
         "email": (rec.expert_email or "").strip(),
-        "notes": rec.notes or "",
+        "notes": "",
     }
 
 
@@ -505,6 +581,7 @@ def send_queued_emails_task(
             )
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
+                channels=[GeneratedEmail.Channel.EMAIL],
                 ses_message_id=ses_message_id or "",
                 updated_date=timezone.now(),
             )

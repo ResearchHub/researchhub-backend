@@ -1,19 +1,30 @@
+from rest_framework.permissions import BasePermission
+from rest_framework.request import Request
+
 from user.models import Author
-from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
+from utils.permissions import AuthorizationBasedPermission
 
 
-class CreatePaper(RuleBasedPermission):
-    message = "Not enough reputation to upload paper."
+class UpdatePaper(BasePermission):
+    """
+    Restrict paper writes to site moderators and hub editors.
+    """
 
-    def satisfies_rule(self, request):
-        return request.user.reputation >= 1 and not request.user.is_suspended
+    message = "Only moderators and hub editors can update papers."
 
+    def has_permission(self, request: Request, view) -> bool:
+        """Return whether the requester may write to papers at all."""
+        # Other write actions declare their own permissions.
+        # `delete_user_vote` does not, so gating by HTTP method blocks removing a vote.
+        if getattr(view, "action", None) not in ("partial_update", "update"):
+            return True
 
-class UpdatePaper(RuleBasedPermission):
-    message = "Not enough reputation to upload paper."
-
-    def satisfies_rule(self, request):
-        return request.user.reputation >= 1 and not request.user.is_suspended
+        user = request.user
+        return (
+            user.is_authenticated
+            and not user.is_suspended
+            and user.is_moderator_or_editor()
+        )
 
 
 class IsAuthor(AuthorizationBasedPermission):

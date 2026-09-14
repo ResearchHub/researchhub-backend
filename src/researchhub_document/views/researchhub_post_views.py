@@ -2,11 +2,12 @@ import logging
 
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import OuterRef, Prefetch, Subquery
 from django.http import Http404
 from django.utils.text import slugify
 from rest_framework import serializers, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -17,15 +18,13 @@ from ai_peer_review.signals import preregistration_substantively_updated
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
-from hub.models import Hub
-from hub.serializers import SimpleHubSerializer
-from note.serializers import NoteSerializer
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from purchase.services.funding_pool_service import FundingPoolService
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
 from researchhub.settings import TESTING
@@ -46,25 +45,39 @@ from researchhub_document.serializers.registered_report_work_serializer import (
     RegisteredReportWorkSerializer,
 )
 from researchhub_document.serializers.researchhub_post_serializer import (
-    JournalEntryAcceptSerializer,
     RegisteredReportPublishSerializer,
     ResearchhubPostSerializer,
 )
-from researchhub_document.services.journal_entry_service import JournalEntryService
+from researchhub_document.services.journal_entry_service import (
+    JournalEntryService,
+    RegisteredReportDOIRegistrationError,
+)
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.proposal_visibility_service import (
+    ProposalVisibilityService,
+)
 from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkService,
 )
+from researchhub_document.services.unified_document_share_link_service import (
+    get_shared_unified_document_id,
+)
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.models import Author, User
-from user.serializers import AuthorSerializer
 from user.services.risk_score_service import RiskScoreService
-from utils.throttles import THROTTLE_CLASSES
 
 logger = logging.getLogger(__name__)
 
 MIN_POST_TITLE_LENGTH = 20
 MIN_POST_BODY_LENGTH = 50
+
+
+class RegisteredReportDOIRegistrationFailed(APIException):
+    """Return an upstream-service error when Crossref rejects a report DOI."""
+
+    status_code = status.HTTP_502_BAD_GATEWAY
+    default_detail = "Unable to register a DOI for the registered report."
+    default_code = "registered_report_doi_registration_failed"
 
 
 class ResearchhubPostViewSet(
@@ -74,7 +87,6 @@ class ResearchhubPostViewSet(
     queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
-    throttle_classes = THROTTLE_CLASSES
     moderation_model = ResearchhubPost
 
     def get_permissions(self):
@@ -94,6 +106,39 @@ class ResearchhubPostViewSet(
 
     def update(self, request, *args, **kwargs):
         return self.upsert_researchhub_posts(request)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated],
+        url_path="make_public",
+    )
+    def make_public(self, request: Request, pk: str | None = None) -> Response:
+        """Permanently make a private proposal public."""
+        proposal = self.get_object()
+        try:
+            proposal = ProposalVisibilityService().make_public(
+                proposal.id,
+                request.user,
+            )
+        except PermissionError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        except ValueError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            ResearchhubPostSerializer(
+                proposal,
+                context={"request": request},
+            ).data,
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["get"])
     def registered_report_work(
@@ -115,90 +160,6 @@ class ResearchhubPostViewSet(
             context={"request": request},
         )
         return Response(serializer.data, status=200)
-
-    @action(
-        detail=False,
-        methods=["post"],
-        permission_classes=[IsAuthenticated],
-        url_name="accept-journal-entry",
-        url_path="accept_journal_entry",
-    )
-    def accept_journal_entry(self, request: Request) -> Response:
-        """Create a registered report note draft for a completed fundraise."""
-        try:
-            data = self.build_journal_entry_accept_data(request)
-        except ValueError as error:
-            return Response({"error": str(error)}, status=400)
-        serializer = JournalEntryAcceptSerializer(data=data)
-        serializer.is_valid(raise_exception=True)
-
-        try:
-            accepted_entry = JournalEntryService().accept_journal_entry(
-                request.user,
-                serializer.validated_data["user_id"],
-                serializer.validated_data["fundraise_id"],
-            )
-        except ValueError as error:
-            return Response({"error": str(error)}, status=400)
-
-        response_data = NoteSerializer(
-            accepted_entry.note, context={"request": request}
-        ).data
-        response_data["fundraise_id"] = accepted_entry.fundraise.id
-        response_data["journey_id"] = accepted_entry.journey.id
-        response_data["proposal_id"] = accepted_entry.proposal.id
-        response_data["registered_report_prefill"] = (
-            self.build_registered_report_prefill(accepted_entry.proposal)
-        )
-        return Response(response_data, status=200)
-
-    def build_journal_entry_accept_data(self, request: Request) -> dict[str, object]:
-        """Build accept data and reject conflicting query/body ids."""
-        data = request.query_params.dict()
-        for field in ("fundraise_id", "user_id"):
-            body_value = request.data.get(field)
-            query_value = data.get(field)
-            if body_value is None:
-                continue
-            if query_value is not None and str(query_value) != str(body_value):
-                raise ValueError(f"{field} does not match the request query.")
-            data[field] = body_value
-        return data
-
-    def build_registered_report_prefill(
-        self, proposal: ResearchhubPost
-    ) -> dict[str, object]:
-        """Build editable registered report defaults from a proposal."""
-        authors = self.get_registered_report_authors(proposal)
-        hubs = proposal.unified_document.hubs.all()
-        hub_ids = list(hubs.values_list("id", flat=True))
-        hub_data = SimpleHubSerializer(
-            hubs,
-            context={"request": self.request},
-            many=True,
-        ).data
-        return {
-            "author_ids": [author.id for author in authors],
-            "authors": AuthorSerializer(
-                authors,
-                context={"request": self.request},
-                many=True,
-            ).data,
-            "image": proposal.image,
-            "preview_img": proposal.preview_img,
-            "proposal_id": proposal.id,
-            "hub_ids": hub_ids,
-            "hubs": hub_data,
-        }
-
-    def get_registered_report_authors(self, proposal: ResearchhubPost) -> list[Author]:
-        """Return proposal authors for registered report defaults."""
-        authors = list(proposal.authors.all())
-        if authors:
-            return authors
-        if proposal.created_by is not None:
-            return [proposal.created_by.author_profile]
-        return []
 
     def validate_post_content(
         self, title: object, renderable_text: object
@@ -228,23 +189,66 @@ class ResearchhubPostViewSet(
             )
         return None
 
+    def _validate_author_ids(self, author_ids: list[int]) -> None:
+        """Reject author identifiers that do not belong to an existing author."""
+        known_ids = Author.objects.filter(id__in=author_ids).values_list(
+            "id", flat=True
+        )
+        if missing_ids := sorted(set(author_ids) - set(known_ids)):
+            raise serializers.ValidationError(f"Unknown author IDs: {missing_ids}")
+
     def get_queryset(self):
         request = self.request
+        # Deliberately not applied to the registered-report subquery below: a
+        # share token covers its own proposal, not other works in the journey.
+        shared_unified_document_id = get_shared_unified_document_id(request)
         try:
-            query_set = (
+            registered_reports = (
                 ResearchhubPost.objects.visible_to(request.user)
-                .select_related("unified_document")
+                .filter(
+                    document_type=REGISTERED_REPORT,
+                    journey_id=OuterRef("journey_id"),
+                )
+                .order_by("id")
+            )
+            query_set = (
+                ResearchhubPost.objects.visible_to(
+                    request.user, shared_unified_document_id
+                )
+                .annotate(
+                    registered_report_id=Subquery(registered_reports.values("id")[:1])
+                )
+                # ResearchhubPostSerializer embeds the note, so the draft
+                # relations it renders load here instead of once per post.
+                .select_related(
+                    "note__grant_settings",
+                    "note__preregistration_settings__nonprofit",
+                    "note__selected_grant",
+                    "note__selected_grant__funding_pool",
+                    "unified_document",
+                )
                 .prefetch_related(
+                    "author_links",
+                    "note__author_links",
+                    "note__grant_settings__contacts",
+                    "note__selected_grant__unified_document__posts",
                     Prefetch(
                         "grant_applications",
-                        queryset=GrantApplication.objects.select_related("grant"),
+                        queryset=GrantApplication.objects.select_related(
+                            "grant", "grant__funding_pool"
+                        ),
                     ),
                     Prefetch(
                         "unified_document__proposal_reviews",
                         queryset=ProposalReview.objects.filter(
                             grant__isnull=False,
                         )
-                        .select_related("grant", "unified_document", "key_insight")
+                        .select_related(
+                            "grant",
+                            "grant__funding_pool",
+                            "unified_document",
+                            "key_insight",
+                        )
                         .prefetch_related(
                             "unified_document__"
                             "ai_peer_review_editorial_feedback__categories",
@@ -291,7 +295,19 @@ class ResearchhubPostViewSet(
         grant_amount = data.get("grant_amount")
         grant_id = data.get("grant_id")
 
-        if authors and request.user.author_profile.id not in authors:
+        if (
+            document_type == REGISTERED_REPORT
+            and not request.user.is_moderator_or_editor()
+        ):
+            raise PermissionDenied(
+                "Only moderators or hub editors can publish registered reports."
+            )
+
+        if (
+            document_type != REGISTERED_REPORT
+            and authors
+            and request.user.author_profile.id not in authors
+        ):
             return Response(
                 {"msg": "You must include yourself in the authors list"},
                 status=400,
@@ -306,6 +322,7 @@ class ResearchhubPostViewSet(
                 created_by = request.user
                 journey_service = JourneyService()
                 registered_report_proposal = None
+                journal_entry_service = None
                 if document_type == REGISTERED_REPORT:
                     serializer = RegisteredReportPublishSerializer(data=data)
                     serializer.is_valid(raise_exception=True)
@@ -314,7 +331,6 @@ class ResearchhubPostViewSet(
                     )
                     registered_report_proposal = (
                         journal_entry_service.get_registered_report_proposal(
-                            created_by,
                             serializer.validated_data["proposal_id"],
                         )
                     )
@@ -330,11 +346,13 @@ class ResearchhubPostViewSet(
                         registered_report_note,
                         serializer.validated_data["renderable_text"],
                         serializer.validated_data["full_json"],
+                        created_by=created_by,
                     )
-                    if not authors:
-                        authors = self.get_registered_report_authors(
-                            registered_report_proposal
-                        )
+                    authors = serializer.validated_data.get(
+                        "authors"
+                    ) or journal_entry_service.get_registered_report_author_ids(
+                        registered_report_proposal
+                    )
                     if image is None:
                         image = registered_report_proposal.image
                     if preview_img is None:
@@ -377,11 +395,6 @@ class ResearchhubPostViewSet(
                 if access_group is not None:
                     unified_document.access_groups = access_group
                 unified_document.save()
-                if registered_report_proposal is not None:
-                    unified_document.hubs.set(
-                        registered_report_proposal.unified_document.hubs.all()
-                    )
-
                 slug = slugify(title)
                 rh_post = ResearchhubPost.objects.create(
                     created_by=created_by,
@@ -399,19 +412,21 @@ class ResearchhubPostViewSet(
                 )
                 file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
                 full_src_file = ContentFile(data["full_src"].encode())
-                rh_post.authors.set(authors)
+                self._validate_author_ids(authors)
+                rh_post.reset_post_authors(authors)
                 self.add_upvote(created_by, rh_post)
                 if registered_report_proposal is not None:
                     journey_service.attach_stage(
                         registered_report_proposal.journey,
                         rh_post,
                     )
+                    journal_entry_service.register_registered_report_doi(rh_post)
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
                     fundraise_data = {
                         "goal_amount": goal_amount,
-                        "goal_currency": data.get("fundraise_goal_currency", USD),
+                        "goal_currency": data.get("fundraise_goal_currency") or USD,
                         "unified_document_id": unified_document.id,
                         "recipient_user_id": created_by.id,
                     }
@@ -439,7 +454,7 @@ class ResearchhubPostViewSet(
                 if grant_amount := data.get("grant_amount"):
                     grant_data = {
                         "amount": grant_amount,
-                        "currency": data.get("grant_currency", USD),
+                        "currency": data.get("grant_currency") or USD,
                         "organization": data.get("grant_organization"),
                         "description": data.get("grant_description"),
                         "unified_document_id": unified_document.id,
@@ -451,11 +466,9 @@ class ResearchhubPostViewSet(
                     if grant_contacts is not None:
                         grant_data["contact_ids"] = grant_contacts
 
-                    if (
-                        application_visibility := data.get(
-                            "grant_application_visibility"
-                        )
-                    ) is not None:
+                    if application_visibility := data.get(
+                        "grant_application_visibility"
+                    ):
                         grant_data["application_visibility"] = application_visibility
 
                     grant_serializer = GrantCreateSerializer(data=grant_data)
@@ -486,6 +499,8 @@ class ResearchhubPostViewSet(
                         grant.contacts.set(contacts)
                     else:
                         grant.contacts.clear()
+
+                    FundingPoolService().create_pool_for_grant(grant)
 
                     # Trusted users skip the grant moderation queue.
                     if risk_score_service.is_trusted(created_by):
@@ -572,6 +587,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_pool",
                     ],
                 ).data
                 if grant
@@ -581,6 +597,8 @@ class ResearchhubPostViewSet(
 
         except serializers.ValidationError as e:
             return Response({"error": e.detail}, status=400)
+        except RegisteredReportDOIRegistrationError as error:
+            raise RegisteredReportDOIRegistrationFailed from error
         except ValueError as e:
             return Response({"error": str(e)}, status=400)
         except (KeyError, TypeError) as e:
@@ -591,7 +609,7 @@ class ResearchhubPostViewSet(
         try:
             data = request.data
 
-            authors = data.get("authors", [])
+            authors = data.get("authors")
             rh_post_id = data.get("post_id", None)
             rh_post = ResearchhubPost.objects.get(id=rh_post_id)
             if rh_post.document_type == REGISTERED_REPORT:
@@ -606,7 +624,6 @@ class ResearchhubPostViewSet(
                     status=400,
                 )
 
-            hubs = data.get("hubs", None)
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
 
@@ -634,12 +651,9 @@ class ResearchhubPostViewSet(
                     post_id=post.id,
                 )
 
-            if type(authors) is list:
-                rh_post.authors.set(authors)
-
-            if type(hubs) is list:
-                unified_doc = post.unified_document
-                unified_doc.hubs.set(hubs)
+            if isinstance(authors, list):
+                self._validate_author_ids(authors)
+                rh_post.reset_post_authors(authors)
 
             # Handle grant updates
             grant = None
@@ -654,7 +668,7 @@ class ResearchhubPostViewSet(
             if (grant_amount := data.get("grant_amount")) and existing_grant:
                 grant_data = {
                     "amount": grant_amount,
-                    "currency": data.get("grant_currency", USD),
+                    "currency": data.get("grant_currency") or USD,
                     "organization": data.get("grant_organization"),
                     "description": data.get("grant_description"),
                     "unified_document_id": unified_document.id,
@@ -666,9 +680,7 @@ class ResearchhubPostViewSet(
                 if grant_contacts is not None:
                     grant_data["contact_ids"] = grant_contacts
 
-                if (
-                    application_visibility := data.get("grant_application_visibility")
-                ) is not None:
+                if application_visibility := data.get("grant_application_visibility"):
                     grant_data["application_visibility"] = application_visibility
 
                 grant_serializer = GrantCreateSerializer(data=grant_data)
@@ -754,6 +766,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_pool",
                     ],
                 ).data
                 if grant
@@ -771,7 +784,6 @@ class ResearchhubPostViewSet(
     def create_unified_doc(self, request, target_grant: Grant | None = None):
         try:
             request_data = request.data
-            hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()
             document_type = request_data.get("document_type")
             is_public = True
             # PREREGISTRATION and GRANT posts may be created as private.
@@ -799,12 +811,9 @@ class ResearchhubPostViewSet(
                                 "This grant requires applications to be public."
                             )
                         is_public = True
-            uni_doc = ResearchhubUnifiedDocument.objects.create(
+            return ResearchhubUnifiedDocument.objects.create(
                 document_type=document_type,
                 is_public=is_public,
             )
-            uni_doc.hubs.add(*hubs)
-            uni_doc.save()
-            return uni_doc
         except (KeyError, TypeError):
             logger.exception("Error creating unified document")

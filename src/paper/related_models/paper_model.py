@@ -5,23 +5,15 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Func, Index, IntegerField, JSONField, Q, Sum
-from django.db.models.functions import Cast
-from manubot.cite.doi import get_doi_csl_item
-from manubot.cite.unpaywall import Unpaywall
+from django.db.models import Func, Index, JSONField, Q
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
 from paper.related_models.citation_model import Citation
 from paper.storage.figure_storage import FigureStorage
-from paper.utils import get_csl_item
-from purchase.models import Purchase
 from reputation.models import Score, ScoreChange
-from reputation.related_models.paper_reward import HubCitationValue
-from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.user_model import User
-from utils.aws import lambda_compress_and_linearize_pdf
 from utils.models import ModeratedDocumentMixin
 
 HOT_SCORE_WEIGHT = 5
@@ -251,40 +243,6 @@ class Paper(AbstractGenericReactionModel):
     def created_by(self):
         return self.uploaded_by
 
-    @property
-    def users_to_notify(self):
-        return [
-            author.user
-            for author in self.authors.all()
-            if (
-                author.user
-                and author.user.emailrecipient.paper_subscription.threads
-                and not author.user.emailrecipient.paper_subscription.none
-            )
-        ]
-
-    @property
-    def hot_score(self):
-        if self.unified_document is None:
-            return self.score
-        return self.unified_document.hot_score
-
-    def raw_author_count(self):
-        raw_author_count = 0
-
-        if isinstance(self.raw_authors, list):
-            raw_author_count = len(self.raw_authors)
-            for author in self.raw_authors:
-                if self.authors.filter(
-                    first_name=author.get("first_name"),
-                    last_name=author.get("last_name"),
-                ).exists():
-                    raw_author_count -= 1
-        return raw_author_count
-
-    def get_hub_names(self):
-        return ",".join(self.hubs.values_list("name", flat=True))
-
     def get_discussion_count(self):
         from paper.services.paper_version_service import PaperService
 
@@ -304,83 +262,32 @@ class Paper(AbstractGenericReactionModel):
         # Default behavior: only count threads from this paper
         return self.rh_threads.get_discussion_count()
 
-    def extract_pdf_preview(self, use_celery=True):
-        if TESTING:
-            return
-
-        from paper.tasks import celery_extract_pdf_preview
-
-        if use_celery:
-            celery_extract_pdf_preview.apply_async(
-                (self.id,),
-                priority=2,
-                countdown=10,
-            )
-        else:
-            celery_extract_pdf_preview(self.id)
-
-    def get_boost_amount(self):
-        purchases = self.purchases.filter(
-            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
-        )
-        if purchases.exists():
-            boost_amount = (
-                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
-                .aggregate(sum=Sum("amount_as_int"))
-                .get("sum", 0)
-            )
-            return boost_amount
-        return 0
-
-    def get_license(self, save=True):
-        pdf_license = self.pdf_license
-        if pdf_license:
-            return pdf_license
-
-        csl_item = None
-        fields = ["doi", "url", "pdf_url"]
-        for field in fields:
-            item = getattr(self, field)
-            if not item:
-                continue
-            try:
-                if field == "doi":
-                    csl_item = get_doi_csl_item(item)
-                else:
-                    csl_item = get_csl_item(item)
-
-                if csl_item:
-                    break
-            except Exception as e:
-                logger.error(f"Error getting csl_item for paper {self.id}: {e}")
-
-        if not csl_item:
-            return None
-
-        best_openly_licensed_pdf = {}
+    def get_image_url(self):
         try:
-            unpaywall = Unpaywall.from_csl_item(csl_item)
-            best_openly_licensed_pdf = unpaywall.best_openly_licensed_pdf
-        except Exception as e:
-            logger.error(f"Error getting openly licensed pdf for paper {self.id}: {e}")
+            primary_figure = self.figures.filter(is_primary=True).first()
+            if primary_figure and primary_figure.file:
+                return primary_figure.file.url
+        except Exception:
+            pass
 
-        if not best_openly_licensed_pdf:
+        if not self.unified_document:
             return None
 
-        license = best_openly_licensed_pdf.get("license", None)
-        if save:
-            self.pdf_license = license
-            self.save()
-        return license
+        journal_hub = self.unified_document.get_journal()
+        if journal_hub and journal_hub.hub_image:
+            try:
+                return journal_hub.hub_image.url
+            except Exception:
+                pass
 
-    def compress_and_linearize_file(self):
-        file = self.file
-        if not file:
-            return
+        primary_hub = self.unified_document.get_primary_hub()
+        if primary_hub and primary_hub.hub_image:
+            try:
+                return primary_hub.hub_image.url
+            except Exception:
+                pass
 
-        key = file.name
-        file_name = key.split("/")[-1]
-        return lambda_compress_and_linearize_pdf(key, file_name)
+        return None
 
     def update_scores_citations(self, author):
         hub = self.unified_document.get_primary_hub()
@@ -416,10 +323,6 @@ class Paper(AbstractGenericReactionModel):
                 citation.id,
                 self.work_type,
             )
-
-    @property
-    def paper_rewards(self):
-        return HubCitationValue.calculate_base_claim_rsc_reward(self)
 
     @property
     def hubs(self):

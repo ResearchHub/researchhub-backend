@@ -11,8 +11,10 @@ def create_paper(
     title="Program development by stepwise refinement",
     paper_publish_date="1990-10-01",
     uploaded_by=None,
-    raw_authors=[],
+    raw_authors=None,
 ):
+    if raw_authors is None:
+        raw_authors = []
     paper = Paper.objects.create(
         title=title,
         paper_publish_date=paper_publish_date,

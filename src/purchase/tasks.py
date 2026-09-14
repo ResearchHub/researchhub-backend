@@ -3,12 +3,13 @@ from datetime import UTC, datetime, timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.utils.html import format_html
 
-from mailing_list.lib import base_email_context, send_email
+from mailing_list.services import EmailService
 from notification.models import Notification
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
-from purchase.models import Balance, Fundraise, Purchase, Support
+from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Deposit
@@ -74,6 +75,32 @@ def complete_eligible_fundraises():
         "error_count": error_count,
         "processed_total": completed_count + error_count,
     }
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
+def send_grant_application_email(notification_id: int) -> None:
+    """Email the RFP owner the applicant's name and a link to the proposal."""
+    notification = Notification.objects.select_related(
+        "action_user", "recipient", "unified_document"
+    ).get(id=notification_id)
+    subject = "Someone applied to your RFP"
+    context = {
+        "subject": subject,
+        "body": format_html(
+            "<p>A new research proposal has been submitted</p>"
+            "<p>{} submitted proposal: {}</p>",
+            notification.action_user.first_name,
+            notification.unified_document.get_display_title(),
+        ),
+        "cta_url": notification.navigation_url,
+        "cta_label": "View Proposal",
+    }
+    EmailService().send_email(
+        [notification.recipient.email],
+        subject,
+        context,
+        template="general_branded_email",
+    )
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
@@ -218,61 +245,16 @@ def send_support_email(
     if content_type == "rhcommentmodel":
         paper = Paper.objects.get(id=paper_id)
         url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">thread</a>
-        """
         object_supported = "thread"
-    elif content_type == "thread":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">thread</a>
-        """
-        object_supported = "thread"
-    elif content_type == "comment":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">comment</a>
-        """
-    elif content_type == "reply":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = f"""
-            <a href="{url}" class="header-link">reply</a>
-        """
-    elif content_type == "summary":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#summary"
-        object_supported = f"""
-            <a href="{url}" class="header-link">summary</a>
-        """
-    elif content_type == "bulletpoint":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#takeaways"
-        object_supported = f"""
-            <a href="{url}" class="header-link">key takeaway</a>
-        """
     elif content_type == "researchhubpost":
         post = ResearchhubPost.objects.get(id=object_id)
         url = f"{BASE_FRONTEND_URL}/post/{post.id}/{post.slug}"
-        object_supported = f"""
-            <a href="{url}" class="header-link">key takeaway</a>
-        """
+        object_supported = "post"
 
-    if payment_type == Support.PAYPAL:
-        payment_type = "Paypal"
-    elif payment_type == Support.ETH:
-        payment_type = "Ethereum"
-    elif payment_type == Support.BTC:
-        payment_type = "Bitcoin"
-    elif payment_type in Support.RSC_ON_CHAIN:
-        payment_type = "RSC"
-    elif payment_type in Support.RSC_OFF_CHAIN:
+    if payment_type == Purchase.OFF_CHAIN:
         payment_type = "RSC"
 
     context = {
-        **base_email_context,
         "amount": amount,
         "date": date,
         "method": payment_type,
@@ -288,21 +270,19 @@ def send_support_email(
 
     if email_type == "sender":
         subject = "Receipt From ResearchHub"
-        send_email(
+        EmailService().send_transactional_email(
             email,
-            "support_receipt.txt",
             subject,
             context,
-            html_template="support_receipt.html",
+            template="support_receipt",
         )
     elif email_type == "recipient":
         subject = "Someone Sent You RSC on ResearchHub!"
-        send_email(
+        EmailService().send_transactional_email(
             email,
-            "support_receipt.txt",
             subject,
             context,
-            html_template="support_receipt.html",
+            template="support_receipt",
         )
 
 

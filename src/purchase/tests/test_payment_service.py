@@ -8,18 +8,27 @@ from django.test import TestCase
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.constants.currency import USD
+from purchase.related_models.funding_pool_model import FundingPool
+from purchase.related_models.grant_model import Grant
 from purchase.related_models.payment_model import (
     Payment,
     PaymentProcessor,
     PaymentPurpose,
 )
+from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
-from purchase.services.payment_service import APC_AMOUNT_CENTS, PaymentService
+from purchase.services.payment_service import PaymentService
 from reputation.related_models.bounty_fee import BountyFee
 from reputation.related_models.distribution import Distribution
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import (
+    GRANT as GRANT_DOC,
+)
 from user.models import User
 from user.tests.helpers import create_user
+
+LEGACY_APC_AMOUNT_CENTS = 100
 
 
 class PaymentServiceTest(TestCase):
@@ -41,54 +50,6 @@ class PaymentServiceTest(TestCase):
         # Create BountyFee with 7% platform fee (used for fundraise contributions)
         BountyFee.objects.all().delete()
         BountyFee.objects.create(rh_pct=0.07, dao_pct=0.00)
-
-    @patch("stripe.checkout.Session.create")
-    def test_create_checkout_session_apc_success(self, mock_stripe_session_create):
-        # Arrange
-        mock_stripe_session_create.return_value = {
-            "id": "sessionId1",
-            "url": "https://checkout.stripe.com/session/sessionId1",
-        }
-
-        # Act
-        result = self.service.create_checkout_session(
-            user_id=self.user.id,
-            purpose=PaymentPurpose.APC,
-            paper_id=self.paper.id,
-            success_url="https://researchhub.com/success",
-            cancel_url="https://researchhub.com/failure",
-        )
-
-        # Assert
-        self.assertEqual(result["id"], "sessionId1")
-        self.assertEqual(
-            result["url"], "https://checkout.stripe.com/session/sessionId1"
-        )
-
-        # Verify Stripe was called with correct parameters
-        mock_stripe_session_create.assert_called_once_with(
-            payment_method_types=["card"],
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": "usd",
-                        "product_data": {
-                            "name": "Article Processing Charge",
-                        },
-                        "unit_amount": APC_AMOUNT_CENTS,
-                    },
-                    "quantity": 1,
-                },
-            ],
-            mode="payment",
-            success_url="https://researchhub.com/success",
-            cancel_url="https://researchhub.com/failure",
-            metadata={
-                "user_id": str(self.user.id),
-                "purpose": PaymentPurpose.APC,
-                "paper_id": str(self.paper.id),
-            },
-        )
 
     @patch("stripe.checkout.Session.create")
     def test_create_checkout_session_rsc_purchase_success(
@@ -140,23 +101,27 @@ class PaymentServiceTest(TestCase):
         )
 
     @patch("stripe.checkout.Session.create")
-    def test_create_checkout_session_stripe_error(self, mock_stripe_session_create):
+    def test_propagates_checkout_session_stripe_error(
+        self, mock_stripe_session_create: MagicMock
+    ) -> None:
+        """Stripe checkout errors are propagated to the caller."""
         # Arrange
-        mock_stripe_session_create.side_effect = Exception("Stripe error")
+        mock_stripe_session_create.side_effect = RuntimeError("Stripe error")
 
-        # Act & Assert
-        with self.assertRaises(Exception) as context:
+        # Act
+        with self.assertRaises(RuntimeError) as context:
             self.service.create_checkout_session(
                 user_id=self.user.id,
-                purpose=PaymentPurpose.APC,
-                paper_id=self.paper.id,
+                purpose=PaymentPurpose.RSC_PURCHASE,
+                amount=100,
             )
 
+        # Assert
         self.assertEqual(str(context.exception), "Stripe error")
 
     def test_insert_payment_from_checkout_session_idempotent(self):
         checkout_session = {
-            "amount_total": APC_AMOUNT_CENTS,
+            "amount_total": LEGACY_APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_idempotent_apc",
             "metadata": {
@@ -181,7 +146,7 @@ class PaymentServiceTest(TestCase):
     def test_insert_payment_from_checkout_session_success(self):
         # Arrange
         checkout_session = {
-            "amount_total": APC_AMOUNT_CENTS,
+            "amount_total": LEGACY_APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
             "metadata": {
@@ -195,7 +160,7 @@ class PaymentServiceTest(TestCase):
 
         # Assert
         self.assertIsInstance(payment, Payment)
-        self.assertEqual(payment.amount, APC_AMOUNT_CENTS)
+        self.assertEqual(payment.amount, LEGACY_APC_AMOUNT_CENTS)
         self.assertEqual(payment.currency, "USD")
         self.assertEqual(payment.external_payment_id, "pi_123456")
         self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
@@ -233,7 +198,7 @@ class PaymentServiceTest(TestCase):
     def test_insert_payment_from_checkout_session_missing_paper_id(self):
         # Arrange
         checkout_session = {
-            "amount_total": APC_AMOUNT_CENTS,
+            "amount_total": LEGACY_APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
             "metadata": {
@@ -251,7 +216,7 @@ class PaymentServiceTest(TestCase):
     def test_insert_payment_from_checkout_session_missing_user_id(self):
         # Arrange
         checkout_session = {
-            "amount_total": APC_AMOUNT_CENTS,
+            "amount_total": LEGACY_APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
             "metadata": {
@@ -318,24 +283,6 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(balance.amount, "50.0")
         self.assertEqual(balance.user_id, self.user.id)
         self.assertTrue(balance.is_locked)
-
-    def test_get_name_for_purpose(self):
-        # Test APC
-        self.assertEqual(
-            self.service.get_name_for_purpose(PaymentPurpose.APC),
-            "Article Processing Charge",
-        )
-
-        # Test RSC Purchase
-        self.assertEqual(
-            self.service.get_name_for_purpose(PaymentPurpose.RSC_PURCHASE),
-            "ResearchCoin (RSC) Purchase",
-        )
-
-        # Test unknown purpose
-        self.assertEqual(
-            self.service.get_name_for_purpose("UNKNOWN"), "Unknown Purpose"
-        )
 
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_success(self, mock_stripe_payment_intent_create):
@@ -795,6 +742,56 @@ class PaymentServiceTest(TestCase):
         expected_balance = locked_rsc_amount * Decimal("1.07")
         self.assertEqual(self.user.get_locked_balance(), expected_balance)
 
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_contributes_to_funding_pool(
+        self, mock_stripe_retrieve
+    ):
+        """Payment confirmation with funding_pool_id contributes RSC to the pool."""
+        grant_post = create_post(created_by=self.user, document_type=GRANT_DOC)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Org",
+            description="Desc",
+            status=Grant.OPEN,
+        )
+        pool = FundingPool.objects.create(grant=grant, created_by=self.user)
+
+        RscExchangeRate.objects.create(
+            rate=0.5,
+            real_rate=0.5,
+            target_currency=USD,
+        )
+        create_user(email="bank@researchhub.com")
+
+        locked_rsc_amount = Decimal("100.0")
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_pool_contribution"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": str(locked_rsc_amount),
+            "funding_pool_id": str(pool.id),
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Act
+        payment, contribution = self.service.process_payment_intent_confirmation(
+            "pi_pool_contribution"
+        )
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+        self.assertIsNotNone(contribution)
+        self.assertEqual(contribution.purchase_type, Purchase.FUNDING_POOL_CONTRIBUTION)
+        pool.refresh_from_db()
+        self.assertEqual(pool.amount_holding, locked_rsc_amount)
+
     @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_with_fundraise_id(
         self, mock_stripe_payment_intent_create
@@ -826,6 +823,32 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(call_kwargs["metadata"]["fundraise_id"], "42")
 
     @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_with_funding_pool_id(
+        self, mock_stripe_payment_intent_create
+    ):
+        """Test that create_payment_intent includes funding_pool_id in metadata."""
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.client_secret = "pi_secret_pool"
+        mock_payment_intent.id = "pi_pool_123"
+        mock_stripe_payment_intent_create.return_value = mock_payment_intent
+
+        # Mock exchange rate (100 RSC = $5.00)
+        with patch.object(RscExchangeRate, "rsc_to_usd", return_value=5.0):
+            # Act
+            result = self.service.create_payment_intent(
+                user_id=self.user.id,
+                rsc_amount=Decimal(100),
+                funding_pool_id=77,
+            )
+
+        # Assert
+        self.assertEqual(result["client_secret"], "pi_secret_pool")
+        call_kwargs = mock_stripe_payment_intent_create.call_args[1]
+        self.assertEqual(call_kwargs["metadata"]["funding_pool_id"], "77")
+        self.assertNotIn("fundraise_id", call_kwargs["metadata"])
+
+    @patch("stripe.PaymentIntent.create")
     def test_create_payment_intent_without_fundraise_id(
         self, mock_stripe_payment_intent_create
     ):
@@ -848,6 +871,7 @@ class PaymentServiceTest(TestCase):
         # Assert
         call_kwargs = mock_stripe_payment_intent_create.call_args[1]
         self.assertNotIn("fundraise_id", call_kwargs["metadata"])
+        self.assertNotIn("funding_pool_id", call_kwargs["metadata"])
 
     @patch("stripe.PaymentIntent.retrieve")
     def test_user_receives_full_rsc_amount_plus_bounty_fee_after_paying_fees(
@@ -883,9 +907,7 @@ class PaymentServiceTest(TestCase):
         mock_stripe_retrieve.return_value = mock_payment_intent
 
         # Act
-        payment, _ = self.service.process_payment_intent_confirmation(
-            "pi_full_amount_test"
-        )
+        self.service.process_payment_intent_confirmation("pi_full_amount_test")
 
         # Assert - User should have 100 RSC + 7 RSC bounty fee for fundraise
         self.user.refresh_from_db()

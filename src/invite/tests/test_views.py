@@ -7,6 +7,7 @@ from invite.related_models.note_invitation import NoteInvitation
 from invite.related_models.organization_invitation import OrganizationInvitation
 from note.tests.helpers import create_note
 from researchhub_access_group.constants import EDITOR
+from user.constants.gatekeeper_constants import ELN
 
 
 class OrganizationInvitationViewsTest(APITestCase):
@@ -118,7 +119,7 @@ class NoteInvitationAcceptViewsTest(APITestCase):
 
     def test_accept_invite_claims_recipientless_invite(self):
         # Arrange
-        recipient_email = "new-recipient@researchhub.com"
+        recipient_email = "invited@researchhub.com"
         invite = NoteInvitation.create(
             expiration_time=1440,
             recipient=None,
@@ -128,9 +129,9 @@ class NoteInvitationAcceptViewsTest(APITestCase):
             invite_type=EDITOR,
         )
         new_recipient = get_user_model().objects.create_user(
-            username=recipient_email,
+            username="signup@researchhub.com",
             password=uuid.uuid4().hex,
-            email=recipient_email,
+            email="signup@researchhub.com",
         )
         self.client.force_authenticate(user=new_recipient)
 
@@ -148,6 +149,13 @@ class NoteInvitationAcceptViewsTest(APITestCase):
 
         permission = self.note.unified_document.permissions.get(user=new_recipient)
         self.assertEqual(permission.access_type, EDITOR)
+
+        response = self.client.get(
+            "/api/gatekeeper/check_current_user/",
+            {"type": ELN},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIs(response.data, True)
 
     def test_accept_invite_requires_authentication(self):
         # Arrange

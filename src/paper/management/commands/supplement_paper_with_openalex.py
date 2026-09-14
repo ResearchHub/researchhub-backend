@@ -27,9 +27,7 @@ class Command(BaseCommand):
 
             try:
                 openalex_work = open_alex.get_data_from_doi(paper.doi)
-                data, concepts, topics = open_alex.build_paper_from_openalex_work(
-                    openalex_work
-                )
+                data, _, _ = open_alex.build_paper_from_openalex_work(openalex_work)
 
                 needs_update = False
                 if data.get("abstract") and not paper.abstract:

@@ -1,170 +1,79 @@
+from typing import override
+
 from django.db import models
 from django.db.models import Q
+from django.db.models.functions import Lower, Trim
 from django.utils import timezone
 
-from mailing_list.lib import NotificationFrequencies
 
+class EmailOptOut(models.Model):
+    """
+    An email address that has unsubscribed from notification emails.
+    Rows in this table represent deliberate opt-out events by users.
+    For transactional emails, such as password resets, the entries in this table should
+    be ignored.
 
-class EmailTaskLog(models.Model):
-    emails = models.TextField()
-    notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.IMMEDIATE,
-    )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-
-
-class SubscriptionField(models.OneToOneField):
-    def __init__(self, *args, **kwargs):
-        kwargs["on_delete"] = models.CASCADE
-        kwargs["null"] = True
-        return super().__init__(*args, **kwargs)
-
-
-class EmailRecipient(models.Model):
-    """Subscriptions define what category of content a user is notified about
-    and how often they are notified, but not what they are subscribed to.
+    Note: Bounces and complaints are handled separately by Django SES's blacklist.
     """
 
-    email = models.EmailField(unique=True)
-    do_not_email = models.BooleanField(default=False)
-    is_opted_out = models.BooleanField(default=False)
-    next_cursor = models.IntegerField(default=0)
-    user = models.OneToOneField(
-        "user.User", on_delete=models.CASCADE, default=None, null=True
+    email = models.EmailField(
+        db_index=True, db_comment="Normalized to lowercase for matching."
     )
-    digest_subscription = SubscriptionField(
-        "mailing_list.DigestSubscription", related_name="email_recipient"
-    )
-    bounty_digest_subscription = SubscriptionField(
-        "mailing_list.BountyDigestSubscription", related_name="email_recipient"
-    )
-    hub_subscription = SubscriptionField(
-        "mailing_list.HubSubscription", related_name="email_recipient"
-    )
-    paper_subscription = SubscriptionField(
-        "mailing_list.PaperSubscription", related_name="email_recipient"
-    )
-    comment_subscription = SubscriptionField(
-        "mailing_list.CommentSubscription", related_name="email_recipient"
-    )
-    thread_subscription = SubscriptionField(
-        "mailing_list.ThreadSubscription", related_name="email_recipient"
-    )
-    reply_subscription = SubscriptionField(
-        "mailing_list.ReplySubscription", related_name="email_recipient"
-    )
-    bounced_date = models.DateTimeField(default=None, null=True)
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
+    opted_out_at = models.DateTimeField(default=timezone.now)
 
-    @classmethod
-    def get_suppressed_emails(cls, emails: list[str]) -> set[str]:
-        """Return the subset of *emails* that should not receive mail.
-
-        An address is suppressed when it has ``do_not_email=True``
-        (bounced / complained) or ``is_opted_out=True``.
-        """
-        return set(
-            cls.objects.filter(
-                Q(do_not_email=True) | Q(is_opted_out=True),
-                email__in=emails,
-            ).values_list("email", flat=True)
-        )
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                Lower("email"),
+                name="mailing_list_email_opt_out_email_lower_unique",
+            ),
+            models.CheckConstraint(
+                condition=Q(email=Trim(Lower("email"))),
+                name="mailing_list_email_opt_out_email_normalized",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.email}"
 
+    @override
     def save(self, *args, **kwargs):
-        if self.digest_subscription is None:
-            self.digest_subscription = DigestSubscription.objects.create()
-        if self.bounty_digest_subscription is None:
-            self.bounty_digest_subscription = BountyDigestSubscription.objects.create()
-        if self.paper_subscription is None:
-            self.paper_subscription = PaperSubscription.objects.create()
-        if self.thread_subscription is None:
-            self.thread_subscription = ThreadSubscription.objects.create()
-        if self.comment_subscription is None:
-            self.comment_subscription = CommentSubscription.objects.create()
-        if self.reply_subscription is None:
-            self.reply_subscription = ReplySubscription.objects.create()
-        return super().save(*args, **kwargs)
+        # Normalize email so that stored rows match how they are looked up.
+        self.email = self._normalize(self.email)
+        super().save(*args, **kwargs)
 
-    def bounced(self):
-        self.bounced_date = timezone.now()
-        self.do_not_email = True
-        self.save()
+    @classmethod
+    def add(cls, email: str) -> bool:
+        """
+        Record an opt-out for the given `email`. Returns whether one was added.
+        """
+        normalized = cls._normalize(email)
+        if not normalized:
+            return False
 
-    def set_opted_out(self, opt_out):
-        self.is_opted_out = opt_out
-        self.save()
+        _, created = cls.objects.get_or_create(email=normalized)
+        return created
 
-    @property
-    def receives_notifications(self):
-        return not self.do_not_email and not self.is_opted_out
+    @classmethod
+    def remove(cls, email: str) -> bool:
+        """
+        Remove the opt-out for the given `email`. Returns whether one was removed.
+        """
+        deleted, _ = cls.objects.filter(email=cls._normalize(email)).delete()
+        return bool(deleted)
 
+    @classmethod
+    def filter_opted_out(cls, emails: list[str]) -> set[str]:
+        """
+        Return the subset of `emails` that are opted out.
+        """
+        matches = set(
+            cls.objects.filter(
+                email__in={cls._normalize(email) for email in emails}
+            ).values_list("email", flat=True)
+        )
+        return {email for email in emails if cls._normalize(email) in matches}
 
-class BaseSubscription(models.Model):
-    NOTIFICATION_FREQUENCY_CHOICES = (
-        ("IMMEDIATE", NotificationFrequencies.IMMEDIATE),
-        ("THREE_HOUR", NotificationFrequencies.THREE_HOUR),
-        ("DAILY", NotificationFrequencies.DAILY),
-        ("WEEKLY", NotificationFrequencies.WEEKLY),
-    )
-    notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.IMMEDIATE,
-        choices=NOTIFICATION_FREQUENCY_CHOICES,
-    )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        abstract = True
-
-    def __str__(self):
-        # TODO: Strip hidden functions
-        return str(self.__dict__.items())
-
-    def unsubscribe(self):
-        self.none = True
-        self.save()
-
-
-class DigestSubscription(BaseSubscription):
-    notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.WEEKLY,
-        choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES,
-    )
-    none = models.BooleanField(default=False)
-
-
-class BountyDigestSubscription(BaseSubscription):
-    notification_frequency = models.IntegerField(
-        default=NotificationFrequencies.WEEKLY,
-        choices=BaseSubscription.NOTIFICATION_FREQUENCY_CHOICES,
-    )
-    none = models.BooleanField(default=False)
-
-
-class HubSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-
-
-class PaperSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-    threads = models.BooleanField(default=True)
-
-
-class ThreadSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-    comments = models.BooleanField(default=True)
-
-
-class CommentSubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-    replies = models.BooleanField(default=True)
-
-
-class ReplySubscription(BaseSubscription):
-    none = models.BooleanField(default=False)
-    replies = models.BooleanField(default=True)
+    @staticmethod
+    def _normalize(email: str | None) -> str:
+        return (email or "").strip().lower()

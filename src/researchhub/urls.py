@@ -19,7 +19,6 @@ from rest_framework import routers
 
 import hub.views
 import invite.views as invite_views
-import mailing_list.views
 import new_feature_release.views
 import note.views as note_views
 import notification.views
@@ -41,9 +40,9 @@ from feed.views import (
     JournalV2FeedViewSet,
     ModeratorFeedViewSet,
 )
+from mailing_list.views import EmailUnsubscribeView
 from orcid.views import OrcidCallbackView, OrcidConnectView, OrcidFetchView
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
-from paper.views import paper_upload_views
 from purchase.views import (
     CircleWebhookView,
     DepositAddressView,
@@ -96,12 +95,6 @@ router.register(r"leaderboard", user.views.LeaderboardViewSet, basename="leaderb
 
 router.register(
     r"payment/coinbase", purchase.views.CoinbaseViewSet, basename="coinbase"
-)
-
-router.register(
-    r"email_recipient",
-    mailing_list.views.EmailRecipientViewSet,
-    basename="email_recipient",
 )
 
 router.register(
@@ -179,6 +172,10 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 
 router.register(r"funder", purchase.views.FunderViewSet, basename="funder")
 
+router.register(
+    r"funding_pool", purchase.views.FundingPoolViewSet, basename="funding_pool"
+)
+
 router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
 
 router.register(r"activity_feed", ActivityFeedViewSet, basename="activity_feed")
@@ -201,6 +198,16 @@ urlpatterns = [
         r"health/"
         + (settings.HEALTH_CHECK_TOKEN + "/" if settings.HEALTH_CHECK_TOKEN else ""),
         include("health_check.urls"),
+    ),
+    path(
+        "api/researchhubpost/create_registered_report_draft/",
+        researchhub_document_views.RegisteredReportDraftView.as_view(),
+        name="registered-report-draft",
+    ),
+    path(
+        "api/email/unsubscribe/",
+        EmailUnsubscribeView.as_view(),
+        name="email_unsubscribe",
     ),
     re_path(r"^api/", include(router.urls)),
     # Nested routes for list items
@@ -275,7 +282,6 @@ urlpatterns = [
         NonprofitFundraiseLinkViewSet.as_view({"get": "get_by_fundraise"}),
         name="nonprofit-get-by-fundraise",
     ),
-    path("api/auth/captcha_verify/", oauth.views.captcha_verify, name="captcha_verify"),
     path(
         "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"
     ),
@@ -306,17 +312,11 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
-    path("email_notifications/", mailing_list.views.email_notifications),
     path("", researchhub.views.index, name="index"),
     path(
         "api/asset/upload/",
         AssetUploadView.as_view(),
         name="asset_upload",
-    ),
-    path(
-        "paper/upload/",
-        paper_upload_views.PaperUploadView.as_view(),
-        name="paper_upload",
     ),
     path("robots.txt", researchhub.views.robots_txt, name="robots_txt"),
     #

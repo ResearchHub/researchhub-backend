@@ -10,21 +10,41 @@ client boundary; no network.
 import json
 from datetime import timedelta
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from note.models import Note
 from purchase.models import Grant
-from research_ai.models import Expert, ExpertSearch, ProposalDraft, SearchExpert
+from research_ai.models import (
+    AgentExecution,
+    AgentExecutionMessage,
+    Expert,
+    ExpertSearch,
+    ProposalDraft,
+    SearchExpert,
+)
+from research_ai.services.agent import LLMProvider
+from research_ai.services.agent import model_pricing as pricing_module
 from research_ai.services.agent.types import (
     AssistantTurn,
     StopReason,
     TextBlock,
     ToolUseBlock,
 )
+from research_ai.services.agent_persistence import (
+    AgentConversationService,
+    AgentExecutionService,
+    AgentRetentionService,
+    NoteAgentConversationService,
+)
 from research_ai.services.proposal_draft import run_proposal_draft
+from research_ai.services.proposal_draft.cancel_service import (
+    ProposalDraftCancelledError,
+    ProposalDraftCancelService,
+)
+from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
 from research_ai.services.proposal_draft.runner import (
     PROFILE_SCHEMA_VERSION,
     _ProposalDraftRunner,
@@ -32,7 +52,10 @@ from research_ai.services.proposal_draft.runner import (
 from research_ai.services.proposal_draft.tools.assembly import assemble_proposal
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from user.tests.helpers import create_random_default_user
 
 _CRITERIA = ("c1", "c2", "c3", "c4", "c5", "c6", "c7")
@@ -92,7 +115,7 @@ class _SequencePanel:
         return "A"
 
 
-class _ScriptedProvider:
+class _ScriptedProvider(LLMProvider):
     """Returns queued ``AssistantTurn``s, then ends the turn in plain text."""
 
     def __init__(self, turns):
@@ -113,7 +136,7 @@ class _ScriptedProvider:
         )
 
 
-class _AlwaysSubmitProvider:
+class _AlwaysSubmitProvider(LLMProvider):
     """Submits the same payload on every turn (drives the round-budget bound)."""
 
     def __init__(self, payload):
@@ -138,7 +161,7 @@ class _AlwaysSubmitProvider:
         )
 
 
-class _SequenceSubmitProvider:
+class _SequenceSubmitProvider(LLMProvider):
     """Submits a distinct payload per round (the last payload repeats)."""
 
     def __init__(self, payloads):
@@ -213,6 +236,24 @@ def _clean_payload(citations=None):
 
 class ProposalDraftServiceTests(TestCase):
     def setUp(self):
+        # Fake provider identities need explicit pricing just like real models.
+        pricing = pricing_module.model_pricing("claude_platform", "claude-opus-5")
+        self.enterContext(
+            patch.dict(
+                pricing_module._PROVIDER_PRICING,
+                {
+                    name: {name.lower(): pricing}
+                    for name in (
+                        "_ScriptedProvider",
+                        "_AlwaysSubmitProvider",
+                        "_SequenceSubmitProvider",
+                        "_SnapshottingProvider",
+                        "_NativeSearchProvider",
+                        "_ExplodingProvider",
+                    )
+                },
+            )
+        )
         # Arrange: GRANT post + Grant + Expert (pre-built profile) + SearchExpert.
         self.user = create_random_default_user("proposer")
         self.post = create_post(
@@ -258,12 +299,53 @@ class ProposalDraftServiceTests(TestCase):
             expert=self.expert,
         )
 
+    def test_unpriced_provider_is_rejected_before_spending(self):
+        # Arrange: this provider deliberately has no test pricing entry.
+        class _UnpricedProvider(_ScriptedProvider):
+            pass
+
+        provider = _UnpricedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        self.assertIn("no reviewed pricing", result["error_message"])
+        self.assertEqual(provider.call_count, 0)
+
     # -- clean submit writes the Note -------------------------------------
+
+    def test_shipped_note_is_a_preregistration_for_the_rfp_it_answers(self):
+        # Arrange
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the note the user opens already applies to the grant the
+        # draft was written against, rather than making them re-pick it.
+        note = Note.objects.get(id=result["note_id"])
+        self.assertEqual(note.document_type, PREREGISTRATION)
+        self.assertEqual(note.selected_grant_id, self.grant.id)
 
     def test_clean_submit_writes_note(self):
         # Arrange: one clean submit; panel clears the threshold; no citations.
         provider = _ScriptedProvider([_submit_turn(_clean_payload())])
         panel = _FakePanel(overall=5)
+        conversation_service = Mock(wraps=AgentConversationService())
+        execution_service = Mock(wraps=AgentExecutionService())
+        note_conversation_service = Mock(wraps=NoteAgentConversationService())
 
         # Act
         result = run_proposal_draft(
@@ -271,6 +353,9 @@ class ProposalDraftServiceTests(TestCase):
             provider=provider,
             panel=panel,
             oa_client=_FakeOpenAlex(),
+            conversation_service=conversation_service,
+            execution_service=execution_service,
+            note_conversation_service=note_conversation_service,
         )
 
         # Assert: status, the Note + content, and the draft linkage.
@@ -296,6 +381,30 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(draft.step, ProposalDraft.Step.DONE)
         self.assertEqual(draft.final_scores["overall"], 5)
         self.assertEqual(draft.rounds_used, 1)
+        self.assertIsNotNone(draft.agent_conversation_id)
+        self.assertEqual(draft.agent_conversation.workflow, "proposal_draft")
+        self.assertEqual(draft.agent_conversation.chat_messages.count(), 0)
+        execution = draft.agent_conversation.executions.get()
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(
+            execution.messages.first().provenance,
+            AgentExecutionMessage.Provenance.BACKEND,
+        )
+        self.assertEqual(draft.agent_conversation.proposal_draft, draft)
+        self.assertEqual(execution.configuration, draft.run_config)
+        self.assertEqual(
+            list(NoteAgentConversationService().for_note(note)),
+            [draft.agent_conversation],
+        )
+        conversation_service.create.assert_called_once_with(
+            user=None,
+            workflow="proposal_draft",
+        )
+        execution_service.start.assert_called_once()
+        note_conversation_service.attach.assert_called_once_with(
+            draft.agent_conversation,
+            note,
+        )
         self.assertTrue(panel.contexts)  # panel was scored at least once
         self.assertEqual(
             panel.contexts[0]["rfp"]["organization"],
@@ -305,6 +414,123 @@ class ProposalDraftServiceTests(TestCase):
             panel.contexts[0]["researcher_profile"]["works"][0]["source_url"],
             "https://doi.org/10.1/a",
         )
+
+        # Debug retention removes the trace, never the shipped proposal.
+        AgentRetentionService().delete_conversation_debug(draft.agent_conversation)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
+        self.assertTrue(Note.objects.filter(id=note.id).exists())
+        retained_execution = draft.agent_conversation.executions.get()
+        self.assertEqual(retained_execution.messages.count(), 0)
+        self.assertGreater(retained_execution.context_messages.count(), 0)
+        self.assertEqual(
+            note.agent_conversation_links.get().conversation_id,
+            draft.agent_conversation_id,
+        )
+
+    def test_selected_model_resolves_provider_and_lands_in_run_config(self):
+        # Arrange: a user-selected model ref and no injected provider, so the
+        # runner must resolve the ref itself.
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        with patch(
+            "research_ai.services.proposal_draft.runner.resolve_provider",
+            return_value=provider,
+        ) as resolve:
+            result = run_proposal_draft(
+                self.search_expert.id,
+                model_ref="openrouter:openai/gpt-5.6-sol",
+                effort="high",
+                thinking="adaptive",
+                panel=_FakePanel(overall=5),
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert: the selection is what gets resolved, recorded on the draft,
+        # and snapshotted as the run's generator.
+        resolve.assert_called_once_with(
+            "openrouter:openai/gpt-5.6-sol",
+            native_tools=frozenset({"web_search"}),
+            effort="high",
+            thinking="adaptive",
+        )
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(draft.model_ref, "openrouter:openai/gpt-5.6-sol")
+        self.assertEqual(
+            draft.run_config["generator_model_id"], "openrouter:openai/gpt-5.6-sol"
+        )
+        self.assertEqual(draft.run_config["effort"], "high")
+        self.assertEqual(draft.run_config["thinking"], "adaptive")
+
+    def test_default_judge_roster_follows_the_selected_model(self):
+        # Arrange: no injected panel, so the default single-judge roster is
+        # built from the selected model. The provider never submits, so no
+        # judge is ever actually called (roster ids resolve without clients).
+        provider = _ScriptedProvider([])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            model_ref="openrouter:openai/gpt-5.6-sol",
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(
+            draft.run_config["judge_roster"], ["openrouter:openai/gpt-5.6-sol"]
+        )
+
+    def test_note_attachment_failure_does_not_break_proposal(self):
+        # Arrange
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+        note_conversation_service = Mock(spec=NoteAgentConversationService)
+        note_conversation_service.attach.side_effect = RuntimeError(
+            "association database unavailable"
+        )
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+            note_conversation_service=note_conversation_service,
+        )
+
+        # Assert
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertEqual(draft.status, ProposalDraft.Status.COMPLETED)
+        self.assertIsNotNone(draft.note_id)
+        self.assertIsNotNone(draft.agent_conversation_id)
+        self.assertFalse(draft.note.agent_conversation_links.exists())
+        self.assertEqual(
+            list(NoteAgentConversationService().for_note(draft.note)),
+            [draft.agent_conversation],
+        )
+
+    def test_trace_initialization_failure_does_not_break_proposal(self):
+        # Arrange
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+        execution_service = Mock(spec=AgentExecutionService)
+        execution_service.start.side_effect = RuntimeError("trace database unavailable")
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+            execution_service=execution_service,
+        )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertTrue(Note.objects.filter(id=result["note_id"]).exists())
 
     @override_settings(RESEARCH_AI_PROPOSAL_MAX_ROUNDS=1)
     def test_missing_limitations_section_is_blocked(self):
@@ -614,13 +840,40 @@ class ProposalDraftServiceTests(TestCase):
         )
 
         # Act
-        toolset = runner._compose_toolset()
+        toolset = runner._compose_toolset(_ScriptedProvider([]))
 
         # Assert: the tool is exposed to the agent, and the injected client is
         # used, with its own provenance kept separate from citation grounding.
         self.assertIn("web_search", toolset.names)
         self.assertIs(runner.web_search_toolset._client, sentinel)
         self.assertIsNot(runner.web_search_toolset.provenance, runner.provenance)
+
+    def test_provider_with_native_search_drops_the_local_web_search_tool(self):
+        # Arrange: a provider that runs web search itself (Claude Platform).
+        class _NativeSearchProvider(_ScriptedProvider):
+            @property
+            def native_tool_names(self):
+                return frozenset({"web_search"})
+
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        runner = _ProposalDraftRunner(
+            self.search_expert, draft, oa_client=_FakeOpenAlex()
+        )
+
+        # Act
+        toolset = runner._compose_toolset(_NativeSearchProvider([]))
+
+        # Assert: the name is left free for the provider's own declaration --
+        # two tools sharing one name is a request error -- and nothing else
+        # about the toolset changes.
+        self.assertNotIn("web_search", toolset.names)
+        self.assertIn("search_works", toolset.names)
+        self.assertIn("verify_citations", toolset.names)
+        self.assertIn("submit_proposal", toolset.names)
 
     # -- a flat panel score below the bar stops the loop early ------------
 
@@ -825,7 +1078,7 @@ class ProposalDraftServiceTests(TestCase):
 
     def test_provider_error_fails_with_cause_in_message(self):
         # Arrange: the provider dies on its first call (throttle, network, ...).
-        class _ExplodingProvider:
+        class _ExplodingProvider(LLMProvider):
             def render_tools(self, _tools):
                 return {"tools": []}
 
@@ -986,6 +1239,7 @@ class ProposalDraftServiceTests(TestCase):
                     "overall": 1.0,
                     "gaps": [],
                     "judges_reporting": 0,
+                    "judge_errors": ["fake-judge: turn ended max_tokens"],
                 }
 
         provider = _AlwaysSubmitProvider(_clean_payload())
@@ -999,9 +1253,11 @@ class ProposalDraftServiceTests(TestCase):
         )
 
         # Assert: failed as "panel unavailable" after one round -- not scored
-        # as 1.0 quality, not ground down to a plateau or round budget.
+        # as 1.0 quality, not ground down to a plateau or round budget -- and
+        # the recorded message names what the judges did.
         self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
         self.assertIn("judge panel unavailable", result["error_message"])
+        self.assertIn("turn ended max_tokens", result["error_message"])
         self.assertNotIn("plateau", result["error_message"])
         self.assertEqual(provider.call_count, 1)
 
@@ -1133,7 +1389,7 @@ class ProposalDraftServiceTests(TestCase):
         )
 
         # Act
-        toolset = runner._compose_toolset()
+        toolset = runner._compose_toolset(_ScriptedProvider([]))
 
         # Assert: no agent-facing judge; the panel scores every submit at the
         # gate. verify_citations (deterministic, cheap) is still available.
@@ -1160,10 +1416,230 @@ class ProposalDraftServiceTests(TestCase):
         )
 
         # Act
-        toolset = runner._compose_toolset()
+        toolset = runner._compose_toolset(_ScriptedProvider([]))
 
         # Assert: the composed tool is the proposal one (profile-scoped,
         # fetch-capped), not the profile builder's OpenAlex reader.
         tool = toolset.get("get_work_fulltext")
         self.assertIsNotNone(tool)
         self.assertIs(tool.handler.__self__, runner.fulltext_toolset)
+
+    # -- cancelling a run in flight ----------------------------------------
+
+    def _pending_draft(self):
+        return ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            created_by=self.user,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+
+    def test_cancelling_mid_run_ends_cancelled_and_ships_no_note(self):
+        # Arrange: a run whose only round clears every gate, cancelled while the
+        # panel is judging it. The accepted round is exactly what makes this
+        # worth checking -- the run has a shippable proposal in hand.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=_CancellingPanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: cancelled rather than completed, and no Note -- a run someone
+        # called off must not still publish its proposal.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(draft.error_message, "")
+        self.assertIsNone(draft.note)
+        self.assertEqual(Note.objects.count(), 0)
+        # The work in hand is still persisted, as it is for a failed run.
+        self.assertTrue(draft.last_submission)
+
+    def test_a_cancelled_run_spends_no_further_judge_panels(self):
+        # Arrange: an always-submitting provider would keep going for the whole
+        # round budget. Cancel lands during the first round's judging, and the
+        # score is below the bar, so the run would otherwise fail.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        panel = _CancellingPanel(overall=1, gaps=["raise overall quality"])
+        provider = _AlwaysSubmitProvider(_clean_payload())
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the next round is cut before the gates run, so judging -- the
+        # most expensive thing a round does -- happens once and not again. The
+        # below-bar score never becomes a failure, either: cancellation reaches
+        # the run as an ordinary error, and the guard keeps it out of FAILED.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        self.assertEqual(len(panel.contexts), 1)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(draft.error_message, "")
+
+    def test_a_run_with_no_agent_trace_still_stops_when_cancelled(self):
+        # Arrange: the agent trace is best-effort -- a run whose execution could
+        # not be created keeps drafting without one. Then the loop's own
+        # ownership check has nothing to read, and the draft's status is the only
+        # thing that can stop the run.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+
+        class _CancellingPanel(_FakePanel):
+            def score(self, proposal, *, context=None):
+                cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+                return super().score(proposal, context=context)
+
+        panel = _CancellingPanel(overall=1, gaps=["raise overall quality"])
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        broken_executions = Mock(wraps=AgentExecutionService())
+        broken_executions.start.side_effect = RuntimeError("no trace today")
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            draft_id=draft.id,
+            provider=provider,
+            panel=panel,
+            oa_client=_FakeOpenAlex(),
+            execution_service=broken_executions,
+        )
+
+        # Assert
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        self.assertEqual(len(panel.contexts), 1)
+        self.assertFalse(AgentExecution.objects.exists())
+
+    def test_a_refused_completion_leaves_no_published_note_behind(self):
+        # Arrange: the narrowest window there is -- every checkpoint has passed
+        # and the run holds an accepted proposal, so the Note is written before
+        # the status that would justify it. If the COMPLETED write is then
+        # refused, the Note must not survive: reporting a draft cancelled while a
+        # proposal goes out under the expert's name is the worst outcome here.
+        #
+        # The refusal is injected rather than raced, because a cancel issued from
+        # this thread would join the run's own transaction and roll back with it.
+        # Which statuses the guard refuses is covered directly in
+        # ``test_proposal_draft_cancel``.
+        draft = self._pending_draft()
+        provider = _ScriptedProvider([_submit_turn(_clean_payload())])
+
+        def _refuse(_self, _note):
+            raise ProposalDraftCancelledError("cancelled before it shipped")
+
+        # Act
+        with patch.object(DraftRecorder, "complete", _refuse):
+            result = run_proposal_draft(
+                self.search_expert.id,
+                draft_id=draft.id,
+                provider=provider,
+                panel=_FakePanel(overall=5),
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert: the Note went with the rolled-back transaction, and nothing
+        # points at one. The run did reach a terminal status -- which one depends
+        # on why the write was refused, and is not what this pins.
+        self.assertEqual(Note.objects.count(), 0)
+        draft.refresh_from_db()
+        self.assertIsNone(draft.note)
+        self.assertNotEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        self.assertNotEqual(draft.status, ProposalDraft.Status.PROCESSING)
+
+    def test_a_trace_created_as_the_draft_is_cancelled_is_not_left_running(self):
+        # Arrange: the cancel lands after mark_processing and before the trace
+        # exists, so it finds no execution to stop -- and then the run creates
+        # one. Nothing sweeps for stalled executions any more, and retrying the
+        # endpoint on an already-cancelled draft used to return before looking,
+        # so an execution left RUNNING here would have stayed that way.
+        draft = self._pending_draft()
+        cancels = ProposalDraftCancelService()
+        real_start = _ProposalDraftRunner._start_agent_recording
+
+        def _cancel_then_start(self_runner, run_config):
+            cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+            return real_start(self_runner, run_config)
+
+        # Act
+        with patch.object(
+            _ProposalDraftRunner, "_start_agent_recording", _cancel_then_start
+        ):
+            result = run_proposal_draft(
+                self.search_expert.id,
+                draft_id=draft.id,
+                provider=_AlwaysSubmitProvider(_clean_payload()),
+                panel=_FakePanel(overall=5),
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert: the draft is cancelled and its trace reached a terminal status
+        # of its own, so the conversation is not left permanently busy.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        self.assertTrue(AgentExecution.objects.exists())
+        self.assertFalse(
+            AgentExecution.objects.filter(
+                status__in=[
+                    AgentExecution.Status.RUNNING,
+                    AgentExecution.Status.PENDING,
+                ]
+            ).exists()
+        )
+
+    def test_cancelling_between_the_claim_and_the_first_write_runs_nothing(self):
+        # Arrange: the task claimed the draft, so it is PROCESSING, and the
+        # cancel lands before the runner's own first write. That write used to be
+        # an unguarded save that would have put PROCESSING straight back.
+        draft = self._pending_draft()
+        ProposalDraft.objects.filter(id=draft.id).update(
+            status=ProposalDraft.Status.PROCESSING
+        )
+        cancels = ProposalDraftCancelService()
+        provider = _AlwaysSubmitProvider(_clean_payload())
+        panel = _FakePanel(overall=5)
+
+        def _cancel_then_config(self_runner):
+            cancels.cancel(ProposalDraft.objects.get(id=draft.id))
+            return {"generator_model_id": "fake"}
+
+        # Act
+        with patch.object(_ProposalDraftRunner, "_run_config", _cancel_then_config):
+            result = run_proposal_draft(
+                self.search_expert.id,
+                draft_id=draft.id,
+                provider=provider,
+                panel=panel,
+                oa_client=_FakeOpenAlex(),
+            )
+
+        # Assert: no model was called and no judging was paid for.
+        self.assertEqual(result["status"], ProposalDraft.Status.CANCELLED)
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, ProposalDraft.Status.CANCELLED)
+        self.assertEqual(provider.call_count, 0)
+        self.assertEqual(len(panel.contexts), 0)
+        self.assertEqual(Note.objects.count(), 0)

@@ -19,7 +19,6 @@ app.autodiscover_tasks()
 # Queues
 QUEUE_AGENTS = "agents"
 QUEUE_CACHES = "caches"
-QUEUE_HOT_SCORE = "hot_score"
 QUEUE_ELASTIC_SEARCH = "elastic_search"
 QUEUE_EXTERNAL_REPORTING = "external_reporting"
 QUEUE_NOTIFICATION = "notifications"
@@ -47,6 +46,14 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour="*/8", minute=20),
         "options": {
             "priority": 1,
+            "queue": QUEUE_CACHES,
+        },
+    },
+    "feed-warm-activity-feed-cache": {
+        "task": "feed.tasks.warm_activity_feed_cache",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 2,
             "queue": QUEUE_CACHES,
         },
     },
@@ -127,14 +134,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_REPUTATION,
         },
     },
-    "reputation_recalc-hot-score-for-open-bounties": {
-        "task": "reputation.tasks.recalc_hot_score_for_open_bounties",
-        "schedule": crontab(hour=12, minute=0),
-        "options": {
-            "priority": 4,
-            "queue": QUEUE_BOUNTIES,
-        },
-    },
     # User
     "user_execute-editor-daily-payout-task": {
         "task": "user.tasks.tasks.execute_editor_daily_payout_task",
@@ -201,6 +200,17 @@ app.conf.beat_schedule = {
         "options": {
             "priority": 3,
             "queue": QUEUE_PAPER_MISC,
+        },
+    },
+    # Research AI
+    "research-ai-reclaim-lost-agent-runs": {
+        "task": "research_ai.tasks.reclaim_lost_agent_runs",
+        "schedule": crontab(minute="*"),
+        "options": {
+            "priority": 1,
+            "queue": QUEUE_AGENTS,
+            # A sweep that waited a minute behind a backlog is superseded.
+            "expires": 55,
         },
     },
     # Paper ingestion tasks

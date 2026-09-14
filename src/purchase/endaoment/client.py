@@ -198,7 +198,7 @@ class EndaomentClient:
             return self._do_request("GET", f"/v1/funds/{fund_id}", access_token)
         except requests.HTTPError as e:
             if e.response.status_code == 404:
-                logger.warning(f"Fund with ID {fund_id} not found: {e}")
+                logger.warning("Fund ID %s not found: %s", fund_id, e)
                 return None
             else:
                 raise
@@ -262,12 +262,12 @@ class EndaomentClient:
     @staticmethod
     def is_valid_redirect_url(url: str | None) -> bool:
         """
-        Validate redirect URL against CORS whitelist.
+        Validate redirect URL against CORS allowed origins.
         """
         if not url:
             return False
         parsed = urlparse(url)
-        return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ORIGIN_WHITELIST
+        return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ALLOWED_ORIGINS
 
     @staticmethod
     def cents_to_micros(amount_in_cents: int) -> int:

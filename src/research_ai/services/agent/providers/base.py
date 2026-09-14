@@ -5,8 +5,9 @@ agent loop and toolset speak exclusively in the neutral types from
 ``agent.types``; each adapter renders those to its provider's request shape and
 parses the response back into an ``AssistantTurn``.
 
-Adapters expose exactly two public methods -- ``render_tools`` and ``complete``.
-``render_messages`` / ``parse_turn`` are private helpers per adapter.
+Adapters expose ``render_tools`` and ``complete`` plus the optional streaming
+surface ``complete_with_events``. ``render_messages`` / ``parse_turn`` are
+private helpers per adapter.
 
 Id-correlation invariant (every adapter must preserve it): the ``id`` of a
 ``ToolUseBlock`` the model emits is echoed back as the ``tool_use_id`` of the
@@ -15,14 +16,32 @@ results to tool uses by this id; rendering and parsing must keep them aligned.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 from research_ai.services.agent.tools import Tool
-from research_ai.services.agent.types import AssistantTurn, Message
+from research_ai.services.agent.types import (
+    AssistantTurn,
+    Message,
+    ProviderStreamEvent,
+    TurnUsage,
+)
 
 
 class LLMProvider(ABC):
     """Renders neutral agent types to/from a single provider's wire format."""
+
+    @property
+    def native_tool_names(self) -> frozenset[str]:
+        """Names this provider serves itself, server-side.
+
+        A name listed here needs no local ``Tool``: the provider declares the
+        tool on its own and runs it inside the turn, so the toolset must leave
+        that name free rather than register a client-side implementation of it
+        (two tools sharing a name is a request-validation error). Empty for
+        providers whose tools are all client-side.
+        """
+        return frozenset()
 
     @abstractmethod
     def render_tools(self, tools: list[Tool]) -> Any:
@@ -36,12 +55,48 @@ class LLMProvider(ABC):
         system_prompt: str,
         messages: list[Message],
         rendered_tools: Any,
-        max_tokens: int,
+        max_tokens: int | None,
         temperature: float,
+        before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
         """Run one model turn and return the parsed ``AssistantTurn``.
 
         ``rendered_tools`` is whatever ``render_tools`` produced for this
-        provider; it is passed through opaquely.
+        provider; it is passed through opaquely. ``max_tokens=None`` means the
+        adapter's own output ceiling for its model. A provider that retries
+        internally must invoke ``before_retry`` immediately before spending on
+        another request, when supplied. It must invoke ``on_usage`` once for
+        every completed provider response carrying usage, before parsing that
+        response into a turn, so billable malformed or discarded responses are
+        still observable.
         """
         raise NotImplementedError
+
+    def complete_with_events(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        rendered_tools: Any,
+        max_tokens: int | None,
+        temperature: float,
+        on_event: Callable[[ProviderStreamEvent], None] | None = None,
+        before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
+    ) -> AssistantTurn:
+        """Run one turn, optionally reporting normalized incremental output.
+
+        Non-streaming providers inherit this compatibility path. Streaming
+        providers override it while returning the same authoritative completed
+        ``AssistantTurn``.
+        """
+        return self.complete(
+            system_prompt=system_prompt,
+            messages=messages,
+            rendered_tools=rendered_tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            before_retry=before_retry,
+            on_usage=on_usage,
+        )

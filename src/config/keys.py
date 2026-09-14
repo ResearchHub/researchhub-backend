@@ -12,8 +12,6 @@ AWS_S3_CUSTOM_DOMAIN = os.environ.get(
 
 EMAIL_WHITELIST = os.environ.get("EMAIL_WHITELIST", "no-one@researchhub.com")
 
-GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "")
-
 HEALTH_CHECK_TOKEN = os.environ.get("HEALTH_CHECK_TOKEN", "")
 
 PERSONA_WEBHOOK_SECRET = os.environ.get("PERSONA_WEBHOOK_SECRET", "")
@@ -21,7 +19,7 @@ PERSONA_WEBHOOK_SECRET = os.environ.get("PERSONA_WEBHOOK_SECRET", "")
 MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", "")
 MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", "")
 
-RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "")
+TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 
 
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET", "")
@@ -38,10 +36,6 @@ OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "")
 CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", "")
 CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
 
-MJML_APP_ID = os.environ.get("MJML_APP_ID", "")
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
-
-MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", "")
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "")
 WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", "")
 WEB3_BASE_RSC_ADDRESS = os.environ.get("WEB3_BASE_RSC_ADDRESS", "")
@@ -56,6 +50,8 @@ WEB3_BASE_PROVIDER_URL = os.environ.get("WEB3_BASE_PROVIDER_URL", "")
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+ANTHROPIC_AWS_WORKSPACE_ID = os.environ.get("ANTHROPIC_AWS_WORKSPACE_ID", "")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY", "")
 
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", "")

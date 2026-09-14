@@ -557,8 +557,8 @@ class TestPaperIngestionService(TestCase):
         record = {"id": "test2", "authors": []}
 
         # Call the method
-        authors, institutions, authorships = (
-            self.service._create_authors_and_institutions(paper, record, mock_mapper)
+        authors, institutions, _ = self.service._create_authors_and_institutions(
+            paper, record, mock_mapper
         )
 
         # Should reuse existing, not create new
@@ -596,8 +596,8 @@ class TestPaperIngestionService(TestCase):
         record = {"id": "test3", "authors": []}
 
         # Call the method
-        authors, institutions, authorships = (
-            self.service._create_authors_and_institutions(paper, record, mock_mapper)
+        authors, institutions, _ = self.service._create_authors_and_institutions(
+            paper, record, mock_mapper
         )
 
         # Should not create author without ORCID
@@ -642,8 +642,8 @@ class TestPaperIngestionService(TestCase):
         record = {"id": "test4", "authors": []}
 
         # Call the method
-        authors, institutions, authorships = (
-            self.service._create_authors_and_institutions(paper, record, mock_mapper)
+        authors, institutions, _ = self.service._create_authors_and_institutions(
+            paper, record, mock_mapper
         )
 
         # Author should be created but institution should not

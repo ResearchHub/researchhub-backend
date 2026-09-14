@@ -338,6 +338,7 @@ class ProposalGateRunner:
             # quality verdict. Do not present the rollup's empty-input default
             # scores as an evaluation -- ``overall: None`` also keeps the
             # runner's plateau tracker from counting this round.
+            errors = "; ".join(str(e) for e in rollup.get("judge_errors") or [])
             return {
                 "ok": False,
                 "unavailable": True,
@@ -345,7 +346,10 @@ class ProposalGateRunner:
                 "scores": None,
                 "threshold": self.config.panel_threshold,
                 "rollup": rollup,
-                "gaps": ["The judge panel returned no scores (judge failure)."],
+                "gaps": [
+                    "The judge panel returned no scores (judge failure)"
+                    + (f": {errors}." if errors else ".")
+                ],
             }
         overall = rollup.get("overall", 0)
         scores = rollup.get("scores")

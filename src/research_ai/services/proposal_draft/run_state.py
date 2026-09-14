@@ -13,6 +13,7 @@ persist outcomes.
 
 from research_ai.services.agent import (
     AgentRunError,
+    BudgetExceededError,
     IncompleteTurnError,
     IterationLimitError,
 )
@@ -44,6 +45,9 @@ class ProposalRunState:
         # instead of letting the model revise against a broken referee.
         self.gate_crash: str | None = None
         self.panel_unavailable = False
+        # Why every judge dropped out (truncated turn, provider error, ...), so
+        # the recorded failure names the cause and not just the symptom.
+        self.panel_error: str | None = None
 
         # Panel-score plateau tracking.
         self.best_overall: float | None = None
@@ -168,6 +172,8 @@ class ProposalRunState:
         ``failure_message`` reads (stop reason, detail)."""
         if isinstance(exc, IterationLimitError):
             self.agent_stop_reason = "iteration_cap"
+        elif isinstance(exc, BudgetExceededError):
+            self.agent_stop_reason = "budget_exhausted"
         elif isinstance(exc, IncompleteTurnError):
             self.agent_stop_reason = "incomplete_turn"
             self.agent_error = exc.stop_reason
@@ -197,10 +203,13 @@ class ProposalRunState:
         if self.gate_crash:
             return f"gate check crashed on round {self.rounds_used}: {self.gate_crash}"
         if self.panel_unavailable:
+            detail = f": {self.panel_error}" if self.panel_error else ""
             return (
                 "judge panel unavailable (no judge returned a score) on round "
-                f"{self.rounds_used}"
+                f"{self.rounds_used}{detail}"
             )
+        if self.agent_stop_reason == "budget_exhausted":
+            return "daily Research AI usage limit reached; try again after it resets"
         if self.submitted is None and self.agent_stop_reason in (
             "incomplete_turn",
             "provider_error",

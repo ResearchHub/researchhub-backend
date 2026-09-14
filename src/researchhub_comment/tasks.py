@@ -5,7 +5,7 @@ from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 
-from mailing_list.lib import base_email_context, send_email
+from mailing_list.services import EmailService
 from researchhub.celery import QUEUE_NOTIFICATION, app
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,8 @@ def celery_create_mention_notification(comment_id, recipients):
     thread = comment.thread
 
     unified_document = thread.unified_document
+    email_service = EmailService()
+
     for recipient in recipients:
         if (
             recipient
@@ -56,18 +58,18 @@ def celery_create_mention_notification(comment_id, recipients):
             notification.send_notification()
 
             outer_subject = "You were Mentioned in a Comment"
-            context = {**base_email_context}
-            context["action"] = {
-                "message": f"{comment_created_by.first_name} {comment_created_by.last_name} has you mention in their comment",  # noqa: E501
-                "frontend_view_link": f"{unified_document.frontend_view_link()}#comments",  # noqa: E501
+            context = {
+                "action": {
+                    "message": f"{comment_created_by.first_name} {comment_created_by.last_name} has you mention in their comment",  # noqa: E501
+                    "frontend_view_link": f"{unified_document.frontend_view_link()}#comments",  # noqa: E501
+                },
+                "subject": outer_subject,
             }
-            context["subject"] = outer_subject
-            send_email(
+            email_service.send_email(
                 [notification.recipient.email],
-                "general_email_message.txt",
                 outer_subject,
                 context,
-                html_template="general_email_message.html",
+                template="general_email_message",
             )
 
 
@@ -85,29 +87,27 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
         document = comment.unified_document.get_document()
         author = comment.created_by
 
-        context = {**base_email_context}
-        context["action"] = {
-            "message": f"{author.first_name} {author.last_name} posted an update to a preregistration you're following",  # noqa: E501
-            "frontend_view_link": comment.unified_document.frontend_view_link(),
+        context = {
+            "action": {
+                "message": f"{author.first_name} {author.last_name} posted an update to a preregistration you're following",  # noqa: E501
+                "frontend_view_link": comment.unified_document.frontend_view_link(),
+            },
+            "document_title": document.title,
+            "author_name": author.full_name(),
         }
-        context["document_title"] = document.title
-        context["author_name"] = author.full_name()
 
         subject = "Update on Preregistration You're Following"
+        email_service = EmailService()
 
         for user_id in follower_user_ids:
             try:
                 user = User.objects.get(id=user_id)
-                # Check if user wants to receive emails (following existing patterns)
-                email_recipient = getattr(user, "emailrecipient", None)
-                if email_recipient and email_recipient.receives_notifications:
-                    send_email(
-                        [user.email],
-                        "general_email_message.txt",
-                        subject,
-                        context,
-                        html_template="general_email_message.html",
-                    )
+                email_service.send_email(
+                    [user.email],
+                    subject,
+                    context,
+                    template="general_email_message",
+                )
             except Exception as e:
                 # Log individual user failures but continue with others
                 logger.error(

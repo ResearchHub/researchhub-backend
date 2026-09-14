@@ -23,10 +23,13 @@ from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.recorder import AgentRecorder
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
+    AssistantTurn,
     Message,
+    ServerToolBlock,
     StopReason,
     TextBlock,
     ToolResultBlock,
+    TurnUsage,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,6 +37,14 @@ logger = logging.getLogger(__name__)
 # Cap on how much of any single value the trace logs, so a large tool input
 # (e.g. a full proposal submission) or result never floods the log.
 _LOG_VALUE_LIMIT = 300
+
+# Sent instead of dispatching a call from a turn that stopped on max_tokens.
+_TRUNCATED_CALL_ERROR = (
+    "your response was cut off before completion (output token limit or "
+    "context window reached), so the {name} call's input was truncated and "
+    "the tool was NOT executed. Do not assume it ran. Produce less output "
+    "this turn and retry -- or tell the user what you could not do."
+)
 
 
 def _truncate(text: str, limit: int = _LOG_VALUE_LIMIT) -> str:
@@ -76,6 +87,37 @@ def _summarize_result(result) -> str:
     return _truncate(repr(result))
 
 
+def _server_tool_name(data: dict) -> str:
+    """Tool name recovered from a server-side result block's type."""
+    return str(data.get("type") or "server_tool").removesuffix("_tool_result")
+
+
+def _summarize_server_result(content) -> str:
+    """One-line summary of a server-side tool result.
+
+    Search success carries a list of records, while other server tools return
+    typed dictionaries. Only an explicit ``error_code`` is an error. Successful
+    dictionaries are summarized from safe structural metadata so opaque replay
+    fields such as encrypted stdout never reach logs.
+    """
+    if isinstance(content, dict):
+        error_code = content.get("error_code")
+        if error_code:
+            return f"error: {_truncate(error_code, 120)}"
+
+        result_type = str(content.get("type") or "result")
+        details = []
+        if "return_code" in content:
+            details.append(f"return_code={content['return_code']}")
+        outputs = content.get("content")
+        if isinstance(outputs, (list, tuple)):
+            details.append(f"outputs={len(outputs)}")
+        return f"{result_type} ({', '.join(details)})" if details else result_type
+    if isinstance(content, (list, tuple)):
+        return f"[{len(content)} results]"
+    return _truncate(repr(content))
+
+
 @dataclass
 class AgentResult:
     """The outcome of an agent run.
@@ -104,8 +146,8 @@ class Agent:
         toolset: Toolset,
         *,
         system_prompt: str,
-        max_iterations: int,
-        max_tokens: int,
+        max_iterations: int | None,
+        max_tokens: int | None,
         temperature: float,
         recorder: AgentRecorder | None = None,
     ):
@@ -113,6 +155,7 @@ class Agent:
         self.toolset = toolset
         self.system_prompt = system_prompt
         self.max_iterations = max_iterations
+        # None lets the provider spend up to its model's output ceiling.
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.recorder = recorder
@@ -120,8 +163,7 @@ class Agent:
     def run(self, user_prompt: str) -> AgentResult:
         """Drive a fresh conversation from ``user_prompt`` to completion."""
         seed = Message(role="user", content=[TextBlock(text=user_prompt)])
-        self._record("record_message", seed)
-        return self._drive([seed])
+        return self._drive([seed], new_message=seed)
 
     def continue_conversation(
         self,
@@ -135,36 +177,95 @@ class Agent:
         recorded by the runs that produced it.
         """
         appended = Message(role="user", content=[TextBlock(text=user_message)])
-        self._record("record_message", appended)
-        return self._drive(list(messages) + [appended])
+        return self._drive(list(messages) + [appended], new_message=appended)
 
-    def _record(self, hook: str, *args, **kwargs) -> None:
-        """Invoke a recorder hook; a raising recorder never breaks the run.
+    def _record_message(
+        self, message: Message, *, turn: AssistantTurn | None = None
+    ) -> None:
+        """Persist an appended message before the run advances.
 
-        The transcript is observability -- persistence failing must not kill
-        the run it observes (same contract as ``progress_callback``).
+        Ordinary observers remain best-effort. A recorder may opt into required
+        message persistence with ``requires_durable_messages``; the database
+        recorder uses that contract while isolating its optional trace writes.
         """
         if self.recorder is None:
             return
         try:
-            getattr(self.recorder, hook)(*args, **kwargs)
-        except Exception:  # noqa: BLE001 - recording must not break the run
+            self.recorder.record_message(message, turn=turn)
+        except Exception:  # noqa: BLE001 - observer failures are best-effort
+            if getattr(self.recorder, "requires_durable_messages", False):
+                raise
+            logger.warning("agent recorder record_message failed", exc_info=True)
+
+    def _ensure_active(self) -> None:
+        """Stop if this run no longer owns its execution.
+
+        Called before each of the two expensive things an iteration does -- a
+        provider call and a tool call -- because every other stop point is a
+        durable write, and those come *after* the spending. Left to the writes
+        alone, a stopped run would pay for one more model request, or run a tool
+        and its side effects in full, before noticing.
+
+        It narrows those windows rather than closing them -- a cancellation
+        committing between this check and what follows still gets one call
+        through, and no probe here can prevent that. Correctness under a
+        concurrent turn is therefore not this check's job and must not be built
+        on it: a tool that mutates shared state guards its own write, the way
+        ``edit_note`` requires the version id it read and rejects the edit if the
+        document moved.
+
+        The check is optional (see ``AgentRecorder.is_active``) and its failure
+        is not a stop signal: a recorder that cannot answer must not be able to
+        halt a healthy run.
+        """
+        is_active = getattr(self.recorder, "is_active", None)
+        if is_active is None:
+            return
+        try:
+            active = is_active()
+        except Exception:  # noqa: BLE001 - an unanswerable check is not a stop
+            logger.warning("agent recorder is_active failed", exc_info=True)
+            return
+        if not active:
+            raise InterruptedError("agent execution is no longer running")
+
+    def _ensure_can_spend(self) -> None:
+        """Check cancellation and an optional recorder-owned spend guard."""
+        self._ensure_active()
+        before_model_call = getattr(self.recorder, "before_model_call", None)
+        if before_model_call is not None:
+            before_model_call()
+
+    def _record_terminal(self, hook: str, *args) -> None:
+        """Best-effort terminal observation must not mask the run outcome."""
+        if self.recorder is None:
+            return
+        try:
+            getattr(self.recorder, hook)(*args)
+        except Exception:  # noqa: BLE001 - preserve the original run outcome
             logger.warning("agent recorder %s failed", hook, exc_info=True)
 
     def _complete_turn(self, messages, rendered_tools, iteration):
         try:
-            return self.provider.complete(
+            return self.provider.complete_with_events(
                 system_prompt=self.system_prompt,
                 messages=messages,
                 rendered_tools=rendered_tools,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                before_retry=self._ensure_can_spend,
+                on_usage=self._record_usage,
+                on_event=lambda event: self._record_stream_event(iteration, event),
             )
         except AgentRunError as exc:
             # Attach the transcript so the failure is inspectable and the
             # conversation resumable via ``continue_conversation``.
             exc.messages = messages
             exc.iterations = iteration - 1
+            raise
+        except InterruptedError:
+            # Preserve an explicit interruption so persistence can distinguish
+            # it from an ordinary provider failure.
             raise
         except Exception as exc:
             # A provider that leaks a foreign exception still surfaces as
@@ -174,6 +275,66 @@ class Agent:
                 messages=messages,
                 iterations=iteration - 1,
             ) from exc
+        finally:
+            self._flush_stream_events()
+
+    def _record_usage(self, usage: TurnUsage) -> None:
+        """Deliver one completed provider response's billable usage."""
+        callback = getattr(self.recorder, "record_usage", None)
+        if callback is None:
+            return
+        try:
+            callback(usage)
+        except Exception:  # noqa: BLE001 - observers are best-effort by default
+            if getattr(self.recorder, "requires_durable_usage", False):
+                raise
+            logger.warning("agent recorder record_usage failed", exc_info=True)
+
+    def _record_stream_event(self, iteration: int, event) -> None:
+        """Best-effort delivery of transient model output to an observer."""
+        callback = getattr(self.recorder, "record_stream_event", None)
+        if callback is None:
+            return
+        try:
+            callback(iteration, event)
+        except Exception:  # noqa: BLE001 - previews must never break a turn
+            logger.warning("agent recorder record_stream_event failed", exc_info=True)
+
+    def _flush_stream_events(self) -> None:
+        callback = getattr(self.recorder, "flush_stream_events", None)
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception:  # noqa: BLE001 - previews must never break a turn
+            logger.warning("agent recorder flush_stream_events failed", exc_info=True)
+
+    def _log_server_tools(self, turn, iteration: int) -> None:
+        """Trace the tools the provider ran inside the turn.
+
+        Server-side calls never reach ``dispatch``, so without this the trace
+        would fall silent exactly where it used to show every search -- and a
+        provider-run search that returned nothing would be indistinguishable
+        from one the model never made.
+        """
+        for block in turn.content_blocks:
+            if not isinstance(block, ServerToolBlock):
+                continue
+            data = block.data or {}
+            if data.get("type") == "server_tool_use":
+                logger.info(
+                    "iter %d -> %s(%s) [server]",
+                    iteration,
+                    data.get("name"),
+                    _compact_args(data.get("input")),
+                )
+            else:
+                logger.info(
+                    "iter %d <- %s: %s [server]",
+                    iteration,
+                    _server_tool_name(data),
+                    _summarize_server_result(data.get("content")),
+                )
 
     def _dispatch_tool_calls(
         self, tool_calls, iteration: int
@@ -181,6 +342,9 @@ class Agent:
         result_blocks: list[ToolResultBlock] = []
         stop = False
         for call in tool_calls:
+            # Per call, not once per turn: a turn can ask for several tools, and
+            # a cancellation landing partway through must not let the rest run.
+            self._ensure_active()
             logger.info(
                 "iter %d -> %s(%s)", iteration, call.name, _compact_args(call.input)
             )
@@ -202,38 +366,51 @@ class Agent:
             )
         return result_blocks, stop
 
-    def _drive(self, messages: list[Message]) -> AgentResult:
+    def _drive(self, messages: list[Message], *, new_message: Message) -> AgentResult:
         try:
+            self._record_message(new_message)
             result = self._loop(messages)
-        except AgentRunError as error:
+        except Exception as error:
             # Every message up to the failure was already recorded as it was
             # appended; this only marks the terminal outcome.
-            self._record("on_run_failed", error)
+            self._record_terminal("on_run_failed", error)
             raise
-        self._record("on_run_finished", result)
+        self._record_terminal("on_run_finished", result)
         return result
 
     def _loop(self, messages: list[Message]) -> AgentResult:
         rendered_tools = self.toolset.render_specs(self.provider)
         logger.info(
-            "agent run start: tools=[%s] max_iterations=%d",
+            "agent run start: tools=[%s] max_iterations=%s",
             ", ".join(self.toolset.names),
             self.max_iterations,
         )
-
-        for iteration in range(1, self.max_iterations + 1):
+        iteration = 0
+        while self.max_iterations is None or iteration < self.max_iterations:
+            iteration += 1
+            # Before spending on the model, not only before a tool: a provider
+            # call is the most expensive thing an iteration does and can hold the
+            # worker for the vendor SDK's whole retry budget, so a run that was
+            # stopped must not start another one.
+            self._ensure_can_spend()
             turn = self._complete_turn(messages, rendered_tools, iteration)
+            # The turn is replayed exactly as the provider sent it: reasoning
+            # blocks are signed and must lead, and a server-side tool's result
+            # must stay immediately after its request, so the run can neither
+            # re-order nor drop blocks here.
             assistant_message = Message(
                 role="assistant",
-                content=[*turn.text_blocks, *turn.tool_calls],
+                content=turn.replay_content,
+                provider_state=turn.provider_state,
             )
             messages.append(assistant_message)
-            self._record("record_message", assistant_message, turn=turn)
+            self._record_message(assistant_message, turn=turn)
 
             # The assistant's text on a tool-calling turn is its stated reason for
             # the calls -- log it so the trace shows *why* a tool was picked.
             if turn.text.strip():
                 logger.info("iter %d reasoning: %s", iteration, _truncate(turn.text))
+            self._log_server_tools(turn, iteration)
 
             if not turn.tool_calls and turn.stop_reason == StopReason.END_TURN:
                 # Model answered in plain text without calling a tool: done.
@@ -244,6 +421,16 @@ class Agent:
                     stop_reason=turn.stop_reason.value,
                     iterations=iteration,
                 )
+            if not turn.tool_calls and turn.stop_reason == StopReason.PAUSE_TURN:
+                # The provider spent its per-turn budget of server-side tool
+                # calls and handed the turn back mid-flight. Nothing is owed in
+                # reply: sending the conversation back with this turn appended
+                # and no user turn after it resumes where it left off. It counts
+                # as an iteration toward any configured limit. A paused turn
+                # that also called a client tool falls through to the dispatch
+                # below -- those results resume it too.
+                logger.info("iter %d pause_turn: resuming server-side work", iteration)
+                continue
             if not turn.tool_calls:
                 raise IncompleteTurnError(
                     "Provider stopped without completing the agent run: "
@@ -253,10 +440,33 @@ class Agent:
                     iterations=iteration,
                 )
 
+            if turn.stop_reason == StopReason.MAX_TOKENS:
+                # The turn was cut off mid-emission, so the calls' inputs
+                # cannot be trusted. Dispatching them would hand each tool a
+                # partial input whose own validation error misnames the cause;
+                # answer with the real one instead so the model adapts.
+                logger.warning(
+                    "iter %d max_tokens: %d truncated tool call(s) not dispatched",
+                    iteration,
+                    len(turn.tool_calls),
+                )
+                result_blocks = [
+                    ToolResultBlock(
+                        tool_use_id=call.id,
+                        content={"error": _TRUNCATED_CALL_ERROR.format(name=call.name)},
+                        is_error=True,
+                    )
+                    for call in turn.tool_calls
+                ]
+                tool_result_message = Message(role="user", content=result_blocks)
+                messages.append(tool_result_message)
+                self._record_message(tool_result_message)
+                continue
+
             result_blocks, stop = self._dispatch_tool_calls(turn.tool_calls, iteration)
             tool_result_message = Message(role="user", content=result_blocks)
             messages.append(tool_result_message)
-            self._record("record_message", tool_result_message)
+            self._record_message(tool_result_message)
 
             if stop:
                 logger.info("iter %d stop_tool: terminal tool ended the run", iteration)

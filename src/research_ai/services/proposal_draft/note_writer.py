@@ -2,38 +2,38 @@
 
 import json
 
-from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
 from note.models import Note, NoteContent
-from researchhub_access_group.constants import ADMIN, NO_ACCESS
-from researchhub_access_group.models import Permission
-from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import NOTE
+from note.services.note_creation_service import NoteCreationService
+from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
+)
 
 
 @transaction.atomic
-def write_proposal_note(submitted: dict, *, created_by=None) -> Note:
+def write_proposal_note(
+    submitted: dict, *, created_by=None, selected_grant=None
+) -> Note:
     """Create the Note directly (headless: no notifications).
 
-    The view paths require an auth user + org and fire org-scoped websocket
-    notifications, so we create the rows directly. When ``created_by`` is
-    given (the user who triggered the draft), the note lands privately in
-    their notebook: owned by them, in their personal org, with user-admin /
-    org-no-access permissions. For system/automatic runs it stays ownerless.
-    The ``NoteContent`` post_save signal sets ``note.latest_version``.
+    When ``created_by`` is given (the user who triggered the draft), the note
+    lands privately in their notebook; for system/automatic runs it stays
+    ownerless. The ``NoteContent`` post_save signal sets ``note.latest_version``.
+
+    The note is a PREREGISTRATION carrying ``selected_grant`` -- the RFP the
+    whole draft was written against. Both are what the notebook reads to treat
+    it as a funding proposal for that grant, and a draft that arrived with its
+    RFP already unset would have the user re-pick the one it answers.
     """
     sections = submitted.get("sections") or {}
     title = str(sections.get("title") or "").strip() or "Untitled proposal"
-    unified_document = ResearchhubUnifiedDocument.objects.create(document_type=NOTE)
-    note = Note.objects.create(
+    note = NoteCreationService().create_private_note(
         created_by=created_by,
-        organization=created_by.organization if created_by else None,
         title=title,
-        unified_document=unified_document,
+        document_type=PREREGISTRATION,
+        selected_grant=selected_grant,
     )
-    if created_by is not None:
-        _create_private_permissions(created_by, unified_document)
     prosemirror = submitted.get("prosemirror")
     NoteContent.objects.create(
         note=note,
@@ -43,24 +43,8 @@ def write_proposal_note(submitted: dict, *, created_by=None) -> Note:
         # object round-trips as an object and breaks note loading.
         json=json.dumps(prosemirror) if prosemirror is not None else None,
         plain_text=str(submitted.get("plain_text") or ""),
+        created_by=created_by,
+        created_via=NoteContent.CREATED_VIA_SYSTEM,
     )
     note.refresh_from_db()
     return note
-
-
-def _create_private_permissions(user, unified_document) -> None:
-    """Grant the user private admin access to the note document."""
-    content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
-    Permission.objects.create(
-        access_type=ADMIN,
-        content_type=content_type,
-        object_id=unified_document.id,
-        user=user,
-    )
-    Permission.objects.create(
-        access_type=NO_ACCESS,
-        content_type=content_type,
-        object_id=unified_document.id,
-        organization=user.organization,
-        user=user,
-    )

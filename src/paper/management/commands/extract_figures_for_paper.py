@@ -93,10 +93,7 @@ class Command(BaseCommand):
         # Priority 2: Created date range
         elif created_start:
             created_start = parser.parse(created_start)
-            if created_end:
-                created_end = parser.parse(created_end)
-            else:
-                created_end = timezone.now()
+            created_end = parser.parse(created_end) if created_end else timezone.now()
 
             self.stdout.write(
                 f"Filtering by CREATED date: {created_start} to {created_end}"

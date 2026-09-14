@@ -1,0 +1,38 @@
+services:
+  api:
+    image: "__API_IMAGE_URI__"
+    env_file:
+      - .env
+    environment:
+      DD_ENV: "${APP_ENV}"
+      DD_SERVICE: api
+    labels:
+      com.datadoghq.ad.logs: >-
+        [{"source":"python","service":"api"}]
+      com.datadoghq.tags.env: "${APP_ENV}"
+      com.datadoghq.tags.service: api
+    ports:
+      - "80:8000"
+    restart: unless-stopped
+
+  datadog-agent:
+    image: public.ecr.aws/datadog/agent:7
+    cgroup: host
+    environment:
+      DD_API_KEY: "${DATADOG_API_KEY}"
+      DD_APM_ENABLED: "false"
+      DD_CONTAINER_EXCLUDE: name:datadog-agent
+      DD_ENV: "${APP_ENV}"
+      DD_LOGS_ENABLED: "true"
+      DD_SITE: us3.datadoghq.com
+      DD_TAGS: "platform:docker"
+    pid: host
+    restart: unless-stopped
+    volumes:
+      - ./beanstalk.d:/conf.d/beanstalk.d:ro
+      - /opt/datadog-agent/run:/opt/datadog-agent/run:rw
+      - /proc:/host/proc:ro
+      - /sys/fs/cgroup:/host/sys/fs/cgroup:ro
+      - /var/log:/host/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro

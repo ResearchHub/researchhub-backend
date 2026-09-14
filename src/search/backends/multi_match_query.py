@@ -37,7 +37,7 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
         if not options:
             options = {}
 
-        field_name = options["field"] if "field" in options else field
+        field_name = options.get("field", field)
 
         if "boost" in options:
             return "{}^{}".format(field_name, options["boost"])
@@ -256,9 +256,7 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
         :return:
         """
         if hasattr(view, "multi_match_search_fields"):
-            view_search_fields = copy.deepcopy(
-                getattr(view, "multi_match_search_fields")
-            )
+            view_search_fields = copy.deepcopy(view.multi_match_search_fields)
         else:
             view_search_fields = copy.deepcopy(view.search_fields)
 

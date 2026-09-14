@@ -243,10 +243,13 @@ class FollowingFeedTests(APITestCase):
         response = self.client.get(url, {"feed_view": "following"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        result_ids = [r["content_object"]["id"] for r in response.data["results"]]
-        self.assertIn(self.followed_paper.id, result_ids)
-        self.assertNotIn(self.followed_post.id, result_ids)
-        self.assertNotIn(another_post.id, result_ids)
+        result_objects = {
+            (result["content_type"], result["content_object"]["id"])
+            for result in response.data["results"]
+        }
+        self.assertIn(("PAPER", self.followed_paper.id), result_objects)
+        self.assertNotIn(("RESEARCHHUBPOST", self.followed_post.id), result_objects)
+        self.assertNotIn(("RESEARCHHUBPOST", another_post.id), result_objects)
 
     def test_following_hub_supports_sorting_by_hot_score_v2(self):
         url = reverse("feed-list")
@@ -339,11 +342,14 @@ class FollowingFeedTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         results = response.data["results"]
 
-        result_ids = [r["content_object"]["id"] for r in results]
+        result_objects = {
+            (result["content_type"], result["content_object"]["id"])
+            for result in results
+        }
         content_types = [r["content_type"] for r in results]
 
-        self.assertIn(self.followed_paper.id, result_ids)
-        self.assertNotIn(self.followed_post.id, result_ids)
+        self.assertIn(("PAPER", self.followed_paper.id), result_objects)
+        self.assertNotIn(("RESEARCHHUBPOST", self.followed_post.id), result_objects)
         self.assertIn("PAPER", content_types)
         self.assertNotIn("RESEARCHHUBPOST", content_types)
 

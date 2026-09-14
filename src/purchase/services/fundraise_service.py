@@ -12,6 +12,8 @@ from purchase.endaoment import EndaomentService
 from purchase.models import (
     Balance,
     EndaomentAccount,
+    FundingDistribution,
+    FundingPool,
     Fundraise,
     Purchase,
     RscExchangeRate,
@@ -33,7 +35,6 @@ from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from researchhub_document.services.journey_service import JourneyService
 from user.models import User
 
 USD_CONTRIBUTION_CSV_HEADERS = [
@@ -66,11 +67,9 @@ class FundraiseService:
         self,
         referral_bonus_service: ReferralBonusService | None = None,
         endaoment_service: EndaomentService | None = None,
-        journey_service: JourneyService | None = None,
     ) -> None:
         self.referral_bonus_service = referral_bonus_service or ReferralBonusService()
         self.endaoment_service = endaoment_service or EndaomentService()
-        self.journey_service = journey_service or JourneyService()
 
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
@@ -123,9 +122,9 @@ class FundraiseService:
                 fundraise
             origin_fund_id: The Endaoment fund (DAF) ID of the doner for USD grants
             use_credits: For RSC contributions, which balance pool pays for
-                ``amount + fee``. When True, pay entirely from funding credits
-                (locked balance); when False, pay entirely from unlocked RSC.
-                Pools are never mixed. Ignored for USD contributions.
+                ``amount + fee``. When True, pay entirely from funding credits.
+                When False, spend promotional RSC first and available RSC
+                second. Ignored for USD contributions.
 
         Returns:
             Tuple of (contribution, error_message). If successful, error_message
@@ -222,18 +221,16 @@ class FundraiseService:
         """
         Creates an RSC contribution to a fundraise.
 
-        The contribution is funded exclusively from a single pool: when
-        ``use_credits`` is True the full ``amount + fee`` must be covered by
-        the user's locked balance (funding credits and promotional funds, with
-        promotional consumed last); when False, by unlocked RSC. Mixing locked
-        and unlocked funds is not allowed.
+        When ``use_credits`` is True, the full ``amount + fee`` must be covered
+        by funding credits. Otherwise, promotional RSC is consumed first and
+        available RSC covers any remainder.
 
         Args:
             user: The user making the contribution
             fundraise: The fundraise to contribute to
             amount: The contribution amount in RSC
-            use_credits: When True, pay entirely from locked funds. When
-                False, pay entirely from unlocked RSC.
+            use_credits: When True, pay entirely from funding credits. When
+                False, pay from promotional RSC and then available RSC.
 
         Returns:
             Tuple of (purchase, error_message). If successful, error_message is None.
@@ -271,40 +268,12 @@ class FundraiseService:
             user = User.objects.select_for_update().get(id=user.id)
             escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
 
-            if use_credits:
-                # All locked funds are spendable on fundraises. The spend is
-                # split per lock_type category (yield-earning promotional
-                # funds last) and each debit carries its category so refunds
-                # restore the exact fund type and promotional yield netting
-                # stays correct.
-                try:
-                    allocations, remaining = user.allocate_locked_spend(total_cost)
-                except ValueError:
-                    logger.exception(
-                        "Invalid locked balance state for user %s", user.id
-                    )
-                    return None, "Invalid locked balance state"
-
-                if remaining > 0:
-                    return None, "Insufficient locked balance"
-                if remaining != 0 or not self._valid_locked_allocations(
-                    allocations, total_cost
-                ):
-                    logger.error(
-                        "Invalid locked allocation for user %s: allocations=%s, "
-                        "remaining=%s, total_cost=%s",
-                        user.id,
-                        allocations,
-                        remaining,
-                        total_cost,
-                    )
-                    return None, "Invalid locked balance state"
-            else:
-                if user.get_available_balance() < total_cost:
-                    return None, "Insufficient balance"
-                allocations = [
-                    {"amount": total_cost, "is_locked": False, "lock_type": None}
-                ]
+            try:
+                allocations = self._allocate_contribution_spend(
+                    user, total_cost, use_credits
+                )
+            except ValueError as error:
+                return None, str(error)
 
             # Create purchase object
             purchase = Purchase.objects.create(
@@ -377,8 +346,72 @@ class FundraiseService:
         return purchase, None
 
     @staticmethod
-    def _valid_locked_allocations(allocations: list[dict], total_cost: Decimal) -> bool:
-        """Return whether allocations are safe, typed, and cover the debit exactly."""
+    def _allocate_contribution_spend(
+        user: User, total_cost: Decimal, use_credits: bool
+    ) -> list[dict]:
+        """Allocate the fee-inclusive cost from the selected balance sources."""
+        try:
+            balances_by_type = user.get_locked_balance_by_lock_type()
+        except ValueError as error:
+            logger.exception("Invalid locked balance state for user %s", user.id)
+            raise ValueError("Invalid locked balance state") from error
+
+        if use_credits:
+            funding_credits = balances_by_type.get(
+                Balance.LockType.FUNDING_CREDIT, Decimal(0)
+            )
+            if funding_credits < total_cost:
+                raise ValueError("Insufficient funding credit balance")
+
+            allocations = [
+                {
+                    "amount": total_cost,
+                    "is_locked": True,
+                    "lock_type": Balance.LockType.FUNDING_CREDIT,
+                }
+            ]
+        else:
+            available = max(user.get_available_balance(), Decimal(0))
+            promotional = balances_by_type.get(Balance.LockType.PROMOTIONAL, Decimal(0))
+            if available + promotional < total_cost:
+                raise ValueError("Insufficient balance")
+
+            allocations = []
+            promotional_spend = min(promotional, total_cost)
+            if promotional_spend > 0:
+                allocations.append(
+                    {
+                        "amount": promotional_spend,
+                        "is_locked": True,
+                        "lock_type": Balance.LockType.PROMOTIONAL,
+                    }
+                )
+
+            available_spend = total_cost - promotional_spend
+            if available_spend > 0:
+                allocations.append(
+                    {
+                        "amount": available_spend,
+                        "is_locked": False,
+                        "lock_type": None,
+                    }
+                )
+
+        if not FundraiseService._valid_allocations(allocations, total_cost):
+            logger.error(
+                "Invalid contribution allocation for user %s: allocations=%s, "
+                "total_cost=%s",
+                user.id,
+                allocations,
+                total_cost,
+            )
+            raise ValueError("Invalid balance state")
+
+        return allocations
+
+    @staticmethod
+    def _valid_allocations(allocations: list[dict], total_cost: Decimal) -> bool:
+        """Return whether allocations are typed and cover the debit exactly."""
         allocated_total = Decimal(0)
 
         for allocation in allocations:
@@ -387,12 +420,14 @@ class FundraiseService:
             except (ArithmeticError, KeyError, TypeError, ValueError):
                 return False
 
-            if (
-                not allocated_amount.is_finite()
-                or allocated_amount <= 0
-                or allocation.get("is_locked") is not True
-                or allocation.get("lock_type") not in Balance.LockType.values
-            ):
+            is_locked = allocation.get("is_locked")
+            lock_type = allocation.get("lock_type")
+            valid_lock_state = (is_locked is False and lock_type is None) or (
+                is_locked is True and lock_type in Balance.LockType.values
+            )
+            if not allocated_amount.is_finite() or allocated_amount <= 0:
+                return False
+            if not valid_lock_state:
                 return False
 
             allocated_total += allocated_amount
@@ -404,7 +439,7 @@ class FundraiseService:
         user: User,
         fundraise: Fundraise,
         amount_cents: int,
-        origin_fund_id: str = None,
+        origin_fund_id: str | None = None,
     ) -> tuple[UsdFundraiseContribution | None, str | None]:
         """
         Creates a USD contribution to a fundraise.
@@ -452,8 +487,8 @@ class FundraiseService:
                 endaoment_transfer_id = transfer_result.get("id")
             except EndaomentAccount.DoesNotExist:
                 return None, "Endaoment account not connected"
-            except Exception as e:
-                logger.error(f"Failed to create Endaoment grant: {e}", exc_info=e)
+            except Exception:
+                logger.exception("Failed to create Endaoment grant")
                 return None, "Failed to submit Endaoment grant"
 
             # Create the contribution record
@@ -542,6 +577,79 @@ class FundraiseService:
         record = distributor.distribute()
         return record.distributed_status != "FAILED"
 
+    def _reverse_pool_sourced_contribution(
+        self,
+        fundraise: Fundraise,
+        distribution: FundingDistribution,
+    ) -> bool:
+        """
+        Return a pool-sourced escrow slice to the FundingPool.
+        """
+        try:
+            amount = Decimal(str(distribution.amount))
+        except (ArithmeticError, TypeError, ValueError):
+            logger.error(
+                "Invalid funding distribution amount for distribution %s",
+                distribution.id,
+            )
+            return False
+
+        if not amount.is_finite() or amount <= 0:
+            logger.error(
+                "Refusing to reverse non-positive funding distribution %s",
+                distribution.id,
+            )
+            return False
+
+        if not fundraise.escrow_id:
+            logger.error(
+                "Fundraise %s has no escrow for pool reverse of distribution %s",
+                fundraise.id,
+                distribution.id,
+            )
+            return False
+
+        pool = FundingPool.objects.select_for_update().get(id=distribution.pool_id)
+        escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
+
+        if amount > escrow.amount_holding:
+            logger.error(
+                "Insufficient escrow holding to reverse distribution %s "
+                "(amount=%s, holding=%s)",
+                distribution.id,
+                amount,
+                escrow.amount_holding,
+            )
+            return False
+
+        if amount > pool.amount_distributed:
+            logger.error(
+                "Insufficient pool distributed to reverse distribution %s "
+                "(amount=%s, distributed=%s)",
+                distribution.id,
+                amount,
+                pool.amount_distributed,
+            )
+            return False
+
+        escrow.amount_holding -= amount
+        escrow.save(update_fields=["amount_holding", "updated_date"])
+
+        cached_escrow = fundraise._state.fields_cache.get("escrow")
+        if cached_escrow is not None:
+            cached_escrow.amount_holding = escrow.amount_holding
+
+        pool.amount_holding += amount
+        pool.amount_distributed -= amount
+        pool.save(
+            update_fields=["amount_holding", "amount_distributed", "updated_date"]
+        )
+
+        distribution.status = FundingDistribution.REVERSED
+        distribution.save(update_fields=["status", "updated_date"])
+
+        return True
+
     def refund_rsc_contributions(self, fundraise: Fundraise) -> bool:
         """
         Refund all RSC contributions from escrow back to contributors.
@@ -553,6 +661,21 @@ class FundraiseService:
         bounty_fee_ct = ContentType.objects.get_for_model(BountyFee)
 
         for contribution in fundraise.purchases.all():
+            pool_distribution = (
+                FundingDistribution.objects.filter(
+                    fundraise_purchase=contribution,
+                    status=FundingDistribution.APPLIED,
+                )
+                .select_related("pool")
+                .first()
+            )
+            if pool_distribution is not None:
+                if not self._reverse_pool_sourced_contribution(
+                    fundraise, pool_distribution
+                ):
+                    return False
+                continue
+
             for debit in Balance.objects.filter(purchase=contribution):
                 if not self._refund_contribution_debit(
                     fundraise, contribution.user, debit, purchase_ct, bounty_fee_ct
@@ -577,6 +700,7 @@ class FundraiseService:
         """
         Complete a fundraise and payout funds to the recipient.
         Only works if the fundraise is in OPEN status and has escrow funds.
+        Marks any APPLIED FundingDistribution rows as SETTLED after payout.
 
         Args:
             fundraise: The fundraise to complete
@@ -600,15 +724,22 @@ class FundraiseService:
             if not fundraise.payout_funds():
                 raise RuntimeError("Failed to payout funds")
 
+            FundingDistribution.objects.filter(
+                target_fundraise=fundraise,
+                status=FundingDistribution.APPLIED,
+            ).update(
+                status=FundingDistribution.SETTLED,
+                updated_date=timezone.now(),
+            )
+
             fundraise.status = Fundraise.COMPLETED
             fundraise.save()
-            self.journey_service.include_completed_fundraise_in_journal(fundraise)
 
         # Process referral bonuses (outside transaction to not block payout on failure)
         try:
             self.referral_bonus_service.process_fundraise_completion(fundraise)
-        except Exception as e:
-            logger.error(f"Failed to process referral bonuses: {e}", exc_info=e)
+        except Exception:
+            logger.exception("Failed to process referral bonuses")
 
     def close_fundraise(self, fundraise: Fundraise) -> bool:
         """
@@ -641,8 +772,9 @@ class FundraiseService:
             fundraise.status = Fundraise.CLOSED
             fundraise.save()
 
-            # Update escrow status
-            fundraise.escrow.set_cancelled_status()
+            escrow = fundraise.escrow
+            escrow.status = Escrow.CANCELLED
+            escrow.save(update_fields=["status"])
 
             return True
 

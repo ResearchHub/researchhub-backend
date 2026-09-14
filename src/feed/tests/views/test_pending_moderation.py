@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -9,19 +10,26 @@ from rest_framework.test import APIClient, APIRequestFactory
 from feed.serializers import FeedEntrySerializer, ModeratorFeedEntrySerializer
 from feed.views.moderator_feed_view import ModeratorFeedViewSet
 from paper.tests.helpers import create_paper
-from purchase.models import Grant
+from purchase.models import Fundraise, Grant, RscExchangeRate
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
+from reputation.models import Escrow
 from researchhub_document.helpers import create_post
+from researchhub_document.models import ResearchJourney
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,
     PREREGISTRATION,
+    REGISTERED_REPORT,
 )
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.journey_service import JourneyService
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.related_models.risk_score_model import RiskScore
-from user.tests.helpers import create_random_default_user
+from user.tests.helpers import create_hub_editor, create_random_default_user
 
 
 class PendingModerationFeedTests(TestCase):
@@ -119,7 +127,8 @@ class PendingModerationFeedTests(TestCase):
         self.assertEqual(scores[authors[1].id], 20)
         self.assertNotIn(authors[2].id, scores)
 
-    def test_non_moderator_cannot_access_pending_moderation(self):
+    def test_rejects_regular_users_from_pending_moderation(self) -> None:
+        """Verify regular users cannot access the pending moderation dashboard."""
         # Arrange
         regular = create_random_default_user("regular")
         self.client.force_authenticate(user=regular)
@@ -129,6 +138,18 @@ class PendingModerationFeedTests(TestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_allows_hub_editors_to_access_pending_moderation(self) -> None:
+        """Verify hub editors can access the pending moderation dashboard."""
+        # Arrange
+        editor, _ = create_hub_editor("pending_moderation_editor", "Editor Hub")
+        self.client.force_authenticate(user=editor)
+
+        # Act
+        response = self.client.get(self.url, {"content_type": "PREREGISTRATION"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class PendingModerationCountsTests(TestCase):
@@ -170,6 +191,152 @@ class PendingModerationCountsTests(TestCase):
                 "journal_entries": 1,
             },
         )
+
+
+class RegisteredReportCandidateFeedTests(TestCase):
+    def setUp(self) -> None:
+        """Create a moderator client for registered report candidate requests."""
+        self.moderator = create_random_default_user(
+            "candidate_moderator",
+            moderator=True,
+        )
+        self.author = create_random_default_user("candidate_author")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.moderator)
+        self.url = reverse("moderator_feed-registered-report-candidates")
+        self.journey_service = JourneyService()
+        RscExchangeRate.objects.create(
+            price_source=COIN_GECKO,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
+
+    def test_returns_only_funded_completed_proposals_without_reports(self) -> None:
+        """Verify the dashboard only returns actionable registered report proposals."""
+        # Arrange
+        candidate = self._create_proposal("candidate")
+        self._create_completed_fundraise(candidate, Decimal(100))
+        self.journey_service.ensure_approved_preregistration_has_journey(candidate)
+        unfunded = self._create_proposal("unfunded")
+        self._create_completed_fundraise(
+            unfunded,
+            Decimal(0),
+        )
+        self.journey_service.ensure_approved_preregistration_has_journey(unfunded)
+        open_proposal = self._create_proposal("open")
+        self._create_fundraise(
+            open_proposal,
+            Fundraise.OPEN,
+            Decimal(100),
+        )
+        self.journey_service.ensure_approved_preregistration_has_journey(open_proposal)
+        reported = self._create_proposal("reported")
+        self._create_completed_fundraise(reported, Decimal(100))
+        journey = self.journey_service.ensure_approved_preregistration_has_journey(
+            reported
+        )
+        report = create_post(
+            created_by=self.author,
+            document_type=REGISTERED_REPORT,
+            title="Registered report",
+        )
+        self.journey_service.attach_stage(journey, report)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {item["content_object"]["id"] for item in response.data["results"]},
+            {candidate.id},
+        )
+
+    def test_excludes_funded_proposals_without_matching_journeys(self) -> None:
+        """Verify candidates require matching post and journey relationships."""
+        # Arrange
+        missing_journey = self._create_proposal("missing journey")
+        self._create_completed_fundraise(missing_journey, Decimal(100))
+
+        one_way_journey = self._create_proposal("one-way journey")
+        self._create_completed_fundraise(one_way_journey, Decimal(100))
+        ResearchJourney.objects.create(preregistration_post=one_way_journey)
+
+        mismatched_journey = self._create_proposal("mismatched journey")
+        self._create_completed_fundraise(mismatched_journey, Decimal(100))
+        other_proposal = self._create_proposal("other proposal")
+        other_journey = self.journey_service.get_or_create_for_preregistration(
+            other_proposal
+        )
+        mismatched_journey.journey = other_journey
+        mismatched_journey.save(update_fields=["journey"])
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["results"], [])
+
+    def test_rejects_regular_users(self) -> None:
+        """Verify regular users cannot view registered report candidates."""
+        # Arrange
+        self.client.force_authenticate(user=self.author)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_allows_hub_editors_to_view_registered_report_candidates(self) -> None:
+        """Verify hub editors can view registered report candidates."""
+        # Arrange
+        editor, _ = create_hub_editor("candidate_editor", "Candidate Editor Hub")
+        self.client.force_authenticate(user=editor)
+
+        # Act
+        response = self.client.get(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def _create_proposal(self, title: str) -> ResearchhubPost:
+        """Create an approved proposal owned by the test author."""
+        return create_post(
+            created_by=self.author,
+            document_type=PREREGISTRATION,
+            title=title,
+        )
+
+    def _create_completed_fundraise(
+        self, proposal: ResearchhubPost, amount: Decimal
+    ) -> Fundraise:
+        """Create a completed fundraise for a proposal."""
+        return self._create_fundraise(proposal, Fundraise.COMPLETED, amount)
+
+    def _create_fundraise(
+        self,
+        proposal: ResearchhubPost,
+        status_value: str,
+        amount: Decimal,
+    ) -> Fundraise:
+        """Create a fundraise with the requested status and escrow balance."""
+        fundraise = Fundraise.objects.create(
+            created_by=proposal.created_by,
+            unified_document=proposal.unified_document,
+            status=status_value,
+        )
+        fundraise.escrow = Escrow.objects.create(
+            created_by=proposal.created_by,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=fundraise.id,
+            hold_type=Escrow.FUNDRAISE,
+            amount_holding=amount,
+        )
+        fundraise.save(update_fields=["escrow"])
+        return fundraise
 
 
 class FeedEntryRiskScoreFieldTests(TestCase):

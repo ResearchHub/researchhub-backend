@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
-from purchase.related_models.constants.rsc_exchange_currency import MORALIS
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
@@ -38,7 +38,7 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         RscExchangeRate.objects.create(
-            price_source=MORALIS,
+            price_source=COIN_GECKO,
             rate=3.0,
             real_rate=3.0,
             target_currency=USD,
@@ -91,20 +91,28 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.assertNotIn("nonprofit", results[0])
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
-    def test_list_excludes_journeys_outside_the_journal(
+    def test_list_excludes_reports_without_funded_completed_fundraises(
         self, mock_usd_to_rsc: Any
     ) -> None:
-        """Verify proposals must be journal-included before appearing."""
+        """Verify reports require funded completed source fundraises."""
         # Arrange
         mock_usd_to_rsc.return_value = 100
         included_proposal = self.create_completed_proposal("Included Proposal")
         included_report = self.create_registered_report(included_proposal)
-        excluded_proposal = create_post(
-            title="Excluded Proposal",
+        unfunded_proposal = create_post(
+            title="Unfunded Proposal",
             created_by=self.user,
             document_type=PREREGISTRATION,
         )
-        self.service.get_or_create_for_preregistration(excluded_proposal)
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=unfunded_proposal.unified_document,
+            status=Fundraise.COMPLETED,
+            goal_amount=Decimal("100.00"),
+            goal_currency=USD,
+        )
+        self.service.get_or_create_for_preregistration(unfunded_proposal)
+        excluded_report = self.create_registered_report(unfunded_proposal)
 
         # Act
         response = self.client.get("/api/journal_v2_feed/")
@@ -113,8 +121,7 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         post_ids = [entry["content_object"]["id"] for entry in response.data["results"]]
         self.assertIn(included_report.id, post_ids)
-        self.assertNotIn(included_proposal.id, post_ids)
-        self.assertNotIn(excluded_proposal.id, post_ids)
+        self.assertNotIn(excluded_report.id, post_ids)
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_list_redacts_private_source_proposals_from_reports(
@@ -187,6 +194,37 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         )
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_list_ignores_unassessed_peer_reviews_when_sorting(
+        self, mock_usd_to_rsc: Any
+    ) -> None:
+        """Verify unassessed reviews do not affect journal peer review sorting."""
+        # Arrange
+        mock_usd_to_rsc.return_value = 100
+        assessed_proposal = self.create_completed_proposal("Assessed Review")
+        assessed_report = self.create_registered_report(assessed_proposal)
+        unassessed_proposal = self.create_completed_proposal("Unassessed Review")
+        unassessed_report = self.create_registered_report(unassessed_proposal)
+        self.create_proposal_review(assessed_proposal, score=3)
+        self.create_proposal_review(unassessed_proposal, score=10, is_assessed=False)
+        ResearchhubPost.objects.filter(id=assessed_report.id).update(
+            created_date=timezone.now() - timezone.timedelta(days=2)
+        )
+        ResearchhubPost.objects.filter(id=unassessed_report.id).update(
+            created_date=timezone.now()
+        )
+
+        # Act
+        response = self.client.get("/api/journal_v2_feed/?ordering=peer_review_score")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        post_ids = [entry["content_object"]["id"] for entry in response.data["results"]]
+        self.assertLess(
+            post_ids.index(assessed_report.id),
+            post_ids.index(unassessed_report.id),
+        )
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_list_uses_the_completed_source_fundraise(
         self, mock_usd_to_rsc: Any
     ) -> None:
@@ -222,16 +260,31 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
             completed_fundraise.id,
         )
 
+    def test_delete_is_not_allowed_for_anonymous_users(self) -> None:
+        """Verify the public journal feed cannot delete its backing posts."""
+        # Arrange
+        proposal = self.create_completed_proposal("Protected Proposal")
+        registered_report = self.create_registered_report(proposal)
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self.client.delete(f"/api/journal_v2_feed/{registered_report.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(
+            ResearchhubPost.objects.filter(id=registered_report.id).exists()
+        )
+
     def create_completed_proposal(self, title: str) -> ResearchhubPost:
-        """Create a completed proposal that is included in the journal."""
+        """Create a proposal with a funded completed fundraise and journey."""
         proposal = create_post(
             title=title,
             created_by=self.user,
             document_type=PREREGISTRATION,
         )
-        fundraise = self.create_completed_fundraise(proposal)
+        self.create_completed_fundraise(proposal)
         self.service.get_or_create_for_preregistration(proposal)
-        self.service.include_completed_fundraise_in_journal(fundraise)
         proposal.refresh_from_db()
         return proposal
 
@@ -281,7 +334,9 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
         self.service.attach_stage(proposal.journey, report)
         return report
 
-    def create_proposal_review(self, proposal: ResearchhubPost, score: int) -> Review:
+    def create_proposal_review(
+        self, proposal: ResearchhubPost, score: int, is_assessed: bool = True
+    ) -> Review:
         """Create a peer review on a proposal."""
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
@@ -304,5 +359,5 @@ class JournalV2FeedViewSetTests(AWSMockTestCase):
             object_id=comment.id,
             unified_document=proposal.unified_document,
             score=score,
-            is_assessed=False,
+            is_assessed=is_assessed,
         )

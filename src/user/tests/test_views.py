@@ -1,7 +1,4 @@
-import json
 from datetime import timedelta
-from pathlib import Path
-from unittest.mock import patch
 
 from django.core.cache import cache
 from django.utils import timezone
@@ -12,16 +9,13 @@ from paper.related_models.paper_model import Paper
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from user.models import UserVerification
+from user.models import Author, User, UserVerification
 from user.tests.helpers import (
     create_hub_editor,
     create_random_authenticated_user,
     create_random_default_user,
     create_user,
 )
-from utils.openalex import OpenAlex
-
-fixtures_dir = Path(__file__).parent / "fixtures"
 
 
 class UserApiTests(APITestCase):
@@ -36,9 +30,6 @@ class UserApiTests(APITestCase):
             status=UserVerification.Status.APPROVED,
         )
         self.author_openalex_id = "https://openalex.org/A5068835581"
-        # By setting the author profile to this openalex id, we can later test that
-        # papers processed with matching author id will be attributed to this author.
-        # This is typically done via claim process.
         self.user_with_published_works.author_profile.openalex_ids = [
             self.author_openalex_id
         ]
@@ -114,34 +105,6 @@ class UserApiTests(APITestCase):
             resp.json()["results"][0]["documents"]["id"], document.paper.id
         )
 
-    @patch.object(OpenAlex, "get_works")
-    @patch.object(OpenAlex, "get_authors")
-    def test_add_publications_to_author(self, mock_get_authors, mock_get_works):
-        with open(fixtures_dir / "openalex_author_works.json") as works_file:
-            # Mock responses for OpenAlex API calls
-            mock_data = json.load(works_file)
-            mock_get_works.return_value = (mock_data["results"], None)
-
-            # Add mock for get_authors
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            self.client.force_authenticate(self.user_with_published_works)
-
-            # Get author work Ids first
-            openalex_api = OpenAlex()
-            author_works, _ = openalex_api.get_works()
-            work_ids = [work["id"] for work in author_works]
-            author_profile = self.user_with_published_works.author_profile
-            # Add publications to author
-            url = f"/api/author/{author_profile.id}/publications/"
-            self.client.post(
-                url,
-                {
-                    "openalex_ids": work_ids,
-                    "openalex_author_id": self.author_openalex_id,
-                },
-            )
-
     def test_delete_publications(self):
         # Arrange
         self.client.force_authenticate(self.user_with_published_works)
@@ -213,61 +176,43 @@ class UserApiTests(APITestCase):
             Authorship.objects.filter(author=author_profile, paper=paper).exists()
         )
 
-    @patch.object(OpenAlex, "get_works")
-    @patch.object(OpenAlex, "get_authors")
-    def _add_publications_to_author(self, author, mock_get_authors, mock_get_works):
-        with open(fixtures_dir / "openalex_author_works.json") as works_file:
-            # Mock responses for OpenAlex API calls
-            mock_data = json.load(works_file)
-            mock_get_works.return_value = (mock_data["results"], None)
-
-            # Add mock for get_authors
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            self.client.force_authenticate(self.user_with_published_works)
-
-            # Get author work Ids first
-            openalex_api = OpenAlex()
-            author_works, _ = openalex_api.get_works()
-            work_ids = [work["id"] for work in author_works]
-
-            # Add publications to author
-            url = f"/api/author/{author.id}/publications/"
-            self.client.post(
-                url,
-                {
-                    "openalex_ids": work_ids,
-                    "openalex_author_id": self.author_openalex_id,
-                },
-            )
-
-    def test_add_publications_to_should_notify_author_when_done(self):
-        from notification.models import Notification
-
-        self._add_publications_to_author(
-            self.user_with_published_works.author_profile,
-        )
-
-        self.assertEqual(
-            Notification.objects.last().notification_type,
-            Notification.PUBLICATIONS_ADDED,
-        )
-
 
 class UserViewsTests(APITestCase):
-    def test_set_has_seen_first_coin_modal(self):
-        user = create_random_authenticated_user("first_coin_viewser")
-        self.assertFalse(user.has_seen_first_coin_modal)
-
-        url = "/api/user/has_seen_first_coin_modal/"
+    def test_delete_soft_deletes_user_and_author_profile(self):
+        # Arrange
+        user = create_random_authenticated_user("soft_delete_user")
+        author_id = user.author_profile.id
+        url = f"/api/user/{user.id}/"
         self.client.force_authenticate(user)
-        response = self.client.patch(url, {})
-        self.assertContains(
-            response, 'has_seen_first_coin_modal":true', status_code=200
-        )
 
-        user.refresh_from_db()
-        self.assertTrue(user.has_seen_first_coin_modal)
+        # Act
+        response = self.client.delete(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 204)
+        deleted_user = User.all_objects.get(pk=user.pk)
+        deleted_author = Author.all_objects.get(pk=author_id)
+        self.assertFalse(deleted_user.is_active)
+        self.assertTrue(deleted_user.is_removed)
+        self.assertFalse(deleted_user.is_public)
+        self.assertIsNotNone(deleted_user.is_removed_date)
+        self.assertTrue(deleted_author.is_removed)
+        self.assertFalse(deleted_author.is_public)
+        self.assertIsNotNone(deleted_author.is_removed_date)
+        self.assertEqual(deleted_author.user_id, deleted_user.id)
+
+    def test_soft_deleted_user_profile_is_not_retrievable(self):
+        # Arrange
+        user = create_random_authenticated_user("hidden_soft_delete_user")
+        url = f"/api/user/{user.id}/"
+        self.client.force_authenticate(user)
+        self.client.delete(url)
+
+        # Act
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
 
     def test_set_staking_opted_in_preserves_existing_opt_in_date(self):
         user = create_random_authenticated_user("staking_opt_in")

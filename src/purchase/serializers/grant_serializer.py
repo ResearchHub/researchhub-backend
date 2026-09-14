@@ -6,6 +6,7 @@ from rest_framework import serializers
 from ai_peer_review.serializers import ProposalKeyInsightSerializer
 from purchase.models import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicAuthorSerializer, DynamicUserSerializer
 
@@ -29,6 +30,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     is_expired = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
     applications = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+    funding_pool = serializers.SerializerMethodField()
 
     class Meta:
         model = Grant
@@ -50,9 +53,39 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
+    def get_funding_pool(self, grant):
+        """Expose pool holding/distributed/raised on the grant payload."""
+        try:
+            pool = grant.funding_pool
+        except ObjectDoesNotExist:
+            return None
+
+        context = self.context
+        _context_fields = context.get(
+            "pch_dgs_get_funding_pool",
+            {
+                "_include_fields": (
+                    "id",
+                    "amount_holding",
+                    "amount_distributed",
+                    "amount_raised",
+                    "status",
+                )
+            },
+        )
+        serializer = DynamicFundingPoolSerializer(
+            pool, context=context, **_context_fields
+        )
+        return serializer.data
+
     def get_post_id(self, grant):
         posts = grant.unified_document.posts.all()
         return posts[0].id if posts else None
+
+    def get_image_url(self, grant: Grant) -> str | None:
+        """Return the grant's image, which lives on its post rather than the grant."""
+        posts = grant.unified_document.posts.all()
+        return posts[0].get_image_url() if posts else None
 
     def get_amount(self, grant):
         """

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from orcid.tasks import sync_orcid_task
+from user.models import Author
 
 
 class OrcidFetchView(APIView):
@@ -15,8 +16,8 @@ class OrcidFetchView(APIView):
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: Request) -> Response:
-        """Trigger async paper sync from ORCID."""
-        author = getattr(request.user, "author_profile", None)
+        """Trigger asynchronous ORCID data synchronization."""
+        author = Author.objects.filter(user=request.user).first()
         if not author:
             return Response(
                 {"error": "Author profile not found"},
@@ -30,4 +31,4 @@ class OrcidFetchView(APIView):
             )
 
         self.sync_task.delay(author.id)
-        return Response({"message": "Paper sync started"})
+        return Response({"message": "ORCID sync started"})

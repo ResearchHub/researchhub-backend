@@ -198,8 +198,8 @@ def generate_pdf_report(
         buffer.close()
         logger.info("PDF report generated successfully")
         return pdf_bytes
-    except Exception as e:
-        logger.exception("Failed to generate PDF report: %s", e)
+    except Exception:
+        logger.exception("Failed to generate PDF report")
         return b"%PDF-1.4\nError generating PDF report\n%%EOF"
 
 
@@ -236,8 +236,8 @@ def generate_csv_file(experts: list[dict[str, Any]]) -> bytes:
         csv_bytes = csv_content.encode("utf-8")
         logger.info("CSV file generated: %s bytes", len(csv_bytes))
         return csv_bytes
-    except Exception as e:
-        logger.exception("Failed to generate CSV file: %s", e)
+    except Exception:
+        logger.exception("Failed to generate CSV file: %s")
         raise
 
 

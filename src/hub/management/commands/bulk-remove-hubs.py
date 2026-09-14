@@ -13,7 +13,6 @@ from discussion.models import Flag
 from feed.models import FeedEntry
 from hub.models import Hub, HubMembership
 from reputation.related_models.distribution import Distribution
-from reputation.related_models.paper_reward import HubCitationValue
 from reputation.related_models.score import AlgorithmVariables, Score
 from researchhub_document.related_models.featured_content_model import FeaturedContent
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -38,7 +37,6 @@ class Command(BaseCommand):
         "scores",
         "distributions",
         "featured_content",
-        "citation_values",
         "algorithm_vars",
         "actions",
         "feed_entries",
@@ -227,7 +225,7 @@ class Command(BaseCommand):
             help=(
                 "Comma-separated list of steps to run. "
                 "Available: documents, follows, memberships, flags, scores, "
-                "distributions, featured_content, citation_values, algorithm_vars, "
+                "distributions, featured_content, algorithm_vars, "
                 "actions, feed_entries. If not specified, all steps will run."
             ),
         )
@@ -301,7 +299,6 @@ class Command(BaseCommand):
         total_scores_deleted = 0
         total_distributions_deleted = 0
         total_featured_content_deleted = 0
-        total_citation_values_deleted = 0
         total_algorithm_vars_deleted = 0
         total_actions_updated = 0
         total_feed_entries_updated = 0
@@ -385,7 +382,6 @@ class Command(BaseCommand):
                 total_scores_deleted += result["scores"]
                 total_distributions_deleted += result["distributions"]
                 total_featured_content_deleted += result["featured_content"]
-                total_citation_values_deleted += result["citation_values"]
                 total_algorithm_vars_deleted += result["algorithm_vars"]
                 total_actions_updated += result["actions"]
                 total_feed_entries_updated += result["feed_entries"]
@@ -394,7 +390,7 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(
                     self.style.ERROR(
-                        f"\n✗ ERROR removing hub {hub.id} ({hub.slug}): {str(e)}"
+                        f"\n✗ ERROR removing hub {hub.id} ({hub.slug}): {e!s}"
                     )
                 )
                 if not dry_run:
@@ -419,7 +415,6 @@ class Command(BaseCommand):
             total_scores_deleted,
             total_distributions_deleted,
             total_featured_content_deleted,
-            total_citation_values_deleted,
             total_algorithm_vars_deleted,
             total_actions_updated,
             total_feed_entries_updated,
@@ -501,7 +496,7 @@ class Command(BaseCommand):
                 )
             except Exception as e:
                 self.stdout.write(
-                    self.style.ERROR(f"Error reading file {hub_ids_file}: {str(e)}")
+                    self.style.ERROR(f"Error reading file {hub_ids_file}: {e!s}")
                 )
                 return None
 
@@ -614,7 +609,6 @@ class Command(BaseCommand):
         total_scores_deleted,
         total_distributions_deleted,
         total_featured_content_deleted,
-        total_citation_values_deleted,
         total_algorithm_vars_deleted,
         total_actions_updated,
         total_feed_entries_updated,
@@ -677,12 +671,6 @@ class Command(BaseCommand):
             )
             self.stdout.write(
                 self.style.WARNING(
-                    f"DRY RUN: Would delete {total_citation_values_deleted} "
-                    f"hub citation values"
-                )
-            )
-            self.stdout.write(
-                self.style.WARNING(
                     f"DRY RUN: Would delete {total_algorithm_vars_deleted} "
                     f"algorithm variables"
                 )
@@ -735,11 +723,6 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Deleted {total_featured_content_deleted} featured content entries"
-                )
-            )
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Deleted {total_citation_values_deleted} citation values"
                 )
             )
             self.stdout.write(
@@ -798,22 +781,17 @@ class Command(BaseCommand):
         if "featured_content" in self.steps_to_run:
             featured_count = self._delete_featured_content(hub, dry_run)
 
-        # Step 8: Delete hub citation values
-        citation_count = 0
-        if "citation_values" in self.steps_to_run:
-            citation_count = self._delete_citation_values(hub, dry_run)
-
-        # Step 9: Delete algorithm variables
+        # Step 8: Delete algorithm variables
         algo_count = 0
         if "algorithm_vars" in self.steps_to_run:
             algo_count = self._delete_algorithm_vars(hub, dry_run)
 
-        # Step 10: Remove action associations
+        # Step 9: Remove action associations
         action_count = 0
         if "actions" in self.steps_to_run:
             action_count = self._remove_action_associations(hub, dry_run)
 
-        # Step 11: Remove feed entry associations
+        # Step 10: Remove feed entry associations
         feed_count = 0
         if "feed_entries" in self.steps_to_run:
             feed_count = self._remove_feed_entry_associations(hub, dry_run)
@@ -826,7 +804,6 @@ class Command(BaseCommand):
             "scores": score_count,
             "distributions": distribution_count,
             "featured_content": featured_count,
-            "citation_values": citation_count,
             "algorithm_vars": algo_count,
             "actions": action_count,
             "feed_entries": feed_count,
@@ -975,26 +952,6 @@ class Command(BaseCommand):
                 featured_content.delete()
 
         return featured_count
-
-    def _delete_citation_values(self, hub, dry_run):
-        """
-        Delete hub citation values associated with this hub.
-
-        Returns the number of citation value entries deleted.
-        """
-        citation_values = HubCitationValue.objects.filter(hub=hub)
-        citation_count = citation_values.count()
-
-        if citation_count > 0:
-            self.stdout.write(
-                f"  → Deleting {citation_count} hub citation values for hub "
-                f"{hub.id} ({hub.slug})"
-            )
-
-            if not dry_run:
-                citation_values.delete()
-
-        return citation_count
 
     def _delete_algorithm_vars(self, hub, dry_run):
         """

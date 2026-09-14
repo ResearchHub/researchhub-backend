@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, time
 
 from django.db.models import Prefetch
@@ -20,6 +21,7 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
+from research_ai.services.agent import validate_model_ref
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.outreach.invited_experts import (
     EDITOR_SORT_FIELDS,
@@ -28,6 +30,9 @@ from research_ai.services.outreach.invited_experts import (
 from research_ai.services.outreach.outreach_history import (
     ExpertOutreachHistory,
     build_expert_outreach_history_map,
+)
+from research_ai.services.outreach.rfp_email_context import (
+    get_expert_for_search_by_email,
 )
 from research_ai.utils import trimmed_str
 from researchhub_document.related_models.constants.document_type import PAPER
@@ -803,11 +808,42 @@ class InviteRfpApplicantsSerializer(serializers.Serializer):
     )
 
 
+def build_expert_sources_map_for_emails(
+    emails,
+) -> dict[tuple[int, str], list]:
+    """
+    Map ``(expert_search_id, normalized_email)`` → ``Expert.sources`` for the given
+    ``GeneratedEmail`` rows, using ``SearchExpert`` membership in those searches.
+    """
+    search_ids = {
+        email.expert_search_id
+        for email in emails
+        if email.expert_search_id and (email.expert_email or "").strip()
+    }
+    if not search_ids:
+        return {}
+
+    result: dict[tuple[int, str], list] = {}
+    qs = SearchExpert.objects.filter(expert_search_id__in=search_ids).select_related(
+        "expert"
+    )
+    for se in qs:
+        email = ExpertDisplay.normalize_email(getattr(se.expert, "email", "") or "")
+        if not email:
+            continue
+        sources = se.expert.sources
+        result[(se.expert_search_id, email)] = (
+            sources if isinstance(sources, list) else []
+        )
+    return result
+
+
 class GeneratedEmailSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(source="created_date", read_only=True)
     updated_at = serializers.DateTimeField(source="updated_date", read_only=True)
     proposal_invite_url = serializers.SerializerMethodField()
+    sources = serializers.SerializerMethodField()
 
     class Meta:
         model = GeneratedEmail
@@ -823,11 +859,12 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "expert_affiliation",
             "expert_email",
             "expertise",
+            "sources",
             "email_subject",
             "email_body",
             "template",
             "status",
-            "notes",
+            "channels",
             "opened_at",
             "open_count",
             "bounced_at",
@@ -858,9 +895,34 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
 
         return proposal_draft_invite_url(invitation)
 
+    def get_sources(self, obj):
+        email = ExpertDisplay.normalize_email(getattr(obj, "expert_email", "") or "")
+        search_id = getattr(obj, "expert_search_id", None)
+        if not search_id or not email:
+            return []
+
+        by_key = self.context.get("expert_sources_by_key")
+        if by_key is not None:
+            return by_key.get((search_id, email), [])
+
+        expert = get_expert_for_search_by_email(
+            getattr(obj, "expert_search", None),
+            email,
+        )
+        if expert is None:
+            return []
+        sources = expert.sources
+        return sources if isinstance(sources, list) else []
+
 
 class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
     """Create or update GeneratedEmail (e.g. mark sent, edit body)."""
+
+    channels = serializers.ListField(
+        child=serializers.ChoiceField(choices=GeneratedEmail.Channel.choices),
+        required=False,
+        allow_empty=True,
+    )
 
     class Meta:
         model = GeneratedEmail
@@ -875,7 +937,7 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "email_body",
             "template",
             "status",
-            "notes",
+            "channels",
         ]
         extra_kwargs = {
             "expert_search": {"required": False},
@@ -888,8 +950,31 @@ class GeneratedEmailCreateUpdateSerializer(serializers.ModelSerializer):
             "email_body": {"required": False},
             "template": {"required": False},
             "status": {"required": False},
-            "notes": {"required": False},
         }
+
+    def validate_channels(self, value):
+        return list(dict.fromkeys(value))
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        new_status = attrs.get(
+            "status",
+            getattr(self.instance, "status", GeneratedEmail.Status.DRAFT),
+        )
+        channels = attrs.get(
+            "channels",
+            getattr(self.instance, "channels", []) if self.instance else [],
+        )
+        if new_status == GeneratedEmail.Status.SENT and not channels:
+            raise serializers.ValidationError(
+                {
+                    "channels": (
+                        "Required when marking outreach as sent. "
+                        "Use one or more of: email, linkedin, x."
+                    )
+                }
+            )
+        return attrs
 
 
 class EmailTemplateSerializer(serializers.ModelSerializer):
@@ -930,12 +1015,100 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
     email_body = serializers.CharField(required=False, allow_blank=True)
 
 
-class ProposalDraftCreateSerializer(serializers.Serializer):
+class ModelSelectionField(serializers.CharField):
+    """Optional model selection, validated against the selectable catalog.
+
+    Blank/absent normalizes to ``""`` (run the configured default); anything
+    else must name a catalog model and normalizes to its canonical
+    provider-prefixed ref.
     """
-    Request body for enqueueing a proposal-drafting job.
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("max_length", 255)
+        kwargs.setdefault("required", False)
+        kwargs.setdefault("allow_blank", True)
+        kwargs.setdefault("default", "")
+        super().__init__(**kwargs)
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        try:
+            return validate_model_ref(value) or ""
+        except ValueError as error:
+            raise serializers.ValidationError(str(error))
+
+
+class FiniteFloatField(serializers.FloatField):
+    """A float that rejects NaN and infinities before JSON persistence."""
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        if not math.isfinite(value):
+            raise serializers.ValidationError("A finite number is required.")
+        return value
+
+
+class GenerationOptionsSerializer(serializers.Serializer):
+    """Optional model controls shared by agent-generation requests."""
+
+    effort = serializers.ChoiceField(
+        choices=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+        required=False,
+    )
+    thinking = serializers.ChoiceField(
+        choices=("adaptive", "disabled"),
+        required=False,
+    )
+    temperature = FiniteFloatField(
+        min_value=0.0,
+        max_value=2.0,
+        required=False,
+    )
+
+
+class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
+    """
+    Request body for sending a message to the notebook chat assistant.
+
+    The service enforces the configurable ceiling; the max_length here is a
+    request-size backstop matching the config default. ``model`` optionally
+    selects the model for the first turn from the selectable catalog; the
+    conversation keeps that model for all later turns.
+    """
+
+    message = serializers.CharField(max_length=20000)
+    model = ModelSelectionField()
+
+
+class NotebookChatCreateSerializer(serializers.Serializer):
+    """
+    Request body for creating a chat on a note.
+
+    The title is optional: a chat created without one is named from its
+    first message.
+    """
+
+    title = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, default=""
+    )
+
+
+class NotebookChatUpdateSerializer(serializers.Serializer):
+    """
+    Request body for renaming a chat.
+    """
+
+    title = serializers.CharField(max_length=255)
+
+
+class ProposalDraftCreateSerializer(GenerationOptionsSerializer):
+    """
+    Request body for enqueueing a proposal-drafting job. ``model`` optionally
+    selects the generator model for the run from the selectable catalog.
     """
 
     search_expert_id = serializers.IntegerField(min_value=1)
+    model = ModelSelectionField()
 
 
 class ProposalDraftSerializer(serializers.ModelSerializer):
@@ -952,6 +1125,7 @@ class ProposalDraftSerializer(serializers.ModelSerializer):
             "note",
             "status",
             "step",
+            "model_ref",
             "rounds_used",
             "final_scores",
             "gate_report",

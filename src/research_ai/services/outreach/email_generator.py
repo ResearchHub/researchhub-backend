@@ -435,7 +435,6 @@ def create_expert_email_draft(
             email_body=body,
             template=template,
             status="draft",
-            notes=expert.notes or "",
         )
     except Exception:
         if prepared_outreach is not None:

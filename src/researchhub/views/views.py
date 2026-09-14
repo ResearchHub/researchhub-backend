@@ -1,9 +1,9 @@
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 
 
 def index(_):
-    return HttpResponse("Authenticate with a token in the Authorization header.")
+    return JsonResponse({"message": "Welcome to the ResearchHub API"})
 
 
 def robots_txt(_):

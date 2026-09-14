@@ -380,11 +380,6 @@ class OpenAlex:
         works = self._get("works", filters)
         return works
 
-    def get_concepts(self, cursor="*"):
-        filters = {"cursor": cursor}
-        concepts = self._get("concepts", filters=filters)
-        return concepts
-
     def get_author_via_orcid(self, orcid_id):
         orcid_lookup = f"https://orcid.org/{orcid_id}"
         res = self._get(f"authors/{orcid_lookup}")
@@ -404,46 +399,6 @@ class OpenAlex:
     def search_institutions(self, query, page=1):
         filters = {"search": query, "page": page, "per_page": 5}
         return self._get("institutions", filters=filters)
-
-    # Hydrates a list of dehydrated paper concepts with fresh and expanded data from
-    # OpenAlex
-    # https://docs.openalex.org/about-the-data/concept#id
-    def hydrate_paper_concepts(self, paper_concepts):
-        concept_ids = [concept["id"].split("/")[-1] for concept in paper_concepts]
-        filters = {"filter": f"openalex_id:{'|'.join(concept_ids)}"}
-
-        hydrated_concepts = []
-        try:
-            response = self._get("concepts", filters)
-            api_concepts = response["results"]
-            for hydrated_concept in api_concepts:
-                paper_concept = next(
-                    (
-                        concept
-                        for concept in paper_concepts
-                        if concept["id"] == hydrated_concept["id"]
-                    ),
-                    None,
-                )
-
-                if not paper_concept:
-                    continue
-
-                hydrated_concepts.append(
-                    {
-                        "level": paper_concept["level"],
-                        "score": paper_concept["score"],
-                        "openalex_id": hydrated_concept["id"],
-                        "display_name": hydrated_concept["display_name"],
-                        "description": hydrated_concept["description"] or "",
-                        "openalex_created_date": hydrated_concept["created_date"],
-                        "openalex_updated_date": hydrated_concept["updated_date"],
-                    }
-                )
-
-            return hydrated_concepts
-        except Exception:
-            return []
 
     def get_institutions(self, next_cursor="*", page=1, batch_size=100):
         filters = {

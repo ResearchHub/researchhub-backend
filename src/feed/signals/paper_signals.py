@@ -55,9 +55,8 @@ def handle_paper_external_metadata_updated(sender, instance, update_fields, **kw
             f"Scheduled feed metrics update for paper {instance.id} "
             f"after external_metadata change"
         )
-    except Exception as e:
-        logger.error(
-            f"Failed to update feed metrics for paper {instance.id} "
-            f"after external_metadata change: {e}",
-            exc_info=True,
+    except Exception:
+        logger.exception(
+            "Failed to update feed metrics for paper %s after external_metadata change",
+            instance.id,
         )

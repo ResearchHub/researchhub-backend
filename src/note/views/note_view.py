@@ -1,20 +1,27 @@
+import logging
 from datetime import UTC, datetime
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.db.models import Q, QuerySet
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.mixins import (
+    CreateModelMixin,
+    DestroyModelMixin,
+    RetrieveModelMixin,
+    UpdateModelMixin,
+)
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
-from hub.models import Hub
 from invite.models import NoteInvitation
 from invite.serializers import DynamicNoteInvitationSerializer
 from invite.services import NoteInvitationExpiredError, NoteInvitationService
-from note.models import Note, NoteContent
+from note.models import Note, NoteContent, parse_note_json
 from note.serializers import (
     DynamicNoteSerializer,
     NoteContentSerializer,
@@ -44,6 +51,22 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
 from user.models import Organization, User
+from utils.prosemirror import BLOCK_EDITOR, parse_document
+
+logger = logging.getLogger(__name__)
+
+# Draft values a published note no longer owns; its post does. `title` stays out
+# so a published note can still be renamed.
+DRAFT_FIELDS = frozenset(
+    {
+        "author_ids",
+        "grant_settings",
+        "image",
+        "preregistration_settings",
+        "preview_img",
+        "selected_grant",
+    }
+)
 
 
 class NoteViewSet(ModelViewSet):
@@ -60,6 +83,21 @@ class NoteViewSet(ModelViewSet):
                 Q(created_by=user)
                 | Q(organization__permissions__user=user)
                 | Q(unified_document__permissions__user=user)
+            )
+            .select_related(
+                "grant_settings",
+                "post",
+                "preregistration_settings",
+                "preregistration_settings__nonprofit",
+                "selected_grant",
+                "selected_grant__funding_pool",
+                "unified_document",
+            )
+            .prefetch_related(
+                "author_links",
+                "grant_settings__contacts",
+                # The selected grant's image lives on its post.
+                "selected_grant__unified_document__posts",
             )
             .distinct()
             .order_by("-created_date")
@@ -151,47 +189,36 @@ class NoteViewSet(ModelViewSet):
         user = request.user
         data = request.data
         organization_slug = data.get("organization_slug", None)
-        title = data.get("title", "")
         grouping = data.get("grouping", WORKSPACE)
-        document_type = data.get("document_type", None)
 
         if organization_slug:
             organization = Organization.objects.get(slug=organization_slug)
-            created_by = user
             if not (
                 organization.org_has_admin_user(user, content_user=False)
                 or organization.org_has_member_user(user, content_user=False)
             ):
                 return Response({"data": "Invalid permissions"}, status=403)
         else:
-            created_by = user
             organization = user.organization
 
-        unified_doc = self._create_unified_doc(request)
-        self._create_permission(created_by, organization, unified_doc, grouping)
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
 
-        note_kwargs = {
-            "created_by": created_by,
-            "organization": organization,
-            "unified_document": unified_doc,
-            "title": title,
-        }
-        if document_type:
-            note_kwargs["document_type"] = document_type
+        with transaction.atomic():
+            unified_doc = self._create_unified_doc()
+            self._create_permission(user, organization, unified_doc, grouping)
+            note = serializer.save(
+                created_by=user,
+                organization=organization,
+                unified_document=unified_doc,
+            )
 
-        note = Note.objects.create(**note_kwargs)
-        serializer = self.serializer_class(note)
-        data = serializer.data
         note.notify_note_created()
-        return Response(data, status=200)
+        return Response(serializer.data, status=200)
 
-    def _create_unified_doc(self, request):
-        data = request.data
-        hubs = Hub.objects.filter(id__in=data.get("hubs", [])).all()
-        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type=NOTE)
-        unified_doc.hubs.add(*hubs)
-        unified_doc.save()
-        return unified_doc
+    def _create_unified_doc(self) -> ResearchhubUnifiedDocument:
+        """Create the unified document that owns a notebook note."""
+        return ResearchhubUnifiedDocument.objects.create(document_type=NOTE)
 
     def _create_permission(self, creator, organization, unified_document, grouping):
         content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
@@ -250,6 +277,13 @@ class NoteViewSet(ModelViewSet):
         if not (is_admin or is_editor):
             return Response({"data": "Invalid permissions"}, status=403)
 
+        if DRAFT_FIELDS.intersection(request.data) and hasattr(note, "post"):
+            return Response(
+                {"detail": "Published notes cannot change draft details."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        previous_title = note.title
         serializer = self.get_serializer(note, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
@@ -259,7 +293,10 @@ class NoteViewSet(ModelViewSet):
             # forcibly invalidate the prefetch cache on the instance.
             note._prefetched_objects_cache = {}
 
-        note.notify_note_updated_title()
+        # Autosave patches this route continuously; only a real rename is worth
+        # rendering the whole note and broadcasting it to the organization.
+        if note.title != previous_title:
+            note.notify_note_updated_title()
         return Response(serializer.data)
 
     def destroy(self, request, pk=None):
@@ -274,11 +311,7 @@ class NoteViewSet(ModelViewSet):
         recipient_email = data.get("email")
         time_to_expire = int(data.get("expire", 1440))
 
-        recipient = User.objects.filter(email=recipient_email)
-        if recipient.exists():
-            recipient = recipient.first()
-        else:
-            recipient = None
+        recipient = User.objects.filter(email=recipient_email).first()
 
         invite = NoteInvitation.create(
             inviter=inviter,
@@ -522,11 +555,32 @@ class NoteViewSet(ModelViewSet):
         return Response(serializer.data, status=200)
 
 
-class NoteContentViewSet(ModelViewSet):
+class NoteContentViewSet(
+    CreateModelMixin,
+    RetrieveModelMixin,
+    UpdateModelMixin,
+    DestroyModelMixin,
+    GenericViewSet,
+):
+    # No ListModelMixin: the queryset is unscoped and permissions are only
+    # checked per object in get_object, so a list action would expose every note.
     ordering = "-created_date"
     queryset = NoteContent.objects.all()
     permission_classes = [IsAuthenticated, HasEditingPermission]
     serializer_class = NoteContentSerializer
+
+    def get_permissions(self):
+        # Reading one version only requires read access to its note (the
+        # same gate as the note detail); every mutating action keeps the
+        # stricter editing gate.
+        if self.action == "retrieve":
+            return [IsAuthenticated(), HasAccessPermission()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        # Versions of a soft-deleted note read as missing, matching the note
+        # detail queryset and the version socket's admission gate.
+        return super().get_queryset().filter(note__unified_document__is_removed=False)
 
     def get_object(self):
         request_method = self.request.method
@@ -561,6 +615,7 @@ class NoteContentViewSet(ModelViewSet):
         full_json = data.get("full_json", None)
         note_id = data.get("note", None)
         plain_text = data.get("plain_text", None)
+        parent_version_id = data.get("parent_version", None)
         self.kwargs["pk"] = note_id
 
         note = self.get_object()
@@ -570,9 +625,24 @@ class NoteContentViewSet(ModelViewSet):
                 {"detail": "Published registered report content cannot be edited."},
                 status=status.HTTP_409_CONFLICT,
             )
+        parent_version = None
+        if parent_version_id is not None:
+            parent_version = self._get_parent_version(note, parent_version_id)
+            if parent_version is None:
+                return Response(
+                    {"detail": "parent_version is not a version of this note."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         note_content = NoteContent.objects.create(
-            note=note, plain_text=plain_text, json=full_json
+            note=note,
+            plain_text=plain_text,
+            json=full_json,
+            created_by=user,
+            created_via=NoteContent.CREATED_VIA_EDITOR,
+            parent_version=parent_version,
         )
+        if full_json is not None:
+            self._warn_on_schema_mismatch(note_content)
 
         # Only save src if full_json is not provided
         if not full_json and full_src:
@@ -585,6 +655,34 @@ class NoteContentViewSet(ModelViewSet):
         serializer = self.serializer_class(note_content)
         data = serializer.data
         return Response(data, status=200)
+
+    def _warn_on_schema_mismatch(self, version: NoteContent) -> None:
+        """Log stored content the editor schema rejects; never block the save.
+
+        Detection only: rejecting here would turn backend schema lag into
+        failed editor saves. The agent note tools require conforming content,
+        so this is the early tripwire for drift or API misuse.
+        """
+        document = parse_note_json(version.json)
+        try:
+            if document is None:
+                raise ValueError("content is not a JSON object")
+            parse_document(BLOCK_EDITOR, document)
+        except ValueError as exc:
+            logger.warning(
+                "note %s version %s content does not match the editor schema: %s",
+                version.note_id,
+                version.id,
+                exc,
+            )
+
+    def _get_parent_version(self, note, parent_version_id):
+        """The referenced version, or ``None`` when it is not one of ``note``'s."""
+        try:
+            parent_version_id = int(parent_version_id)
+        except (TypeError, ValueError):
+            return None
+        return NoteContent.objects.filter(id=parent_version_id, note=note).first()
 
     def _create_src_content_file(self, note_content, full_src, user):
         file_name = f"NOTE-CONTENT-{note_content.id}--USER-{user.id}.txt"

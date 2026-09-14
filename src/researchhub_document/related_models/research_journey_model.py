@@ -21,23 +21,8 @@ class ResearchJourney(DefaultModel):
         related_name="research_journeys",
         help_text="Preregistration post that started this journey.",
     )
-    is_in_journal = models.BooleanField(
-        default=False,
-        help_text="Whether this journey is included in the journal feed.",
-    )
-    journal_included_date = models.DateTimeField(
-        blank=True,
-        null=True,
-        help_text="When this journey entered the journal feed.",
-    )
 
     class Meta:
-        indexes = [
-            models.Index(
-                fields=["is_in_journal", "-journal_included_date"],
-                name="journey_journal_idx",
-            ),
-        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["preregistration_post"],

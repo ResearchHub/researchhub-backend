@@ -202,10 +202,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def get_user_organizations(self, request, pk=None):
-        if int(pk) == 0:
-            user = request.user
-        else:
-            user = User.objects.get(id=pk)
+        user = request.user if int(pk) == 0 else User.objects.get(id=pk)
 
         organizations = get_user_organizations(user)
 
@@ -283,10 +280,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             return Response({"data": "Invalid access type"}, status=400)
 
         recipient = User.objects.filter(email=recipient_email)
-        if recipient.exists():
-            recipient = recipient.first()
-        else:
-            recipient = None
+        recipient = recipient.first() if recipient.exists() else None
 
         invite = OrganizationInvitation.create(
             inviter=inviter,
@@ -352,16 +346,22 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 unified_document__is_removed=False
             )
 
-        notes = notes.filter(
-            (
-                Q(unified_document__permissions__user=user)
-                & ~Q(unified_document__permissions__access_type=NO_ACCESS)
+        notes = (
+            notes.filter(
+                (
+                    Q(unified_document__permissions__user=user)
+                    & ~Q(unified_document__permissions__access_type=NO_ACCESS)
+                )
+                | (
+                    ~Q(unified_document__permissions__access_type=NO_ACCESS)
+                    & Q(
+                        unified_document__permissions__organization__permissions__user=user
+                    )
+                )
             )
-            | (
-                ~Q(unified_document__permissions__access_type=NO_ACCESS)
-                & Q(unified_document__permissions__organization__permissions__user=user)
-            )
-        ).distinct()
+            .distinct()
+            .order_by("-created_date")
+        )
 
         status = request.query_params.get("status", "").upper()
         if status == "DRAFT":

@@ -33,13 +33,13 @@ class Invitation(DefaultModel):
         )
         return instance
 
-    def accept(self):
+    def accept(self, gatekeeper_email: str | None = None) -> None:
         self.accepted = True
         self.save()
 
-        email = self.recipient_email
+        email = gatekeeper_email or self.recipient_email
         if not Gatekeeper.objects.filter(email=email, type=ELN).exists():
-            Gatekeeper.objects.create(email=self.recipient_email, type=ELN)
+            Gatekeeper.objects.create(email=email, type=ELN)
 
     def is_expired(self):
         return datetime.now(UTC) > self.expiration_date

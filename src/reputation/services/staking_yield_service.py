@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models import Count, Q
 
 from purchase.related_models.balance_model import Balance
-from purchase.related_models.constants.rsc_exchange_currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_staking_yield_distribution
 from reputation.distributor import Distributor
@@ -233,6 +233,29 @@ class StakingYieldService:
         return snapshot.user_snapshots.filter(stake_amount__gt=0).count()
 
     @staticmethod
+    def resolve_usd_rate_for_date(target_date: date) -> Decimal | None:
+        """Return the USD rate in effect on `target_date`, or None if there is none.
+
+        Uses the same source and precedence as `build_history` so that a
+        snapshot is always valued at the rate of its own accrual date,
+        regardless of which endpoint reports it.
+        """
+        record = (
+            RscExchangeRate.objects.filter(
+                price_source=COIN_GECKO,
+                target_currency=USD,
+                created_date__date__lte=target_date,
+            )
+            .order_by("created_date")
+            .values("rate")
+            .last()
+        )
+        if record is None:
+            return None
+
+        return Decimal(str(record["rate"]))
+
+    @staticmethod
     def build_history(start_date: date | None, end_date: date | None) -> list:
         """Return per-snapshot history rows in ascending date order.
 
@@ -260,6 +283,7 @@ class StakingYieldService:
         rate_lookup_end = snapshots[-1].accrual_date
         rates = list(
             RscExchangeRate.objects.filter(
+                price_source=COIN_GECKO,
                 target_currency=USD,
                 created_date__date__lte=rate_lookup_end,
             )

@@ -57,7 +57,7 @@ class Command(BaseCommand):
                 continue
             except Exception as e:
                 self.stdout.write(
-                    self.style.ERROR(f"Error updating paper {paper.id}: {str(e)}")
+                    self.style.ERROR(f"Error updating paper {paper.id}: {e!s}")
                 )
 
         if updated_papers:

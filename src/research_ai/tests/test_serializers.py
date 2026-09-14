@@ -440,6 +440,76 @@ class GeneratedEmailSerializerTests(TestCase):
         ser = GeneratedEmailSerializer(email)
         self.assertEqual(ser.data["expert_name"], "Dr. Foo")
         self.assertEqual(ser.data["expert_email"], "foo@bar.com")
+        self.assertEqual(ser.data["email_body"], "Body")
+        self.assertEqual(ser.data["sources"], [])
+        self.assertEqual(ser.data["channels"], [])
+
+    def test_marking_outreach_sent_requires_at_least_one_channel(self):
+        from research_ai.serializers import GeneratedEmailCreateUpdateSerializer
+
+        # Arrange / Act
+        without_channels = GeneratedEmailCreateUpdateSerializer(
+            data={"status": "sent"},
+        )
+        with_channel = GeneratedEmailCreateUpdateSerializer(
+            data={"status": "sent", "channels": ["x"]},
+        )
+
+        # Assert
+        self.assertFalse(without_channels.is_valid())
+        self.assertIn("channels", without_channels.errors)
+        self.assertTrue(with_channel.is_valid(), with_channel.errors)
+
+    def test_outreach_can_be_marked_sent_via_multiple_channels(self):
+        from research_ai.serializers import GeneratedEmailCreateUpdateSerializer
+
+        # Arrange / Act
+        ser = GeneratedEmailCreateUpdateSerializer(
+            data={
+                "status": "sent",
+                "channels": ["email", "linkedin", "email"],
+            },
+        )
+
+        # Assert: accepts multiple channels and dedupes while preserving order
+        self.assertTrue(ser.is_valid(), ser.errors)
+        self.assertEqual(ser.validated_data["channels"], ["email", "linkedin"])
+
+    def test_rejects_unsupported_outreach_channel(self):
+        from research_ai.serializers import GeneratedEmailCreateUpdateSerializer
+
+        # Arrange / Act
+        ser = GeneratedEmailCreateUpdateSerializer(
+            data={"status": "sent", "channels": ["other"]},
+        )
+
+        # Assert: only email, linkedin, and x are allowed
+        self.assertFalse(ser.is_valid())
+        self.assertIn("channels", ser.errors)
+
+    def test_serialize_includes_sources_from_search_expert(self):
+        sources = [{"text": "Keep", "url": "https://keep.example"}]
+        expert = Expert.objects.create(
+            email="foo@bar.com",
+            first_name="Foo",
+            last_name="Bar",
+            sources=sources,
+        )
+        SearchExpert.objects.create(
+            expert_search=self.search,
+            expert=expert,
+            position=0,
+        )
+        email = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.search,
+            expert_name="Dr. Foo",
+            expert_email="foo@bar.com",
+            email_subject="Hi",
+            email_body="Body",
+        )
+        ser = GeneratedEmailSerializer(email)
+        self.assertEqual(ser.data["sources"], sources)
 
     def test_created_by_payload_has_user_id_and_author_key(self):
         email = GeneratedEmail.objects.create(

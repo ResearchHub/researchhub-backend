@@ -1,19 +1,15 @@
 import datetime
-import json
 import logging
 import math
 from calendar import monthrange
 
-import requests
 from django.apps import apps
 from django.db.models import F
 
-from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution  # this is NOT the model
 from reputation.related_models.distribution import Distribution as DistributionModel
-from researchhub.settings import MORALIS_API_KEY, WEB3_RSC_ADDRESS
 from researchhub_access_group.constants import (
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
@@ -26,17 +22,11 @@ from user.related_models.gatekeeper_model import Gatekeeper
 
 logger = logging.getLogger(__name__)
 
-UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
-UNI_SWAP_GRAPH_URI = "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2"
 # TODO: calvinhlee consider moving these to ENV variable
 ASSISTANT_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 1000
 ASSOCIATE_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 1500
 SENIOR_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 2000
 USD_PER_RSC_PRICE_FLOOR = 0.10
-
-MORALIS_LOOKUP_URI = (
-    f"https://deep-index.moralis.io/api/v2/erc20/{WEB3_RSC_ADDRESS}/price"
-)
 
 
 def editor_daily_payout_task():
@@ -51,17 +41,10 @@ def editor_daily_payout_task():
         User = apps.get_model("user.User")  # noqa: N806
         today = datetime.date.today()
         num_days_this_month = monthrange(today.year, today.month)[1]
-        gecko_result = get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month)
-        try:
-            moralis_result = get_daily_rsc_payout_amount_from_deep_index(
-                num_days_this_month
-            )
-        except Exception as e:
-            # NOTE: moralis is a back up. Backup failing should not hard kill payout
-            # process.
-            logger.warning("Payout with moralis failed: %s", e)
-
-        result = gecko_result or moralis_result
+        result = get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month)
+        if result is None:
+            logger.warning("Skipping editor payouts: no recent CoinGecko rate")
+            return None
 
         excluded_user_email = Gatekeeper.objects.filter(
             type__in=[EDITOR_PAYOUT_ADMIN, PAYOUT_EXCLUSION_LIST]
@@ -136,43 +119,3 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
             / num_days_this_month
         ),
     }
-
-
-def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
-    headers = requests.utils.default_headers()
-    headers["x-api-key"] = MORALIS_API_KEY
-    moralis_request_result = requests.get(
-        MORALIS_LOOKUP_URI, headers=headers, timeout=30
-    )
-
-    real_usd_per_rsc = json.loads(moralis_request_result.text)["usdPrice"]
-    payout_usd_per_rsc = max(USD_PER_RSC_PRICE_FLOOR, real_usd_per_rsc)
-
-    result = {
-        "rate": payout_usd_per_rsc,
-        "real_rate": real_usd_per_rsc,
-        "assistant_pay_amount": (
-            ASSISTANT_EDITOR_USD_PAY_AMOUNT_PER_MONTH
-            * math.pow(payout_usd_per_rsc, -1)
-            / num_days_this_month
-        ),
-        "associate_pay_amount": (
-            ASSOCIATE_EDITOR_USD_PAY_AMOUNT_PER_MONTH
-            * math.pow(payout_usd_per_rsc, -1)
-            / num_days_this_month
-        ),
-        "senior_pay_amount": (
-            SENIOR_EDITOR_USD_PAY_AMOUNT_PER_MONTH
-            * math.pow(payout_usd_per_rsc, -1)
-            / num_days_this_month
-        ),
-    }
-
-    # Keeping record of exchange rate used today
-    RscExchangeRate.objects.create(
-        rate=result["rate"],
-        real_rate=result["real_rate"],
-        target_currency=USD,
-    )
-
-    return result

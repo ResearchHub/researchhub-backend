@@ -43,7 +43,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         qs = self.get_queryset()
         return self.filter_queryset(qs)
 
-    def _get_latest_actions(self, author_id: str = None):
+    def _get_latest_actions(self, author_id: str | None = None):
         comment_ct = ContentType.objects.get_for_model(RhCommentModel)
 
         actions = (
@@ -171,14 +171,6 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                     "document_type",
                     "documents",
-                    "slug",
-                ]
-            },
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "hub_image",
                     "slug",
                 ]
             },

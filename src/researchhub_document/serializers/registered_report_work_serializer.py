@@ -6,9 +6,8 @@ from rest_framework import serializers
 from feed.hot_score_utils import calculate_adjusted_score
 from feed.models import FeedEntry
 from feed.serializers import SimpleAuthorSerializer, SimpleUserSerializer
-from hub.serializers import SimpleHubSerializer
+from note.models import parse_note_json
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.journey_stage import (
     JOURNEY_STAGE_GRANT,
     JOURNEY_STAGE_PROPOSAL,
@@ -17,24 +16,7 @@ from researchhub_document.related_models.constants.journey_stage import (
 from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkPayload,
 )
-from review.models import Review
-
-
-class RegisteredReportProposalReviewSerializer(serializers.ModelSerializer):
-    """Serialize the peer-review data shown beside a registered report."""
-
-    created_by = SimpleUserSerializer(read_only=True)
-
-    class Meta:
-        model = Review
-        fields = [
-            "id",
-            "score",
-            "is_assessed",
-            "created_by",
-            "created_date",
-            "updated_date",
-        ]
+from review.serializers.review_serializer import DynamicReviewSerializer
 
 
 class RegisteredReportWorkSerializer(serializers.Serializer):
@@ -113,7 +95,6 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "doi": post.doi,
             "editor_type": post.editor_type,
             "full_json": self.get_full_json(post),
-            "hubs": SimpleHubSerializer(post.unified_document.hubs, many=True).data,
             "image_url": self.get_image_url(post),
             "is_removed": post.unified_document.is_removed,
             "preview_img": post.preview_img,
@@ -158,23 +139,51 @@ class RegisteredReportWorkSerializer(serializers.Serializer):
             "created_by": self.serialize_created_by(proposal),
             "created_date": proposal.created_date,
             "document_type": proposal.document_type,
-            "hubs": SimpleHubSerializer(
-                proposal.unified_document.hubs,
-                many=True,
-            ).data,
             "image_url": self.get_image_url(proposal),
-            "peer_reviews": RegisteredReportProposalReviewSerializer(
-                proposal.unified_document.reviews.all(),
-                many=True,
-            ).data,
+            "peer_reviews": self.serialize_peer_reviews(proposal),
             "status": proposal.unified_document.status,
             "unified_document_id": proposal.unified_document_id,
             "updated_date": proposal.updated_date,
         }
 
+    def serialize_peer_reviews(self, proposal: ResearchhubPost) -> list[dict[str, Any]]:
+        """Serialize proposal reviews with each reviewer's profile image."""
+        return DynamicReviewSerializer(
+            proposal.unified_document.reviews.all(),
+            many=True,
+            _include_fields=[
+                "id",
+                "score",
+                "is_assessed",
+                "created_by",
+                "created_date",
+                "updated_date",
+            ],
+            context={
+                **self.context,
+                "rev_drs_get_created_by": {
+                    "_include_fields": [
+                        "id",
+                        "author_profile",
+                        "first_name",
+                        "is_verified",
+                        "last_name",
+                    ]
+                },
+                "usr_dus_get_author_profile": {
+                    "_include_fields": [
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "profile_image",
+                    ]
+                },
+            },
+        ).data
+
     def serialize_authors(self, post: ResearchhubPost) -> list[dict[str, Any]]:
         """Serialize registered report authors."""
-        authors = list(post.authors.all())
+        authors = post.ordered_authors
         if not authors and post.created_by is not None:
             authors = [post.created_by.author_profile]
         return SimpleAuthorSerializer(authors, context=self.context, many=True).data

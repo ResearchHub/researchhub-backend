@@ -36,7 +36,6 @@ from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
-from utils.throttles import THROTTLE_CLASSES
 
 NETWORKS = {
     "ETHEREUM": {
@@ -66,7 +65,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         UserNotSpammer,
         AllowWithdrawalIfNotSuspecious,
     ]
-    throttle_classes = THROTTLE_CLASSES
 
     def get_queryset(self):
         user = self.request.user

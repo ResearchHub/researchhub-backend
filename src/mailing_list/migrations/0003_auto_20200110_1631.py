@@ -3,7 +3,6 @@
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
-import mailing_list.models
 
 
 class Migration(migrations.Migration):
@@ -22,6 +21,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='emailrecipient',
             name='thread_subscription',
-            field=mailing_list.models.SubscriptionField(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='email_recipient', to='mailing_list.ThreadSubscription'),
+            field=models.OneToOneField(null=True, on_delete=models.CASCADE, related_name='email_recipient', to='mailing_list.ThreadSubscription'),
         ),
     ]

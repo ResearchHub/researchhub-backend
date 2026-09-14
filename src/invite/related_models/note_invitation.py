@@ -1,7 +1,7 @@
 from django.db import models
 
 from invite.models import Invitation
-from mailing_list.lib import send_email
+from mailing_list.services import EmailService
 from note.models import Note
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
@@ -21,8 +21,7 @@ class NoteInvitation(Invitation):
         email = self.recipient_email
         note = self.note
         invite_type = self.invite_type.lower()
-        template = "note_invite.txt"
-        html_template = "note_invite.html"
+        template = "note_invite"
         subject = "ResearchHub | Note Collaboration"
         email_context = {
             "access_type": invite_type.lower(),
@@ -36,4 +35,4 @@ class NoteInvitation(Invitation):
         else:
             email_context["user_name"] = "User"
 
-        send_email([email], template, subject, email_context, html_template)
+        EmailService().send_email([email], subject, email_context, template=template)

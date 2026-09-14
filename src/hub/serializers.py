@@ -1,12 +1,10 @@
 import logging
 
 from rest_framework.serializers import (
-    IntegerField,
     ModelSerializer,
     SerializerMethodField,
 )
 
-from reputation.models import Contribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 
@@ -28,7 +26,6 @@ class SimpleHubSerializer(ModelSerializer):
             "name",
             "slug",
             "namespace",
-            "is_used_for_rep",
         ]
         read_only_fields = ["editor_permission_groups"]
         model = Hub
@@ -72,7 +69,6 @@ class HubSerializer(ModelSerializer):
             "slug",
             "subscriber_count",
             "namespace",
-            "is_used_for_rep",
         ]
         read_only_fields = ["editor_permission_groups", "category"]
         model = Hub
@@ -96,70 +92,8 @@ class HubSerializer(ModelSerializer):
         ).data
 
 
-class HubContributionSerializer(ModelSerializer):
-    comment_count = IntegerField(read_only=True)
-    latest_comment_date = SerializerMethodField(read_only=True)
-    latest_submission_date = SerializerMethodField(read_only=True)
-    submission_count = IntegerField(read_only=True)
-    support_count = IntegerField(read_only=True)
-    total_contribution_count = IntegerField(read_only=True)
-
-    class Meta:
-        model = Hub
-        fields = [
-            "comment_count",
-            "hub_image",
-            "id",
-            "latest_comment_date",
-            "latest_submission_date",
-            "name",
-            "namespace",
-            "submission_count",
-            "support_count",
-            "total_contribution_count",
-        ]
-        read_only_fields = [
-            "comment_count",
-            "hub_image",
-            "id",
-            "name",
-            "submission_count",
-            "support_count",
-            "total_contribution_count",
-        ]
-
-    def get_latest_comment_date(self, hub):
-        try:
-            return (
-                Contribution.objects.filter(
-                    contribution_type=Contribution.COMMENTER,
-                    unified_document__hubs=hub.id,
-                )
-                .latest("created_date")
-                .created_date
-            )
-        except Exception:
-            logger.exception("Failed to get latest comment date for hub %s", hub.id)
-            return None
-
-    def get_latest_submission_date(self, hub):
-        try:
-            return (
-                Contribution.objects.filter(
-                    contribution_type=Contribution.SUBMITTER,
-                    unified_document__hubs=hub.id,
-                )
-                .latest("created_date")
-                .created_date
-            )
-        except Exception:
-            logger.exception("Failed to get latest submission date for hub %s", hub.id)
-            return None
-
-
 class DynamicHubSerializer(DynamicModelFieldSerializer):
     editor_permission_groups = SerializerMethodField()
-    relevancy_score = SerializerMethodField()
 
     class Meta:
         model = Hub
@@ -175,17 +109,3 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
             context=context,
             many=True,
         ).data
-
-    def get_relevancy_score(self, hub_instance):
-        concept = hub_instance.concept
-
-        if not concept:
-            return 0
-
-        unified_document = self.context.get("unified_document", None)
-        related_concept_membership = concept.through_unified_document.filter(
-            unified_document=unified_document
-        )
-
-        if related_concept_membership.exists():
-            return related_concept_membership.first().relevancy_score

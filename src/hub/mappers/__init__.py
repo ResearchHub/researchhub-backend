@@ -8,6 +8,6 @@ __all__ = [
     "ARXIV_MAPPINGS",
     "BIORXIV_MAPPINGS",
     "CHEMRXIV_MAPPINGS",
-    "ExternalCategoryMapper",
     "MEDRXIV_MAPPINGS",
+    "ExternalCategoryMapper",
 ]

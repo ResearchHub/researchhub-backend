@@ -41,10 +41,15 @@ Judge-facing context compaction lives with the other tool code in
 """
 
 import logging
+from dataclasses import replace
 
-from django.conf import settings
+from django.db import transaction
 
-from research_ai.models import ProposalDraft, SearchExpert
+from research_ai.models import (
+    AgentExecution,
+    ProposalDraft,
+    SearchExpert,
+)
 from research_ai.prompts.proposal_draft_prompts import (
     build_proposal_system_prompt,
     build_proposal_user_prompt,
@@ -52,9 +57,21 @@ from research_ai.prompts.proposal_draft_prompts import (
 from research_ai.services.agent import (
     AgentRunError,
     AgentService,
-    BedrockProvider,
+    BudgetExceededError,
     Tool,
     Toolset,
+    generator_model_ref,
+    resolve_provider,
+    split_model_ref,
+)
+from research_ai.services.agent.model_capabilities import validate_generation_options
+from research_ai.services.agent_persistence import (
+    AgentConversationService,
+    AgentExecutionService,
+    NoteAgentConversationService,
+)
+from research_ai.services.proposal_draft.cancel_service import (
+    ProposalDraftCancelledError,
 )
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
@@ -82,6 +99,7 @@ from research_ai.services.researcher_profile.agent import (
     SCHEMA_VERSION as PROFILE_SCHEMA_VERSION,
 )
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
+from research_ai.services.usage_budget import AgentLoopBudgetRecorder
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -97,23 +115,54 @@ class _ProposalDraftRunner:
         *,
         progress_callback=None,
         provider=None,
+        model_ref: str | None = None,
         panel: ProposalJudgePanel | None = None,
         oa_client: OpenAlex | None = None,
         web_search_client=None,
         config: ProposalDraftConfig | None = None,
+        effort: str | None = None,
+        thinking: str | None = None,
+        temperature: float | None = None,
+        conversation_service: AgentConversationService | None = None,
+        execution_service: AgentExecutionService | None = None,
+        note_conversation_service: NoteAgentConversationService | None = None,
+        heartbeat=None,
     ):
         self.search_expert = search_expert
+        # The task's liveness heartbeat on the draft's budget lease, when run by one.
+        self.heartbeat = heartbeat
         self.expert = search_expert.expert
         self.provider = provider
+        self.model_ref = model_ref
         self.oa_client = oa_client or OpenAlex()
         self.web_search_client = web_search_client
-        self.panel = panel or ProposalJudgePanel()
+        self.effort = effort
+        self.thinking = thinking
+        # The default single-judge roster critiques on the generator model
+        # itself, so a user-selected generator carries its judge along.
+        self.panel = panel or ProposalJudgePanel(generator_model_id=model_ref)
         self.config = config or ProposalDraftConfig.from_settings()
+        if temperature is not None:
+            self.config = replace(self.config, temperature=temperature)
+        self.conversations = (
+            AgentConversationService()
+            if conversation_service is None
+            else conversation_service
+        )
+        self.executions = (
+            AgentExecutionService() if execution_service is None else execution_service
+        )
+        self.note_conversations = (
+            NoteAgentConversationService()
+            if note_conversation_service is None
+            else note_conversation_service
+        )
 
         self.state = ProposalRunState(self.config)
         self.recorder = DraftRecorder(
             draft, self.state, progress_callback=progress_callback
         )
+        self.agent_recorder = None
 
         # Shared across the run: provenance the citation gate grounds against.
         self.provenance: set[str] = set()
@@ -145,25 +194,37 @@ class _ProposalDraftRunner:
     # -- public entry -----------------------------------------------------
 
     def run(self) -> dict:
-        self.recorder.mark_processing(
-            {
-                "generator_model_id": getattr(self.provider, "model_id", None)
-                or getattr(settings, "RESEARCH_AI_GENERATOR_MODEL_ID", None),
-                "judge_roster": list(self.panel.model_ids),
-                "max_rounds": self.config.max_rounds,
-                "panel_threshold": self.config.panel_threshold,
-                "style_threshold": self.config.style_threshold,
-                "max_iterations": self.config.max_iterations,
-            }
-        )
+        # Setup is inside the guard too: ``mark_processing`` is itself a
+        # conditional write that refuses a draft cancelled between the task's
+        # claim and this line, and no run may end still PROCESSING -- including
+        # one that never got started.
         try:
+            run_config = self._run_config()
+            self.recorder.mark_processing(run_config)
+            self._start_agent_recording(run_config)
             return self._run()
+        except InterruptedError as exc:
+            # Not a crash: either a checkpoint saw the draft cancelled
+            # (``ProposalDraftCancelledError``), or this run stopped owning its
+            # execution -- someone cancelled the execution alone, without the
+            # draft. ``_fail`` sorts out which: a cancelled record is reported as
+            # cancelled, and anything else is still a failure.
+            logger.info("proposal draft stopped mid-run: %s", exc)
+            # Finalize the trace before reporting, or an execution created just
+            # as the draft was cancelled is left RUNNING for good: the cancel
+            # already ran and found no execution to stop, and running it again
+            # cannot help, because a draft that is already cancelled is not
+            # cancelled twice. ``on_run_failed`` only writes a RUNNING row, so an
+            # execution the cancel did reach keeps its CANCELLED status.
+            self._record_setup_failure(exc)
+            return self._fail(f"run interrupted: {exc}")
         except Exception as exc:  # noqa: BLE001 - no run may end still PROCESSING
             # The terminal safety net: whatever escapes the run body (a note
             # write after an accepted submit, a DB error, a bug) still lands
             # the record in FAILED with a real message, never a stuck
             # PROCESSING with no explanation.
             logger.exception("proposal draft run crashed")
+            self._record_setup_failure(exc)
             return self._fail(f"unexpected error: {exc}")
 
     def _run(self) -> dict:
@@ -171,9 +232,18 @@ class _ProposalDraftRunner:
         # draft against -- the run could never succeed.
         self.rfp_context = self.context_toolset.get_rfp_context()
         if "error" in self.rfp_context:
-            return self._fail(f"cannot draft: {self.rfp_context['error']}")
+            message = f"cannot draft: {self.rfp_context['error']}"
+            self._record_setup_failure(AgentRunError(message, iterations=0))
+            return self._fail(message)
 
-        self._ensure_profile()
+        self._ensure_not_cancelled()
+        try:
+            self._ensure_profile()
+        except BudgetExceededError as exc:
+            logger.warning("proposal profile build stopped on budget: %s", exc)
+            self.state.record_agent_error(exc)
+            self._record_setup_failure(exc)
+            return self._fail()
 
         system_prompt = build_proposal_system_prompt(
             panel_threshold=self.config.panel_threshold,
@@ -185,6 +255,7 @@ class _ProposalDraftRunner:
         user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
         agent = self._build_agent(system_prompt)
 
+        self._ensure_not_cancelled()
         self.recorder.set_step(ProposalDraft.Step.DRAFTING)
         try:
             result = agent.run(user_prompt)
@@ -195,6 +266,10 @@ class _ProposalDraftRunner:
             logger.warning("proposal draft agent stopped early: %s", exc)
             self.state.record_agent_error(exc)
 
+        # Cancelled between the loop ending and the Note being written: stop
+        # here, or a run someone called off still ships a proposal.
+        self._ensure_not_cancelled()
+
         # A COMPLETED run needs a round that cleared every gate at some point in
         # the loop -- not merely that the last round did (it may have regressed
         # after an earlier accepted peak).
@@ -204,21 +279,137 @@ class _ProposalDraftRunner:
 
     # -- setup ------------------------------------------------------------
 
+    def _run_config(self) -> dict:
+        generator_model_id = getattr(self.provider, "model_id", None)
+        if not generator_model_id and self.provider is not None:
+            generator_model_id = type(self.provider).__name__
+        if not generator_model_id:
+            generator_model_id = self.model_ref or generator_model_ref()
+        return {
+            "generator_model_id": generator_model_id,
+            "judge_roster": list(self.panel.model_ids),
+            "max_rounds": self.config.max_rounds,
+            "panel_threshold": self.config.panel_threshold,
+            "style_threshold": self.config.style_threshold,
+            "max_iterations": self.config.max_iterations,
+            "max_tokens": self.config.max_tokens,
+            "temperature": self.config.temperature,
+            "effort": self.effort,
+            "thinking": self.thinking,
+        }
+
+    def _start_agent_recording(self, run_config: dict) -> None:
+        """Best-effort trace creation; proposal correctness never depends on it."""
+        try:
+            conversation = self.recorder.draft.agent_conversation
+            if conversation is None:
+                conversation = self.conversations.create(
+                    user=self.recorder.draft.created_by,
+                    workflow="proposal_draft",
+                )
+                self.recorder.draft.agent_conversation = conversation
+                self.recorder.draft.save(
+                    update_fields=["agent_conversation", "updated_date"]
+                )
+            retry_of = (
+                conversation.executions.exclude(status=AgentExecution.Status.RUNNING)
+                .order_by("-attempt")
+                .first()
+            )
+            model_ref = str(run_config.get("generator_model_id") or "")
+            provider_name = (
+                type(self.provider).__name__
+                if self.provider is not None
+                else model_ref.partition(":")[0]
+            )
+            self.agent_recorder = self.executions.start(
+                conversation,
+                provider=provider_name,
+                model=model_ref,
+                configuration=run_config,
+                retry_of=retry_of,
+                publish_assistant_message=False,
+            )
+        except Exception:  # noqa: BLE001 - observability cannot break drafting
+            logger.warning("could not initialize proposal agent trace", exc_info=True)
+            self.agent_recorder = None
+
+    def _ensure_not_cancelled(self) -> None:
+        """Stop at a phase boundary if someone cancelled this draft.
+
+        The agent loop has its own, finer check (it stops before each tool
+        call), but that one needs the trace execution, which is best-effort and
+        may not exist. This reads the draft itself, so it works either way --
+        and it covers the phases that are not inside the loop at all, above all
+        the profile build.
+        """
+        if self.recorder.cancelled():
+            raise ProposalDraftCancelledError(
+                f"proposal draft {self.recorder.draft.id} was cancelled"
+            )
+
+    def _record_setup_failure(self, error: Exception) -> None:
+        if self.agent_recorder is None or self.agent_recorder.terminal_observed:
+            return
+        try:
+            self.agent_recorder.on_run_failed(error)
+        except Exception:  # noqa: BLE001 - observability cannot mask the run outcome
+            logger.warning("could not finalize proposal agent trace", exc_info=True)
+
     def _ensure_profile(self) -> None:
         """Build + persist the researcher profile when it is missing/stale."""
         if not _needs_profile(self.expert.profile):
             return
         self.recorder.set_step(ProposalDraft.Step.BUILDING_PROFILE)
         try:
-            build_and_store_expert_profile(
-                self.expert, provider=self.provider, oa_client=self.oa_client
+            provider_options = {
+                key: value
+                for key, value in {
+                    "effort": self.effort,
+                    "thinking": self.thinking,
+                }.items()
+                if value is not None
+            }
+            provider = self.provider or resolve_provider(
+                self.model_ref,
+                **provider_options,
             )
+            build_and_store_expert_profile(
+                self.expert,
+                provider=provider,
+                oa_client=self.oa_client,
+                recorder=self._budget_recorder(
+                    provider,
+                    feature="proposal_draft_profile",
+                ),
+            )
+        except BudgetExceededError:
+            raise
         except Exception:  # noqa: BLE001 - profile build is best-effort
             logger.exception("proposal draft: profile build failed")
 
     def _build_agent(self, system_prompt: str):
-        provider = self.provider or BedrockProvider()
-        toolset = self._compose_toolset()
+        provider_options = {
+            key: value
+            for key, value in {
+                "effort": self.effort,
+                "thinking": self.thinking,
+            }.items()
+            if value is not None
+        }
+        provider = self.provider or resolve_provider(
+            self.model_ref,
+            native_tools=frozenset({"web_search"}),
+            **provider_options,
+        )
+        toolset = self._compose_toolset(provider)
+        if self.agent_recorder is not None:
+            try:
+                self.agent_recorder.set_system_prompt(system_prompt)
+            except Exception:  # noqa: BLE001 - observability cannot break drafting
+                logger.warning(
+                    "could not snapshot proposal system prompt", exc_info=True
+                )
         return AgentService(
             provider=provider, max_iterations=self.config.max_iterations
         ).create_agent(
@@ -226,9 +417,41 @@ class _ProposalDraftRunner:
             system_prompt=system_prompt,
             max_tokens=self.config.max_tokens,
             temperature=self.config.temperature,
+            recorder=self._budget_recorder(
+                provider,
+                feature="proposal_draft_generator",
+                recorder=self.agent_recorder,
+            ),
         )
 
-    def _compose_toolset(self) -> Toolset:
+    def _budget_recorder(self, provider, *, feature: str, recorder=None):
+        """Account only provider calls driven by a modern ``Agent`` loop."""
+        execution = getattr(self.agent_recorder, "execution", None)
+        model_ref = (
+            getattr(execution, "model", "") or self.model_ref or generator_model_ref()
+        )
+        provider_name, model_id = split_model_ref(model_ref)
+        if execution is not None and execution.provider:
+            provider_name = execution.provider
+        model_id = getattr(provider, "model_id", None) or model_id or ""
+        return AgentLoopBudgetRecorder(
+            user=self.recorder.draft.created_by,
+            feature=feature,
+            provider=provider_name,
+            model_id=model_id,
+            recorder=recorder,
+            execution=execution,
+            reservation_targets=(self.recorder.draft,),
+            heartbeat=self.heartbeat,
+        )
+
+    def _compose_toolset(self, provider) -> Toolset:
+        """Compose the toolset for ``provider``, whose native tools it defers to.
+
+        The provider is what decides where web search runs: Claude Platform
+        serves it itself, so the Brave-backed tool is dropped there and kept on
+        Bedrock, which has no server-side search.
+        """
         self._submit_tool = build_submit_tool(self._handle_submit)
         return compose_proposal_toolset(
             openalex_toolset=self.openalex_toolset,
@@ -237,6 +460,7 @@ class _ProposalDraftRunner:
             web_search_toolset=self.web_search_toolset,
             verification_toolset=self.verification_toolset,
             submit_tool=self._submit_tool,
+            native_tool_names=provider.native_tool_names,
         )
 
     def _normalize_submission(self, submitted: dict) -> dict:
@@ -260,6 +484,10 @@ class _ProposalDraftRunner:
     # -- the gate-before-stop handler ------------------------------------
 
     def _handle_submit(self, args: dict) -> dict:
+        # Before the gates, not after: judging is the most expensive thing a
+        # round does, and a cancelled run must not spend a judge panel on a
+        # draft nobody will read.
+        self._ensure_not_cancelled()
         state = self.state
         state.begin_round(self._normalize_submission(args or {}))
         try:
@@ -281,16 +509,19 @@ class _ProposalDraftRunner:
             self._submit_tool.is_terminal = True
             return {"accepted": False, "stopped": "gate_error"}
         state.record_gate_result(accepted, report)
-        if (report.get("panel") or {}).get("unavailable"):
+        panel = report.get("panel") or {}
+        if panel.get("unavailable"):
             # An empty panel is an infrastructure failure, not a verdict --
             # same containment as a crashed gate.
             state.panel_unavailable = True
+            state.panel_error = _panel_error(panel)
             self.recorder.persist_round()
             self._submit_tool.is_terminal = True
-            logger.info(
-                "submit round %d/%d: stopped, judge panel unavailable",
+            logger.warning(
+                "submit round %d/%d: stopped, judge panel unavailable: %s",
                 state.rounds_used,
                 self.config.max_rounds,
+                state.panel_error or "no reason reported",
             )
             return {
                 "accepted": False,
@@ -313,7 +544,6 @@ class _ProposalDraftRunner:
 
         # Round-level trace: how the gate ruled and why the loop will (or won't)
         # keep going -- the counterpart to the per-tool trace in the agent loop.
-        panel = report.get("panel") or {}
         decision = (
             "exhausted"
             if exhausted
@@ -413,13 +643,40 @@ class _ProposalDraftRunner:
     def _complete(self) -> dict:
         self.recorder.set_step(ProposalDraft.Step.WRITING_NOTE)
         submission, _report, _scores = self.state.accepted_outcome()
-        note = write_proposal_note(
-            submission, created_by=self.recorder.draft.created_by
-        )
-        return self.recorder.complete(note)
+        # One transaction so a cancellation landing in here takes the Note with
+        # it: ``complete`` guards on the draft still being PROCESSING and raises
+        # if it is not, which rolls back the note written a moment earlier. Left
+        # separate, a run called off at this instant would still publish.
+        with transaction.atomic():
+            note = write_proposal_note(
+                submission,
+                created_by=self.recorder.draft.created_by,
+                selected_grant=self.context_toolset.get_grant(),
+            )
+            result = self.recorder.complete(note)
+        self._attach_conversation_to_note(note)
+        return result
+
+    def _attach_conversation_to_note(self, note) -> None:
+        conversation = self.recorder.draft.agent_conversation
+        if conversation is None:
+            return
+        try:
+            self.note_conversations.attach(conversation, note)
+        except Exception:  # noqa: BLE001 - observability cannot break drafting
+            logger.warning(
+                "could not attach proposal agent conversation to note",
+                exc_info=True,
+            )
 
     def _fail(self, message: str | None = None) -> dict:
         return self.recorder.fail(message or self.state.failure_message())
+
+
+def _panel_error(panel: dict) -> str | None:
+    """Why the panel reported nothing, joined from its per-judge failures."""
+    errors = (panel.get("rollup") or {}).get("judge_errors") or []
+    return "; ".join(str(error) for error in errors) or None
 
 
 def _needs_profile(profile) -> bool:
@@ -444,9 +701,17 @@ def run_proposal_draft(
     draft_id=None,
     progress_callback=None,
     provider=None,
+    model_ref: str | None = None,
+    effort: str | None = None,
+    thinking: str | None = None,
+    temperature: float | None = None,
     panel: ProposalJudgePanel | None = None,
     oa_client: OpenAlex | None = None,
     web_search_client=None,
+    conversation_service: AgentConversationService | None = None,
+    execution_service: AgentExecutionService | None = None,
+    note_conversation_service: NoteAgentConversationService | None = None,
+    heartbeat=None,
 ) -> dict:
     """Run a headless proposal-drafting job for one ``SearchExpert``.
 
@@ -457,10 +722,27 @@ def run_proposal_draft(
     Returns a result dict carrying the final status, the gate report, and (on success)
     the note id.
 
-    ``provider`` / ``panel`` / ``oa_client`` / ``web_search_client`` are
-    injectable for tests; in production they default to the real Bedrock
-    provider, judge panel, OpenAlex client, and Brave web-search client.
+    ``model_ref`` selects the generator (and, by default, the single-judge
+    panel) as a provider-prefixed model ref -- the user's choice, recorded on
+    the draft; ``None`` runs the settings-configured generator. An injected
+    ``provider`` wins over ``model_ref``.
+
+    Runtime collaborators are injectable for tests; in production they default
+    to the settings-configured generator provider (Claude Platform on AWS unless
+    ``RESEARCH_AI_GENERATOR_PROVIDER`` selects Bedrock or OpenRouter), judge panel,
+    OpenAlex client, Brave web-search client, and database persistence services.
     """
+    if provider is None:
+        selected_model = model_ref or generator_model_ref()
+        provider_name, model_id = split_model_ref(selected_model)
+        validate_generation_options(
+            provider_name,
+            model_id or "",
+            effort=effort,
+            thinking=thinking,
+            temperature=temperature,
+        )
+
     search_expert = SearchExpert.objects.select_related(
         "expert", "expert_search", "expert_search__unified_document"
     ).get(id=search_expert_id)
@@ -471,14 +753,32 @@ def run_proposal_draft(
             search_expert=search_expert,
             status=ProposalDraft.Status.PENDING,
             step=ProposalDraft.Step.QUEUED,
+            model_ref=model_ref or "",
+            run_config={
+                key: value
+                for key, value in {
+                    "effort": effort,
+                    "thinking": thinking,
+                    "temperature": temperature,
+                }.items()
+                if value is not None
+            },
         )
     runner = _ProposalDraftRunner(
         search_expert,
         draft,
         progress_callback=progress_callback,
         provider=provider,
+        model_ref=model_ref,
+        effort=effort,
+        thinking=thinking,
+        temperature=temperature,
         panel=panel,
         oa_client=oa_client,
         web_search_client=web_search_client,
+        conversation_service=conversation_service,
+        execution_service=execution_service,
+        note_conversation_service=note_conversation_service,
+        heartbeat=heartbeat,
     )
     return runner.run()

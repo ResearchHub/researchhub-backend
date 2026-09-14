@@ -12,8 +12,6 @@ AWS_S3_CUSTOM_DOMAIN = os.environ.get(
 
 EMAIL_WHITELIST = os.environ.get("EMAIL_WHITELIST", "no-one@researchhub.com")
 
-GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "NOT_REAL")
-
 HEALTH_CHECK_TOKEN = os.environ.get("HEALTH_CHECK_TOKEN", "")
 
 PERSONA_WEBHOOK_SECRET = os.environ.get("PERSONA_WEBHOOK_SECRET", "")
@@ -21,7 +19,7 @@ PERSONA_WEBHOOK_SECRET = os.environ.get("PERSONA_WEBHOOK_SECRET", "")
 MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", "NOT_REAL")
 MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", "NOT_REAL")
 
-RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", "NOT_REAL")
+TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "NOT_REAL")
 
 
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET", "")
@@ -35,7 +33,6 @@ APM_URL = os.environ.get("APM_URL", "NOT_REAL")
 
 OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "localhost:9200")
 
-MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", "")
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "")
 WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", "")
 WEB3_BASE_RSC_ADDRESS = os.environ.get("WEB3_BASE_RSC_ADDRESS", "")
@@ -48,9 +45,6 @@ WEB3_PROVIDER_URL = os.environ.get("WEB3_PROVIDER_URL", "")
 WEB3_BASE_PROVIDER_URL = os.environ.get("WEB3_BASE_PROVIDER_URL", "")
 CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", "")
 CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
-
-MJML_APP_ID = os.environ.get("MJML_APP_ID", "")
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 

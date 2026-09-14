@@ -2,7 +2,7 @@
 
 from django.test import SimpleTestCase
 
-from research_ai.services.agent.tools import Tool, Toolset
+from research_ai.services.agent.tools import MAX_TOOL_RESULT_BYTES, Tool, Toolset
 
 
 def _build_ok_tool(name, *, is_terminal=False):
@@ -42,6 +42,20 @@ class ToolsetDispatchTests(SimpleTestCase):
         self.assertEqual(result, {"error": "kaboom"})
         self.assertFalse(stop)
 
+    def test_an_interrupted_run_propagates_instead_of_becoming_a_tool_error(self):
+        # Arrange: a handler that stops because the *run* should stop -- it was
+        # cancelled, or its execution was reclaimed -- not because the tool
+        # failed at what it was asked to do.
+        def interrupted(input):
+            raise InterruptedError("this run was cancelled")
+
+        toolset = Toolset([Tool("submit", "submit", {"type": "object"}, interrupted)])
+
+        # Act & Assert: handed back as an error result, the model would answer it
+        # with another attempt against a run nobody is waiting for.
+        with self.assertRaises(InterruptedError):
+            toolset.dispatch("submit", {})
+
     def test_handler_exception_with_empty_message_uses_class_name(self):
         # Arrange: some exceptions str() to "" -- the model must still see a
         # non-empty error.
@@ -55,6 +69,76 @@ class ToolsetDispatchTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(result, {"error": "ValueError"})
+        self.assertFalse(stop)
+
+    def test_non_dict_result_is_rejected_at_the_tool_boundary(self):
+        # Arrange: handlers promise a plain dict.
+        tool = Tool(
+            "broken",
+            "broken",
+            {"type": "object"},
+            lambda _input: ["not", "a", "dict"],
+        )
+        toolset = Toolset([tool])
+
+        # Act
+        result, stop = toolset.dispatch("broken", {})
+
+        # Assert
+        self.assertEqual(
+            result,
+            {"error": "tool 'broken' returned list; expected dict"},
+        )
+        self.assertFalse(stop)
+
+    def test_non_json_dict_is_rejected_at_the_tool_boundary(self):
+        # Arrange
+        tool = Tool(
+            "broken",
+            "broken",
+            {"type": "object"},
+            lambda _input: {"payload": object()},
+        )
+        toolset = Toolset([tool])
+
+        # Act
+        result, stop = toolset.dispatch("broken", {})
+
+        # Assert
+        self.assertEqual(result, {"error": "tool 'broken' returned invalid JSON"})
+        self.assertFalse(stop)
+
+    def test_oversized_result_is_rejected_at_the_tool_boundary(self):
+        # Arrange: a result no context window can afford, and no durable row
+        # can hold, has to be stopped where the model can still react to it.
+        tool = Tool(
+            "flood",
+            "flood",
+            {"type": "object"},
+            lambda _input: {"body": "x" * (MAX_TOOL_RESULT_BYTES + 1)},
+            is_terminal=True,
+        )
+        toolset = Toolset([tool])
+
+        # Act
+        result, stop = toolset.dispatch("flood", {})
+
+        # Assert
+        self.assertIn("over the", result["error"])
+        self.assertFalse(stop)
+
+    def test_result_at_the_size_limit_is_delivered(self):
+        # Arrange: the cap rejects what exceeds it, not what merely approaches
+        # it -- a tool paging right up to the budget still gets through.
+        body = "x" * (MAX_TOOL_RESULT_BYTES - 100)
+        tool = Tool("big", "big", {"type": "object"}, lambda _input: {"body": body})
+        toolset = Toolset([tool])
+
+        # Act
+        result, stop = toolset.dispatch("big", {})
+
+        # Assert
+        self.assertEqual(result, {"body": body})
         self.assertFalse(stop)
 
     def test_terminal_tool_signals_stop(self):

@@ -1,4 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from invite.models import NoteInvitation
 from researchhub_access_group.models import Permission
@@ -27,21 +28,32 @@ class NoteInvitationService:
     Service for handling note invitations.
     """
 
-    def get_active_invite(self, key: str) -> NoteInvitation:
+    def get_active_invite(
+        self, key: str, *, for_update: bool = False
+    ) -> NoteInvitation:
         """
         Get an active note invitation.
 
+        Args:
+            key: The unique key of the invitation.
+            for_update: Whether to lock the invitation until the current transaction
+                completes.
         Raises:
             NoteInvitationExpiredError: If the invitation has expired
                 or has already been accepted.
         """
-        invite = NoteInvitation.objects.get(key=key)
+        invitations = NoteInvitation.objects
+        if for_update:
+            invitations = invitations.select_for_update()
+
+        invite = invitations.get(key=key)
 
         if invite.is_expired() or invite.accepted:
             raise NoteInvitationExpiredError
 
         return invite
 
+    @transaction.atomic
     def accept_invite(self, key: str, user) -> NoteInvitation:
         """
         Accept a note invitation.
@@ -57,7 +69,7 @@ class NoteInvitationService:
             NoteInvitationRecipientMismatchError: If the invitation recipient doesn't
                 match the user.
         """
-        invite = self.get_active_invite(key)
+        invite = self.get_active_invite(key, for_update=True)
 
         if invite.recipient and user != invite.recipient:
             raise NoteInvitationRecipientMismatchError
@@ -79,31 +91,16 @@ class NoteInvitationService:
                 user=user,
             )
 
-        invite.accept()
+        invite.accept(gatekeeper_email=user.email)
 
         return invite
 
     def _claim_recipientless_invite(self, invite: NoteInvitation, user) -> None:
         """
-        Claim a recipientless invite for a user if the user's email matches the invite's
-        email.
+        Claim a recipientless invite for an authenticated user.
 
         Args:
             invite: The note invitation to claim.
             user: The user claiming the invitation.
-        Raises:
-            NoteInvitationRecipientMismatchError: If the user's email doesn't match the
-                invite's email.
         """
-        user_email = (getattr(user, "email", "") or "").strip().lower()
-        invite_email = (invite.recipient_email or "").strip().lower()
-
-        if (
-            not getattr(user, "is_authenticated", False)
-            or not user_email
-            or not invite_email
-            or user_email != invite_email
-        ):
-            raise NoteInvitationRecipientMismatchError
-
         invite.recipient = user

@@ -5,9 +5,9 @@ from analytics.tests.test_event_processor import EventProcessorTestCase
 from analytics.tests.test_upvote_mapper import UpvoteInteractionMapperTests
 
 __all__ = [
+    "AmplitudeEventParserTests",
+    "AmplitudeTests",
     "AmplitudeWebhookTestCase",
     "EventProcessorTestCase",
-    "AmplitudeTests",
     "UpvoteInteractionMapperTests",
-    "AmplitudeEventParserTests",
 ]

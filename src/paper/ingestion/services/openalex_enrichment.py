@@ -204,10 +204,7 @@ class PaperOpenAlexEnrichmentService:
             )
 
         except Exception as e:
-            logger.error(
-                f"Error enriching paper {paper.id} (DOI: {paper.doi}): {str(e)}",
-                exc_info=True,
-            )
+            logger.exception("Error enriching paper %s (DOI: %s)", paper.id, paper.doi)
             return EnrichmentResult(status="error", reason=str(e))
 
     def process_authors(self, paper: Paper, openalex_data: dict) -> tuple[int, int]:
@@ -248,11 +245,8 @@ class PaperOpenAlexEnrichmentService:
                 else:
                     authors_updated += 1
 
-            except Exception as e:
-                logger.error(
-                    f"Error processing author for paper {paper.id}: {str(e)}",
-                    exc_info=True,
-                )
+            except Exception:
+                logger.exception("Error processing author for paper %s", paper.id)
 
         return authors_created, authors_updated
 
@@ -302,11 +296,8 @@ class PaperOpenAlexEnrichmentService:
                 else:
                     institutions_updated += 1
 
-            except Exception as e:
-                logger.error(
-                    f"Error processing institution for paper {paper.id}: {str(e)}",
-                    exc_info=True,
-                )
+            except Exception:
+                logger.exception("Error processing institution for paper %s", paper.id)
 
         return institutions_created, institutions_updated
 
@@ -376,11 +367,8 @@ class PaperOpenAlexEnrichmentService:
 
                 authorships_created += 1
 
-            except Exception as e:
-                logger.error(
-                    f"Error processing authorship for paper {paper.id}: {str(e)}",
-                    exc_info=True,
-                )
+            except Exception:
+                logger.exception("Error processing authorship for paper %s", paper.id)
 
         return authorships_created
 
@@ -409,11 +397,8 @@ class PaperOpenAlexEnrichmentService:
 
                 paper.unified_document.hubs.add(hub)
 
-            except Exception as e:
-                logger.error(
-                    f"Error processing hub for paper {paper.id}: {str(e)}",
-                    exc_info=True,
-                )
+            except Exception:
+                logger.exception("Error processing hub for paper %s", paper.id)
 
         return hubs_created
 
@@ -460,12 +445,9 @@ class PaperOpenAlexEnrichmentService:
             except Paper.DoesNotExist:
                 error_count += 1
                 logger.error(f"Paper {paper_id} not found during enrichment")
-            except Exception as e:
+            except Exception:
                 error_count += 1
-                logger.error(
-                    f"Unexpected error processing paper {paper_id}: {str(e)}",
-                    exc_info=True,
-                )
+                logger.exception("Unexpected error processing paper %s", paper_id)
 
         return BatchEnrichmentResult(
             total=total,

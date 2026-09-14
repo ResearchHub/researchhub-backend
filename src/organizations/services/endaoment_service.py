@@ -110,9 +110,8 @@ class EndaomentService:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            logger.error(
-                "Error searching nonprofit organizations: %s",
-                str(e),
+            logger.exception(
+                "Error searching nonprofit organizations",
                 extra={
                     "params": params,
                     "status_code": (
@@ -121,7 +120,6 @@ class EndaomentService:
                         else 500
                     ),
                 },
-                exc_info=True,
             )
             return {
                 "error": str(e),

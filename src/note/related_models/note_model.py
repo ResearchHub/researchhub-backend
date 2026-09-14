@@ -1,14 +1,22 @@
+import json
+
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from django.db import models
+from django.db import models, transaction
 
+from note.related_models.note_author_model import NoteAuthor
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import DOCUMENT_TYPES
-from user.models import Organization, User
+from user.models import Author, Organization, User
 from utils.models import DefaultModel
 
 
 class Note(DefaultModel):
+    authors = models.ManyToManyField(
+        Author,
+        related_name="authored_notes",
+        through="NoteAuthor",
+    )
     created_by = models.ForeignKey(
         User, null=True, related_name="created_notes", on_delete=models.SET_NULL
     )
@@ -18,11 +26,26 @@ class Note(DefaultModel):
         null=True,
         blank=True,
     )
+    image = models.TextField(
+        blank=True,
+    )
     latest_version = models.ForeignKey(
         "note.NoteContent", null=True, related_name="source", on_delete=models.CASCADE
     )
     organization = models.ForeignKey(
         Organization, null=True, related_name="created_notes", on_delete=models.SET_NULL
+    )
+    preview_img = models.URLField(
+        blank=True,
+        max_length=2048,
+        null=True,
+    )
+    selected_grant = models.ForeignKey(
+        "purchase.Grant",
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="draft_notes",
     )
     title = models.TextField(blank=True, default="")
     unified_document = models.OneToOneField(
@@ -31,6 +54,30 @@ class Note(DefaultModel):
 
     def __str__(self):
         return f"Id: {self.id}, Title: {self.title}"
+
+    @property
+    def ordered_authors(self) -> list[Author]:
+        """Return credited authors in byline order, excluding removed ones."""
+        return [
+            link.author
+            for link in self.author_links.all()
+            if not link.author.is_removed
+        ]
+
+    def reset_note_authors(self, author_ids: list[int]) -> None:
+        """Credit the given authors in the order received, dropping any others."""
+        unique_author_ids = list(dict.fromkeys(author_ids))
+        with transaction.atomic():
+            self.author_links.exclude(author_id__in=unique_author_ids).delete()
+            NoteAuthor.objects.bulk_create(
+                [
+                    NoteAuthor(note=self, author_id=author_id, position=position)
+                    for position, author_id in enumerate(unique_author_ids, start=1)
+                ],
+                update_conflicts=True,
+                unique_fields=["note", "author"],
+                update_fields=["position"],
+            )
 
     @property
     def permissions(self):
@@ -113,9 +160,56 @@ class Note(DefaultModel):
         )
 
 
+def parse_note_json(value: object) -> dict[str, object] | None:
+    """Parse a ``NoteContent.json``-style value (dict or JSON-encoded string)."""
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
 class NoteContent(models.Model):
+    # created_via values; null means unknown (legacy rows).
+    CREATED_VIA_EDITOR = "editor"
+    CREATED_VIA_AGENT = "agent"
+    CREATED_VIA_SYSTEM = "system"
+    CREATED_VIA_CHOICES = [
+        (CREATED_VIA_EDITOR, CREATED_VIA_EDITOR),
+        (CREATED_VIA_AGENT, CREATED_VIA_AGENT),
+        (CREATED_VIA_SYSTEM, CREATED_VIA_SYSTEM),
+    ]
+
     created_date = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        related_name="created_note_versions",
+        on_delete=models.SET_NULL,
+    )
+    created_via = models.CharField(
+        max_length=16,
+        null=True,
+        blank=True,
+        choices=CREATED_VIA_CHOICES,
+    )
     note = models.ForeignKey(Note, related_name="notes", on_delete=models.CASCADE)
+    # The version this one was derived from (advisory; null for legacy rows
+    # and writers that do not track a base).
+    parent_version = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        related_name="derived_versions",
+        on_delete=models.SET_NULL,
+    )
     plain_text = models.TextField(null=True)
     src = models.FileField(
         max_length=512,

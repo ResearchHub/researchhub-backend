@@ -1,0 +1,227 @@
+name: Deployment
+run-name: Deploy to ${{ github.event.inputs.deploy_env || 'staging' }} (${{ github.event.inputs.git_ref || 'main' }})
+
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    branches: [main]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      deploy_env:
+        description: "Select the target environment"
+        required: false
+        default: staging
+        type: choice
+        options:
+          - staging
+          - prod
+      git_ref:
+        description: "Enter Git hash or branch"
+        required: false
+        default: main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env || 'staging' }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
+  PROD_DEPLOY_ROLE_ARN: ${{ vars.PROD_DEPLOY_ROLE_ARN }}
+  DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success'
+      )
+    outputs:
+      short_git_sha: ${{ steps.git_sha.outputs.short_git_sha }}
+
+    steps:
+      - name: Workflow details
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Git reference: ${{ github.event.inputs.git_ref || github.ref }}"
+          echo "Environment: ${{ env.DEPLOY_ENV }}"
+
+      - name: Checkout application repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.git_ref }}
+
+      - name: Get Git SHA
+        id: git_sha
+        run: |
+          GIT_SHA=$(git rev-parse HEAD)
+          echo "$GIT_SHA" > src/git_hash.txt
+          SHORT_GIT_SHA=${GIT_SHA:0:7}
+          echo "short_git_sha=$SHORT_GIT_SHA" >> "$GITHUB_OUTPUT"
+          echo "Git SHA: ${SHORT_GIT_SHA}"
+
+      - name: Checkout deploy repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: "researchhub/researchhub-internal-utils"
+          ref: main
+          path: researchhub-internal-utils
+          token: ${{ secrets.PAT }}
+
+      - name: Copy Beanstalk configuration files
+        run: |
+          cp -r researchhub-internal-utils/deploy/backend/config/.ebextensions \
+            researchhub-internal-utils/deploy/backend/config/.platform \
+            researchhub-internal-utils/deploy/backend/config/Procfile \
+            src
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Generate requirements.txt from uv.lock
+        run: |
+          uv export --frozen --no-dev > src/requirements.txt
+
+      - name: Collect static files
+        working-directory: ./src
+        run: |
+          uv run --frozen --no-dev python manage.py collectstatic --noinput
+
+      - name: Generate Beanstalk deployment package
+        run: |
+          mkdir -p target
+          cd src
+          zip -r ../target/deploy.zip . -x '*.git*'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: "backend-${{ steps.git_sha.outputs.short_git_sha }}"
+          path: target/deploy.zip
+
+  deploy-api:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write # required for requesting JWT token from AWS
+    env:
+      SHORT_GIT_SHA: ${{ needs.build.outputs.short_git_sha }}
+
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: "backend-${{ env.SHORT_GIT_SHA }}"
+          path: target
+
+      - name: Get deploy role ARN
+        id: get-role-arn
+        run: |
+          role_arn_name=${DEPLOY_ENV^^}_DEPLOY_ROLE_ARN
+          role_arn=$(eval echo \$$role_arn_name)
+          echo "role_arn=$role_arn" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Assume role
+        id: aws_credentials
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ steps.get-role-arn.outputs.role_arn }}
+          role-session-name: github-actions-beanstalk-session
+          role-chaining: true
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+          aws-region: ${{ env.AWS_REGION }}
+          retry-max-attempts: 3
+          output-credentials: true
+
+      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - API
+        uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+          aws_session_token: ${{ steps.aws_credentials.outputs.aws-session-token }}
+          application_name: backend
+          environment_name: ${{ env.DEPLOY_ENV }}-backend-api
+          version_label: ${{ env.SHORT_GIT_SHA }}
+          use_existing_version_if_available: true
+          region: ${{ env.AWS_REGION }}
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 300
+
+  deploy-workers:
+    needs: [build, deploy-api]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      id-token: write # required for requesting JWT token from AWS
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [main, cermine, lite]
+    env:
+      SHORT_GIT_SHA: ${{ needs.build.outputs.short_git_sha }}
+
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: "backend-${{ env.SHORT_GIT_SHA }}"
+          path: target
+
+      - name: Get deploy role ARN
+        id: get-role-arn
+        run: |
+          role_arn_name=${DEPLOY_ENV^^}_DEPLOY_ROLE_ARN
+          role_arn=$(eval echo \$$role_arn_name)
+          echo "role_arn=$role_arn" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Assume role
+        id: aws_credentials
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ steps.get-role-arn.outputs.role_arn }}
+          role-session-name: github-actions-beanstalk-session
+          role-chaining: true
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+          aws-region: ${{ env.AWS_REGION }}
+          retry-max-attempts: 3
+          output-credentials: true
+
+      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - ${{ matrix.worker }} Worker
+        uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+          aws_session_token: ${{ steps.aws_credentials.outputs.aws-session-token }}
+          application_name: backend
+          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-${{ matrix.worker }}
+          version_label: ${{ env.SHORT_GIT_SHA }}
+          use_existing_version_if_available: true
+          region: ${{ env.AWS_REGION }}
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 300

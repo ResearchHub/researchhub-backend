@@ -51,7 +51,13 @@ class ProposalDraftConfig:
     # bar buys nothing.
     plateau_patience: int = 3
 
-    max_tokens: int = 16384
+    # One turn's total output budget. It covers reasoning as well as the
+    # answer on models that think (thinking is on by default from Opus 5), and
+    # a submit turn already carries a whole proposal, so the ceiling is sized
+    # for both -- a turn cut off mid-submission fails the run outright.
+    max_tokens: int = 32768
+    # Only forwarded to models that still accept sampling params and only when
+    # thinking is off; the current Opus/Sonnet generations reject it outright.
     temperature: float = 1.0
 
     # Length bounds on the readable proposal (words). Wide on purpose: the gate

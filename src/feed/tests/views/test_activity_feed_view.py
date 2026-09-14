@@ -1,22 +1,33 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
+from discussion.models import Vote
 from feed.models import FeedEntry
-from purchase.models import Fundraise
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
+from paper.models import Paper
+from purchase.models import FundingPool, Fundraise
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.purchase_model import Purchase
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
 )
 from researchhub_comment.constants.rh_comment_thread_types import (
+    AUTHOR_UPDATE,
     COMMUNITY_REVIEW,
     GENERIC_COMMENT,
     PEER_REVIEW,
@@ -27,17 +38,21 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 )
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
+    PAPER,
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
+from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import AWSMockTestCase, create_test_user
 
 User = get_user_model()
 ACTIVITY_LIST_URL = reverse("activity_feed-list")
+USER_ACTIVITY_URL = reverse("activity_feed-user-activity")
 
 
 def _make_feed_entry(
@@ -60,13 +75,50 @@ def _make_feed_entry(
     )
 
 
+def _create_post_and_entry(
+    user: User,
+    document_type: str,
+    title: str,
+    **document_kwargs: object,
+) -> tuple[ResearchhubUnifiedDocument, ResearchhubPost, FeedEntry]:
+    """Create a post, its unified document, and a matching feed entry."""
+    document = ResearchhubUnifiedDocument.objects.create(
+        document_type=document_type, **document_kwargs
+    )
+    post = ResearchhubPost.objects.create(
+        title=title,
+        created_by=user,
+        document_type=document_type,
+        unified_document=document,
+    )
+    entry = _make_feed_entry(ResearchhubPost, post.id, document, user=user)
+    return document, post, entry
+
+
+def _create_grant(
+    user: User,
+    document: ResearchhubUnifiedDocument,
+    status: str = Grant.OPEN,
+) -> Grant:
+    """Create a grant on the given unified document."""
+    return Grant.objects.create(
+        created_by=user,
+        unified_document=document,
+        amount=1000,
+        currency="USD",
+        status=status,
+    )
+
+
 class ActivityFeedBaseTests(AWSMockTestCase):
     """Shared setUp for activity feed tests."""
 
     def setUp(self):
         super().setUp()
+        cache.clear()
         self.user = create_test_user("activity_user")
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
         self.prereg_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION,
@@ -116,6 +168,248 @@ class ActivityFeedBaseTests(AWSMockTestCase):
             self.discussion_doc,
             user=self.user,
         )
+
+
+class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
+    """Test related_work field on activity feed responses."""
+
+    def setUp(self):
+        super().setUp()
+
+        RscExchangeRate.objects.create(
+            price_source=COIN_GECKO,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
+
+        self.grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.grant_doc,
+            amount=10000,
+            currency="USD",
+            status=Grant.OPEN,
+            organization="Test Org",
+        )
+        self.funding_pool = FundingPool.objects.create(
+            grant=self.grant,
+            created_by=self.user,
+            amount_holding=Decimal("100.00"),
+            amount_distributed=Decimal("25.00"),
+            status=FundingPool.OPEN,
+        )
+        self.fundraise = Fundraise.objects.create(
+            unified_document=self.prereg_doc,
+            created_by=self.user,
+            goal_amount=Decimal("5000.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+
+        self.grant_comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=10001,
+            unified_document=self.grant_doc,
+            user=self.user,
+        )
+        self.prereg_comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=10002,
+            unified_document=self.prereg_doc,
+            user=self.user,
+        )
+
+    def _get_entry(self, entry_id):
+        resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        for entry in resp.data["results"]:
+            if entry["id"] == entry_id:
+                return entry
+        self.fail(f"Feed entry {entry_id} not found in response")
+
+    def test_related_work_on_grant_comment(self):
+        # Act
+        entry = self._get_entry(self.grant_comment_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertIsNotNone(related_work)
+        self.assertEqual(related_work["document_type"], "GRANT")
+        self.assertEqual(related_work["title"], "Grant Post")
+        self.assertEqual(related_work["unified_document_id"], self.grant_doc.id)
+        self.assertIn("grant", related_work)
+        self.assertEqual(related_work["grant"]["status"], Grant.OPEN)
+        self.assertEqual(related_work["grant"]["organization"], "Test Org")
+        self.assertIn("amount", related_work["grant"])
+        self.assertEqual(related_work["grant"]["amount"]["usd"], 10000.0)
+        self.assertIn("application_count", related_work["grant"])
+        self.assertIn("funding_pool", related_work["grant"])
+        funding_pool = related_work["grant"]["funding_pool"]
+        self.assertEqual(funding_pool["id"], self.funding_pool.id)
+        self.assertEqual(funding_pool["status"], FundingPool.OPEN)
+        self.assertEqual(float(funding_pool["amount_holding"]["rsc"]), 100.0)
+        self.assertEqual(float(funding_pool["amount_distributed"]["rsc"]), 25.0)
+        self.assertEqual(float(funding_pool["amount_raised"]["rsc"]), 125.0)
+        self.assertEqual(funding_pool["amount_holding"]["usd"], 300.0)
+
+    def test_related_work_on_prereg_comment(self):
+        # Act
+        entry = self._get_entry(self.prereg_comment_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertIsNotNone(related_work)
+        self.assertEqual(related_work["document_type"], "PREREGISTRATION")
+        self.assertEqual(related_work["title"], "Prereg Post")
+        self.assertIn("fundraise", related_work)
+        self.assertEqual(related_work["fundraise"]["status"], Fundraise.OPEN)
+        self.assertIn("goal_amount", related_work["fundraise"])
+        self.assertIn("amount_raised", related_work["fundraise"])
+        self.assertIn("start_date", related_work["fundraise"])
+        self.assertIn("end_date", related_work["fundraise"])
+
+    def test_related_work_includes_document_metrics(self):
+        # Arrange
+        self.prereg_post.score = 12
+        self.prereg_post.save(update_fields=["score"])
+
+        # Act
+        entry = self._get_entry(self.prereg_comment_entry.id)
+
+        # Assert
+        related_metrics = entry["related_work"]["metrics"]
+        self.assertEqual(related_metrics["votes"], 12)
+        self.assertEqual(related_metrics["adjusted_score"], 12)
+        # Entry metrics mirror related-work for the activity card vote UI.
+        self.assertEqual(entry["metrics"]["votes"], 12)
+        self.assertEqual(entry["metrics"]["adjusted_score"], 12)
+
+    def test_user_vote_attached_to_related_work_not_comment(self):
+        # Arrange — vote is on the prereg post (card target), not the comment.
+        Vote.objects.create(
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.prereg_post.id,
+            vote_type=Vote.UPVOTE,
+        )
+
+        # Act
+        entry = self._get_entry(self.prereg_comment_entry.id)
+
+        # Assert
+        self.assertEqual(entry["related_work"]["id"], self.prereg_post.id)
+        self.assertEqual(entry["related_work"]["user_vote"]["vote_type"], Vote.UPVOTE)
+        self.assertEqual(entry["user_vote"]["vote_type"], Vote.UPVOTE)
+
+    def test_related_work_on_grant_post(self):
+        # Act
+        entry = self._get_entry(self.grant_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertIsNotNone(related_work)
+        self.assertEqual(related_work["document_type"], "GRANT")
+        self.assertEqual(related_work["title"], "Grant Post")
+        self.assertEqual(related_work["id"], self.grant_post.id)
+        self.assertIn("grant", related_work)
+
+    def test_preregistration_activity_includes_receiving_nonprofit(self):
+        # Arrange
+        nonprofit = NonprofitOrg.objects.create(
+            name="Research Foundation",
+            ein="12-3456789",
+            endaoment_org_id="endaoment-123",
+            base_wallet_address="0x123",
+        )
+        NonprofitFundraiseLink.objects.create(
+            fundraise=self.fundraise,
+            nonprofit=nonprofit,
+        )
+
+        # Act
+        publish_entry = self._get_entry(self.prereg_entry.id)
+        comment_entry = self._get_entry(self.prereg_comment_entry.id)
+
+        # Assert
+        expected = {
+            "id": nonprofit.id,
+            "name": nonprofit.name,
+            "ein": nonprofit.ein,
+            "endaoment_org_id": nonprofit.endaoment_org_id,
+            "base_wallet_address": nonprofit.base_wallet_address,
+        }
+        self.assertEqual(publish_entry["nonprofit"], expected)
+        self.assertEqual(comment_entry["nonprofit"], expected)
+
+    def test_activity_without_receiving_nonprofit_returns_null(self):
+        # Act
+        entry = self._get_entry(self.grant_entry.id)
+
+        # Assert
+        self.assertIsNone(entry["nonprofit"])
+
+    def test_related_work_includes_post_authors(self):
+        # Arrange
+        self.grant_post.authors.add(self.user.author_profile)
+
+        # Act
+        entry = self._get_entry(self.grant_comment_entry.id)
+
+        # Assert
+        authors = entry["related_work"]["authors"]
+        self.assertEqual(len(authors), 1)
+        self.assertEqual(authors[0]["id"], self.user.author_profile.id)
+
+
+class ActivityFeedRelatedWorkPrefetchTests(ActivityFeedRelatedWorkTests):
+    """Ensure related_work serialization avoids N+1 queries."""
+
+    def setUp(self):
+        super().setUp()
+        # Arrange: multiple entries on the same unified documents
+        self.shared_grant_comment_2 = _make_feed_entry(
+            RhCommentModel,
+            object_id=10003,
+            unified_document=self.grant_doc,
+            user=self.user,
+        )
+        self.shared_grant_comment_3 = _make_feed_entry(
+            RhCommentModel,
+            object_id=10004,
+            unified_document=self.grant_doc,
+            user=self.user,
+        )
+        self.shared_prereg_comment_2 = _make_feed_entry(
+            RhCommentModel,
+            object_id=10005,
+            unified_document=self.prereg_doc,
+            user=self.user,
+        )
+
+    def _activity_feed_query_count(self):
+        with CaptureQueriesContext(connection) as context:
+            resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        return len(context.captured_queries)
+
+    def test_related_work_prefetch_does_not_scale_with_shared_documents(self):
+        # Arrange
+        baseline_query_count = self._activity_feed_query_count()
+
+        for object_id in (10006, 10007, 10008):
+            _make_feed_entry(
+                RhCommentModel,
+                object_id=object_id,
+                unified_document=self.grant_doc,
+                user=self.user,
+            )
+
+        # Act
+        expanded_query_count = self._activity_feed_query_count()
+
+        # Assert: extra rows on the same unified document should not re-fetch
+        # related_work relations (only generic FK lookups for new content rows).
+        self.assertLessEqual(expanded_query_count - baseline_query_count, 4)
 
 
 class ActivityFeedListTests(ActivityFeedBaseTests):
@@ -227,6 +521,7 @@ class ActivityFeedGrantFilterTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
         # Grant document + post + Grant object
         self.grant_doc = ResearchhubUnifiedDocument.objects.create(
@@ -360,7 +655,7 @@ class ActivityFeedGrantFilterTests(AWSMockTestCase):
 
 
 class ActivityFeedContentTypeFilterTests(ActivityFeedBaseTests):
-    """Test ?content_type= filtering."""
+    """Test ?content_type= and ?comment_type= filtering."""
 
     def setUp(self):
         super().setUp()
@@ -403,6 +698,29 @@ class ActivityFeedContentTypeFilterTests(ActivityFeedBaseTests):
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(len(resp.data["results"]), 0)
+
+    def test_filters_by_comment_type(self):
+        """The activity feed narrows to the requested comment types."""
+        # Arrange
+        _, author_update_entry = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, AUTHOR_UPDATE
+        )
+        _, review_entry = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, COMMUNITY_REVIEW
+        )
+        _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, GENERIC_COMMENT
+        )
+
+        # Act
+        resp = self.client.get(
+            ACTIVITY_LIST_URL,
+            {"comment_type": [AUTHOR_UPDATE, COMMUNITY_REVIEW]},
+        )
+
+        # Assert
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertEqual(ids, {author_update_entry.id, review_entry.id})
 
     def test_combined_grant_and_content_type(self):
         """grant_id + content_type should intersect both filters."""
@@ -454,6 +772,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
         # Grant A with an applied preregistration
         self.grant_a_doc = ResearchhubUnifiedDocument.objects.create(
@@ -563,6 +882,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
         self,
     ):
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "grants"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(self.grant_a_entry.id, ids)
         self.assertIn(self.grant_b_entry.id, ids)
@@ -570,6 +890,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
 
     def test_scope_grants_excludes_unrelated(self):
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "grants"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertNotIn(self.disc_entry.id, ids)
         self.assertNotIn(self.lone_prereg_entry.id, ids)
@@ -589,6 +910,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
             user=self.user,
         )
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "grants"})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(comment_on_grant.id, ids)
         self.assertIn(comment_on_prereg.id, ids)
@@ -605,6 +927,7 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
             ACTIVITY_LIST_URL,
             {"scope": "grants", "content_type": "RHCOMMENTMODEL"},
         )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
         ids = {e["id"] for e in resp.data["results"]}
         self.assertIn(comment_entry.id, ids)
         self.assertNotIn(self.grant_a_entry.id, ids)
@@ -621,8 +944,10 @@ class ActivityFeedActionDateOrderingTests(AWSMockTestCase):
 
     def setUp(self):
         super().setUp()
+        cache.clear()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
     def test_action_date_determines_order_not_created_date(self):
         """An entry created later but with an older action_date
@@ -687,6 +1012,7 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
         self.doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION,
@@ -820,6 +1146,168 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         self.assertEqual(len(resp.data["results"]), 0)
 
 
+def _make_comment_feed_entry(user, unified_document, target, comment_type):
+    """Create a comment on `target` and a matching feed entry."""
+    thread = RhCommentThreadModel.objects.create(
+        thread_type=comment_type,
+        content_type=ContentType.objects.get_for_model(target),
+        object_id=target.id,
+        created_by=user,
+    )
+    comment = RhCommentModel.objects.create(
+        comment_content_json={"ops": [{"insert": comment_type}]},
+        comment_type=comment_type,
+        created_by=user,
+        thread=thread,
+    )
+    entry = _make_feed_entry(
+        RhCommentModel,
+        comment.id,
+        unified_document,
+        user=user,
+    )
+    return comment, entry
+
+
+class ActivityFeedContentExclusionTests(AWSMockTestCase):
+    """Paper activity is excluded; peer reviews are proposal-only."""
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.user = create_test_user("activity_exclusion")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        self.prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        self.prereg_post = ResearchhubPost.objects.create(
+            title="Proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=self.prereg_doc,
+        )
+
+        self.discussion_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION",
+        )
+        self.discussion_post = ResearchhubPost.objects.create(
+            title="Discussion",
+            created_by=self.user,
+            document_type="DISCUSSION",
+            unified_document=self.discussion_doc,
+        )
+
+        self.paper_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PAPER,
+        )
+        self.paper = Paper.objects.create(
+            title="Preprint",
+            unified_document=self.paper_doc,
+        )
+
+        _, self.proposal_review_entry = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, PEER_REVIEW
+        )
+        _, self.discussion_review_entry = _make_comment_feed_entry(
+            self.user, self.discussion_doc, self.discussion_post, PEER_REVIEW
+        )
+        _, self.paper_review_entry = _make_comment_feed_entry(
+            self.user, self.paper_doc, self.paper, PEER_REVIEW
+        )
+        _, self.proposal_comment_entry = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, GENERIC_COMMENT
+        )
+        _, self.paper_comment_entry = _make_comment_feed_entry(
+            self.user, self.paper_doc, self.paper, GENERIC_COMMENT
+        )
+
+        self.proposal_bounty_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal(25),
+            total_usd_cents=500,
+            unified_document=self.prereg_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            source_object_id=self.prereg_post.id,
+        )
+        self.proposal_bounty_entry = _make_feed_entry(
+            FundingActivity,
+            self.proposal_bounty_fa.id,
+            self.prereg_doc,
+            user=self.user,
+        )
+
+        self.paper_bounty_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal(10),
+            total_usd_cents=200,
+            unified_document=self.paper_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(Paper),
+            source_object_id=self.paper.id,
+        )
+        self.paper_bounty_entry = _make_feed_entry(
+            FundingActivity,
+            self.paper_bounty_fa.id,
+            self.paper_doc,
+            user=self.user,
+        )
+
+        self.discussion_post_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.discussion_post.id,
+            self.discussion_doc,
+            user=self.user,
+        )
+
+    def _ids(self, params=None):
+        resp = self.client.get(ACTIVITY_LIST_URL, params or {})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        return {entry["id"] for entry in resp.data["results"]}
+
+    def test_unscoped_keeps_proposal_peer_reviews_and_drops_others(self):
+        # Act
+        ids = self._ids()
+
+        # Assert
+        self.assertIn(self.proposal_review_entry.id, ids)
+        self.assertNotIn(self.discussion_review_entry.id, ids)
+        self.assertNotIn(self.paper_review_entry.id, ids)
+
+    def test_unscoped_excludes_paper_comments_and_bounties(self):
+        # Act
+        ids = self._ids()
+
+        # Assert
+        self.assertIn(self.proposal_comment_entry.id, ids)
+        self.assertIn(self.proposal_bounty_entry.id, ids)
+        self.assertIn(self.discussion_post_entry.id, ids)
+        self.assertNotIn(self.paper_comment_entry.id, ids)
+        self.assertNotIn(self.paper_bounty_entry.id, ids)
+
+    def test_peer_reviews_scope_only_returns_proposal_reviews(self):
+        # Act
+        ids = self._ids({"scope": "peer_reviews"})
+
+        # Assert
+        self.assertIn(self.proposal_review_entry.id, ids)
+        self.assertNotIn(self.discussion_review_entry.id, ids)
+        self.assertNotIn(self.paper_review_entry.id, ids)
+        self.assertNotIn(self.proposal_comment_entry.id, ids)
+
+    def test_financial_scope_excludes_paper_bounty_payouts(self):
+        # Act
+        ids = self._ids({"scope": "financial"})
+
+        # Assert
+        self.assertIn(self.proposal_bounty_entry.id, ids)
+        self.assertNotIn(self.paper_bounty_entry.id, ids)
+
+
 class ActivityFeedFinancialScopeTests(AWSMockTestCase):
     """
     Test financial scope returns fundraise contribution activities.
@@ -829,6 +1317,14 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         super().setUp()
         self.user = create_test_user()
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        RscExchangeRate.objects.create(
+            price_source=COIN_GECKO,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
 
         self.proposal_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION,
@@ -910,6 +1406,100 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
             user=self.user,
         )
 
+        self.grant_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=GRANT,
+        )
+        self.grant_post = ResearchhubPost.objects.create(
+            title="Approved Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=self.grant_doc,
+        )
+        self.grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=self.grant_doc,
+            amount=5000,
+            currency="USD",
+            status=Grant.OPEN,
+        )
+        self.funding_pool = FundingPool.objects.create(
+            grant=self.grant, created_by=self.user
+        )
+        pool_ct = ContentType.objects.get_for_model(FundingPool)
+        self.pool_contribution = Purchase.objects.create(
+            user=self.user,
+            content_type=pool_ct,
+            object_id=self.funding_pool.id,
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="75",
+        )
+        self.pool_entry = _make_feed_entry(
+            Purchase,
+            self.pool_contribution.id,
+            self.grant_doc,
+            user=self.user,
+        )
+        self.grant_entry = _make_feed_entry(
+            ResearchhubPost,
+            self.grant_post.id,
+            self.grant_doc,
+            user=self.user,
+        )
+
+        self.bounty_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.BOUNTY_PAYOUT,
+            total_amount=Decimal(25),
+            total_usd_cents=500,
+            unified_document=self.proposal_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(Purchase),
+            source_object_id=self.rsc_contribution.id,
+        )
+        self.bounty_fa_entry = _make_feed_entry(
+            FundingActivity,
+            self.bounty_fa.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+
+        self.tip_review_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.TIP_REVIEW,
+            total_amount=Decimal(20),
+            total_usd_cents=400,
+            unified_document=self.proposal_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(
+                UsdFundraiseContribution
+            ),
+            source_object_id=self.usd_contribution.id,
+        )
+        self.tip_review_fa_entry = _make_feed_entry(
+            FundingActivity,
+            self.tip_review_fa.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+
+        self.tip_document_fa = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.TIP_DOCUMENT,
+            total_amount=Decimal(10),
+            total_usd_cents=200,
+            unified_document=self.unrelated_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(Purchase),
+            source_object_id=self.boost_purchase.id,
+        )
+        self.tip_document_fa_entry = _make_feed_entry(
+            FundingActivity,
+            self.tip_document_fa.id,
+            self.unrelated_doc,
+            user=self.user,
+        )
+
     def test_scope_financial_includes_rsc_and_usd_contributions(self):
         # Act
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
@@ -919,361 +1509,420 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         ids = {entry["id"] for entry in resp.data["results"]}
         self.assertIn(self.rsc_entry.id, ids)
         self.assertIn(self.usd_entry.id, ids)
+        self.assertIn(self.pool_entry.id, ids)
         self.assertNotIn(self.unrelated_entry.id, ids)
         self.assertNotIn(self.boost_entry.id, ids)
 
+    def test_scope_financial_includes_grant_post_entries(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
 
-class ActivityFeedFunderFilterTests(APITestCase):
-    """Test ?funder_id= filtering across grants created by or
-    contacted by a funder."""
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertIn(self.grant_entry.id, ids)
+        self.assertNotIn(self.unrelated_entry.id, ids)
+
+    def test_scope_financial_includes_bounty_and_tip_review_funding_activities(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertIn(self.bounty_fa_entry.id, ids)
+        self.assertIn(self.tip_review_fa_entry.id, ids)
+        self.assertNotIn(self.tip_document_fa_entry.id, ids)
+
+    def test_scope_financial_funding_activity_has_related_work(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        bounty_result = next(
+            entry
+            for entry in resp.data["results"]
+            if entry["id"] == self.bounty_fa_entry.id
+        )
+        self.assertIsNotNone(bounty_result["related_work"])
+        self.assertEqual(
+            bounty_result["related_work"]["document_type"],
+            PREREGISTRATION,
+        )
+        self.assertEqual(
+            bounty_result["related_work"]["unified_document_id"],
+            self.proposal_doc.id,
+        )
+        self.assertEqual(
+            bounty_result["related_work"]["title"],
+            self.proposal_post.title,
+        )
+
+
+class UserActivityAuthTests(APITestCase):
+    """Access control for the user activity feed."""
 
     def setUp(self):
         super().setUp()
-        self.funder = create_test_user("funder", email="funder@example.com")
-        self.other_user = create_test_user("other", email="other@example.com")
+        self.user = create_test_user("activity_owner")
+        self.other = create_test_user("activity_other", email="other@example.com")
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_requires_user_id(self):
+        """The user activity feed requires a user ID."""
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL)
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("user_id", resp.data)
+
+    def test_requires_authentication(self):
+        """The user activity feed rejects anonymous requests."""
+        # Arrange
+        self.client.force_authenticate(user=None)
+
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.user.id})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_rejects_request_for_another_user(self):
+        """The user activity feed rejects reading another user's activity."""
+        # Arrange
+        self.client.force_authenticate(user=self.other)
+
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.user.id})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_allows_moderator_to_view_another_user(self):
+        """A moderator may read another user's activity."""
+        # Arrange
+        moderator = create_random_authenticated_user("activity_mod", moderator=True)
+        self.client.force_authenticate(user=moderator)
+
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.user.id})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+
+class UserActivityFeedTests(APITestCase):
+    """Activity on documents a user is involved with."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = create_test_user("funder", email="funder@example.com")
+        self.other = create_test_user("other", email="other@example.com")
         self.applicant = create_test_user("applicant", email="applicant@example.com")
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+        RscExchangeRate.objects.create(
+            price_source=COIN_GECKO, rate=3.0, real_rate=3.0, target_currency=USD
+        )
 
-        # OPEN grant created by funder, with an applied preregistration
-        self.funder_open_grant_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=GRANT,
+        grant_doc, _, self.created_grant_entry = _create_post_and_entry(
+            self.user, GRANT, "Created Grant"
         )
-        self.funder_open_grant_post = ResearchhubPost.objects.create(
-            title="Funder Open Grant",
-            created_by=self.funder,
-            document_type=GRANT,
-            unified_document=self.funder_open_grant_doc,
-        )
-        self.funder_open_grant = Grant.objects.create(
-            created_by=self.funder,
-            unified_document=self.funder_open_grant_doc,
-            amount=1000,
-            currency="USD",
-            status=Grant.OPEN,
-        )
-        self.applied_prereg_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION,
-        )
-        self.applied_prereg_post = ResearchhubPost.objects.create(
-            title="Applied Prereg",
-            created_by=self.applicant,
-            document_type=PREREGISTRATION,
-            unified_document=self.applied_prereg_doc,
+        created_grant = _create_grant(self.user, grant_doc)
+        _, applied_post, self.applied_prereg_entry = _create_post_and_entry(
+            self.applicant, PREREGISTRATION, "Applied Prereg"
         )
         GrantApplication.objects.create(
-            grant=self.funder_open_grant,
-            preregistration_post=self.applied_prereg_post,
+            grant=created_grant,
+            preregistration_post=applied_post,
+            applicant=self.applicant,
+        )
+        self.grant_comment_entry = _make_feed_entry(
+            RhCommentModel, 11111, grant_doc, user=self.applicant
+        )
+
+        contact_doc, _, self.contact_grant_entry = _create_post_and_entry(
+            self.other, GRANT, "Contact Grant"
+        )
+        _create_grant(self.other, contact_doc).contacts.add(self.user)
+
+        unrelated_doc, _, _ = _create_post_and_entry(
+            self.other, GRANT, "Unrelated Grant"
+        )
+        _create_grant(self.other, unrelated_doc)
+
+        pending_doc, _, _ = _create_post_and_entry(self.user, GRANT, "Pending Grant")
+        _create_grant(self.user, pending_doc, status=Grant.PENDING)
+
+        completed_doc, _, self.completed_grant_entry = _create_post_and_entry(
+            self.user, GRANT, "Completed Grant"
+        )
+        _create_grant(self.user, completed_doc, status=Grant.COMPLETED)
+
+        _, own_post, self.own_prereg_entry = _create_post_and_entry(
+            self.user, PREREGISTRATION, "Own Prereg"
+        )
+        applied_grant_doc, _, self.applied_grant_entry = _create_post_and_entry(
+            self.other, GRANT, "Applied Grant"
+        )
+        self.applied_grant = _create_grant(self.other, applied_grant_doc)
+        GrantApplication.objects.create(
+            grant=self.applied_grant,
+            preregistration_post=own_post,
+            applicant=self.user,
+        )
+
+        funded_doc, _, self.funded_prereg_entry = _create_post_and_entry(
+            self.other, PREREGISTRATION, "Funded Prereg"
+        )
+        funded_fundraise = Fundraise.objects.create(
+            unified_document=funded_doc,
+            created_by=self.other,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        Purchase.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=funded_fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            amount="100",
+        )
+
+        _create_post_and_entry(self.applicant, PREREGISTRATION, "Lone Prereg")
+
+    def test_returns_activity_on_involved_documents(self):
+        """The feed includes involved documents and excludes unrelated ones."""
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.user.id})
+
+        # Assert
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertEqual(
+            ids,
+            {
+                self.created_grant_entry.id,
+                self.applied_prereg_entry.id,
+                self.grant_comment_entry.id,
+                self.contact_grant_entry.id,
+                self.completed_grant_entry.id,
+                self.own_prereg_entry.id,
+                self.applied_grant_entry.id,
+                self.funded_prereg_entry.id,
+            },
+        )
+        self.assertEqual(resp.data["count"], len(ids))
+
+    def test_hides_private_proposals_from_co_applicants(self):
+        """The feed hides a co-applicant's private proposal."""
+        # Arrange
+        _, private_post, private_entry = _create_post_and_entry(
+            self.applicant,
+            PREREGISTRATION,
+            "Private Proposal",
+            is_public=False,
+        )
+        GrantApplication.objects.create(
+            grant=self.applied_grant,
+            preregistration_post=private_post,
             applicant=self.applicant,
         )
 
-        # OPEN grant created by other_user, with funder as a contact, no apps
-        self.contact_open_grant_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=GRANT,
-        )
-        self.contact_open_grant_post = ResearchhubPost.objects.create(
-            title="Contact Open Grant",
-            created_by=self.other_user,
-            document_type=GRANT,
-            unified_document=self.contact_open_grant_doc,
-        )
-        self.contact_open_grant = Grant.objects.create(
-            created_by=self.other_user,
-            unified_document=self.contact_open_grant_doc,
-            amount=2000,
-            currency="USD",
-            status=Grant.OPEN,
-        )
-        self.contact_open_grant.contacts.add(self.funder)
+        # Act
+        resp = self.client.get(USER_ACTIVITY_URL, {"user_id": self.user.id})
 
-        # OPEN grant with no funder involvement (excluded)
-        self.unrelated_grant_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=GRANT,
-        )
-        self.unrelated_grant_post = ResearchhubPost.objects.create(
-            title="Unrelated Grant",
-            created_by=self.other_user,
-            document_type=GRANT,
-            unified_document=self.unrelated_grant_doc,
-        )
-        Grant.objects.create(
-            created_by=self.other_user,
-            unified_document=self.unrelated_grant_doc,
-            amount=3000,
-            currency="USD",
-            status=Grant.OPEN,
-        )
+        # Assert
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertNotIn(private_entry.id, ids)
 
-        # PENDING grant created by funder (excluded by status)
-        self.funder_pending_grant_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=GRANT,
-        )
-        self.funder_pending_grant_post = ResearchhubPost.objects.create(
-            title="Funder Pending Grant",
-            created_by=self.funder,
-            document_type=GRANT,
-            unified_document=self.funder_pending_grant_doc,
-        )
-        Grant.objects.create(
-            created_by=self.funder,
-            unified_document=self.funder_pending_grant_doc,
-            amount=4000,
-            currency="USD",
-            status=Grant.PENDING,
-        )
 
-        # COMPLETED grant created by funder (included)
-        self.funder_completed_grant_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=GRANT,
-        )
-        self.funder_completed_grant_post = ResearchhubPost.objects.create(
-            title="Funder Completed Grant",
-            created_by=self.funder,
-            document_type=GRANT,
-            unified_document=self.funder_completed_grant_doc,
-        )
-        Grant.objects.create(
-            created_by=self.funder,
-            unified_document=self.funder_completed_grant_doc,
-            amount=5000,
-            currency="USD",
-            status=Grant.COMPLETED,
-        )
+class ActivityFeedCacheTests(ActivityFeedBaseTests):
+    """Public warm-cache behavior for the unscoped activity feed."""
 
-        # CLOSED grant created by funder (excluded by status)
-        self.funder_closed_grant_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=GRANT,
-        )
-        self.funder_closed_grant_post = ResearchhubPost.objects.create(
-            title="Funder Closed Grant",
-            created_by=self.funder,
-            document_type=GRANT,
-            unified_document=self.funder_closed_grant_doc,
-        )
-        Grant.objects.create(
-            created_by=self.funder,
-            unified_document=self.funder_closed_grant_doc,
-            amount=6000,
-            currency="USD",
-            status=Grant.CLOSED,
-        )
+    @patch("feed.views.activity_feed_view.cache")
+    def test_authenticated_non_mod_uses_cache(self, mock_cache):
+        # Arrange
+        mock_cache.get.return_value = {
+            "next": None,
+            "previous": None,
+            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
+        }
 
-        # Preregistration that did not apply to any grant (excluded)
-        self.lone_prereg_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION,
+        # Act
+        response = self.client.get(ACTIVITY_LIST_URL, {"page": 1, "page_size": 20})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_moderator_uses_cache(self, mock_cache):
+        # Arrange
+        mock_cache.get.return_value = {
+            "next": None,
+            "previous": None,
+            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
+        }
+        moderator = create_random_authenticated_user(
+            "activity_cache_mod", moderator=True
         )
-        self.lone_prereg_post = ResearchhubPost.objects.create(
-            title="Lone Prereg",
-            created_by=self.applicant,
-            document_type=PREREGISTRATION,
-            unified_document=self.lone_prereg_doc,
+        mod_client = APIClient()
+        mod_client.force_authenticate(user=moderator)
+
+        # Act
+        response = mod_client.get(ACTIVITY_LIST_URL, {"page": 1, "page_size": 20})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_hub_editor_uses_cache(self, mock_cache):
+        # Arrange
+        from user.tests.helpers import create_hub_editor
+
+        mock_cache.get.return_value = {
+            "next": None,
+            "previous": None,
+            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
+        }
+        editor = create_hub_editor("activity_cache_editor", "Activity Cache Hub")[0]
+        editor_client = APIClient()
+        editor_client.force_authenticate(user=editor)
+
+        # Act
+        response = editor_client.get(ACTIVITY_LIST_URL, {"page": 1, "page_size": 20})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_moderator_disable_cache_skips_cache(self, mock_cache):
+        # Arrange
+        from user.tests.helpers import create_random_authenticated_user
+
+        mock_cache.get.return_value = {
+            "next": None,
+            "previous": None,
+            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
+        }
+        moderator = create_random_authenticated_user(
+            "activity_cache_mod_bypass", moderator=True
         )
+        mod_client = APIClient()
+        mod_client.force_authenticate(user=moderator)
 
-        # Feed entries for each post above
-        self.funder_open_grant_entry = _make_feed_entry(
-            ResearchhubPost,
-            self.funder_open_grant_post.id,
-            self.funder_open_grant_doc,
-            user=self.funder,
-        )
-        self.applied_prereg_entry = _make_feed_entry(
-            ResearchhubPost,
-            self.applied_prereg_post.id,
-            self.applied_prereg_doc,
-            user=self.applicant,
-        )
-        self.contact_open_grant_entry = _make_feed_entry(
-            ResearchhubPost,
-            self.contact_open_grant_post.id,
-            self.contact_open_grant_doc,
-            user=self.other_user,
-        )
-        self.unrelated_grant_entry = _make_feed_entry(
-            ResearchhubPost,
-            self.unrelated_grant_post.id,
-            self.unrelated_grant_doc,
-            user=self.other_user,
-        )
-        self.funder_pending_grant_entry = _make_feed_entry(
-            ResearchhubPost,
-            self.funder_pending_grant_post.id,
-            self.funder_pending_grant_doc,
-            user=self.funder,
-        )
-        self.funder_completed_grant_entry = _make_feed_entry(
-            ResearchhubPost,
-            self.funder_completed_grant_post.id,
-            self.funder_completed_grant_doc,
-            user=self.funder,
-        )
-        self.funder_closed_grant_entry = _make_feed_entry(
-            ResearchhubPost,
-            self.funder_closed_grant_post.id,
-            self.funder_closed_grant_doc,
-            user=self.funder,
-        )
-        self.lone_prereg_entry = _make_feed_entry(
-            ResearchhubPost,
-            self.lone_prereg_post.id,
-            self.lone_prereg_doc,
-            user=self.applicant,
-        )
-
-    def test_funder_filter_includes_grant_created_by_funder(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertIn(self.funder_open_grant_entry.id, ids)
-
-    def test_funder_filter_includes_applied_preregistration(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertIn(self.applied_prereg_entry.id, ids)
-
-    def test_funder_filter_includes_grant_where_funder_is_contact(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertIn(self.contact_open_grant_entry.id, ids)
-
-    def test_funder_filter_excludes_unrelated_grants(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertNotIn(self.unrelated_grant_entry.id, ids)
-
-    def test_funder_filter_excludes_pending_grants(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertNotIn(self.funder_pending_grant_entry.id, ids)
-
-    def test_funder_filter_includes_completed_grants(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertIn(self.funder_completed_grant_entry.id, ids)
-
-    def test_funder_filter_excludes_closed_grants(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertNotIn(self.funder_closed_grant_entry.id, ids)
-
-    def test_funder_filter_excludes_unrelated_preregistration(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertNotIn(self.lone_prereg_entry.id, ids)
-
-    def test_funder_filter_includes_comments_on_funder_grant(self):
-        comment_entry = _make_feed_entry(
-            RhCommentModel,
-            object_id=11111,
-            unified_document=self.funder_open_grant_doc,
-            user=self.applicant,
-        )
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertIn(comment_entry.id, ids)
-
-    def test_funder_filter_includes_comments_on_applied_prereg(self):
-        comment_entry = _make_feed_entry(
-            RhCommentModel,
-            object_id=22222,
-            unified_document=self.applied_prereg_doc,
-            user=self.applicant,
-        )
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertIn(comment_entry.id, ids)
-
-    def test_funder_filter_nonexistent_funder(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": 999999})
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(resp.data["results"]), 0)
-
-    def test_funder_filter_funder_with_no_grants(self):
-        no_grant_funder = create_test_user("no_grants", email="nogrants@example.com")
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": no_grant_funder.id})
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(resp.data["results"]), 0)
-
-    def test_funder_filter_combined_with_content_type_comments(self):
-        """funder_id + content_type=RHCOMMENTMODEL → only comments on
-        funder's docs."""
-        comment_on_grant = _make_feed_entry(
-            RhCommentModel,
-            object_id=33333,
-            unified_document=self.funder_open_grant_doc,
-            user=self.applicant,
-        )
-        resp = self.client.get(
+        # Act
+        response = mod_client.get(
             ACTIVITY_LIST_URL,
-            {"funder_id": self.funder.id, "content_type": "RHCOMMENTMODEL"},
-        )
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertIn(comment_on_grant.id, ids)
-        self.assertNotIn(self.funder_open_grant_entry.id, ids)
-        self.assertNotIn(self.applied_prereg_entry.id, ids)
-
-    def test_funder_filter_combined_with_scope_peer_reviews(self):
-        """funder_id + scope=peer_reviews → only peer review comments
-        on funder's docs."""
-        post_ct = ContentType.objects.get_for_model(ResearchhubPost)
-        thread = RhCommentThreadModel.objects.create(
-            thread_type=PEER_REVIEW,
-            content_type=post_ct,
-            object_id=self.applied_prereg_post.id,
-            created_by=self.other_user,
-        )
-        peer_review = RhCommentModel.objects.create(
-            comment_content_json={"ops": [{"insert": "peer review"}]},
-            comment_type=PEER_REVIEW,
-            created_by=self.other_user,
-            thread=thread,
-        )
-        generic = RhCommentModel.objects.create(
-            comment_content_json={"ops": [{"insert": "generic"}]},
-            comment_type=GENERIC_COMMENT,
-            created_by=self.other_user,
-            thread=thread,
-        )
-        peer_review_entry = _make_feed_entry(
-            RhCommentModel,
-            object_id=peer_review.id,
-            unified_document=self.applied_prereg_doc,
-            user=self.other_user,
-        )
-        generic_entry = _make_feed_entry(
-            RhCommentModel,
-            object_id=generic.id,
-            unified_document=self.applied_prereg_doc,
-            user=self.other_user,
+            {"page": 1, "page_size": 20, "disable_cache": "true"},
         )
 
-        resp = self.client.get(
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_cache.get.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_hub_editor_disable_cache_skips_cache(self, mock_cache):
+        # Arrange
+        from user.tests.helpers import create_hub_editor
+
+        mock_cache.get.return_value = {
+            "next": None,
+            "previous": None,
+            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
+        }
+        editor = create_hub_editor(
+            "activity_cache_editor_bypass", "Activity Cache Bypass Hub"
+        )[0]
+        editor_client = APIClient()
+        editor_client.force_authenticate(user=editor)
+
+        # Act
+        response = editor_client.get(
             ACTIVITY_LIST_URL,
-            {"funder_id": self.funder.id, "scope": "peer_reviews"},
+            {"page": 1, "page_size": 20, "disable_cache": "true"},
         )
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertIn(peer_review_entry.id, ids)
-        self.assertNotIn(generic_entry.id, ids)
-        self.assertNotIn(self.funder_open_grant_entry.id, ids)
 
-    def test_funder_filter_grant_id_takes_precedence(self):
-        """If both funder_id and grant_id are passed, grant_id wins."""
-        resp = self.client.get(
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mock_cache.get.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_non_mod_disable_cache_still_uses_cache(self, mock_cache):
+        # Arrange
+        mock_cache.get.return_value = {
+            "next": None,
+            "previous": None,
+            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
+        }
+
+        # Act
+        response = self.client.get(
             ACTIVITY_LIST_URL,
-            {
-                "funder_id": self.funder.id,
-                "grant_id": self.contact_open_grant.id,
-            },
+            {"page": 1, "page_size": 20, "disable_cache": "true"},
         )
-        ids = {e["id"] for e in resp.data["results"]}
-        # contact_open_grant is in funder's set, but with grant_id set the
-        # query narrows to that grant's docs only (not funder_open_grant
-        # or its applied prereg)
-        self.assertIn(self.contact_open_grant_entry.id, ids)
-        self.assertNotIn(self.funder_open_grant_entry.id, ids)
-        self.assertNotIn(self.applied_prereg_entry.id, ids)
 
-    def test_funder_filter_no_duplicates_when_creator_and_contact(self):
-        """Funder being both creator and contact of the same grant
-        should not produce duplicate feed entries."""
-        self.funder_open_grant.contacts.add(self.funder)
-        resp = self.client.get(ACTIVITY_LIST_URL, {"funder_id": self.funder.id})
-        ids = [e["id"] for e in resp.data["results"]]
-        self.assertEqual(len(ids), len(set(ids)))
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_scoped_and_filtered_requests_skip_cache(self, mock_cache):
+        # Arrange / Act
+        cases = [
+            {"scope": "financial", "page": 1, "page_size": 20},
+            {"grant_id": 1, "page": 1, "page_size": 20},
+            {"document_type": "PREREGISTRATION", "page": 1, "page_size": 20},
+            {"comment_type": AUTHOR_UPDATE, "page": 1, "page_size": 20},
+            {"comment_type": [AUTHOR_UPDATE, ""], "page": 1, "page_size": 20},
+            {"include_hot_score_breakdown": "true", "page": 1, "page_size": 20},
+            {"page": 21, "page_size": 20},
+            {"page": 1, "page_size": 10},
+        ]
+        for params in cases:
+            mock_cache.reset_mock()
+            response = self.client.get(ACTIVITY_LIST_URL, params)
+
+            # Assert
+            self.assertEqual(response.status_code, status.HTTP_200_OK, params)
+            mock_cache.get.assert_not_called()
+            mock_cache.set.assert_not_called()
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_warm_activity_feed_cache_replaces_pages(self, mock_cache):
+        # Arrange / Act
+        from feed.activity_feed_cache import (
+            ACTIVITY_FEED_MAX_CACHED_PAGE,
+            activity_feed_cache_key,
+        )
+        from feed.tasks import warm_activity_feed_cache
+
+        warm_activity_feed_cache()
+
+        # Assert
+        self.assertEqual(mock_cache.set.call_count, ACTIVITY_FEED_MAX_CACHED_PAGE)
+        written_keys = [call.args[0] for call in mock_cache.set.call_args_list]
+        self.assertEqual(
+            written_keys,
+            [
+                activity_feed_cache_key(page)
+                for page in range(1, ACTIVITY_FEED_MAX_CACHED_PAGE + 1)
+            ],
+        )
+        for call in mock_cache.set.call_args_list:
+            payload = call.args[1]
+            self.assertIn("results", payload)
+            self.assertIn("next", payload)

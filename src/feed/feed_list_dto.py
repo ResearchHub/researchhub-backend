@@ -11,7 +11,10 @@ from feed.serializers import (
     BountyContributionSerializer,
     SimpleAuthorSerializer,
     SimpleReviewSerializer,
+    SlimAuthorSerializer,
+    _grant_amount,
 )
+from purchase.models import Fundraise
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import (
@@ -25,43 +28,11 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from user.models import Author
 from user.serializers import DynamicUserSerializer
-
-
-def _grant_amount(grant):
-    usd_amount = float(grant.amount)
-    try:
-        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
-    except AttributeError:
-        rsc_amount = None
-    return {"usd": usd_amount, "rsc": rsc_amount}
 
 
 def _assessed_reviews(queryset):
     return queryset.filter(is_assessed=True, is_removed=False)
-
-
-class SlimAuthorSerializer(serializers.ModelSerializer):
-    """Minimal author payload for grant/funding feed list responses (no nested user)."""
-
-    profile_image = serializers.SerializerMethodField()
-
-    def get_profile_image(self, obj):
-        try:
-            if (
-                hasattr(obj, "profile_image")
-                and obj.profile_image.name
-                and obj.profile_image.url
-            ):
-                return obj.profile_image.url
-        except Exception:
-            pass
-        return None
-
-    class Meta:
-        model = Author
-        fields = ["id", "first_name", "last_name", "profile_image", "headline"]
 
 
 class SlimReviewSerializer(serializers.Serializer):
@@ -170,6 +141,18 @@ def _serialize_slim_bounties(post):
     return [_serialize_slim_bounty(bounty) for bounty in parent_bounties]
 
 
+def _serialize_slim_nonprofit(
+    fundraise: Fundraise,
+) -> dict[str, int | str] | None:
+    """Serialize the nonprofit associated with a fundraise, when present."""
+    links = fundraise.nonprofit_links.all()
+    if not links:
+        return None
+
+    nonprofit = links[0].nonprofit
+    return {"id": nonprofit.id, "name": nonprofit.name}
+
+
 def _serialize_slim_application_fundraise(application):
     post = application.preregistration_post
     if not post or not hasattr(post, "unified_document") or not post.unified_document:
@@ -190,12 +173,6 @@ def _serialize_slim_application_fundraise(application):
     except AttributeError:
         rsc_goal = None
 
-    nonprofit_data = None
-    links = fundraise.nonprofit_links.all()
-    if links:
-        np = links[0].nonprofit
-        nonprofit_data = {"id": np.id, "name": np.name}
-
     reviews = [
         SlimReviewSerializer(r).data for r in _assessed_reviews(ud.reviews.all())
     ]
@@ -204,7 +181,7 @@ def _serialize_slim_application_fundraise(application):
         "id": fundraise.id,
         "title": post.title,
         "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
-        "nonprofit": nonprofit_data,
+        "nonprofit": _serialize_slim_nonprofit(fundraise),
         "reviews": reviews,
     }
 
@@ -227,11 +204,19 @@ def _serialize_application_key_insight(application, review_by_ud):
 def serialize_slim_grant_applications(grant, context):
     request = context.get("request")
     viewer = getattr(request, "user", None) if request else None
-    is_grant_reviewer = (
-        viewer is not None
-        and getattr(viewer, "is_authenticated", False)
-        and grant.created_by_id == viewer.id
-    )
+    viewer_authed = viewer is not None and getattr(viewer, "is_authenticated", False)
+    is_grant_reviewer = viewer_authed and grant.created_by_id == viewer.id
+
+    # Match DynamicGrantSerializer.get_applications: moderators and hub editors
+    # may view private applications on any grant, not only ones they created.
+    privileged = context.get("_grant_private_app_viewer")
+    if privileged is None:
+        privileged = viewer_authed and (
+            getattr(viewer, "moderator", False) or viewer.is_hub_editor()
+        )
+        context["_grant_private_app_viewer"] = privileged
+
+    can_view_private = privileged or is_grant_reviewer
     include_key_insights = context.get("include_key_insights", False)
 
     review_by_ud = {}
@@ -248,8 +233,8 @@ def serialize_slim_grant_applications(grant, context):
             continue
 
         proposal_document = application.preregistration_post.unified_document
-        if not proposal_document.is_public and not is_grant_reviewer:
-            if not viewer or not getattr(viewer, "is_authenticated", False):
+        if not proposal_document.is_public and not can_view_private:
+            if not viewer_authed:
                 continue
             if application.applicant_id != viewer.id:
                 continue
@@ -272,6 +257,24 @@ def serialize_slim_grant_applications(grant, context):
     return application_data
 
 
+def _rsc_usd_amount(rsc_amount):
+    try:
+        usd_amount = RscExchangeRate.rsc_to_usd(float(rsc_amount))
+    except AttributeError:
+        usd_amount = None
+    return {"rsc": rsc_amount, "usd": usd_amount}
+
+
+def _serialize_slim_funding_pool(pool):
+    return {
+        "id": pool.id,
+        "status": pool.status,
+        "amount_holding": _rsc_usd_amount(pool.amount_holding),
+        "amount_distributed": _rsc_usd_amount(pool.amount_distributed),
+        "amount_raised": _rsc_usd_amount(pool.amount_raised),
+    }
+
+
 def _serialize_slim_grant(grant, context):
     data = {
         "id": grant.id,
@@ -287,6 +290,11 @@ def _serialize_slim_grant(grant, context):
     data["application_count"] = len(all_applications)
     data["applications"] = all_applications
 
+    try:
+        data["funding_pool"] = _serialize_slim_funding_pool(grant.funding_pool)
+    except ObjectDoesNotExist:
+        data["funding_pool"] = None
+
     return data
 
 
@@ -297,7 +305,7 @@ class GrantFeedPostSerializer(serializers.Serializer):
             "slug": post.slug,
             "title": post.title,
             "type": post.document_type,
-            "image_url": self._get_image_url(post),
+            "image_url": post.get_image_url(),
             "unified_document_id": (post.unified_document_id or None),
             "grant": None,
         }
@@ -313,12 +321,6 @@ class GrantFeedPostSerializer(serializers.Serializer):
 
         return data
 
-    @staticmethod
-    def _get_image_url(post):
-        if not post.image:
-            return None
-        return default_storage.url(post.image)
-
 
 def _serialize_slim_fundraise(fundraise, context):
     usd_goal = float(fundraise.goal_amount)
@@ -332,7 +334,7 @@ def _serialize_slim_fundraise(fundraise, context):
         fundraise.created_by, context=context, **created_by_fields
     ).data
 
-    contributor_fields = context.get("pch_dfs_get_contributors", {})
+    contributor_fields = context.get("pch_dfs_get_contributors", created_by_fields)
     aggregated = fundraise.get_contributors_summary()
     top = [
         DynamicUserSerializer(entry.user, context=context, **contributor_fields).data
@@ -364,7 +366,7 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "slug": post.slug,
             "title": post.title,
             "type": post.document_type,
-            "image_url": self._get_image_url(post),
+            "image_url": post.get_image_url(),
             "institution": getattr(post, "institution", None),
             "unified_document_id": (post.unified_document_id or None),
             "authors": [],
@@ -373,10 +375,8 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "bounties": _serialize_slim_bounties(post),
         }
 
-        if hasattr(post, "authors"):
-            authors = post.authors.all()
-            if authors:
-                data["authors"] = SimpleAuthorSerializer(authors, many=True).data
+        if authors := post.ordered_authors:
+            data["authors"] = SimpleAuthorSerializer(authors, many=True).data
 
         if post.unified_document and hasattr(post.unified_document, "reviews"):
             reviews = post.unified_document.reviews.all()
@@ -393,12 +393,6 @@ class FundingFeedPostSerializer(serializers.Serializer):
             data["fundraise"] = _serialize_slim_fundraise(fundraise, self.context)
 
         return data
-
-    @staticmethod
-    def _get_image_url(post):
-        if not post.image:
-            return None
-        return default_storage.url(post.image)
 
 
 class JournalFeedPostSerializer(serializers.Serializer):
@@ -434,7 +428,7 @@ class JournalFeedPostSerializer(serializers.Serializer):
 
     def serialize_authors(self, post: ResearchhubPost) -> list[dict[str, Any]]:
         """Serialize the registered report's authors."""
-        return SimpleAuthorSerializer(post.authors.all(), many=True).data
+        return SimpleAuthorSerializer(post.ordered_authors, many=True).data
 
     @staticmethod
     def _get_image_url(post: ResearchhubPost) -> str | None:
@@ -468,7 +462,10 @@ class JournalFeedPostSerializer(serializers.Serializer):
         fundraises = list(proposal.unified_document.fundraises.all())
         if not fundraises:
             return None
-        return _serialize_slim_fundraise(fundraises[0], self.context)
+        fundraise = fundraises[0]
+        data = _serialize_slim_fundraise(fundraise, self.context)
+        data["nonprofit"] = _serialize_slim_nonprofit(fundraise)
+        return data
 
     def serialize_proposal_reviews(self, proposal: ResearchhubPost) -> list[dict]:
         """Serialize assessed reviews from the source proposal."""
@@ -644,6 +641,4 @@ class FundingFeedListEntrySerializer(FundFeedListEntrySerializer):
     @staticmethod
     def _get_grant_image(grant):
         post = grant.unified_document.posts.first()
-        if post and post.image:
-            return default_storage.url(post.image)
-        return None
+        return post.get_image_url() if post else None

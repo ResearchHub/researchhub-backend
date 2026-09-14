@@ -30,15 +30,12 @@ class CoinbaseService:
 
     @staticmethod
     def _get_approved_web_origins() -> list[str]:
-        return getattr(settings, "CORS_ORIGIN_WHITELIST", [])
+        return getattr(settings, "CORS_ALLOWED_ORIGINS", [])
 
     @staticmethod
     def _is_origin_allowed_by_regex(origin: str) -> bool:
         allowed_regexes = getattr(settings, "CORS_ALLOWED_ORIGIN_REGEXES", [])
-        for regex_pattern in allowed_regexes:
-            if re.match(regex_pattern, origin):
-                return True
-        return False
+        return any(re.match(regex_pattern, origin) for regex_pattern in allowed_regexes)
 
     @staticmethod
     def _is_origin_approved(origin: str) -> bool:
@@ -241,8 +238,8 @@ class CoinbaseService:
 
             return response.json()
 
-        except requests.RequestException as e:
-            logger.error(f"Failed to create session token: {e}")
+        except requests.RequestException:
+            logger.exception("Failed to create session token")
             raise
 
     def generate_onramp_url(

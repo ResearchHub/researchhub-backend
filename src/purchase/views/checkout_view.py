@@ -29,18 +29,14 @@ class CheckoutView(APIView):
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data
-        amount = data.get("amount", None)
-        paper = data.get("paper", None)
-        purpose = data.get("purpose")
 
         try:
             session_data = self.payment_service.create_checkout_session(
                 user_id=user_id,
-                purpose=purpose,
-                amount=amount,
-                paper_id=paper.id if paper else None,
-                success_url=data.get("success_url", None),
-                cancel_url=data.get("failure_url", None),
+                purpose=data["purpose"],
+                amount=data["amount"],
+                success_url=data["success_url"],
+                cancel_url=data["failure_url"],
             )
 
             return Response(session_data, status=status.HTTP_200_OK)

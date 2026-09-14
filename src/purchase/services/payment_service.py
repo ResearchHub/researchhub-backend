@@ -10,6 +10,7 @@ from django.utils import timezone
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.constants.currency import RSC
+from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.payment_model import (
     Payment,
@@ -29,9 +30,6 @@ from reputation.utils import (
 from user.models import User
 
 logger = logging.getLogger(__name__)
-
-# The amount for Article Processing Charge (APC) in cents
-APC_AMOUNT_CENTS = 100  # = $1
 
 # Stripe fee structure (as of 2024)
 STRIPE_FEE_PERCENT = Decimal("0.029")  # 2.9%
@@ -72,8 +70,7 @@ class PaymentService:
         self,
         user_id: int,
         purpose: str,
-        amount: int | None = None,
-        paper_id: int | None = None,
+        amount: int,
         success_url: str | None = None,
         cancel_url: str | None = None,
     ) -> dict[str, Any]:
@@ -83,16 +80,18 @@ class PaymentService:
         Args:
             user_id: ID of the user making the payment.
             purpose: Purpose of the payment.
-            amount: Amount to charge (optional for APC).
-            paper_id: ID of the paper (required for APC).
+            amount: Amount to charge.
             success_url: URL to redirect to after successful payment.
             cancel_url: URL to redirect to after cancelled payment.
 
         Returns:
             Dict containing session ID and URL
+
+        Raises:
+            ValueError: If the payment purpose is not an RSC purchase.
         """
-        product_name = self.get_name_for_purpose(purpose)
-        unit_amount = APC_AMOUNT_CENTS if purpose == PaymentPurpose.APC else amount
+        if purpose != PaymentPurpose.RSC_PURCHASE:
+            raise ValueError("Checkout sessions only support RSC purchases.")
 
         try:
             session = stripe.checkout.Session.create(
@@ -102,9 +101,9 @@ class PaymentService:
                         "price_data": {
                             "currency": "usd",
                             "product_data": {
-                                "name": product_name,
+                                "name": "ResearchCoin (RSC) Purchase",
                             },
-                            "unit_amount": unit_amount,
+                            "unit_amount": amount,
                         },
                         "quantity": 1,
                     },
@@ -115,12 +114,6 @@ class PaymentService:
                 metadata={
                     "user_id": str(user_id),
                     "purpose": purpose,
-                    # Include paper_id only if purpose is APC
-                    **(
-                        {"paper_id": str(paper_id)}
-                        if purpose == PaymentPurpose.APC and paper_id
-                        else {}
-                    ),
                 },
             )
 
@@ -250,28 +243,12 @@ class PaymentService:
         else:
             raise ValueError(f"Unknown payment purpose: {purpose}")
 
-    def get_name_for_purpose(self, purpose: str) -> str:
-        """
-        Get the display name for a payment purpose.
-
-        Args:
-            purpose: Payment purpose
-
-        Returns:
-            Display name for the purpose
-        """
-        if purpose == PaymentPurpose.APC:
-            return "Article Processing Charge"
-        elif purpose == PaymentPurpose.RSC_PURCHASE:
-            return "ResearchCoin (RSC) Purchase"
-        else:
-            return "Unknown Purpose"
-
     def create_payment_intent(
         self,
         user_id: int,
         rsc_amount: Decimal,
         fundraise_id: int | None = None,
+        funding_pool_id: int | None = None,
     ) -> dict[str, Any]:
         """
         Create a Stripe payment intent for RSC purchase.
@@ -280,6 +257,8 @@ class PaymentService:
             user_id: ID of the user making the payment.
             rsc_amount: Amount of RSC to purchase (Decimal for precision).
             fundraise_id: Optional fundraise ID to auto-contribute to after purchase.
+            funding_pool_id: Optional funding pool ID to auto-contribute to after
+                purchase. Mutually exclusive with fundraise_id.
 
         Returns:
             Dict containing client_secret, payment_intent_id, and locked_rsc_amount
@@ -324,9 +303,11 @@ class PaymentService:
                 "stripe_fees": str(stripe_fee),
             }
 
-            # Add fundraise_id to metadata if provided
+            # Add fundraise_id / funding_pool_id to metadata if provided
             if fundraise_id is not None:
                 metadata["fundraise_id"] = str(fundraise_id)
+            if funding_pool_id is not None:
+                metadata["funding_pool_id"] = str(funding_pool_id)
 
             # Get user's email for receipt
             user = User.objects.get(id=user_id)
@@ -356,17 +337,18 @@ class PaymentService:
         """
         Process a confirmed payment intent and create a Payment record for RSC purchase.
 
-        If a fundraise_id is present in the payment intent metadata, the purchased RSC
-        will be automatically contributed to the fundraise in a separate transaction.
+        If a fundraise_id or funding_pool_id is present in the payment intent metadata,
+        the purchased RSC will be automatically contributed in a separate transaction.
 
         Args:
             payment_intent_id: ID of the confirmed payment intent
 
         Returns:
-            Tuple of (Payment, Purchase or None). Purchase is returned if a fundraise
+            Tuple of (Payment, Purchase or None). Purchase is returned if a
             contribution was created, otherwise None.
         """
         # Import here to avoid circular imports
+        from purchase.services.funding_pool_service import FundingPoolService
         from purchase.services.fundraise_service import FundraiseService
 
         try:
@@ -396,20 +378,28 @@ class PaymentService:
                 locked_rsc_amount=locked_rsc_amount,
             )
 
-            # Handle fundraise contribution in a separate transaction
+            # Handle auto-contribution in a separate transaction
             # This ensures payment succeeds even if contribution fails
-            fundraise_contribution = None
+            contribution = None
             fundraise_id_str = payment_intent.metadata.get("fundraise_id")
+            funding_pool_id_str = payment_intent.metadata.get("funding_pool_id")
 
             if fundraise_id_str:
-                fundraise_contribution = self._process_fundraise_contribution(
+                contribution = self._process_fundraise_contribution(
                     fundraise_id_str=fundraise_id_str,
                     user_id=user_id,
                     rsc_amount=rsc_amount,
                     fundraise_service=FundraiseService(),
                 )
+            elif funding_pool_id_str:
+                contribution = self._process_funding_pool_contribution(
+                    funding_pool_id_str=funding_pool_id_str,
+                    user_id=user_id,
+                    rsc_amount=rsc_amount,
+                    funding_pool_service=FundingPoolService(),
+                )
 
-            return payment, fundraise_contribution
+            return payment, contribution
 
         except Exception as e:
             logger.error("Error processing payment intent confirmation: %s", e)
@@ -471,9 +461,7 @@ class PaymentService:
         rsc_fee, rh_fee, dao_fee, fee_obj = calculate_rsc_purchase_fees(rsc_amount)
 
         # Calculate platform fees (bounty fees) for future fundraise contributions
-        bounty_fee, bounty_rh_fee, bounty_dao_fee, bounty_fee_obj = (
-            calculate_bounty_fees(rsc_amount)
-        )
+        bounty_fee, bounty_rh_fee, bounty_dao_fee, _ = calculate_bounty_fees(rsc_amount)
 
         if any(
             not value.is_finite() or value < 0
@@ -546,6 +534,38 @@ class PaymentService:
             amount=rsc_amount,
             currency=RSC,
             check_self_contribution=False,
+            use_credits=True,
         )
 
         return contribution if not error else None
+
+    def _process_funding_pool_contribution(
+        self,
+        funding_pool_id_str: str,
+        user_id: int,
+        rsc_amount: Decimal,
+        funding_pool_service,
+    ) -> Purchase | None:
+        """
+        Process funding pool contribution in a separate transaction.
+        Failures here do not affect the payment processing.
+
+        Returns:
+            Purchase if contribution succeeded, None otherwise
+        """
+        try:
+            pool = FundingPool.objects.get(id=int(funding_pool_id_str))
+            user = User.objects.get(id=user_id)
+        except (FundingPool.DoesNotExist, User.DoesNotExist):
+            return None
+
+        try:
+            return funding_pool_service.create_contribution(
+                user=user,
+                pool=pool,
+                amount=rsc_amount,
+                currency=RSC,
+                use_credits=True,
+            )
+        except ValueError:
+            return None

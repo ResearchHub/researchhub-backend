@@ -61,7 +61,7 @@ class PostDocument(BaseDocument):
                 "last_name": author.last_name,
                 "full_name": author.full_name,
             }
-            for author in instance.authors.all()
+            for author in instance.ordered_authors
         ]
 
     def prepare_hubs(self, instance) -> list[dict[str, Any]]:

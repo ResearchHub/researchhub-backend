@@ -1,10 +1,8 @@
 import contextlib
-import json
 import logging
 
 import rest_framework.serializers as serializers
-from django.contrib.admin.options import get_content_type_for_model
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.db.models import Case, IntegerField, Value, When
 from django.http import QueryDict
 
@@ -23,21 +21,15 @@ from paper.models import (
     PaperVersion,
 )
 from paper.related_models.authorship_model import Authorship
-from paper.tasks import download_pdf
 from paper.utils import (
-    check_file_is_url,
     clean_abstract,
     pdf_copyright_allows_display,
 )
 from purchase.models import Purchase
-from reputation.models import Contribution
-from reputation.tasks import create_contribution
 from researchhub.serializers import (
     DynamicModelFieldSerializer,
     ModeratedDocumentStatusSerializerMixin,
 )
-from researchhub.settings import TESTING
-from researchhub_document.utils import update_unified_document_to_paper
 from review.serializers.review_serializer import DynamicReviewSerializer
 from user.models import Author
 from user.serializers import (
@@ -354,89 +346,6 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
         patch_read_only_fields = ["uploaded_by"]
         model = Paper
 
-    def create(self, validated_data):
-        request = self.context.get("request", None)
-        if request:
-            user = request.user
-        else:
-            user = None
-        validated_data["uploaded_by"] = user
-
-        # Prepare validated_data by removing m2m
-        authors = validated_data.pop("authors")
-        hubs = validated_data.pop("hubs", [])
-        file = validated_data.get("file")
-        try:
-            with transaction.atomic():
-                # Temporary fix for updating read only fields
-                # Not including file, pdf_url, and url because
-                # those fields are processed
-                for read_only_field in self.Meta.read_only_fields:
-                    if read_only_field in validated_data:
-                        validated_data.pop(read_only_field, None)
-
-                self._add_url(file, validated_data)
-                self._clean_abstract(validated_data)
-                self._add_raw_authors(validated_data)
-
-                paper = None
-
-                if paper is None:
-                    # It is important to note that paper signals
-                    # are ran after call to super
-                    paper = super().create(validated_data)
-                    paper.full_clean(exclude=["paper_type"])
-
-                unified_doc_id = paper.unified_document.id
-                paper_id = paper.id
-                # NOTE: calvinhlee - This is an antipattern. Look into changing
-                Vote.objects.create(
-                    content_type=get_content_type_for_model(paper),
-                    created_by=user,
-                    object_id=paper.id,
-                    vote_type=Vote.UPVOTE,
-                )
-
-                # Now add m2m values properly
-                if validated_data["paper_type"] == Paper.PRE_REGISTRATION:
-                    paper.authors.add(user.author_profile)
-
-                # TODO: Do we still need add authors from the request content?
-                paper.authors.add(*authors)
-                paper.unified_document.hubs.add(*hubs)
-
-                try:
-                    file = paper.file
-                    self._add_file(paper, file)
-                except Exception as e:
-                    logger.exception("Failed to add file to paper", exc_info=e)
-
-                paper.pdf_license = paper.get_license(save=False)
-
-                update_unified_document_to_paper(paper)
-
-                create_contribution.apply_async(
-                    (
-                        Contribution.SUBMITTER,
-                        {"app_label": "paper", "model": "paper"},
-                        user.id,
-                        unified_doc_id,
-                        paper_id,
-                    ),
-                    priority=3,
-                    countdown=10,
-                )
-
-                paper.save()
-                return paper
-        except IntegrityError as e:
-            logger.exception("Integrity error while creating paper")
-            raise e
-        except Exception as e:
-            error = PaperSerializerError(e, "Failed to create paper")
-            logger.exception("Failed to create paper")
-            raise error
-
     def update(self, instance, validated_data):
         request = self.context.get("request", None)
 
@@ -447,7 +356,9 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
                     validated_data.pop(field, None)
 
         validated_data.pop("authors", [None])
-        file = validated_data.pop("file", None)
+        # Discard any `file` key so it cannot reach the FileField
+        # (`to_internal_value` skips DRF validation).
+        validated_data.pop("file", None)
         hubs = validated_data.pop("hubs", None)
         pdf_license = validated_data.get("pdf_license", None)
         validated_data.pop("raw_authors", [])
@@ -455,15 +366,12 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
         try:
             with transaction.atomic():
                 # Temporary fix for updating read only fields
-                # Not including file, pdf_url, and url because
-                # those fields are processed
                 read_only_fields = (
                     self.Meta.read_only_fields + self.Meta.patch_read_only_fields
                 )
                 for read_only_field in read_only_fields:
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
-                self._add_url(file, validated_data)
                 self._clean_abstract(validated_data)
 
                 paper = super().update(instance, validated_data)
@@ -495,47 +403,17 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
                     paper.pdf_license = pdf_license
                     paper.save(update_fields=["pdf_license"])
 
-                if file:
-                    self._add_file(paper, file)
-
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, "Failed to update paper")
             logger.exception("Failed to update paper")
             raise error
 
-    def _add_file(self, paper, file):
-        paper_id = paper.id
-        if type(file) is not str:
-            paper.file = file
-            paper.save(update_fields=["file"])
-            paper.compress_and_linearize_file()
-            paper.extract_pdf_preview()
-            return
-
-        if paper.url is not None:
-            if not TESTING:
-                download_pdf.apply_async((paper_id,), priority=3, countdown=7)
-            else:
-                download_pdf(paper_id)
-
-    def _add_url(self, file, validated_data):
-        # `file` accepts a URL string.
-        # Keep it out of the FileField and store it as the paper's URL instead.
-        if check_file_is_url(file):
-            validated_data["file"] = None
-            validated_data["url"] = file
-
     def _clean_abstract(self, data):
         abstract = data.get("abstract")
         if abstract:
             cleaned_text = clean_abstract(abstract)
             data.update(abstract=cleaned_text)
-
-    def _add_raw_authors(self, validated_data):
-        raw_authors = validated_data["raw_authors"]
-        json_raw_authors = list(map(json.loads, raw_authors))
-        validated_data["raw_authors"] = json_raw_authors
 
     def get_authors(self, paper):
         serializer = AuthorSerializer(
@@ -608,7 +486,6 @@ class DynamicPaperSerializer(
     ModeratedDocumentStatusSerializerMixin,
 ):
     authors = serializers.SerializerMethodField()
-    boost_amount = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
     discussions = serializers.SerializerMethodField()
     discussion_aggregates = serializers.SerializerMethodField()
@@ -695,11 +572,6 @@ class DynamicPaperSerializer(
             **_context_fields,
         )
         return serializer.data
-
-    def get_boost_amount(self, paper):
-        if paper.purchases.exists():
-            return paper.get_boost_amount()
-        return 0
 
     def get_bounties(self, paper):
         from reputation.serializers import DynamicBountySerializer
@@ -788,7 +660,6 @@ class DynamicPaperSerializer(
 
     def get_hubs(self, paper):
         context = self.context
-        context["unified_document"] = paper.unified_document
         _context_fields = context.get("pap_dps_get_hubs", {})
 
         serializer = DynamicHubSerializer(

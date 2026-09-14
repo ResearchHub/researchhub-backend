@@ -16,6 +16,11 @@ class ProposalDraft(DefaultModel):
         PROCESSING = "PROCESSING"
         COMPLETED = "COMPLETED"
         FAILED = "FAILED"
+        # Stopped on request rather than by anything going wrong. Distinct from
+        # FAILED so the record does not blame the run for a decision someone
+        # made about it, and terminal like the rest -- which also releases
+        # ``ra_pd_one_active_per_search_expert`` for a fresh attempt.
+        CANCELLED = "CANCELLED"
 
     class Step(models.TextChoices):
         QUEUED = "QUEUED"
@@ -31,6 +36,17 @@ class ProposalDraft(DefaultModel):
         "research_ai.SearchExpert",
         on_delete=models.CASCADE,
         related_name="proposal_drafts",
+    )
+    agent_conversation = models.OneToOneField(
+        "research_ai.AgentConversation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="proposal_draft",
+        db_comment=(
+            "Durable agent history for this draft. SET_NULL keeps the completed "
+            "proposal when trace data is deleted."
+        ),
     )
     created_by = models.ForeignKey(
         "user.User",
@@ -55,6 +71,16 @@ class ProposalDraft(DefaultModel):
         choices=Status.choices,
         default=Status.PENDING,
         db_index=True,
+    )
+    model_ref = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        db_comment=(
+            "User-selected generator model as a provider-prefixed model ref; "
+            "empty runs the configured default. What actually ran is "
+            "snapshotted in run_config."
+        ),
     )
     step = models.CharField(
         max_length=32,
@@ -96,6 +122,14 @@ class ProposalDraft(DefaultModel):
     error_message = models.TextField(blank=True)
     processing_time = models.FloatField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    usage_reservation_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment=(
+            "Renewable lease reserving the creator's Research AI budget slot while "
+            "this draft may still be producing spend."
+        ),
+    )
 
     class Meta:
         db_table = "research_ai_proposal_draft"

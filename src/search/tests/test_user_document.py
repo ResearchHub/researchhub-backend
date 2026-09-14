@@ -35,6 +35,16 @@ class UserDocumentTests(TestCase):
         result = self.document.should_index_object(self.suspended_user)
         self.assertFalse(result, "Suspended users should not be indexed")
 
+    def test_should_index_object_soft_deleted_user(self):
+        # Arrange
+        self.active_user.is_removed = True
+
+        # Act
+        result = self.document.should_index_object(self.active_user)
+
+        # Assert
+        self.assertFalse(result)
+
     def test_prepare_full_name_suggest_with_accented_names(self):
         """Test that accented names are properly normalized for search"""
         # Create a user with accented characters

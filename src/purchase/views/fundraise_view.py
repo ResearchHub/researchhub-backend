@@ -151,7 +151,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         amount = data.get("amount", None)
         amount_currency = data.get("amount_currency", RSC)
         origin_fund_id = data.get("origin_fund_id") or None
-        use_credits = bool(data.get("use_credits", True))
+        try:
+            use_credits = serializers.BooleanField(default=True).run_validation(
+                data.get("use_credits", serializers.empty)
+            )
+        except serializers.ValidationError:
+            return Response({"message": "use_credits must be a boolean"}, status=400)
 
         # Validate body
         if fundraise_id is None:
@@ -188,10 +193,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 )
 
         # Convert amount to appropriate type
-        if amount_currency == USD:
-            amount = int(amount)
-        else:
-            amount = Decimal(amount)
+        amount = int(amount) if amount_currency == USD else Decimal(amount)
 
         # Create contribution via service
         _, error = self.fundraise_service.create_contribution(

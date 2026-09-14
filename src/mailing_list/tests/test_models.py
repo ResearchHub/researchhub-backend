@@ -1,74 +1,133 @@
-from django.core import mail
-from django.test import TestCase, override_settings
+from django.db.utils import IntegrityError
+from django.test import TestCase
 
-from mailing_list.lib import send_email
-from mailing_list.models import EmailRecipient
-from user.tests.helpers import (
-    create_random_authenticated_user,
-    create_random_default_user,
-)
+from mailing_list.models import EmailOptOut
 
 
-class MailingListModelsTests(TestCase):
-    def setUp(self):
-        self.user = create_random_authenticated_user("mlm")
+class NormalizeTests(TestCase):
+    def test_lowercases_and_strips(self):
+        # Act
+        result = EmailOptOut._normalize("  Foo@Example.COM ")
 
-    def test_receives_notifications_is_false_if_bounced(self):
-        user = create_random_default_user("Aaron")
-        user.emailrecipient.bounced()
-        self.assertFalse(user.emailrecipient.receives_notifications)
-
-    def test_receives_notifications_is_false_if_opted_out(self):
-        user = create_random_default_user("Baron")
-        user.emailrecipient.set_opted_out(True)
-        self.assertFalse(user.emailrecipient.receives_notifications)
-
-    def test_receives_notifications_is_true_by_default(self):
-        user = create_random_default_user("Caron")
-        self.assertTrue(user.emailrecipient.receives_notifications)
-
-    def test_receives_notifications_if_bounced_opted_out_and_subscribed(self):
-        user = create_random_default_user("Daron")
-        self.assertTrue(user.emailrecipient.receives_notifications)
-        user.emailrecipient.set_opted_out(True)
-        user.emailrecipient.bounced()
-        self.assertFalse(user.emailrecipient.receives_notifications)
+        # Assert
+        self.assertEqual(result, "foo@example.com")
 
 
-class GetSuppressedEmailsTests(TestCase):
-    def test_returns_bounced_and_opted_out_emails(self):
-        EmailRecipient.objects.create(email="bounced@example.com", do_not_email=True)
-        EmailRecipient.objects.create(email="optout@example.com", is_opted_out=True)
-        EmailRecipient.objects.create(email="good@example.com")
+class SaveTests(TestCase):
+    def test_normalizes_the_address(self):
+        # Act
+        opt_out = EmailOptOut.objects.create(email="  Foo@Example.COM ")
 
-        result = EmailRecipient.get_suppressed_emails(
-            ["bounced@example.com", "optout@example.com", "good@example.com"]
+        # Assert
+        opt_out.refresh_from_db()
+        self.assertEqual(opt_out.email, "foo@example.com")
+
+
+class AddTests(TestCase):
+    def test_creates_a_normalized_row(self):
+        # Act
+        created = EmailOptOut.add("Foo@Example.com")
+
+        # Assert
+        self.assertTrue(created)
+        self.assertEqual(EmailOptOut.objects.get().email, "foo@example.com")
+
+    def test_is_idempotent_across_casing(self):
+        # Arrange
+        EmailOptOut.add("foo@example.com")
+
+        # Act
+        created = EmailOptOut.add("FOO@EXAMPLE.COM")
+
+        # Assert
+        self.assertFalse(created)
+        self.assertEqual(EmailOptOut.objects.count(), 1)
+
+    def test_ignores_a_blank_address(self):
+        # Act
+        created = EmailOptOut.add("   ")
+
+        # Assert
+        self.assertFalse(created)
+        self.assertEqual(EmailOptOut.objects.count(), 0)
+
+    def test_database_rejects_a_case_variant_duplicate(self):
+        # Arrange
+        EmailOptOut.objects.create(email="foo@example.com")
+
+        # Act & Assert
+        with self.assertRaises(IntegrityError):
+            EmailOptOut.objects.create(email="FOO@example.com")
+
+
+class RemoveTests(TestCase):
+    def test_removes_the_row_regardless_of_casing(self):
+        # Arrange
+        EmailOptOut.add("foo@example.com")
+
+        # Act
+        deleted = EmailOptOut.remove("Foo@Example.com")
+
+        # Assert
+        self.assertTrue(deleted)
+        self.assertEqual(EmailOptOut.objects.count(), 0)
+
+    def test_is_a_no_op_for_an_unknown_address(self):
+        # Act
+        deleted = EmailOptOut.remove("nobody@example.com")
+
+        # Assert
+        self.assertFalse(deleted)
+
+
+class FilterOptedOutTests(TestCase):
+    def test_returns_only_opted_out_addresses(self):
+        # Arrange
+        EmailOptOut.add("optout@example.com")
+
+        # Act
+        result = EmailOptOut.filter_opted_out(
+            ["optout@example.com", "good@example.com"],
         )
 
-        self.assertEqual(result, {"bounced@example.com", "optout@example.com"})
+        # Assert
+        self.assertEqual(result, {"optout@example.com"})
 
-    def test_returns_empty_set_for_unknown_emails(self):
-        result = EmailRecipient.get_suppressed_emails(["unknown@example.com"])
+    def test_matches_regardless_of_the_casing_supplied(self):
+        # Arrange
+        EmailOptOut.add("optout@example.com")
 
+        # Act
+        result = EmailOptOut.filter_opted_out(["OptOut@Example.com"])
+
+        # Assert: the caller gets its own string back, not the stored one
+        self.assertEqual(result, {"OptOut@Example.com"})
+
+    def test_returns_every_variant_of_the_same_address(self):
+        # Arrange
+        EmailOptOut.add("optout@example.com")
+
+        # Act
+        result = EmailOptOut.filter_opted_out(
+            ["optout@example.com", "OptOut@Example.com"],
+        )
+
+        # Assert
+        self.assertEqual(result, {"optout@example.com", "OptOut@Example.com"})
+
+    def test_returns_an_empty_set_when_nothing_matches(self):
+        # Act
+        result = EmailOptOut.filter_opted_out(["unknown@example.com"])
+
+        # Assert
         self.assertEqual(result, set())
 
+    def test_matches_rows_created_outside_add(self):
+        # Arrange: the admin, a shell, or a data migration bypasses `add`
+        EmailOptOut.objects.create(email="OptOut@Example.com")
 
-@override_settings(
-    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-    PRODUCTION=False,
-)
-class SendEmailTests(TestCase):
-    def test_send_email_excludes_suppressed_recipients(self):
-        EmailRecipient.objects.create(email="bounced@example.com", do_not_email=True)
+        # Act
+        result = EmailOptOut.filter_opted_out(["optout@example.com"])
 
-        result = send_email(
-            recipients=["bounced@example.com"],
-            template="general_email_message.txt",
-            subject="Test",
-            email_context={"action": {"message": "hello"}, "subject": "Test"},
-            html_template="general_email_message.html",
-        )
-
-        self.assertEqual(result["success"], [])
-        self.assertIn("bounced@example.com", result["exclude"])
-        self.assertEqual(len(mail.outbox), 0)
+        # Assert
+        self.assertEqual(result, {"optout@example.com"})

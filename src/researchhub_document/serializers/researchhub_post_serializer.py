@@ -1,6 +1,5 @@
 import logging
 
-from django.core.files.storage import default_storage
 from django.db.models import Count
 from rest_framework.serializers import (
     CharField,
@@ -20,17 +19,20 @@ from discussion.serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
     GenericReactionSerializerMixin,
 )
-from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
+from note.models import parse_note_json
 from purchase.models import GrantApplication, Purchase
 from researchhub.serializers import (
     DynamicModelFieldSerializer,
     ModeratedDocumentStatusSerializerMixin,
 )
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.registered_report_note_metadata import parse_note_json
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
+    REGISTERED_REPORT,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
+)
+from researchhub_document.services.unified_document_share_link_service import (
+    get_shared_unified_document_id,
 )
 from review.serializers.review_serializer import DynamicReviewSerializer
 from user.serializers import (
@@ -42,13 +44,6 @@ from user.serializers import (
 from utils.http import get_user_from_request
 
 logger = logging.getLogger(__name__)
-
-
-class JournalEntryAcceptSerializer(Serializer):
-    """Validate a journal entry acceptance request."""
-
-    fundraise_id = IntegerField()
-    user_id = IntegerField()
 
 
 class RegisteredReportPublishSerializer(Serializer):
@@ -83,7 +78,6 @@ class ResearchhubPostSerializer(
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             "authors",
-            "boost_amount",
             "id",
             "created_by",
             "created_date",
@@ -93,7 +87,6 @@ class ResearchhubPostSerializer(
             "editor_type",
             "full_markdown",
             "grants",
-            "hubs",
             "id",
             "image",
             "image_url",
@@ -104,6 +97,7 @@ class ResearchhubPostSerializer(
             "peer_reviews",
             "post_src",
             "preview_img",
+            "registered_report_id",
             "renderable_text",
             "reviewed_by",
             "reviewed_date",
@@ -131,13 +125,11 @@ class ResearchhubPostSerializer(
             "post_src",
             "unified_document_id",
             "version_number",
-            "boost_amount",
             "is_removed",
             "updated_date",
         ]
 
     # GenericReactionSerializerMixin
-    boost_amount = SerializerMethodField()
     user_flag = SerializerMethodField()
 
     # local
@@ -146,23 +138,18 @@ class ResearchhubPostSerializer(
     peer_reviews = SerializerMethodField()
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
     grants = SerializerMethodField()
-    hubs = SerializerMethodField(method_name="get_hubs")
     image = CharField(write_only=True, required=False, allow_null=True)
     image_url = SerializerMethodField()
     is_removed = SerializerMethodField()
     note = SerializerMethodField()
     post_src = SerializerMethodField(method_name="get_post_src")
+    registered_report_id = SerializerMethodField()
     unified_document = SerializerMethodField()
     unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
 
     def get_authors(self, post):
-        # Probably legacy scenario, before ELN release
-        authors = list(post.authors.all())
-        if len(authors) == 0:
-            authors.append(post.created_by.author_profile)
-        else:
-            authors = post.authors
-
+        # Posts created before the ELN release have no credited authors.
+        authors = post.ordered_authors or [post.created_by.author_profile]
         serializer = AuthorSerializer(
             authors,
             context=self.context,
@@ -183,10 +170,7 @@ class ResearchhubPostSerializer(
         return UserSerializer(instance.created_by, read_only=True).data
 
     def get_image_url(self, instance):
-        if not instance.image:
-            return None
-
-        return default_storage.url(instance.image)
+        return instance.get_image_url()
 
     def get_is_removed(self, instance):
         unified_document = instance.unified_document
@@ -199,6 +183,26 @@ class ResearchhubPostSerializer(
         if note:
             return NoteSerializer(instance.note, context=self.context).data
         return None
+
+    def get_registered_report_id(self, post: ResearchhubPost) -> int | None:
+        """Return the visible registered report identifier for a proposal."""
+        if post.document_type != PREREGISTRATION or post.journey_id is None:
+            return None
+
+        if hasattr(post, "registered_report_id"):
+            return post.registered_report_id
+
+        user = get_user_from_request(self.context)
+        return (
+            ResearchhubPost.objects.visible_to(user)
+            .filter(
+                document_type=REGISTERED_REPORT,
+                journey_id=post.journey_id,
+            )
+            .order_by("id")
+            .values_list("id", flat=True)
+            .first()
+        )
 
     def get_unified_document_id(self, instance):
         unified_document = instance.unified_document
@@ -254,19 +258,7 @@ class ResearchhubPostSerializer(
         return serializer.data
 
     def get_full_markdown(self, instance):
-        try:
-            if instance.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                byte_string = instance.discussion_src.read()
-            else:
-                byte_string = instance.eln_src.read()
-            full_markdown = byte_string.decode("utf-8")
-            return full_markdown
-        except Exception:
-            logger.exception("Error getting full markdown for document")
-            return None
-
-    def get_hubs(self, instance):
-        return SimpleHubSerializer(instance.unified_document.hubs, many=True).data
+        return instance.get_full_markdown()
 
     def get_grants(self, post):
         if post.document_type != PREREGISTRATION:
@@ -347,9 +339,7 @@ class ResearchhubPostSerializer(
 
     @staticmethod
     def _get_grant_image(grant_post):
-        if grant_post and grant_post.image:
-            return default_storage.url(grant_post.image)
-        return None
+        return grant_post.get_image_url() if grant_post else None
 
     def get_peer_reviews(self, instance):
         from review.models import Review
@@ -394,20 +384,15 @@ class ResearchhubPostSerializer(
         )
         return serializer.data
 
-    def get_boost_amount(self, instance):
-        return instance.get_boost_amount()
-
 
 class DynamicPostSerializer(
     DynamicModelFieldSerializer, ModeratedDocumentStatusSerializerMixin
 ):
     authors = SerializerMethodField()
-    boost_amount = SerializerMethodField()
     bounties = SerializerMethodField()
     created_by = SerializerMethodField()
     discussions = SerializerMethodField()
     discussion_aggregates = SerializerMethodField()
-    hubs = SerializerMethodField()
     note = SerializerMethodField()
     peer_reviews = SerializerMethodField()
     purchases = SerializerMethodField()
@@ -434,8 +419,14 @@ class DynamicPostSerializer(
         if unified_document is not None and not (
             unified_document.is_public and unified_document.is_approved
         ):
+            # A share token admits only the document it was issued for, so an
+            # embedded neighbour in the same payload stays redacted.
+            is_shared = (
+                get_shared_unified_document_id(self.context.get("request"))
+                == unified_document.id
+            )
             user = get_user_from_request(self.context)
-            if not unified_document.is_visible_to_user(user):
+            if not is_shared and not unified_document.is_visible_to_user(user):
                 return {"id": instance.id, "is_public": False}
         return super().to_representation(instance)
 
@@ -450,7 +441,7 @@ class DynamicPostSerializer(
             ]
         }
         serializer = DynamicAuthorSerializer(
-            post.authors, context=context, many=True, **_context_fields
+            post.ordered_authors, context=context, many=True, **_context_fields
         )
         return serializer.data
 
@@ -541,14 +532,6 @@ class DynamicPostSerializer(
         unified_document = post.unified_document
         return unified_document.id if unified_document is not None else None
 
-    def get_hubs(self, post):
-        context = self.context
-        _context_fields = context.get("doc_dps_get_hubs", {})
-        serializer = DynamicHubSerializer(
-            post.hubs, many=True, context=context, **_context_fields
-        )
-        return serializer.data
-
     def get_created_by(self, post):
         context = self.context
         _context_fields = context.get("doc_dps_get_created_by", {})
@@ -574,11 +557,6 @@ class DynamicPostSerializer(
         )
         return serializer.data
 
-    def get_boost_amount(self, post):
-        if post.purchases.exists():
-            return post.get_boost_amount()
-        return 0
-
     def get_score(self, post):
         return post.unified_document.score
 
@@ -599,7 +577,4 @@ class DynamicPostSerializer(
             return None
 
     def get_image_url(self, post):
-        if not post.image:
-            return None
-
-        return default_storage.url(post.image)
+        return post.get_image_url()

@@ -15,12 +15,12 @@ from user.tasks.tasks import (
 __all__ = [
     "apply_account_age_bonus_task",
     "create_funding_activity_task",
-    "refresh_leaderboard_task",
     "execute_editor_daily_payout_task",
     "execute_rsc_exchange_rate_record_tasks",
     "get_authored_paper_updates",
     "get_latest_actions",
     "handle_spam_user_task",
     "invalidate_author_profile_caches",
+    "refresh_leaderboard_task",
     "reinstate_user_task",
 ]

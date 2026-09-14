@@ -542,7 +542,7 @@ class WithdrawalViewSetTests(APITestCase):
 
             # Verify the call to etherscan
             mock_get.assert_called_once()
-            args, kwargs = mock_get.call_args
+            args, _ = mock_get.call_args
             self.assertIn("https://api.etherscan.io/v2/api", args[0])
             self.assertIn("gastracker", args[0])
             self.assertIn("gasoracle", args[0])
@@ -566,7 +566,7 @@ class WithdrawalViewSetTests(APITestCase):
 
             # Verify the call to basescan
             mock_get.assert_called_once()
-            args, kwargs = mock_get.call_args
+            args, _ = mock_get.call_args
             self.assertIn("https://api.etherscan.io/v2/api?chainid=8453", args[0])
             self.assertIn("proxy", args[0])
             self.assertIn("eth_gasPrice", args[0])

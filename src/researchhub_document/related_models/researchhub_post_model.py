@@ -2,13 +2,13 @@ import logging
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
-from django.db.models import Exists, IntegerField, OuterRef, Q, Sum
-from django.db.models.functions import Cast
+from django.core.files.storage import default_storage
+from django.db import models, transaction
+from django.db.models import Exists, OuterRef, Q
 from django.utils.functional import cached_property
 
 from discussion.models import AbstractGenericReactionModel, Vote
-from purchase.models import Grant, Purchase
+from purchase.models import Grant
 from researchhub_access_group.constants import NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentThreadModel
@@ -38,7 +38,11 @@ class ResearchhubPostQuerySet(models.QuerySet):
         """Restrict to posts safe for anonymous/public discovery surfaces."""
         return self.filter(self._public_visibility_filter())
 
-    def visible_to(self, user: User | None) -> "ResearchhubPostQuerySet":
+    def visible_to(
+        self,
+        user: User | None,
+        shared_unified_document_id: int | None = None,
+    ) -> "ResearchhubPostQuerySet":
         """Restrict to posts the given user is allowed to see.
 
         Anonymous users only see public posts that cleared moderation. Authors
@@ -48,9 +52,23 @@ class ResearchhubPostQuerySet(models.QuerySet):
 
         Grant posts do not use unified-document moderation status. Their backing
         document stays approved, so ``Grant.status`` decides whether they cleared.
+
+        ``shared_unified_document_id`` additionally admits the single document a
+        valid share token was issued for. It is opt-in per call site so a share
+        token can never widen discovery surfaces such as feeds: pass it only
+        where a caller is serving that one document.
         """
+        public = self._public_visibility_filter()
+        # An empty Q is the neutral element of OR: Django drops it when
+        # combining, so an absent token adds nothing to the filter.
+        shared = (
+            Q(unified_document_id=shared_unified_document_id)
+            if shared_unified_document_id is not None
+            else Q()
+        )
+
         if user is None or not getattr(user, "is_authenticated", False):
-            return self.publicly_visible()
+            return self.filter(public | shared)
 
         if user.is_moderator_or_editor():
             return self
@@ -73,9 +91,7 @@ class ResearchhubPostQuerySet(models.QuerySet):
         )
 
         return self.filter(
-            self._public_visibility_filter()
-            | created_by_user
-            | visible_to_grant_or_permitted
+            public | shared | created_by_user | visible_to_grant_or_permitted
         ).distinct()
 
     def _public_visibility_filter(self) -> Q:
@@ -96,6 +112,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
     authors = models.ManyToManyField(
         Author,
         related_name="authored_posts",
+        through="ResearchhubPostAuthor",
     )
     created_by = models.ForeignKey(
         User,
@@ -160,6 +177,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
     preview_img = models.URLField(
         blank=True,
         default=None,
+        max_length=2048,
         null=True,
     )
     renderable_text = models.TextField(
@@ -231,10 +249,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         return JOURNEY_STAGE_BY_DOCUMENT_TYPE.get(self.document_type)
 
     @property
-    def users_to_notify(self):
-        return [self.created_by]
-
-    @property
     def paper(self):
         return None
 
@@ -243,49 +257,85 @@ class ResearchhubPost(AbstractGenericReactionModel):
         return self.unified_document.hubs
 
     @property
+    def ordered_authors(self) -> list[Author]:
+        """Credited authors in byline order, excluding removed ones."""
+        return [
+            link.author
+            for link in self.author_links.all()
+            if not link.author.is_removed
+        ]
+
+    @property
     def is_removed(self):
         return self.unified_document.is_removed
 
-    @property
-    def hot_score(self):
-        if not hasattr(self, "unified_document") or self.unified_document is None:
-            return 0
-        return self.unified_document.hot_score
-
-    def get_document_slug_type(self):
-        if self.document_type == "BOUNTY":
-            return "bounty"
-        elif self.document_type == "DISCUSSION":
-            return "post"
-        elif self.document_type == "QUESTION":
-            return "question"
-
-        return "post"
-
-    def get_boost_amount(self):
-        purchases = self.purchases.filter(
-            paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
-        )
-        if purchases.exists():
-            boost_amount = (
-                purchases.annotate(amount_as_int=Cast("amount", IntegerField()))
-                .aggregate(sum=Sum("amount_as_int"))
-                .get("sum", 0)
-            )
-            return boost_amount
-        return 0
+    def get_image_url(self):
+        if not self.image:
+            return None
+        return default_storage.url(self.image)
 
     def get_full_markdown(self):
         try:
             if self.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                byte_string = self.discussion_src.read()
+                src = self.discussion_src
             else:
-                byte_string = self.eln_src.read()
-            full_markdown = byte_string.decode("utf-8")
-            return full_markdown
+                src = self.eln_src
+            with src.open() as file:
+                return file.read().decode("utf-8")
         except Exception:
             logger.exception("Error getting full markdown for document %s", self.id)
             return None
 
     def get_discussion_count(self):
         return self.rh_threads.get_discussion_count()
+
+    def reset_post_authors(self, author_ids: list[int]) -> None:
+        """Credit the given authors in the order received, dropping any others."""
+        unique_author_ids = list(dict.fromkeys(author_ids))
+        with transaction.atomic():
+            self.author_links.exclude(author_id__in=unique_author_ids).delete()
+            ResearchhubPostAuthor.objects.bulk_create(
+                [
+                    ResearchhubPostAuthor(
+                        researchhub_post=self,
+                        author_id=author_id,
+                        position=position,
+                    )
+                    for position, author_id in enumerate(unique_author_ids, start=1)
+                ],
+                update_conflicts=True,
+                unique_fields=["researchhub_post", "author"],
+                update_fields=["position"],
+            )
+
+
+class ResearchhubPostAuthorManager(models.Manager):
+    """Load author links with their author, so bylines cost a single query."""
+
+    def get_queryset(self) -> "models.QuerySet[ResearchhubPostAuthor]":
+        """Return links with the credited author already loaded."""
+        return super().get_queryset().select_related("author")
+
+
+class ResearchhubPostAuthor(models.Model):
+    """An author credited on a post and the order they appear in."""
+
+    researchhub_post = models.ForeignKey(
+        ResearchhubPost,
+        db_column="researchhubpost_id",
+        on_delete=models.CASCADE,
+        related_name="author_links",
+    )
+    author = models.ForeignKey(
+        Author,
+        on_delete=models.CASCADE,
+    )
+    position = models.IntegerField(null=True)
+
+    objects = ResearchhubPostAuthorManager()
+
+    class Meta:
+        db_table = "researchhub_document_researchhubpost_authors"
+        # Legacy links have no position, which Postgres sorts last.
+        ordering = ["position", "id"]
+        unique_together = ("researchhub_post", "author")

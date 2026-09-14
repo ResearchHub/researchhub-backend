@@ -1,0 +1,15 @@
+## Expert
+- Name: {expert_name}
+- Academic title: {academic_title}
+- Affiliation: {affiliation}
+- Expertise: {expertise}
+- Email: {email}
+- Notes: {notes}
+
+## Profile kind
+{profile_kind}
+
+## Candidates
+{candidates_block}
+
+Return JSON only: {{"selected_index": <1-based index or null>}}

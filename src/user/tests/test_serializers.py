@@ -1,20 +1,20 @@
 import json
 import time
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
+from rest_framework.test import APIClient
 
-from discussion.models import Vote
-from hub.models import Hub
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from purchase.models import Balance
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Distribution, Score, Withdrawal
+from reputation.models import Distribution, Withdrawal
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from review.models import Review
 from user.models import UserVerification
@@ -26,6 +26,7 @@ from user.serializers import (
     UserSerializer,
 )
 from user.tests.helpers import create_university, create_user
+from utils.turnstile import TurnstileService
 
 
 class UserSerializersTests(TestCase):
@@ -53,12 +54,7 @@ class UserSerializersTests(TestCase):
 
         self.user_without_papers = create_user(email="email1@researchhub.com")
 
-        for i in range(50):
-            Distribution.objects.create(
-                recipient=self.user,
-                proof_item_content_type=ContentType.objects.get_for_model(Vote),
-                reputation_amount=1,
-            )
+        for _ in range(50):
             thread = RhCommentThreadModel.objects.create(
                 object_id=paper1.id,
                 content_type=ContentType.objects.get_for_model(Paper),
@@ -90,26 +86,6 @@ class UserSerializersTests(TestCase):
         serializer = AuthorSerializer(self.user.author_profile)
         json_data = json.dumps(serializer.data)
         self.assertIn('"orcid_id": null', json_data)
-
-    def test_author_serializer_with_reputation(self):
-        hub1 = Hub.objects.create(name="Hub 1")
-        hub2 = Hub.objects.create(name="Hub 2")
-        Score.objects.create(
-            author=self.user.author_profile,
-            hub=hub1,
-            score=900,
-        )
-
-        Score.objects.create(
-            author=self.user.author_profile,
-            hub=hub2,
-            score=1000,
-        )
-
-        serializer = AuthorSerializer(self.user.author_profile)
-        self.assertEqual(serializer.data["reputation_v2"]["score"], 1000)
-        self.assertEqual(serializer.data["reputation_list"][0]["score"], 1000)
-        self.assertEqual(serializer.data["reputation_list"][1]["score"], 900)
 
     def test_user_serializer_is_verified(self):
         # Arrange
@@ -166,7 +142,6 @@ class UserSerializersTests(TestCase):
                 "citation_count": 30,
                 "peer_review_count": 50,
                 "two_year_mean_citedness": 0,
-                "upvote_count": 50,
                 "works_count": 2,
                 "open_access_pct": 0.0,
             },
@@ -186,7 +161,6 @@ class UserSerializersTests(TestCase):
                 "citation_count": 0,
                 "peer_review_count": 0,
                 "two_year_mean_citedness": 0,
-                "upvote_count": 0,
                 "works_count": 0,
                 "open_access_pct": 0.0,
             },
@@ -424,3 +398,59 @@ class UserBalanceHistorySerializerTests(TestCase):
         )
 
         self.assertEqual(int(serializer.data["balance_history"]), 1000)
+
+
+@override_settings(TURNSTILE_ENABLED=True, TURNSTILE_SECRET_KEY="secret")
+class RegistrationTurnstileTests(TestCase):
+    def setUp(self):
+        self.mailchimp_patcher = patch("oauth.signals.UserSignupService")
+        self.mailchimp_patcher.start()
+        self.addCleanup(self.mailchimp_patcher.stop)
+        self.client = APIClient()
+        self.payload = {
+            "email": "newuser@example.com",
+            "password1": "testpassword123!",
+            "password2": "testpassword123!",
+            "first_name": "Test",
+            "last_name": "User",
+        }
+
+    def test_registration_succeeds_with_a_valid_token(self):
+        # Arrange
+        with patch.object(TurnstileService, "verify", return_value=True) as verify:
+            # Act
+            response = self.client.post(
+                "/api/auth/register/", {**self.payload, "turnstile_token": "good"}
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        verify.assert_called_once()
+
+    def test_registration_is_rejected_without_a_token(self):
+        # Arrange / Act
+        response = self.client.post("/api/auth/register/", self.payload)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("turnstile_token", response.json())
+
+    def test_registration_is_rejected_when_the_token_fails_verification(self):
+        # Arrange
+        with patch.object(TurnstileService, "verify", return_value=False):
+            # Act
+            response = self.client.post(
+                "/api/auth/register/", {**self.payload, "turnstile_token": "bad"}
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("turnstile_token", response.json())
+
+    @override_settings(TURNSTILE_ENABLED=False)
+    def test_registration_succeeds_without_a_token_while_disabled(self):
+        # Arrange / Act
+        response = self.client.post("/api/auth/register/", self.payload)
+
+        # Assert
+        self.assertEqual(response.status_code, 201)

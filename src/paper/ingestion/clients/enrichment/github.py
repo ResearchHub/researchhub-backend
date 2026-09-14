@@ -88,7 +88,7 @@ class GithubClient:
             logger.warning(f"Timeout for GitHub {endpoint} search, query: {query}")
             raise
         except requests.RequestException as e:
-            logger.warning(f"GitHub {endpoint} search failed, query: {query}: {str(e)}")
+            logger.warning(f"GitHub {endpoint} search failed, query: {query}: {e!s}")
             raise
 
 

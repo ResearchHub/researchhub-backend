@@ -76,12 +76,23 @@ class ProposalContextToolset:
     def _get_rfp_context(self, _args: dict) -> dict:
         return self.get_rfp_context()
 
+    def get_grant(self):
+        """The ``Grant`` (RFP) this proposal is drafted against, or ``None``.
+
+        The run grounds itself in the grant's terms, so the accepted Note is
+        also linked back to it as the note's selected RFP.
+        """
+        unified_document = self.search_expert.expert_search.unified_document
+        if unified_document is None:
+            return None
+        return unified_document.grants.first()
+
     def get_rfp_context(self) -> dict:
         """The funder's RFP terms; ``{"error": ...}`` when none is attached."""
         unified_document = self.search_expert.expert_search.unified_document
         if unified_document is None:
             return {"error": "expert search has no unified document"}
-        grant = unified_document.grants.first()
+        grant = self.get_grant()
         if grant is None:
             return {"error": "no grant on the expert search's unified document"}
         return {

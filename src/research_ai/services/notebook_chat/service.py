@@ -1,0 +1,964 @@
+"""The notebook chat assistant: research + note edits driven by user feedback.
+
+A user can keep any number of chats on a note, workflow ``notebook_chat``.
+Each chat is its own ``AgentConversation`` -- resolved by id, never by
+position -- with its own context lineage and its own busy check. Budget admission
+limits the user's total in-flight jobs across chats and proposal drafts. A turn
+is split across two processes:
+
+- ``submit_message`` (request path) resolves the conversation, appends the
+  user's message, and creates a ``PENDING`` execution via
+  ``AgentChatService.prepare_turn`` -- so the chat shows the question
+  immediately and the conversation is locked against concurrent turns -- then
+  schedules the Celery task on commit. An execution the broker refuses to
+  queue is failed on the spot rather than left holding the busy check.
+- ``run_turn`` (worker path) atomically claims the execution (``PENDING`` ->
+  ``RUNNING``), so a redelivered or duplicated task is a no-op, then rebuilds
+  everything durable from the execution row (recorder, context lineage, the
+  recorded model and generation config, system prompt, trigger message),
+  composes the note + research toolset with
+  the conversation owner's permissions, and drives
+  ``Agent.continue_conversation``. The recorder persists the trace, marks the
+  terminal status, and publishes the assistant's reply to the chat. A
+  heartbeat thread renews the turn's budget lease for as long as the worker
+  is alive; ``reclaim_lost_turns`` fails a turn whose heartbeat stopped.
+
+The agent acts strictly as the conversation's user and only on the
+conversation's note: ``NoteToolset`` enforces note view/edit permissions per
+call, so a viewer can chat and research but the edit tool refuses to write for
+them, and it is scoped to the routed note, so the model cannot be talked into
+touching another note the same user could access.
+
+The same engine serves the note-less research assistant (workflow
+``assistant_chat``, see ``services.assistant_chat``): a conversation created
+without a note runs with ``create_note`` in its toolset, and every note that
+tool creates is attached to the conversation, so later turns can read and edit
+exactly those notes and nothing else.
+"""
+
+import logging
+from datetime import timedelta
+
+from django.db import transaction
+from django.db.models import Exists, OuterRef, Subquery
+from django.db.models.functions import Left
+from django.utils import timezone
+
+from note.related_models.note_model import Note
+from note.services.note_creation_service import NoteCreationService
+from research_ai.models import (
+    AgentConversation,
+    AgentConversationMessage,
+    AgentExecution,
+)
+from research_ai.models.agent import AgentExecutionMessage
+from research_ai.prompts.assistant_chat_prompts import (
+    build_assistant_chat_system_prompt,
+)
+from research_ai.prompts.notebook_chat_prompts import build_notebook_chat_system_prompt
+from research_ai.services.agent import (
+    AgentRunError,
+    AgentService,
+    resolve_provider,
+    split_model_ref,
+    validate_model_ref,
+)
+from research_ai.services.agent.model_capabilities import validate_generation_options
+from research_ai.services.agent.providers.registry import default_effort
+from research_ai.services.agent_persistence import (
+    AgentChatService,
+    AgentContextService,
+    AgentConversationBusyError,
+    AgentConversationService,
+    AgentExecutionCancelService,
+    AgentExecutionLivenessService,
+    NoteAgentConversationService,
+)
+from research_ai.services.agent_persistence.activity import (
+    conversation_activity_events,
+)
+from research_ai.services.note_tools import NoteToolset
+from research_ai.services.notebook_chat.activity import (
+    PHASE_RESPONDING,
+    PHASE_THINKING,
+    PHASE_USING_TOOL,
+    drafting_label,
+    execution_phase,
+    public_activity,
+)
+from research_ai.services.notebook_chat.config import NotebookChatConfig
+from research_ai.services.notebook_chat.events import (
+    TURN_CANCELLED,
+    TURN_FAILED,
+    TURN_QUEUED,
+    ConversationEventPublisher,
+    PublishingRecorder,
+)
+from research_ai.services.notebook_chat.grant_tools import (
+    GrantSearchToolset,
+    SelectedRFPToolset,
+)
+from research_ai.services.notebook_chat.researcher_profile_tools import (
+    ResearcherProfileToolset,
+)
+from research_ai.services.notebook_chat.streaming import ExecutionStreamStore
+from research_ai.services.notebook_chat.toolset import (
+    NotebookWebSearchToolset,
+    compose_notebook_toolset,
+)
+from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
+from research_ai.services.usage_budget import (
+    AgentLoopBudgetRecorder,
+    ReservationHeartbeat,
+    atomic_turn_admission,
+    effective_generation_options,
+    resolve_ai_tier,
+    resolve_default_model,
+)
+from research_ai.services.usage_budget.reservation import claim_deadline
+from research_ai.services.user_profile_tools import UserProfileToolset
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from utils.openalex import OpenAlex
+
+logger = logging.getLogger(__name__)
+
+WORKFLOW = "notebook_chat"
+ASSISTANT_WORKFLOW = "assistant_chat"
+
+# Activity projection scopes for ``NotebookChatService.representation``.
+ACTIVITY_ALL = "all"
+ACTIVITY_LIVE = "live"
+
+# How long a turn stays in the live projection after its last transition. A
+# turn can settle and be displaced as newest by a fresh message between two
+# polls -- cancel, then rephrase -- and the settled feed must still reach a
+# client whose cached copy shows the turn mid-flight. A stuck answer that
+# finally publishes restarts the clock the same way: publication stamps the
+# turn's heartbeat, so the re-rendered feed reaches every client regardless of
+# which request landed it. The window needs only to outlast a polling
+# interval; a client that stopped polling for longer is expected to refetch the
+# full projection anyway. It also keeps a just-cancelled turn in scope while
+# its worker unwinds, when trace rows can genuinely still land.
+ACTIVITY_SETTLED_GRACE = timedelta(seconds=60)
+
+# Derived chat titles are list labels, not documents: one collapsed line,
+# well under the model field's 255-char bound.
+TITLE_MAX_CHARS = 120
+
+# How much of a chat's newest message the listing carries as a preview,
+# truncated in the database so a 20k-character turn never rides along.
+LIST_PREVIEW_CHARS = 160
+
+
+def _derive_title(text: str) -> str:
+    """A list-friendly chat name from the first message: one bounded line."""
+    return " ".join(text.split())[:TITLE_MAX_CHARS].rstrip()
+
+
+def _stream_phase(stream: dict | None) -> dict | None:
+    """Return the live phase implied by the newest transient stream item."""
+    if not stream or not stream.get("items"):
+        return None
+
+    last_item = stream["items"][-1]
+    item_type = last_item.get("type")
+    if item_type == "narration":
+        return {
+            "state": PHASE_RESPONDING,
+            "label": "Writing a response",
+        }
+    if item_type == "thinking":
+        return {
+            "state": PHASE_THINKING,
+            "label": "Thinking",
+        }
+    if item_type == "tool_draft":
+        tool = last_item.get("tool") or ""
+        return {
+            "state": PHASE_USING_TOOL,
+            "label": last_item.get("label") or drafting_label(tool),
+            "tool": tool or None,
+        }
+    return None
+
+
+class NotebookChatService:
+    """Prepare and run notebook chat turns.
+
+    Runtime collaborators are injectable for tests; in production they default
+    to the settings-configured generator provider, OpenAlex client, Brave web
+    search, database persistence services, and the channel-layer event
+    publisher (see ``events``) that nudges subscribed WebSocket clients as a
+    turn advances.
+    """
+
+    def __init__(
+        self,
+        *,
+        provider=None,
+        oa_client: OpenAlex | None = None,
+        web_search_client=None,
+        grant_toolset_factory=None,
+        researcher_profile_toolset_factory=None,
+        chat_service: AgentChatService | None = None,
+        conversation_service: AgentConversationService | None = None,
+        note_conversation_service: NoteAgentConversationService | None = None,
+        context_service: AgentContextService | None = None,
+        cancel_service: AgentExecutionCancelService | None = None,
+        liveness_service: AgentExecutionLivenessService | None = None,
+        config: NotebookChatConfig | None = None,
+        event_publisher: ConversationEventPublisher | None = None,
+        stream_store: ExecutionStreamStore | None = None,
+        note_creation_service: NoteCreationService | None = None,
+        workflow: str = WORKFLOW,
+    ):
+        self.workflow = workflow
+        self._provider = provider
+        self._oa_client = oa_client
+        self._web_search_client = web_search_client
+        self._grant_toolset_factory = (
+            GrantSearchToolset
+            if grant_toolset_factory is None
+            else grant_toolset_factory
+        )
+        self._researcher_profile_toolset_factory = (
+            ResearcherProfileToolset
+            if researcher_profile_toolset_factory is None
+            else researcher_profile_toolset_factory
+        )
+        self.chat = AgentChatService() if chat_service is None else chat_service
+        self.conversations = (
+            AgentConversationService()
+            if conversation_service is None
+            else conversation_service
+        )
+        self.note_conversations = (
+            NoteAgentConversationService()
+            if note_conversation_service is None
+            else note_conversation_service
+        )
+        self.contexts = (
+            AgentContextService() if context_service is None else context_service
+        )
+        self.cancels = (
+            AgentExecutionCancelService() if cancel_service is None else cancel_service
+        )
+        self.liveness = (
+            AgentExecutionLivenessService()
+            if liveness_service is None
+            else liveness_service
+        )
+        self.events = (
+            ConversationEventPublisher() if event_publisher is None else event_publisher
+        )
+        self.streams = ExecutionStreamStore() if stream_store is None else stream_store
+        self.note_creation = (
+            NoteCreationService()
+            if note_creation_service is None
+            else note_creation_service
+        )
+        self._config = config
+
+    @property
+    def config(self) -> NotebookChatConfig:
+        return self._config or NotebookChatConfig.from_settings()
+
+    # -- request path -----------------------------------------------------
+
+    def get_conversation(
+        self, note: Note, user, conversation_id: int
+    ) -> AgentConversation | None:
+        """The user's notebook chat ``conversation_id`` on ``note``, if any.
+
+        Scoped to the note, the requesting user, and this workflow, so a
+        conversation id belonging to another user, another note, or another
+        workflow does not resolve -- the API turns that ``None`` into a 404.
+        """
+        return (
+            self.note_conversations.for_note(note)
+            .filter(workflow=self.workflow, user=user, id=conversation_id)
+            .first()
+        )
+
+    def list_conversations(self, note: Note, user) -> list[dict]:
+        """The user's chats on ``note``, newest activity first.
+
+        A listing projection, deliberately not ``representation``: one query
+        with a bounded preview of each chat's newest message, instead of
+        walking every conversation's executions and running publication
+        repair. ``has_active_turn`` is what lets a chat picker show a spinner
+        without fetching any chat's full state.
+        """
+        conversations = self.listing(
+            self.note_conversations.for_note(note).filter(
+                workflow=self.workflow, user=user
+            )
+        )
+        return [
+            {
+                "id": conversation.id,
+                "title": conversation.title,
+                "created_date": conversation.created_date,
+                "updated_date": conversation.updated_date,
+                "last_message_preview": conversation.last_message_preview,
+                "has_active_turn": conversation.has_active_turn,
+            }
+            for conversation in conversations
+        ]
+
+    @staticmethod
+    def listing(conversations):
+        """Annotate a conversation queryset for a chat picker, in one query."""
+        last_message = (
+            AgentConversationMessage.objects.filter(
+                conversation=OuterRef("pk"), is_active=True
+            )
+            .order_by("-sequence")
+            .annotate(preview=Left("content", LIST_PREVIEW_CHARS))
+            .values("preview")[:1]
+        )
+        return conversations.annotate(
+            last_message_preview=Subquery(last_message),
+            has_active_turn=Exists(
+                AgentExecution.objects.filter(
+                    conversation=OuterRef("pk"),
+                    status__in=[
+                        AgentExecution.Status.PENDING,
+                        AgentExecution.Status.RUNNING,
+                    ],
+                )
+            ),
+        )
+
+    def representation(
+        self, conversation: AgentConversation, *, activity_scope: str = ACTIVITY_ALL
+    ) -> dict:
+        """The chat representation plus each turn's public activity feed.
+
+        Activity is a notebook-chat presentation concern layered onto the
+        workflow-neutral chat payload, so the generic service stays free of
+        tool-specific knowledge.
+
+        ``activity_scope`` trades completeness for cost. ``"all"`` projects
+        activity for every execution and is what a client wants on first load.
+        ``"live"`` projects it only for executions the client may not hold
+        settled -- active turns, anything whose last transition happened
+        within ``ACTIVITY_SETTLED_GRACE`` (settling, or a stuck answer
+        publishing late: either re-renders the feed, and the turn can be
+        displaced by a new message before the client's next poll), and the
+        latest attempt. The rest **omit the ``activity`` key entirely**. An
+        absent key means "unchanged, keep what you have"; it is deliberately
+        not an empty list, which would be indistinguishable from a turn that
+        used no tools. This is what keeps a poll from re-reading the whole
+        conversation's trace payloads, which grow with every turn ever taken
+        on the note.
+
+        ``phase`` is present on every execution and is ``None`` for terminal
+        ones, so a client reads "what is it doing" from one field either way.
+        """
+        data = self.chat.representation(conversation)
+        active = {AgentExecution.Status.PENDING, AgentExecution.Status.RUNNING}
+        executions = data["executions"]
+        scoped_ids = (
+            None
+            if activity_scope == ACTIVITY_ALL
+            else self._live_activity_ids(executions, active)
+        )
+        events = conversation_activity_events(conversation, execution_ids=scoped_ids)
+        published_answers = {
+            message["execution_id"]: message["content"]
+            for message in data["messages"]
+            if message["execution_id"] is not None
+        }
+        for execution in executions:
+            execution_active = execution["status"] in active
+            execution_events = events.get(execution["id"], [])
+            stream = None
+            if execution_active:
+                # Present even when empty so reconnecting clients can replace
+                # a stale transient preview with the current snapshot.
+                stream = self._stream_snapshot(execution["id"])
+                execution["stream"] = stream
+            if scoped_ids is None or execution["id"] in scoped_ids:
+                execution["activity"] = public_activity(
+                    execution_events,
+                    execution_active=execution_active,
+                    # The final text is dropped only while the chat truly
+                    # carries it. Publication is success-gated, so any other
+                    # terminal status keeps the text here, and a succeeded run
+                    # stuck on publication repair
+                    # (``assistant_message_pending``) keeps it too until the
+                    # repair lands. A superseded run reports not pending, so an
+                    # answer a regeneration replaced stays out.
+                    answer_published=(
+                        execution["status"] == AgentExecution.Status.SUCCEEDED
+                        and not execution["assistant_message_pending"]
+                    ),
+                    # The published text itself, so the presenter can tell the
+                    # answer's own trace row from older narration a lost final
+                    # trace write left misflagged as the answer.
+                    published_answer=published_answers.get(execution["id"]),
+                )
+            execution["phase"] = execution_phase(
+                execution_events,
+                execution_active=execution_active,
+                # A pending turn is waiting for a worker to claim it; only a
+                # claimed one has model work for the phase to describe.
+                execution_claimed=(
+                    execution["status"] == AgentExecution.Status.RUNNING
+                ),
+            )
+            # A live provider delta is newer than the last durable trace row.
+            # It can therefore refine the coarse phase without becoming
+            # durable state itself.
+            stream_phase = _stream_phase(stream)
+            if stream_phase is not None:
+                execution["phase"] = stream_phase
+        return data
+
+    @staticmethod
+    def _live_activity_ids(executions: list[dict], active: set) -> list[int]:
+        """Executions whose activity a poll may not yet hold settled."""
+        now = timezone.now()
+        ids = set()
+        for execution in executions:
+            if execution["status"] in active:
+                ids.add(execution["id"])
+                continue
+            # A terminal turn stays in scope for a grace period after its
+            # last transition -- the *latest* of finishing and the final
+            # heartbeat, because a stuck answer that publishes late stamps
+            # ``last_activity_at`` and re-renders the turn no matter how long
+            # ago it finished, and no request but the one that happened to
+            # land it would otherwise know. Excluding a turn the moment it
+            # stops being newest would likewise strand any client that did
+            # not poll in between -- its cached feed would show the turn
+            # mid-flight forever. A missing timestamp cannot prove the client
+            # saw the settled feed, so it counts as fresh; that costs a walk
+            # of one turn's rows, never correctness.
+            transitions = [
+                at
+                for at in (execution["finished_at"], execution["last_activity_at"])
+                if at is not None
+            ]
+            if not transitions or now - max(transitions) <= ACTIVITY_SETTLED_GRACE:
+                ids.add(execution["id"])
+        if executions:
+            # Ordered by attempt, so the last entry is the newest turn. Its feed
+            # is what the client is watching, and on the poll that catches it
+            # finishing this is the only chance to hand over the settled version.
+            ids.add(executions[-1]["id"])
+        return sorted(ids)
+
+    def create_conversation(
+        self, note: Note, user, title: str = ""
+    ) -> AgentConversation:
+        """Create a new chat on ``note`` owned by ``user``.
+
+        Any number of chats per (note, user) is expected, so concurrent
+        creates are simply two new chats -- no serialization needed. Atomic so
+        a conversation never outlives a failed note attachment.
+        """
+        with transaction.atomic():
+            conversation = self.conversations.create(
+                user=user, workflow=self.workflow, title=title
+            )
+            self.note_conversations.attach(conversation, note)
+        return conversation
+
+    def rename_conversation(
+        self, conversation: AgentConversation, title: str
+    ) -> AgentConversation:
+        self.conversations.set_title(conversation, title)
+        return conversation
+
+    def submit_message(
+        self,
+        note: Note | None,
+        conversation: AgentConversation,
+        text: str,
+        *,
+        model_ref: str | None = None,
+        effort: str | None = None,
+        thinking: str | None = None,
+        temperature: float | None = None,
+    ) -> AgentExecution:
+        """Record the user's message on ``conversation`` and schedule the turn.
+
+        ``conversation`` must have been resolved through ``get_conversation``
+        so it is known to belong to ``note``. ``note`` is ``None`` for a
+        note-less assistant conversation, whose turn runs with ``create_note``
+        against the notes attached to it. A chat still untitled takes its
+        name from this message. ``model_ref`` selects the model for the first
+        turn. Later turns reuse that model and effort; requesting a different
+        provider, model, or effort raises ``ValueError``.
+        Raises ``ValueError`` on an empty or oversized message or a model not
+        in the selectable catalog, and lets ``AgentConversationBusyError``
+        propagate when a turn is already running on this conversation (the
+        API maps it to a 409). Budget admission may also serialize work across
+        the user's other chats.
+        """
+        text = (text or "").strip()
+        if not text:
+            raise ValueError("message must not be empty")
+        config = self.config
+        if len(text) > config.max_message_chars:
+            raise ValueError(f"message exceeds {config.max_message_chars} characters")
+        # Validated here, not only at the API boundary, so an execution can
+        # never be prepared against a model the catalog does not offer. The
+        # first execution pins the conversation's model; subsequent turns
+        # inherit that snapshot even if the configured default or catalog
+        # changes, and an explicit attempt to switch is rejected.
+        selected_model = validate_model_ref(model_ref)
+        # A turn or draft whose worker died would otherwise hold the busy
+        # checks; its lapsed lease is what lets this request take its place.
+        self.reclaim_lost_work(user=conversation.user)
+        with transaction.atomic():
+            # Keep model resolution in the same conversation lock as turn
+            # preparation. Two first-message requests with different models
+            # must not both observe an unpinned conversation.
+            locked_conversation = AgentConversation.objects.select_for_update().get(
+                id=conversation.id
+            )
+            if locked_conversation.executions.filter(
+                status__in=[
+                    AgentExecution.Status.PENDING,
+                    AgentExecution.Status.RUNNING,
+                ]
+            ).exists():
+                raise AgentConversationBusyError(
+                    "agent conversation already has an active execution"
+                )
+            conversation_model = (
+                locked_conversation.executions.exclude(model="")
+                .order_by("attempt")
+                .values_list("model", flat=True)
+                .first()
+            )
+            if (
+                conversation_model is not None
+                and selected_model is not None
+                and selected_model != conversation_model
+            ):
+                raise ValueError(
+                    "model cannot be changed after a conversation has started"
+                )
+            policy = resolve_ai_tier(locked_conversation.user)
+            model = (
+                conversation_model or selected_model or resolve_default_model(policy)
+            )
+            previous_configuration = (
+                locked_conversation.executions.order_by("-attempt")
+                .values_list("configuration", flat=True)
+                .first()
+            )
+            if previous_configuration is not None:
+                # Preserve the latest setting for chats that predate effort
+                # locking. Older rows can omit the adapter's default.
+                conversation_effort = previous_configuration.get("effort")
+                if conversation_effort is None:
+                    conversation_effort = default_effort(model)
+                if effort is not None and effort != conversation_effort:
+                    raise ValueError(
+                        "effort cannot be changed after a conversation has started; "
+                        "start a new conversation to use a different effort"
+                    )
+                effort = conversation_effort
+            effort, thinking = effective_generation_options(
+                policy, effort=effort, thinking=thinking
+            )
+            if effort is None:
+                effort = default_effort(model)
+            with atomic_turn_admission(
+                locked_conversation.user,
+                model,
+                effort=effort,
+                thinking=thinking,
+            ):
+                provider_name, model_id = split_model_ref(model)
+                validate_generation_options(
+                    provider_name,
+                    model_id or "",
+                    effort=effort,
+                    thinking=thinking,
+                    temperature=temperature,
+                )
+
+                configuration = {
+                    "max_iterations": config.max_iterations,
+                    "max_tokens": config.max_tokens,
+                    "temperature": (
+                        config.temperature if temperature is None else temperature
+                    ),
+                }
+                # A recorded note pins the worker to it; its absence is what
+                # marks the execution as a note-less turn.
+                if note is not None:
+                    configuration["note_id"] = note.id
+                if effort is not None:
+                    configuration["effort"] = effort
+                if thinking is not None:
+                    configuration["thinking"] = thinking
+
+                prepared = self.chat.prepare_turn(
+                    locked_conversation,
+                    text,
+                    pending=True,
+                    provider=provider_name,
+                    model=model,
+                    configuration=configuration,
+                    system_prompt=self._system_prompt(note, locked_conversation),
+                )
+                # Held until a worker claims the turn and takes over renewal.
+                prepared.execution.usage_reservation_expires_at = claim_deadline()
+                prepared.execution.save(
+                    update_fields=["usage_reservation_expires_at", "updated_date"]
+                )
+        execution = prepared.execution
+        # After prepare_turn so a refused turn (busy, for instance) names
+        # nothing; the filtered update keeps a concurrent rename authoritative.
+        self.conversations.set_title_if_blank(conversation, _derive_title(text))
+        # Publish before scheduling: under autocommit both run immediately in
+        # this order, keeping turn_queued ahead of anything the worker or a
+        # synchronous broker refusal publishes.
+        self.events.publish(conversation.id, execution.id, TURN_QUEUED)
+        transaction.on_commit(lambda: self._schedule_turn(execution.id))
+        return execution
+
+    def cancel_active_turn(
+        self, conversation: AgentConversation
+    ) -> AgentExecution | None:
+        """Stop the conversation's in-flight turn; ``None`` if none was running.
+
+        Cancellation is cooperative: the worker is not interrupted here, it
+        notices at its next durable write and unwinds. The turn's status is
+        ``CANCELLED`` immediately even though a model call may still be in
+        flight. Nothing the worker does afterwards can revive the row -- every
+        terminal transition in the recorder is guarded on ``RUNNING``. Clients
+        likewise treat terminal status as authoritative and ignore any
+        best-effort preview delta already in flight.
+        """
+        execution = (
+            conversation.executions.filter(
+                status__in=[
+                    AgentExecution.Status.PENDING,
+                    AgentExecution.Status.RUNNING,
+                ]
+            )
+            .order_by("-attempt")
+            .first()
+        )
+        if execution is None:
+            return None
+        if not self.cancels.cancel(execution):
+            return None
+        try:
+            self.streams.clear(execution.id)
+        except Exception:  # noqa: BLE001 - preview cleanup is optional
+            logger.warning(
+                "notebook chat stream clear failed during cancellation (execution=%s)",
+                execution.id,
+                exc_info=True,
+            )
+        # The worker's durable writes stop once the row is terminal. A preview
+        # delta already in flight is harmless because clients give this
+        # terminal transition precedence for the execution.
+        self.events.publish(conversation.id, execution.id, TURN_CANCELLED)
+        return execution
+
+    def reclaim_lost_turns(self, *, user=None) -> list[AgentExecution]:
+        """Fail turns whose worker stopped heartbeating, and tell their chats.
+
+        Sealing is the liveness service's; this adds what the worker would have
+        done had it failed the turn itself: drop the transient preview and
+        publish the terminal event.
+        """
+        reclaimed = self.liveness.reclaim_lost(user=user)
+        for execution in reclaimed:
+            try:
+                self.streams.clear(execution.id)
+            except Exception:  # noqa: BLE001 - preview cleanup is optional
+                logger.warning(
+                    "notebook chat stream clear failed while reclaiming turn %s",
+                    execution.id,
+                    exc_info=True,
+                )
+            self.events.publish(execution.conversation_id, execution.id, TURN_FAILED)
+        return reclaimed
+
+    def reclaim_lost_work(self, *, user) -> None:
+        """Fail the user's lost turns and drafts; either kind holds admission."""
+        # Imported here, not at module top: ``proposal_draft`` reclaims turns
+        # through this service, so a top-level import would be a cycle.
+        from research_ai.services.proposal_draft.liveness_service import (
+            ProposalDraftLivenessService,
+        )
+
+        self.reclaim_lost_turns(user=user)
+        ProposalDraftLivenessService().reclaim_lost(user=user)
+
+    def _schedule_turn(self, execution_id: int) -> None:
+        """Queue the worker turn, failing the execution if the broker refuses.
+
+        A ``PENDING`` row with no task behind it would hold the
+        conversation's busy check forever; claiming and failing it instead
+        lets the user simply send their message again.
+        """
+        # Imported here, not at module top: ``tasks`` imports this service, so
+        # a top-level import would be a cycle.
+        from research_ai.tasks import run_notebook_chat_turn_task
+
+        try:
+            run_notebook_chat_turn_task.delay(execution_id)
+        except Exception as exc:  # noqa: BLE001 - any enqueue failure
+            logger.exception("could not queue notebook chat turn %s", execution_id)
+            execution = AgentExecution.objects.filter(id=execution_id).first()
+            recorder = (
+                self.chat.executions.claim_pending(execution)
+                if execution is not None
+                else None
+            )
+            if recorder is not None:
+                self._publishing_recorder(recorder, execution).on_run_failed(exc)
+
+    # -- worker path ------------------------------------------------------
+
+    def run_turn(self, execution_id: int) -> dict:
+        """Drive one prepared execution to a terminal state.
+
+        Everything the turn needs is rebuilt from the execution row, so the
+        worker shares no in-memory state with the request that prepared it.
+        Idempotent on redelivery: only the delivery that claims the
+        ``PENDING`` row runs it; every other delivery is skipped.
+        """
+        execution = AgentExecution.objects.select_related(
+            "conversation", "conversation__user", "trigger_message"
+        ).get(id=execution_id)
+        recorder = self.chat.executions.claim_pending(
+            execution,
+            initial_prompt_provenance=AgentExecutionMessage.Provenance.HUMAN,
+        )
+        if recorder is None:
+            logger.info(
+                "notebook chat turn %s skipped: status is %s",
+                execution_id,
+                execution.status,
+            )
+            return {"execution_id": execution.id, "skipped": True}
+        # Every durable write and terminal transition below flows through the
+        # recorder, so wrapping it here is what pushes the whole turn's
+        # progress to subscribed clients.
+        recorder = self._publishing_recorder(recorder, execution)
+        # Renews the budget lease from its own thread until the turn returns,
+        # whatever the loop is blocked on; a dead worker's lease simply lapses.
+        with ReservationHeartbeat((execution,)) as heartbeat:
+            try:
+                return self._run_turn(execution, recorder, heartbeat)
+            except Exception as exc:
+                # Terminal safety net: whatever escapes before or around the
+                # agent loop (provider resolution, toolset build, a bug) still
+                # lands the execution in FAILED -- a row stuck RUNNING blocks
+                # every later turn on the conversation.
+                logger.exception("notebook chat turn %s crashed", execution.id)
+                if not recorder.terminal_observed:
+                    try:
+                        recorder.on_run_failed(exc)
+                    except Exception:  # noqa: BLE001 - keep the original failure
+                        logger.warning(
+                            "could not finalize crashed notebook chat turn",
+                            exc_info=True,
+                        )
+                return {"execution_id": execution.id, "error": str(exc)}
+
+    def _run_turn(
+        self, execution: AgentExecution, recorder, heartbeat: ReservationHeartbeat
+    ) -> dict:
+        conversation = execution.conversation
+        trigger = execution.trigger_message
+        stored_configuration = execution.configuration or {}
+        # The note the turn was submitted on, when it was. A recorded id that
+        # no longer resolves is a broken row; no id at all is a note-less
+        # assistant turn, which works on whatever notes the chat has created.
+        pinned_note_id = stored_configuration.get("note_id")
+        note = (
+            self._note_for(conversation, pinned_note_id)
+            if pinned_note_id is not None
+            else None
+        )
+        note_missing = pinned_note_id is not None and note is None
+        if note_missing or conversation.user is None or trigger is None:
+            error = AgentRunError(
+                "notebook chat execution is missing its note, user, or message"
+            )
+            recorder.on_run_failed(error)
+            return {"execution_id": execution.id, "error": str(error)}
+
+        provider_options = {
+            key: stored_configuration[key]
+            for key in ("effort", "thinking")
+            if key in stored_configuration
+        }
+        provider = self._provider or resolve_provider(
+            execution.model or None,
+            native_tools=frozenset({"web_search"}),
+            **provider_options,
+        )
+        toolset = compose_notebook_toolset(
+            note_toolset=self._note_toolset(conversation, note),
+            user_profile_toolset=UserProfileToolset(user=conversation.user),
+            researcher_profile_toolset=self._researcher_profile_toolset_factory(
+                user=conversation.user
+            ),
+            grant_toolset=self._grant_toolset_factory(user=conversation.user),
+            selected_rfp_toolset=(
+                SelectedRFPToolset(note=note, user=conversation.user)
+                if note is not None and note.document_type == PREREGISTRATION
+                else None
+            ),
+            openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
+            web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
+            native_tool_names=provider.native_tool_names,
+        )
+        config = self._turn_config(execution)
+        accounting_provider, accounting_model = split_model_ref(execution.model)
+        budget_recorder = AgentLoopBudgetRecorder(
+            user=conversation.user,
+            # From the row, not ``self.workflow``: one worker task runs turns
+            # for every workflow and must account each to its own feature.
+            feature=conversation.workflow or self.workflow,
+            provider=execution.provider or accounting_provider,
+            model_id=accounting_model or "",
+            recorder=recorder,
+            execution=execution,
+            heartbeat=heartbeat,
+        )
+        agent = AgentService(
+            provider=provider, max_iterations=config.max_iterations
+        ).create_agent(
+            toolset,
+            system_prompt=execution.system_prompt,
+            max_tokens=config.max_tokens,
+            temperature=config.temperature,
+            recorder=budget_recorder,
+        )
+
+        context = (
+            self.contexts.reconstruct(execution.context_parent)
+            if execution.context_parent_id
+            else []
+        )
+        try:
+            result = agent.continue_conversation(context, trigger.content)
+        except AgentRunError as exc:
+            # The loop already recorded the failure (status, error fields,
+            # partial trace) through the recorder; report, don't re-raise.
+            logger.warning("notebook chat turn %s failed: %s", execution.id, exc)
+            return {"execution_id": execution.id, "error": str(exc)}
+        return {
+            "execution_id": execution.id,
+            "stop_reason": result.stop_reason,
+            "iterations": result.iterations,
+            "final_text": result.final_text,
+        }
+
+    def _publishing_recorder(
+        self, recorder, execution: AgentExecution
+    ) -> PublishingRecorder:
+        """Wrap ``recorder`` so its writes nudge the chat's WebSocket group."""
+        return PublishingRecorder(
+            recorder,
+            self.events,
+            conversation_id=execution.conversation_id,
+            execution_id=execution.id,
+            stream_store=self.streams,
+        )
+
+    def _stream_snapshot(self, execution_id: int) -> dict | None:
+        """Read an optional transient preview without breaking durable chat reads."""
+        try:
+            return self.streams.get(execution_id)
+        except Exception:  # noqa: BLE001 - stream recovery is best-effort
+            logger.warning(
+                "notebook chat stream read failed (execution=%s)",
+                execution_id,
+                exc_info=True,
+            )
+            return None
+
+    def _turn_config(self, execution: AgentExecution) -> NotebookChatConfig:
+        """The knobs this turn was submitted with, not today's settings.
+
+        A settings change while the turn sat queued must not make the
+        execution's recorded configuration lie about the run; current
+        settings only fill keys the stored snapshot lacks.
+        """
+        stored = execution.configuration or {}
+        defaults = self.config
+        # Built field-by-field rather than via dataclasses.replace so the
+        # value is statically a NotebookChatConfig, not a bare dataclass.
+        # Presence check, not ``is not None``: a stored null is a recorded
+        # choice (max_tokens null = the model's own ceiling), not a gap.
+        return NotebookChatConfig(
+            **{
+                field: (stored[field] if field in stored else getattr(defaults, field))
+                for field in ("max_iterations", "max_tokens", "temperature")
+            },
+            max_message_chars=defaults.max_message_chars,
+        )
+
+    def _system_prompt(self, note: Note | None, conversation) -> str:
+        if note is not None:
+            return build_notebook_chat_system_prompt(note)
+        return build_assistant_chat_system_prompt(self._linked_notes(conversation))
+
+    def _note_toolset(
+        self, conversation: AgentConversation, note: Note | None
+    ) -> NoteToolset:
+        """Note tools scoped to the routed note, or to the chat's own notes.
+
+        A note-less turn may create notes; each one is attached to the
+        conversation as it is created, so it stays in scope for later turns
+        and for a listing of what the chat produced.
+        """
+        if note is not None:
+            return NoteToolset(user=conversation.user, note_ids={note.id})
+        return NoteToolset(
+            user=conversation.user,
+            note_ids={linked.id for linked in self._linked_notes(conversation)},
+            note_creator=lambda title, document_type: self._create_note(
+                conversation, title, document_type
+            ),
+        )
+
+    def _create_note(
+        self, conversation: AgentConversation, title: str, document_type: str
+    ) -> Note:
+        with transaction.atomic():
+            note = self.note_creation.create_private_note(
+                created_by=conversation.user,
+                title=title,
+                document_type=document_type,
+            )
+            self.note_conversations.attach(conversation, note)
+        return note
+
+    @staticmethod
+    def _linked_notes(conversation: AgentConversation) -> list[Note]:
+        """Live notes attached to ``conversation``, oldest first."""
+        return [
+            link.note
+            for link in conversation.note_links.filter(
+                note__unified_document__is_removed=False
+            )
+            .select_related("note")
+            .order_by("id")
+        ]
+
+    def _note_for(self, conversation: AgentConversation, note_id: int) -> Note | None:
+        """The attached note ``note_id``, or ``None`` if it is not linked."""
+        link = (
+            conversation.note_links.filter(note_id=note_id)
+            .select_related("note")
+            .first()
+        )
+        return link.note if link else None

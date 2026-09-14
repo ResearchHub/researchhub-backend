@@ -17,6 +17,7 @@ from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
+from utils.models import SoftDeletableModel
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 fs = ProfileImageStorage()
 
 
-class Author(models.Model):
+class Author(SoftDeletableModel):
     SOURCE_OPENALEX = "OPENALEX"
     SOURCE_RESEARCHHUB = "RESEARCHHUB"
     SOURCE_CHOICES = [
@@ -228,35 +229,6 @@ class Author(models.Model):
         return direct + merged
 
     @property
-    def reputation_list(self):
-        scores = (
-            Score.objects.filter(author=self, score__gt=0)
-            .select_related("hub")
-            .order_by("-score")
-        )
-
-        reputation_list = [
-            {
-                "hub": {
-                    "id": score.hub.id,
-                    "name": score.hub.name,
-                    "slug": score.hub.slug,
-                },
-                "score": score.score,
-                "percentile": score.percentile,
-                "bins": [
-                    [0, 1000],
-                    [1000, 10000],
-                    [10000, 100000],
-                    [100000, 1000000],
-                ],  # FIXME: Replace with bins from algo vars table
-            }
-            for score in scores
-        ]
-
-        return reputation_list
-
-    @property
     def paper_count(self):
         # Get paper IDs from both queries, combine in set for deduplication
         direct_ids = set(
@@ -271,7 +243,6 @@ class Author(models.Model):
 
     @property
     def achievements(self):
-        upvote_count = getattr(self.user, "upvote_count", 0)
         peer_review_count = getattr(self.user, "peer_review_count", 0)
         amount_funded = getattr(self.user, "amount_funded", 0)
         return {
@@ -286,14 +257,6 @@ class Author(models.Model):
             "OPEN_SCIENCE_SUPPORTER": {
                 "value": amount_funded,
                 "milestones": [10, 1000, 10000],
-            },
-            "HIGHLY_UPVOTED": {
-                "value": upvote_count,
-                "milestones": [
-                    10,
-                    100,
-                    1000,
-                ],
             },
             "EXPERT_PEER_REVIEWER": {
                 "value": peer_review_count,

@@ -1,11 +1,15 @@
-# flake8: noqa
-
 """
 ASGI entrypoint. Configures Django and then runs the application
 defined in the ASGI_APPLICATION setting.
 """
 
+# Django must be initialized before app modules are imported, so imports below
+# intentionally do not all sit at the top of the file.
+# ruff: noqa: E402
+
 import os
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
 
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
@@ -16,15 +20,13 @@ from django.core.asgi import get_asgi_application
 
 django_asgi_app = get_asgi_application()
 
-
 from django.conf import settings
 
 import note.routing
 import notification.routing
-from researchhub.token_auth import TokenAuthMiddlewareStack
+import research_ai.routing
 from researchhub.settings import CELERY_WORKER
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
+from researchhub.token_auth import TokenAuthMiddlewareStack
 
 # Wrap Django ASGI application with Elastic APM middleware.
 # This is necessary to capture transaction data for performance monitoring.
@@ -45,6 +47,7 @@ if not CELERY_WORKER:
                 [
                     *note.routing.websocket_urlpatterns,
                     *notification.routing.websocket_urlpatterns,
+                    *research_ai.routing.websocket_urlpatterns,
                 ]
             )
         )

@@ -174,7 +174,7 @@ if DJANGO_ALLOWED_HOSTS:
 
 
 # Cors
-CORS_ORIGIN_WHITELIST = [
+CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "https://localhost:3000",
     "https://dev.researchhub.com",
@@ -240,8 +240,6 @@ INSTALLED_APPS = [
     "channels",
     # Django Celery Results
     "django_celery_results",
-    # MJML
-    "mjml",
     # Custom apps
     "analytics",
     "personalize",
@@ -325,7 +323,9 @@ if USE_SILK:
 
 ROOT_URLCONF = "researchhub.urls"
 
-FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400 * 24.1  # ~655MB max data allowed
+FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400  # 25MB
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2621440  # 2.5MB (default)
 
 PAGINATION_PAGE_SIZE = 10
 
@@ -350,10 +350,9 @@ REST_FRAMEWORK = {
     "TEST_REQUEST_RENDERER_CLASSES": [
         "rest_framework.renderers.MultiPartRenderer",
         "rest_framework.renderers.JSONRenderer",
-        "utils.renderers.PlainTextRenderer",
     ],
     "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
+        "utils.throttles.CloudflareAnonRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
         "anon": "50/minute",
@@ -427,17 +426,6 @@ SOCIALACCOUNT_PROVIDERS = {
         "EMAIL_AUTHENTICATION": True,
     },
 }
-
-
-GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
-if PRODUCTION:
-    GOOGLE_REDIRECT_URL = (
-        "https://backend.prod.researchhub.com/auth/google/login/callback/"
-    )
-if STAGING:
-    GOOGLE_REDIRECT_URL = (
-        "https://backend.staging.researchhub.com/auth/google/login/callback/"
-    )
 
 ORCID_CLIENT_ID = os.environ.get(
     "ORCID_CLIENT_ID", getattr(keys, "ORCID_CLIENT_ID", "")
@@ -544,6 +532,30 @@ OPENAI_API_KEY = os.environ.get(
     getattr(keys, "OPENAI_API_KEY", ""),
 )
 
+# Claude Platform on AWS (research_ai agent core). Anthropic's own Claude
+# Developer Platform fronted by AWS SigV4 auth and Marketplace billing --
+# distinct from Amazon Bedrock. Requests are signed with the ambient AWS
+# credentials, so this workspace id is the only extra config; it is required
+# whenever the generator or a judge roster entry runs on Claude Platform.
+ANTHROPIC_AWS_WORKSPACE_ID = os.environ.get(
+    "ANTHROPIC_AWS_WORKSPACE_ID",
+    getattr(keys, "ANTHROPIC_AWS_WORKSPACE_ID", ""),
+)
+
+# OpenRouter (research_ai agent core). Required only when the generator or a
+# judge roster entry is routed through OpenRouter.
+OPENROUTER_API_KEY = os.environ.get(
+    "OPENROUTER_API_KEY",
+    getattr(keys, "OPENROUTER_API_KEY", ""),
+)
+
+# Which provider the research_ai agent core generates with: "claude_platform"
+# (default, Claude Platform on AWS), "bedrock", or "openrouter". Each adapter
+# names its own model and inference knobs as module constants.
+RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
+    "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
+)
+
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
     "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
     getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
@@ -557,13 +569,6 @@ AI_PEER_REVIEW_EXPERT_EMAIL = os.environ.get(
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
     # Set AWS profile for local development
     os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
-
-# AWS Lambda
-
-GHOSTSCRIPT_LAMBDA_ARN = os.environ.get(
-    "GHOSTSCRIPT_LAMBDA_ARN",
-    keys.GHOSTSCRIPT_LAMBDA_ARN,
-)
 
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 7
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "ResearchHub | "
@@ -608,11 +613,16 @@ ASSETS_BASE_URL = os.environ.get(
 
 # Email
 
+# See: https://github.com/django-ses/django-ses#full-list-of-settings
 AWS_SES_REGION_NAME = AWS_REGION_NAME
 AWS_SES_REGION_ENDPOINT = os.environ.get(
     "AWS_SES_REGION_ENDPOINT", keys.AWS_SES_REGION_ENDPOINT
 )
 AWS_SES_CONFIGURATION_SET = os.environ.get("AWS_SES_CONFIGURATION_SET", None) or None
+# Blacklist settings
+AWS_SES_USE_BLACKLIST = True
+AWS_SES_ADD_BOUNCE_TO_BLACKLIST = True
+AWS_SES_ADD_COMPLAINT_TO_BLACKLIST = True
 
 EMAIL_BACKEND = "django_ses.SESBackend"
 if TESTING:
@@ -622,7 +632,6 @@ EMAIL_WHITELIST = [
     email.strip()
     for email in os.environ.get("EMAIL_WHITELIST", keys.EMAIL_WHITELIST).split(",")
 ]
-
 
 # Persona
 PERSONA_WEBHOOK_SECRET = os.environ.get(
@@ -732,6 +741,8 @@ REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.environ.get("REDIS_PORT", "6379"))
 
 # Cache Settings
+TEST_RUNNER = "utils.test_runner.IsolatedCacheRunner"
+
 if TESTING:
     CACHES = {
         "default": {
@@ -832,11 +843,9 @@ MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", keys.MAILCHIMP_KEY)
 MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", keys.MAILCHIMP_LIST_ID)
 MAILCHIMP_SERVER = "us4"
 
-MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", keys.MORALIS_API_KEY)
-
-# Recaptcha
-RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
-RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", keys.RECAPTCHA_SECRET_KEY)
+# Cloudflare Turnstile
+TURNSTILE_ENABLED = os.environ.get("TURNSTILE_ENABLED", "false").lower() == "true"
+TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", keys.TURNSTILE_SECRET_KEY)
 
 
 # Amplitude
@@ -872,19 +881,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
     "WEB3_KEYSTORE_PASSWORD_SECRET_ID", keys.WEB3_KEYSTORE_PASSWORD_SECRET_ID
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
-
-
-# MJML
-MJML_APP_ID = os.environ.get("MJML_APP_ID", keys.MJML_APP_ID)
-MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", keys.MJML_SECRET_KEY)
-MJML_BACKEND_MODE = "httpserver"
-MJML_HTTPSERVERS = [
-    {
-        "URL": "https://api.mjml.io/v1/render",  # official MJML API
-        "HTTP_AUTH": (MJML_APP_ID, MJML_SECRET_KEY),
-    },
-]
-
 
 # Transpose API
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)

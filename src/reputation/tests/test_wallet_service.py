@@ -344,7 +344,7 @@ class TestWalletService(TestCase):
 
         # Verify API call was made for gas price
         self.mock_requests_get.assert_called_once()
-        args, kwargs = self.mock_requests_get.call_args
+        args, _ = self.mock_requests_get.call_args
         self.assertIn("https://api.etherscan.io/v2/api?chainid=1", args[0])
         self.assertIn("gastracker", args[0])
         self.assertIn("gasoracle", args[0])
@@ -387,7 +387,7 @@ class TestWalletService(TestCase):
 
         # Verify API call was made for gas price
         self.mock_requests_get.assert_called_once()
-        args, kwargs = self.mock_requests_get.call_args
+        args, _ = self.mock_requests_get.call_args
         self.assertIn("chainid=8453", args[0])
 
     @patch("reputation.services.wallet.web3_provider")

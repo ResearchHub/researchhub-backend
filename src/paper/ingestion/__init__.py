@@ -20,20 +20,20 @@ from .exceptions import (
 from .mappers import BaseMapper, BioRxivMapper
 
 __all__ = [
-    # Base classes
-    "BaseClient",
-    "BaseMapper",
-    "ClientConfig",
     # ArXiv implementation
     "ArXivClient",
     "ArXivConfig",
     # ArXiv OAI implementation
     "ArXivOAIClient",
     "ArXivOAIConfig",
+    # Base classes
+    "BaseClient",
+    "BaseMapper",
     # BioRxiv implementation
     "BioRxivClient",
     "BioRxivConfig",
     "BioRxivMapper",
+    "ClientConfig",
     # Exceptions
     "ClientError",
     "FetchError",

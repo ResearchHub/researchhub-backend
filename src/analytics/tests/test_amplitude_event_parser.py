@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -162,7 +162,7 @@ class AmplitudeEventParserTests(TestCase):
 
         interaction = self.parser.parse_amplitude_event(event)
 
-        expected_datetime = datetime.fromtimestamp(timestamp_ms / 1000)
+        expected_datetime = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
         self.assertEqual(interaction.event_timestamp, expected_datetime)
 
     def test_event_without_related_work_returns_none(self):

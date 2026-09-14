@@ -17,7 +17,3 @@ class PaperSerializerError(Error):
 
 class DOINotFoundError(Exception):
     pass
-
-
-class ManubotProcessingError(Exception):
-    pass

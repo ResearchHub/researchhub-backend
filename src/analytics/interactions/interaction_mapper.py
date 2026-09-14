@@ -39,7 +39,7 @@ def map_from_upvote(vote: Vote) -> UserInteractions:
     try:
         unified_doc = vote.unified_document
     except Exception as e:
-        raise ValueError(f"Vote {vote.id} has no valid unified_document: {str(e)}")
+        raise ValueError(f"Vote {vote.id} has no valid unified_document: {e!s}")
 
     if not unified_doc:
         raise ValueError(f"Vote {vote.id} has None unified_document")
