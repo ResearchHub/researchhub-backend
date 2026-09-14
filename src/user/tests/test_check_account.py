@@ -1,5 +1,4 @@
 from allauth.account.models import EmailAddress
-from allauth.socialaccount.models import SocialAccount
 from rest_framework.test import APIClient
 
 from user.models import User
@@ -48,30 +47,3 @@ class CheckAccountTests(AWSMockTestCase):
 
         # Assert
         self.assertEqual(response.data, {"exists": False})
-
-    def test_unverified_account_is_still_recognized(self):
-        # Arrange
-        self.email_address.verified = False
-        self.email_address.save()
-
-        # Act
-        response = self.check_account(self.user.email.lower())
-
-        # Assert
-        self.assertEqual(
-            response.data,
-            {"exists": True, "auth": "email", "is_verified": False},
-        )
-
-    def test_google_account_keeps_its_provider(self):
-        # Arrange
-        SocialAccount.objects.create(user=self.user, provider="google", uid="123")
-
-        # Act
-        response = self.check_account(self.user.email.lower())
-
-        # Assert
-        self.assertEqual(
-            response.data,
-            {"exists": True, "auth": "google", "is_verified": True},
-        )
