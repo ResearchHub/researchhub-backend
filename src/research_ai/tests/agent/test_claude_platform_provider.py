@@ -223,6 +223,33 @@ class RenderToolsTests(SimpleTestCase):
             ],
         )
 
+    def test_eager_input_streaming_is_opt_in_per_tool(self):
+        # Arrange: only the document writer needs unbuffered input fragments.
+        provider = _build_provider(web_search=True)
+        tools = [
+            Tool(
+                name="write_document",
+                description="Write document prose",
+                input_schema={"type": "object", "properties": {}},
+                handler=lambda input: {},
+                eager_input_streaming=True,
+            ),
+            Tool(
+                name="lookup",
+                description="Look something up",
+                input_schema={"type": "object", "properties": {}},
+                handler=lambda input: {},
+            ),
+        ]
+
+        # Act
+        rendered = provider.render_tools(tools)
+
+        # Assert: opt in on the writer, leaving other and native tools alone.
+        self.assertIs(rendered[0]["eager_input_streaming"], True)
+        self.assertNotIn("eager_input_streaming", rendered[1])
+        self.assertNotIn("eager_input_streaming", rendered[2])
+
     def test_web_search_off_renders_only_the_callers_tools(self):
         # Arrange: native search is opt-in, so unrelated agents do not receive it.
         provider = _build_provider()
