@@ -94,10 +94,8 @@ class DynamicFundingPoolSerializer(DynamicModelFieldSerializer):
         return self._amount_currency_dict(pool.amount_raised)
 
     def get_contributors(self, pool):
-        """Top contributors with their RSC/USD totals, plus the contributor count.
-
-        Runs two queries per pool, so only include this field where a single
-        pool is serialized (not on feeds).
+        """
+        Top contributors with their RSC/USD totals, plus the contributor count.
         """
         summary = pool.get_contributors_summary()
         context = self.context
