@@ -1,7 +1,8 @@
 from datetime import datetime
 
 from allauth.account.models import EmailAddress
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Value
+from django.db.models.functions import Lower
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
@@ -27,6 +28,7 @@ from user.permissions import (
     UserIsEditor,
 )
 from user.serializers import (
+    CheckAccountSerializer,
     MajorSerializer,
     UniversitySerializer,
     UserEditableSerializer,
@@ -92,7 +94,14 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["POST"], permission_classes=[AllowAny])
     def check_account(self, request):
-        user = User.all_objects.filter(email=request.data["email"]).first()
+        serializer = CheckAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+        user = (
+            User.all_objects.alias(normalized_email=Lower("email"))
+            .filter(normalized_email=Lower(Value(email)))
+            .first()
+        )
         if user:
             # Filtering by provider == google because we only have google login
             # If we ever add a second login, we need to update the provider to include

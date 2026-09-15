@@ -89,6 +89,59 @@ class NotebookStreamBufferTests(SimpleTestCase):
             ],
         )
 
+    def test_draft_formatting_updates_without_more_prose_and_survives_reconnect(self):
+        # Arrange: node metadata arrives after its text.
+        self.buffer.append(1, ToolUseStreamStart(block_index=0, name="edit_note"))
+        self.buffer.append(
+            1,
+            ToolInputStreamDelta(
+                block_index=0,
+                partial_json='{"edits":[{"blocks":[{"content":["Overview"]',
+            ),
+        )
+        self.buffer.flush()
+        self.assertEqual(
+            self.store.get(9)["items"][0]["blocks"],
+            [{"content": [{"type": "text", "text": "Overview"}]}],
+        )
+
+        # Act: only the heading metadata changes.
+        self.buffer.append(
+            1,
+            ToolInputStreamDelta(
+                block_index=0,
+                partial_json=',"type":"heading","attrs":{"level":2}}]}]}',
+            ),
+        )
+        self.buffer.flush()
+
+        # Assert: both delivery paths carry a replacement formatted snapshot.
+        delta = self.publisher.calls[-1][1]["deltas"][0]
+        self.assertEqual(delta["delta"], "")
+        self.assertEqual(
+            delta["blocks"],
+            [
+                {
+                    "content": [{"type": "text", "text": "Overview"}],
+                    "type": "heading",
+                    "attrs": {"level": 2},
+                }
+            ],
+        )
+        self.assertEqual(
+            self.store.get(9)["items"][0]["blocks"],
+            [
+                {
+                    "content": [{"type": "text", "text": "Overview"}],
+                    "type": "heading",
+                    "attrs": {"level": 2},
+                }
+            ],
+        )
+        self.buffer.restart(1)
+        self.assertEqual(self.buffer.block_drafts, {})
+        self.assertEqual(self.store.get(9)["items"], [])
+
     def test_later_fragments_coalesce_until_flush(self):
         # Arrange
         self.buffer.append(1, TextStreamDelta(block_index=0, text="a"))
@@ -140,6 +193,7 @@ class NotebookStreamBufferTests(SimpleTestCase):
                 "at": draft_delta["at"],
                 "tool": "edit_note",
                 "label": "Drafting an edit",
+                "blocks": [],
             },
         )
         draft_item = self.store.get(9)["items"][-1]

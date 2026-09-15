@@ -379,6 +379,13 @@ class ClaudePlatformProvider(LLMProvider):
                 "name": tool.name,
                 "description": tool.description,
                 "input_schema": tool.input_schema,
+                # Note prose lives in a large tool argument. Without this the
+                # API buffers the argument before our preview can receive it.
+                **(
+                    {"eager_input_streaming": True}
+                    if tool.eager_input_streaming
+                    else {}
+                ),
             }
             for tool in tools
         ]
