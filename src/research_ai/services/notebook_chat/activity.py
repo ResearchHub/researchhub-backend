@@ -13,9 +13,9 @@ spinner into a readable account of what the agent is doing. Thinking events
 carry readable reasoning text while dropping provider signatures and encrypted
 state.
 
-Raw tool arguments and results never pass through: tool traffic includes whole
-note documents, paper full texts, and provider payloads, and tool error strings
-are written for the model, not the user.
+Whole tool argument and result payloads never pass through. Code execution
+adds an explicitly selected, bounded code/stdout preview; provider error text,
+encrypted state, note documents, and paper full texts stay private.
 
 Alongside the feed, :func:`execution_phase` reduces the same events to a single
 coarse "what is it doing right now" for a live turn, so a client has something
@@ -31,6 +31,10 @@ from research_ai.services.agent_persistence.activity import (
     ToolCallEvent,
 )
 from research_ai.services.note_tools import CREATE_NOTE, EDIT_NOTE, READ_NOTE
+from research_ai.services.notebook_chat.code_execution import (
+    CODE_EXECUTION_TOOLS,
+    public_code_execution,
+)
 from research_ai.services.notebook_chat.grant_tools import (
     GET_GRANT_DETAILS,
     READ_SELECTED_RFP,
@@ -53,6 +57,7 @@ GET_AUTHOR = "get_author"
 GET_AUTHOR_WORKS = "get_author_works"
 
 _LABELS = {
+    **dict.fromkeys(CODE_EXECUTION_TOOLS, "Code finished"),
     CREATE_NOTE: "Created a note",
     READ_NOTE: "Read the note",
     EDIT_NOTE: "Edited the note",
@@ -73,6 +78,7 @@ _LABELS = {
 # What each tool is doing while the call is still open, for the live phase.
 # Distinct from _LABELS, which reads as a completed step.
 _ACTIVE_LABELS = {
+    **dict.fromkeys(CODE_EXECUTION_TOOLS, "Running code"),
     CREATE_NOTE: "Creating a note",
     READ_NOTE: "Reading the note",
     EDIT_NOTE: "Editing the note",
@@ -95,6 +101,7 @@ _ACTIVE_LABELS = {
 # distinct from the active label: an edit is drafted for seconds before the
 # call runs, whereas a search query is written in an instant.
 _DRAFTING_LABELS = {
+    **dict.fromkeys(CODE_EXECUTION_TOOLS, "Preparing code"),
     EDIT_NOTE: "Drafting an edit",
 }
 # The input field per tool whose value is the user's own kind of text -- safe
@@ -235,6 +242,19 @@ def _public_tool_call(event: ToolCallEvent, execution_active: bool) -> dict:
     detail = _detail(event)
     if detail:
         public["detail"] = detail
+    if event.server_side and event.tool in CODE_EXECUTION_TOOLS:
+        status = public["status"]
+        public["label"] = {
+            "in_progress": "Running code",
+            "succeeded": "Code finished",
+            "failed": "Code execution failed",
+            "interrupted": "Code execution interrupted",
+        }[status]
+        details, summary = public_code_execution(event)
+        if details:
+            public["code_execution"] = details
+        if summary:
+            public["detail"] = summary
     succeeded = event.completed and not event.is_error
     if succeeded and event.tool == EDIT_NOTE:
         version_id = (event.result or {}).get("version_id")
