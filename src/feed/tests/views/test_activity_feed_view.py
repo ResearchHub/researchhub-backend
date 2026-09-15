@@ -1173,7 +1173,7 @@ def _make_comment_feed_entry(user, unified_document, target, comment_type):
 
 
 class ActivityFeedContentExclusionTests(AWSMockTestCase):
-    """Paper activity is excluded; peer reviews are proposal-only."""
+    """Papers reach only the author feed; reviews need a proposal or paper."""
 
     def setUp(self):
         super().setUp()
@@ -1308,6 +1308,25 @@ class ActivityFeedContentExclusionTests(AWSMockTestCase):
 
         # Assert
         self.assertIn(self.proposal_bounty_entry.id, ids)
+        self.assertNotIn(self.paper_bounty_entry.id, ids)
+
+    def test_author_feed_adds_papers_and_their_peer_reviews(self):
+        """The author feed carries a paper and its reviews, but nothing else on it."""
+        # Arrange
+        paper_entry = _make_feed_entry(
+            Paper, self.paper.id, self.paper_doc, user=self.user
+        )
+
+        # Act
+        response = self.client.get(
+            AUTHOR_ACTIVITY_URL, {"author_id": self.user.author_profile.id}
+        )
+
+        # Assert
+        ids = {entry["id"] for entry in response.data["results"]}
+        self.assertIn(paper_entry.id, ids)
+        self.assertIn(self.paper_review_entry.id, ids)
+        self.assertNotIn(self.paper_comment_entry.id, ids)
         self.assertNotIn(self.paper_bounty_entry.id, ids)
 
 

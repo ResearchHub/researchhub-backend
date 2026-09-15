@@ -21,11 +21,7 @@ from researchhub_document.views.researchhub_unified_document_views import (
 )
 from user.models import Author
 from user.permissions import DeleteAuthorPermission, IsVerifiedUser, UpdateAuthor
-from user.serializers import (
-    AuthorEditableSerializer,
-    AuthorSerializer,
-    DynamicAuthorProfileSerializer,
-)
+from user.serializers import AuthorEditableSerializer, AuthorSerializer
 from user.services.profile_deletion_service import ProfileDeletionService
 from user.tasks import invalidate_author_profile_caches
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -74,47 +70,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             instance._prefetched_objects_cache = {}
 
         return Response(serializer.data)
-
-    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
-    def summary_stats(self, request, pk=None):
-        author = self.get_object()
-        cache_key = f"author-{author.id}-summary-stats"
-        cache_hit = cache.get(cache_key)
-
-        if cache_hit:
-            return Response(cache_hit, 200)
-
-        serializer = DynamicAuthorProfileSerializer(
-            author,
-            _include_fields=[
-                "summary_stats",
-            ],
-        )
-
-        cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
-
-        return Response(serializer.data, status=200)
-
-    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
-    def achievements(self, request, pk=None):
-        author = self.get_object()
-        cache_key = f"author-{author.id}-achievements"
-        cache_hit = cache.get(cache_key)
-
-        if cache_hit:
-            return Response(cache_hit, 200)
-
-        author = self.get_object()
-        serializer = DynamicAuthorProfileSerializer(
-            author,
-            _include_fields=[
-                "achievements",
-            ],
-        )
-
-        cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
-
-        return Response(serializer.data, status=200)
 
     @action(
         detail=True,

@@ -61,6 +61,13 @@ from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 
 
+def _select_peer_review_ids() -> QuerySet:
+    """Select the ids of every peer review and community review comment."""
+    return RhCommentModel.objects.filter(
+        comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
+    ).values("id")
+
+
 class CountedFeedPagination(PageNumberPagination):
     """Feed pagination that reports the total number of matching entries."""
 
@@ -71,10 +78,11 @@ class CountedFeedPagination(PageNumberPagination):
 
 class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     """
-    Feed of activity on documents, excluding paper/preprint-associated
-    entries. Peer reviews are limited to proposals (PREREGISTRATION).
-    Entries are limited to documents the requester is allowed to see.
-    These filters apply to every request.
+    Feed of activity on documents. Peer reviews are limited to proposals
+    (PREREGISTRATION) and papers. Entries are limited to documents the
+    requester is allowed to see. These filters apply to every request.
+    Paper activity reaches only the author activity feed, and there only
+    as published papers and their peer reviews.
 
     Supports filtering by:
       - scope: "grants" returns all activity across every grant and
@@ -272,6 +280,9 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         reaches every author of that report instead of the moderator. Entries
         with no credited authors fall back to whoever published them.
 
+        Unlike the other feeds, this one also carries the author's published
+        papers and the peer reviews written on them.
+
         Requires ``author_id``. Readable by anyone; private documents appear
         only for requesters allowed to see them.
         """
@@ -324,10 +335,6 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             .order_by("-action_date")
         )
         queryset = exclude_hidden_feed_entries(queryset)
-
-        # Exclude paper publications
-        paper_ct = ContentType.objects.get_for_model(Paper)
-        queryset = queryset.exclude(content_type=paper_ct)
         queryset = queryset.exclude(user__is_active=False)
 
         comment_ct = ContentType.objects.get_for_model(RhCommentModel)
@@ -339,8 +346,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             content_type=comment_ct,
             user__email=AI_EXPERT_EMAIL,
         )
-        queryset = self._exclude_paper_documents(queryset)
-        queryset = self._exclude_non_proposal_peer_reviews(queryset)
+        queryset = self._limit_peer_reviews_to_proposals_and_papers(queryset)
 
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
@@ -354,10 +360,13 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             if is_discovery
             else ResearchhubPost.objects.visible_to(self.request.user)
         )
-        queryset = queryset.filter(
-            unified_document_id__in=visible_posts.values("unified_document_id"),
-            unified_document__is_removed=False,
+        in_scope = Q(
+            unified_document_id__in=visible_posts.values("unified_document_id")
         )
+        if self.action == "list_author_activity":
+            in_scope |= self._build_paper_activity_filter()
+
+        queryset = queryset.filter(in_scope, unified_document__is_removed=False)
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
@@ -487,21 +496,31 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         return queryset.filter(unified_document_id__in=all_ud_ids)
 
     @staticmethod
-    def _exclude_paper_documents(queryset):
-        """Drop entries whose parent document is a paper/preprint."""
-        return queryset.exclude(unified_document__document_type=PAPER)
+    def _build_paper_activity_filter() -> Q:
+        """Match published papers and the peer reviews written on them.
+
+        Paper documents have no post, so they never satisfy the post
+        visibility filter and need this branch to reach a feed. Bounty
+        payouts and plain comments on papers stay out.
+        """
+        return Q(unified_document__document_type=PAPER) & (
+            Q(content_type=ContentType.objects.get_for_model(Paper))
+            | Q(
+                content_type=ContentType.objects.get_for_model(RhCommentModel),
+                object_id__in=_select_peer_review_ids(),
+            )
+        )
 
     @staticmethod
-    def _exclude_non_proposal_peer_reviews(queryset):
-        """Drop peer reviews that are not on a proposal."""
+    def _limit_peer_reviews_to_proposals_and_papers(
+        queryset: QuerySet[FeedEntry],
+    ) -> QuerySet[FeedEntry]:
+        """Drop peer reviews whose parent document is neither proposal nor paper."""
         comment_ct = ContentType.objects.get_for_model(RhCommentModel)
-        peer_review_ids = RhCommentModel.objects.filter(
-            comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
-        ).values("id")
 
         return queryset.exclude(
-            Q(content_type=comment_ct, object_id__in=peer_review_ids)
-            & ~Q(unified_document__document_type=PREREGISTRATION)
+            Q(content_type=comment_ct, object_id__in=_select_peer_review_ids())
+            & ~Q(unified_document__document_type__in=[PREREGISTRATION, PAPER])
         )
 
     @staticmethod
@@ -510,13 +529,10 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         Return feed entries that are peer review comments.
         """
         comment_type = ContentType.objects.get_for_model(RhCommentModel)
-        peer_review_ids = RhCommentModel.objects.filter(
-            comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
-        ).values("id")
 
         return queryset.filter(
             content_type=comment_type,
-            object_id__in=peer_review_ids,
+            object_id__in=_select_peer_review_ids(),
         )
 
     @staticmethod
