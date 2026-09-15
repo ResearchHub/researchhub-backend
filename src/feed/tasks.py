@@ -110,8 +110,7 @@ def create_feed_entry(
         )
         if hub_ids:
             feed_entry.hubs.add(*hub_ids)
-        if authors:
-            feed_entry.authors.set(authors)
+        feed_entry.authors.set(authors)
         return feed_entry
     except Exception as e:
         # Ignore error if feed entry already exists
@@ -161,8 +160,7 @@ def refresh_feed_entry(feed_entry, skip_figure_extraction=False):
         trigger_figure_extraction_for_paper(feed_entry.item.id, feed_entry.hot_score_v2)
 
     # Update authors separately (ManyToMany field)
-    if authors:
-        feed_entry.authors.set(authors)
+    feed_entry.authors.set(authors)
 
     # Refresh hubs from unified document
     unified_document = _get_unified_document(feed_entry.item, feed_entry.content_type)

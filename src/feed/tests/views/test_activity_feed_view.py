@@ -1792,6 +1792,22 @@ class AuthorActivityFeedTests(APITestCase):
         )
         self.assertEqual(moderator_response.data["results"], [])
 
+    def test_credits_uncredited_work_to_its_publisher(self):
+        """A post stored without credited authors reaches whoever published it."""
+        # Arrange
+        _, _, uncredited_entry = _create_post_and_entry(
+            self.coauthor, PREREGISTRATION, "Uncredited Prereg"
+        )
+
+        # Act
+        response = self._fetch_activity_for(self.coauthor)
+
+        # Assert
+        self.assertEqual(
+            {entry["id"] for entry in response.data["results"]},
+            {self.report_entry.id, uncredited_entry.id},
+        )
+
 
 class ActivityFeedCacheTests(ActivityFeedBaseTests):
     """Public warm-cache behavior for the unscoped activity feed."""

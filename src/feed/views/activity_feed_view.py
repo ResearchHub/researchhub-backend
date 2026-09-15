@@ -56,6 +56,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
+from user.related_models.author_model import Author
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 
@@ -268,7 +269,8 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
 
         Entries match on their credited authors rather than on whoever
         published them, so a registered report published by a moderator
-        reaches every author of that report instead of the moderator.
+        reaches every author of that report instead of the moderator. Entries
+        with no credited authors fall back to whoever published them.
 
         Requires ``author_id``. Readable by anyone; private documents appear
         only for requesters allowed to see them.
@@ -277,7 +279,9 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         query_serializer.is_valid(raise_exception=True)
         author_id = query_serializer.validated_data["author_id"]
 
-        queryset = self.filter_queryset(self.get_queryset()).filter(authors=author_id)
+        queryset = self._filter_by_author(
+            self.filter_queryset(self.get_queryset()), author_id
+        )
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
         response = self.get_paginated_response(serializer.data)
@@ -419,6 +423,23 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 payload,
                 timeout=ACTIVITY_FEED_CACHE_TIMEOUT,
             )
+
+    @staticmethod
+    def _filter_by_author(
+        queryset: QuerySet[FeedEntry],
+        author_id: int,
+    ) -> QuerySet[FeedEntry]:
+        """Return entries crediting the author, or published by them if uncredited.
+
+        Entries credit nobody when a post has no byline or when the entry
+        predates stored credits, so those fall back to the publishing user.
+        """
+        credited_authors = Author.objects.filter(feed_entries=OuterRef("pk"))
+
+        return queryset.filter(
+            Exists(credited_authors.filter(id=author_id))
+            | (Q(user__author_profile=author_id) & ~Exists(credited_authors))
+        )
 
     @staticmethod
     def _filter_by_grant(queryset, grant_id):
