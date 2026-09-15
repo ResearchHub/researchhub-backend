@@ -41,7 +41,7 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context["pch_dfps_get_created_by"] = {
+        user_summary_fields = {
             "_include_fields": (
                 "id",
                 "author_profile",
@@ -49,6 +49,8 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
                 "last_name",
             )
         }
+        context["pch_dfps_get_created_by"] = user_summary_fields
+        context["pch_dfps_get_contributors"] = user_summary_fields
         context["usr_dus_get_author_profile"] = {
             "_include_fields": (
                 "id",

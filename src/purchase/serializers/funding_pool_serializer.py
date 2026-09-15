@@ -6,6 +6,29 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicUserSerializer
 
+# Serializer context that asks for pool contributors. Only single-document
+# endpoints should spread this in; feeds keep the lighter default pool fields.
+FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT = {
+    "pch_dgs_get_funding_pool": {
+        "_include_fields": (
+            "id",
+            "amount_holding",
+            "amount_distributed",
+            "amount_raised",
+            "status",
+            "contributors",
+        )
+    },
+    "pch_dfps_get_contributors": {
+        "_include_fields": (
+            "id",
+            "author_profile",
+            "first_name",
+            "last_name",
+        )
+    },
+}
+
 
 class FundingPoolContributionSerializer(serializers.Serializer):
     """Input validation for POST /api/funding_pool/{id}/create_contribution/."""
@@ -37,6 +60,7 @@ class DynamicFundingPoolSerializer(DynamicModelFieldSerializer):
     amount_holding = serializers.SerializerMethodField()
     amount_distributed = serializers.SerializerMethodField()
     amount_raised = serializers.SerializerMethodField()
+    contributors = serializers.SerializerMethodField()
 
     class Meta:
         model = FundingPool
@@ -68,3 +92,26 @@ class DynamicFundingPoolSerializer(DynamicModelFieldSerializer):
 
     def get_amount_raised(self, pool):
         return self._amount_currency_dict(pool.amount_raised)
+
+    def get_contributors(self, pool):
+        """Top contributors with their RSC/USD totals, plus the contributor count.
+
+        Runs two queries per pool, so only include this field where a single
+        pool is serialized (not on feeds).
+        """
+        summary = pool.get_contributors_summary()
+        context = self.context
+        _context_fields = context.get("pch_dfps_get_contributors", {})
+
+        top = []
+        for contributor in summary["top"]:
+            serializer = DynamicUserSerializer(
+                contributor["user"], context=context, **_context_fields
+            )
+            user_result = serializer.data
+            user_result["total_contribution"] = self._amount_currency_dict(
+                contributor["total_rsc"]
+            )
+            top.append(user_result)
+
+        return {"total": summary["total"], "top": top}

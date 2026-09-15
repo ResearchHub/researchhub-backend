@@ -11,6 +11,9 @@ from rest_framework.viewsets import GenericViewSet
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
 from paper.models import Paper
+from purchase.serializers.funding_pool_serializer import (
+    FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
+)
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import (
@@ -368,6 +371,7 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
                     "last_name",
                 ]
             },
+            **FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
             "pch_dgs_get_created_by": {
                 "_include_fields": [
                     "id",
