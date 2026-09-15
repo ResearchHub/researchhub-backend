@@ -10,6 +10,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.response import Response
 from rest_framework.test import APIClient, APITestCase
 
 from discussion.models import Vote
@@ -40,6 +41,7 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PAPER,
     PREREGISTRATION,
+    REGISTERED_REPORT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -53,6 +55,7 @@ from utils.test_helpers import AWSMockTestCase, create_test_user
 User = get_user_model()
 ACTIVITY_LIST_URL = reverse("activity_feed-list")
 USER_ACTIVITY_URL = reverse("activity_feed-user-activity")
+AUTHOR_ACTIVITY_URL = reverse("activity_feed-author-activity")
 
 
 def _make_feed_entry(
@@ -1739,6 +1742,86 @@ class UserActivityFeedTests(APITestCase):
         # Assert
         ids = {entry["id"] for entry in resp.data["results"]}
         self.assertNotIn(private_entry.id, ids)
+
+
+class AuthorActivityFeedTests(APITestCase):
+    """Public activity credited to a specific author."""
+
+    def setUp(self):
+        super().setUp()
+        self.author = create_test_user("profile_owner")
+        self.coauthor = create_test_user("profile_coauthor", email="co@example.com")
+        self.moderator = create_test_user("profile_mod", email="mod@example.com")
+        self.client = APIClient()
+
+        _, _, self.prereg_entry = _create_post_and_entry(
+            self.author, PREREGISTRATION, "Owned Prereg"
+        )
+        self.prereg_entry.authors.add(self.author.author_profile)
+
+        _, report_post, self.report_entry = _create_post_and_entry(
+            self.moderator, REGISTERED_REPORT, "Published Report"
+        )
+        report_post.reset_post_authors(
+            [self.author.author_profile.id, self.coauthor.author_profile.id]
+        )
+        self.report_entry.authors.add(
+            self.author.author_profile, self.coauthor.author_profile
+        )
+
+    def _fetch_activity_for(self, user: User) -> Response:
+        """Return the activity feed response for the user's author profile."""
+        return self.client.get(
+            AUTHOR_ACTIVITY_URL, {"author_id": user.author_profile.id}
+        )
+
+    def test_serves_anonymous_requests(self):
+        """An anonymous visitor may read an author's public activity."""
+        # Arrange
+        self.client.force_authenticate(user=None)
+
+        # Act
+        response = self._fetch_activity_for(self.author)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {entry["id"] for entry in response.data["results"]},
+            {self.prereg_entry.id, self.report_entry.id},
+        )
+
+    def test_credits_published_work_to_authors_instead_of_publisher(self):
+        """A report a moderator publishes reaches its authors, not the moderator."""
+        # Act
+        coauthor_response = self._fetch_activity_for(self.coauthor)
+        moderator_response = self._fetch_activity_for(self.moderator)
+
+        # Assert
+        self.assertEqual(
+            {entry["id"] for entry in coauthor_response.data["results"]},
+            {self.report_entry.id},
+        )
+        self.assertEqual(
+            coauthor_response.data["results"][0]["author"]["id"],
+            self.author.author_profile.id,
+        )
+        self.assertEqual(moderator_response.data["results"], [])
+
+    def test_credits_uncredited_work_to_its_publisher(self):
+        """A post stored without credited authors reaches whoever published it."""
+        # Arrange
+        _, _, uncredited_entry = _create_post_and_entry(
+            self.coauthor, PREREGISTRATION, "Uncredited Prereg"
+        )
+
+        # Act
+        response = self._fetch_activity_for(self.coauthor)
+
+        # Assert
+        self.assertEqual(
+            {entry["id"] for entry in response.data["results"]},
+            {self.report_entry.id, uncredited_entry.id},
+        )
 
 
 class ActivityFeedCacheTests(ActivityFeedBaseTests):

@@ -1,4 +1,3 @@
-from django.db.models import Q
 from django_filters import rest_framework as filters
 
 from discussion.constants.flag_reasons import (
@@ -9,7 +8,7 @@ from discussion.constants.flag_reasons import (
 )
 from discussion.models import Flag
 from reputation.related_models.distribution import Distribution
-from user.models import Action, User
+from user.models import User
 from user.related_models.risk_score_model import RiskScoreEvent
 
 
@@ -44,12 +43,6 @@ class FlagDashboardFilter(filters.FilterSet):
             expr = f"{name}__is_content_removed"
             filters[expr] = True
         return qs.filter(**filters)
-
-
-class ActionDashboardFilter(filters.FilterSet):
-    class Meta:
-        model = Action
-        fields = ["hubs"]
 
 
 EDITOR_PAYMENT_TYPES = ["EDITOR_PAYOUT", "EDITOR_COMPENSATION"]
@@ -94,7 +87,7 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
         elif view.action == "auto_payments":
             filterset_class = AutoPaymentFilter
         else:
-            filterset_class = ActionDashboardFilter
+            return None
 
         filterset_model = filterset_class._meta.model
 
@@ -120,62 +113,6 @@ class AuditDashboardFilterBackend(filters.DjangoFilterBackend):
             if valid_fields:
                 return valid_fields
         return ("-created_date",)
-
-
-CONVERSATION = "CONVERSATION"
-ARTICLE = "ARTICLE"
-REVIEW = "REVIEW"
-BOUNTY = "BOUNTY"
-ALL = "ALL"
-
-CONTRIBUTION_TYPE_CHOICES = (
-    (CONVERSATION, "Conversations"),
-    (ARTICLE, "Articles"),
-    (REVIEW, "Peer Reviews"),
-    (BOUNTY, "Bounties"),
-    (ALL, "All"),
-)
-
-
-class ContributionFilter(filters.FilterSet):
-    contribution_type = filters.ChoiceFilter(
-        method="contribution_type_filter",
-        choices=CONTRIBUTION_TYPE_CHOICES,
-        null_value="ALL",
-        label="Contribution Type",
-    )
-
-    class Meta:
-        model = Action
-        fields = "__all__"
-
-    def contribution_type_filter(self, qs, name, value):
-        value = value.upper()
-        if value == CONVERSATION:
-            qs = qs.filter(content_type__model="rhcommentmodel").prefetch_related(
-                "item__thread",
-                "item__thread__content_object",
-                "item__thread__content_object__unified_document",
-            )
-        elif value == ARTICLE:
-            qs = qs.filter(
-                Q(content_type__model="researchhubpost")
-                | Q(content_type__model="paper")
-            ).prefetch_related("item__unified_document", "item__unified_document__hubs")
-        elif value == REVIEW:
-            qs = qs.filter(
-                content_type__model="rhcommentmodel", rh_comment__reviews__isnull=False
-            ).prefetch_related(
-                "item__thread",
-                "item__thread__content_object",
-                "item__thread__content_object__unified_document",
-            )
-        elif value == BOUNTY:
-            qs = qs.filter(content_type__model="bounty").prefetch_related(
-                "item__unified_document"
-            )
-
-        return qs
 
 
 class RiskScoreEventFilter(filters.FilterSet):

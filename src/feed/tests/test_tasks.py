@@ -531,6 +531,28 @@ class FeedTasksTest(AWSMockTestCase):
         self.assertIn(author1, updated_feed_entry.authors.all())
         self.assertIn(author2, updated_feed_entry.authors.all())
 
+    def test_refresh_feed_entries_drops_removed_authors(self):
+        """Test that refreshing feed entries drops authors removed from the item."""
+        # Arrange
+        author = Author.objects.create(first_name="John", last_name="Doe")
+        feed_entry = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+        feed_entry.authors.add(author)
+
+        # Act
+        refresh_feed_entries_for_objects(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+        )
+
+        # Assert
+        self.assertEqual(FeedEntry.objects.get(id=feed_entry.id).authors.count(), 0)
+
     @patch("feed.tasks.trigger_figure_extraction_for_paper")
     @patch("feed.models.FeedEntry.calculate_hot_score_v2")
     def test_refresh_feed_entry_triggers_figure_extraction_for_paper(

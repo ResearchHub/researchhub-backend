@@ -1022,6 +1022,12 @@ class UserActivityQuerySerializer(serializers.Serializer):
     user_id = serializers.IntegerField(min_value=1)
 
 
+class AuthorActivityQuerySerializer(serializers.Serializer):
+    """Validate query parameters for the author profile activity feed."""
+
+    author_id = serializers.IntegerField(min_value=1)
+
+
 class RelatedWorkSerializer(serializers.Serializer):
     """Slim unified-document payload for activity feed related_work."""
 
@@ -1244,6 +1250,11 @@ def _serialize_feed_entry_nonprofit(feed_entry):
 class ActivityFeedEntrySerializer(FeedEntrySerializer):
     """Activity feed entry.
 
+    ``author`` credits a work to its lead bylined author rather than to
+    whoever published it, so a registered report a moderator publishes is
+    attributed to the report's author. Comments, tips, and contributions stay
+    attributed to the member who made them.
+
     ``nonprofit`` is the canonical receiving-organization field for proposal
     activity. It is populated from the fundraise linked to the entry's unified
     document and is otherwise null.
@@ -1257,6 +1268,15 @@ class ActivityFeedEntrySerializer(FeedEntrySerializer):
 
     def get_related_work(self, obj):
         return RelatedWorkSerializer.serialize(obj.unified_document, self.context)
+
+    def get_author(self, obj):
+        """Return the work's lead bylined author, or its publisher if unbylined."""
+        if obj.content_type.model == "researchhubpost":
+            related = self.get_related_work(obj)
+            authors = related.get("authors") if related else None
+            if authors:
+                return authors[0]
+        return super().get_author(obj)
 
     def get_metrics(self, obj):
         related = RelatedWorkSerializer.serialize(obj.unified_document, self.context)
