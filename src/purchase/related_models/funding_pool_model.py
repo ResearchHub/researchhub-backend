@@ -10,7 +10,7 @@ from purchase.related_models.purchase_model import Purchase
 from utils.models import DefaultModel
 
 if TYPE_CHECKING:
-    # User imports from purchase at module load, so it can only be named here.
+    # Provides a hint to mypy that User is available in this module to avoid error
     from user.models import User
 
 # Purchase.amount is stored as text; cast it before summing.
