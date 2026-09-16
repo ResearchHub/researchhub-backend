@@ -21,7 +21,7 @@ from researchhub_comment.models import RhCommentModel
 from user.filters import AUTO_PAYMENT_TYPES, AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
-from user.serializers import DynamicActionSerializer, VerdictSerializer
+from user.serializers import VerdictSerializer
 from utils.models import SoftDeletableModel
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,6 @@ class AutoPaymentPagination(PageNumberPagination):
 
 
 class AuditViewSet(viewsets.GenericViewSet):
-    queryset = Action.objects.all()
     permission_classes = [UserIsEditor | IsModerator]
     pagination_class = CursorSetPagination
     filter_backends = (AuditDashboardFilterBackend,)
@@ -53,12 +52,6 @@ class AuditViewSet(viewsets.GenericViewSet):
         )
 
     def get_queryset(self):
-        if self.action == "flagged":
-            return (
-                Flag.objects.filter(content_type__in=self._get_allowed_models())
-                .select_related("content_type")
-                .prefetch_related("verdict__created_by")
-            )
         if self.action == "auto_payments":
             return (
                 Distribution.objects.filter(
@@ -67,27 +60,19 @@ class AuditViewSet(viewsets.GenericViewSet):
                 .select_related("recipient", "recipient__author_profile")
                 .order_by("-created_date")
             )
-        return super().get_queryset()
+        return (
+            Flag.objects.filter(content_type__in=self._get_allowed_models())
+            .select_related("content_type")
+            .prefetch_related("verdict__created_by")
+        )
 
     def get_filtered_queryset(self):
         qs = self.get_queryset()
         return self.filter_queryset(qs)
 
-    def _get_latest_actions(self):
-        actions = (
-            self.get_filtered_queryset()
-            .filter(user__isnull=False, content_type__in=self._get_allowed_models())
-            .select_related("user")
-            .prefetch_related(
-                "item",
-                "user__author_profile",
-            )
-        )
-        return actions
-
-    def _get_latest_actions_context(self):
+    def _get_flagged_content_context(self):
         context = {
-            "usr_das_get_created_by": {
+            "dis_dfs_get_created_by": {
                 "_include_fields": [
                     "id",
                     "first_name",
@@ -101,7 +86,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "profile_image",
                 ]
             },
-            "usr_das_get_item": {
+            "dis_dfs_get_item": {
                 "_include_fields": [
                     "id",
                     "created_by",
@@ -116,7 +101,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "slug",
                 ]
             },
-            "usr_das_get_hubs": {
+            "dis_dfs_get_hubs": {
                 "_include_fields": [
                     "id",
                     "name",
@@ -169,9 +154,6 @@ class AuditViewSet(viewsets.GenericViewSet):
                 "_include_fields": ["id", "unified_document", "thread_type"]
             },
         }
-        context["dis_dfs_get_item"] = context["usr_das_get_item"]
-        context["dis_dfs_get_created_by"] = context["usr_das_get_created_by"]
-        context["dis_dfs_get_hubs"] = context["usr_das_get_hubs"]
         return context
 
     @action(detail=False, methods=["get"])
@@ -198,7 +180,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         serializer = DynamicFlagSerializer(
             page,
             many=True,
-            context=self._get_latest_actions_context(),
+            context=self._get_flagged_content_context(),
             _include_fields=_include_fields,
         )
         data = serializer.data
@@ -214,24 +196,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             {"count": count},
             status=status.HTTP_200_OK,
         )
-
-    @action(detail=False, methods=["get"])
-    def contributions(self, request):
-        actions = self._get_latest_actions()
-        page = self.paginate_queryset(actions)
-        serializer = DynamicActionSerializer(
-            page,
-            many=True,
-            context=self._get_latest_actions_context(),
-            _include_fields=[
-                "content_type",
-                "item",
-                "created_date",
-                "hubs",
-            ],
-        )
-        data = serializer.data
-        return self.get_paginated_response(data)
 
     @action(detail=False, methods=["get"])
     def auto_payments(self, request):
