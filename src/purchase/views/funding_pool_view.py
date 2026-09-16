@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from analytics.amplitude import track_event
 from purchase.models import FundingPool
 from purchase.serializers.funding_pool_serializer import (
+    FUNDING_POOL_DETAIL_FIELDS,
     DynamicFundingPoolSerializer,
     FundingPoolContributionSerializer,
     FundingPoolDistributeSerializer,
@@ -39,9 +40,16 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
             .select_related("grant")
         )
 
+    def get_serializer(self, *args, **kwargs):
+        # Every action but `list` returns one pool, so it can afford the
+        # contributors summary; `list` keeps the serializer's lighter default.
+        if self.action != "list":
+            kwargs.setdefault("_include_fields", FUNDING_POOL_DETAIL_FIELDS)
+        return super().get_serializer(*args, **kwargs)
+
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context["pch_dfps_get_created_by"] = {
+        user_summary_fields = {
             "_include_fields": (
                 "id",
                 "author_profile",
@@ -49,6 +57,8 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
                 "last_name",
             )
         }
+        context["pch_dfps_get_created_by"] = user_summary_fields
+        context["pch_dfps_get_contributors"] = user_summary_fields
         context["usr_dus_get_author_profile"] = {
             "_include_fields": (
                 "id",

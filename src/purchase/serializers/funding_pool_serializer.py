@@ -6,6 +6,33 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicUserSerializer
 
+# The pool shape for a single RFP: what the RFP page renders, contributors
+# included. Feeds and list endpoints never name `contributors`, so the
+# serializer leaves it out for them (see DynamicFundingPoolSerializer).
+FUNDING_POOL_DETAIL_FIELDS = (
+    "id",
+    "amount_holding",
+    "amount_distributed",
+    "amount_raised",
+    "status",
+    "contributors",
+)
+
+# Serializer context that asks for the detail shape above. Spread it in only
+# where one document is serialized: today that is the unified document
+# detail endpoint, which feeds the RFP page.
+FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT = {
+    "pch_dgs_get_funding_pool": {"_include_fields": FUNDING_POOL_DETAIL_FIELDS},
+    "pch_dfps_get_contributors": {
+        "_include_fields": (
+            "id",
+            "author_profile",
+            "first_name",
+            "last_name",
+        )
+    },
+}
+
 
 class FundingPoolContributionSerializer(serializers.Serializer):
     """Input validation for POST /api/funding_pool/{id}/create_contribution/."""
@@ -37,10 +64,20 @@ class DynamicFundingPoolSerializer(DynamicModelFieldSerializer):
     amount_holding = serializers.SerializerMethodField()
     amount_distributed = serializers.SerializerMethodField()
     amount_raised = serializers.SerializerMethodField()
+    contributors = serializers.SerializerMethodField()
 
     class Meta:
         model = FundingPool
         fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        # `contributors` runs queries per pool, so a caller has to name it in
+        # `_include_fields` to get it. The `__all__` default leaves it out,
+        # which keeps list endpoints and feeds from paying for it by accident.
+        requested = kwargs.get("_include_fields")
+        super().__init__(*args, **kwargs)
+        if requested is None or requested == "__all__":
+            self.fields.pop("contributors", None)
 
     def get_created_by(self, pool):
         context = self.context
@@ -68,3 +105,24 @@ class DynamicFundingPoolSerializer(DynamicModelFieldSerializer):
 
     def get_amount_raised(self, pool):
         return self._amount_currency_dict(pool.amount_raised)
+
+    def get_contributors(self, pool):
+        """
+        Top contributors with their RSC/USD totals, plus the contributor count.
+        """
+        summary = pool.get_contributors_summary()
+        context = self.context
+        _context_fields = context.get("pch_dfps_get_contributors", {})
+
+        top = []
+        for contributor in summary["top"]:
+            serializer = DynamicUserSerializer(
+                contributor["user"], context=context, **_context_fields
+            )
+            user_result = serializer.data
+            user_result["total_contribution"] = self._amount_currency_dict(
+                contributor["total_rsc"]
+            )
+            top.append(user_result)
+
+        return {"total": summary["total"], "top": top}
