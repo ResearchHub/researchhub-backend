@@ -1,9 +1,30 @@
 from decimal import Decimal
+from typing import TYPE_CHECKING, TypedDict
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
+from django.db.models import DecimalField, Sum
+from django.db.models.functions import Cast
 
+from purchase.related_models.purchase_model import Purchase
 from utils.models import DefaultModel
+
+if TYPE_CHECKING:
+    # Provides a hint to mypy that User is available in this module to avoid error
+    from user.models import User
+
+# Purchase.amount is stored as text; cast it before summing.
+RSC_AMOUNT_FIELD = DecimalField(max_digits=19, decimal_places=10)
+
+
+class FundingPoolContributor(TypedDict):
+    user: "User"
+    total_rsc: Decimal
+
+
+class FundingPoolContributorsSummary(TypedDict):
+    total: int
+    top: list[FundingPoolContributor]
 
 
 class FundingPool(DefaultModel):
@@ -69,6 +90,34 @@ class FundingPool(DefaultModel):
     def amount_raised(self) -> Decimal:
         """Total RSC ever contributed: holding + distributed."""
         return self.amount_holding + self.amount_distributed
+
+    def get_contributors_summary(
+        self, limit: int = 5
+    ) -> FundingPoolContributorsSummary:
+        """Rank contributors by total RSC given; ``top`` holds the first ``limit``."""
+        from user.models import User
+
+        totals_by_user = (
+            self.purchases.filter(
+                purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+                paid_status=Purchase.PAID,
+            )
+            .values("user_id")
+            .annotate(total_rsc=Sum(Cast("amount", RSC_AMOUNT_FIELD)))
+            .order_by("-total_rsc")
+        )
+        top_rows = list(totals_by_user[:limit])
+        users = User.objects.select_related("author_profile").in_bulk(
+            [row["user_id"] for row in top_rows]
+        )
+
+        return {
+            "total": totals_by_user.count(),
+            "top": [
+                {"user": users[row["user_id"]], "total_rsc": row["total_rsc"]}
+                for row in top_rows
+            ],
+        }
 
     @property
     def is_valid_for_contribution(self) -> bool:
