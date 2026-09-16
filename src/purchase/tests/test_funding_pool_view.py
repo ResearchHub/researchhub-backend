@@ -114,6 +114,21 @@ class FundingPoolViewTests(APITestCase):
         self.assertEqual(response.data["id"], self.pool.id)
         self.assertEqual(response.data["status"], FundingPool.OPEN)
         self.assertEqual(float(response.data["amount_holding"]["rsc"]), 0.0)
+        self.assertEqual(response.data["contributors"], {"total": 0, "top": []})
+
+    def test_list_omits_contributors(self):
+        # Arrange
+        self.client.force_authenticate(self.creator)
+
+        # Act
+        response = self.client.get("/api/funding_pool/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        pool_ids = [pool["id"] for pool in response.data["results"]]
+        self.assertIn(self.pool.id, pool_ids)
+        for pool in response.data["results"]:
+            self.assertNotIn("contributors", pool)
 
     def test_create_contribution(self):
         # Arrange
