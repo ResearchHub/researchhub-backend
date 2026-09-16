@@ -116,17 +116,45 @@ class TypeSafeClientTests(SimpleTestCase):
         self.assertNotIn(secret, str(ctx.exception))
         self.assertIsNone(ctx.exception.__cause__)
 
+    def test_non_json_and_missing_answers_raise(self):
+        # Arrange / Act / Assert
+        client = TypeSafeClient(
+            api_key="sk-test",
+            http_post=MagicMock(return_value=_FakeResponse(200, None, text="{")),
+        )
+        with self.assertRaises(TypeSafeError) as ctx:
+            client.evaluate("x", {"q": noul_question("Yes or no?")})
+        self.assertIn("not JSON", str(ctx.exception))
+
+        client = TypeSafeClient(
+            api_key="sk-test",
+            http_post=MagicMock(
+                return_value=_FakeResponse(200, {"model": "jev-latest"})
+            ),
+        )
+        with self.assertRaises(TypeSafeError) as ctx:
+            client.evaluate("x", {"q": noul_question("Yes or no?")})
+        self.assertIn("answers", str(ctx.exception))
+
 
 class TypeSafeEvalMappingTests(SimpleTestCase):
     def test_rubric_questions_are_seven_scores(self):
         # Arrange / Act
         questions = rubric_score_questions()
+        noul = noul_question(
+            "Is this urgent?", true="Time-sensitive", false="Not urgent"
+        )
+        unknown = peer_review_choice_questions({"other": ["not_a_real_item"]})
 
         # Assert
         self.assertEqual(tuple(questions), RUBRIC_CRITERIA)
         for question in questions.values():
             self.assertEqual(question["type"], "score")
             self.assertEqual(len(question["criteria"]), 5)
+        self.assertEqual(noul["criteria"]["true"], "Time-sensitive")
+        self.assertIn("not_a_real_item", unknown["not_a_real_item"]["instructions"])
+        self.assertIsNone(canonical_item_decision(None))
+        self.assertIsNone(canonical_item_decision("maybe"))
 
     def test_score_answer_maps_zero_indexed_levels_to_one_through_five(self):
         # Arrange / Act / Assert
