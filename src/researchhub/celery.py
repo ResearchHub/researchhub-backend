@@ -66,15 +66,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_HUBS,
         },
     },
-    # Purchase
-    "purchase_update-purchases": {
-        "task": "purchase.tasks.update_purchases",
-        "schedule": crontab(minute="*/30"),
-        "options": {
-            "priority": 3,
-            "queue": QUEUE_PURCHASES,
-        },
-    },
     "purchase_complete-eligible-fundraises": {
         "task": "purchase.tasks.complete_eligible_fundraises",
         "schedule": crontab(hour=12, minute=0),  # Run daily at 12:00 PM UTC
