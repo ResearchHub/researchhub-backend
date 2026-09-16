@@ -54,7 +54,10 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER,
     PREREGISTRATION,
 )
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_post_model import (
+    ResearchhubPost,
+    ResearchhubPostAuthor,
+)
 from user.permissions import IsModerator
 from user.related_models.author_model import Author
 from user.related_models.funding_activity_model import FundingActivity
@@ -315,7 +318,14 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                     "unified_document__posts",
                     queryset=ResearchhubPost.objects.select_related(
                         "created_by__author_profile"
-                    ).prefetch_related("author_links"),
+                    ).prefetch_related(
+                        Prefetch(
+                            "author_links",
+                            queryset=ResearchhubPostAuthor.objects.select_related(
+                                "author__user__userverification"
+                            ),
+                        )
+                    ),
                 ),
                 Prefetch(
                     "unified_document__grants",
@@ -330,7 +340,11 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                         "escrow",
                     ).prefetch_related("nonprofit_links__nonprofit"),
                 ),
-                "unified_document__paper__authors",
+                Prefetch(
+                    "unified_document__paper__authors",
+                    queryset=Author.objects.select_related("user__userverification"),
+                ),
+                "unified_document__hubs",
             )
             .order_by("-action_date")
         )
@@ -442,13 +456,17 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
 
         Entries credit nobody when a post has no byline or when the entry
         predates stored credits, so those fall back to the publishing user.
-        """
-        credited_authors = Author.objects.filter(feed_entries=OuterRef("pk"))
 
-        return queryset.filter(
-            Exists(credited_authors.filter(id=author_id))
-            | (Q(user__author_profile=author_id) & ~Exists(credited_authors))
-        )
+        Keeping the two sides as a union of id subqueries lets Postgres
+        start from the author's own rows; OR-ing them into one condition
+        makes it walk the whole feed in date order instead.
+        """
+        credited_entries = FeedEntry.objects.filter(authors=author_id).values("id")
+        uncredited_entries = FeedEntry.objects.filter(
+            user__author_profile=author_id, authors__isnull=True
+        ).values("id")
+
+        return queryset.filter(id__in=credited_entries.union(uncredited_entries))
 
     @staticmethod
     def _filter_by_grant(queryset, grant_id):
