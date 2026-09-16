@@ -1,6 +1,5 @@
 import hashlib
 import json
-from datetime import datetime
 from decimal import Decimal
 
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
