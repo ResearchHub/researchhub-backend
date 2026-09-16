@@ -20,14 +20,6 @@ from researchhub_document.models import ResearchhubPost
 logger = logging.getLogger(__name__)
 
 
-@app.task
-def update_purchases():
-    purchases = Purchase.objects.filter(boost_time__gt=0)
-    for purchase in purchases:
-        purchase.boost_time = purchase.get_boost_time()
-        purchase.save()
-
-
 @app.task(queue=QUEUE_PURCHASES)
 def complete_eligible_fundraises():
     """
