@@ -49,6 +49,7 @@ CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
+TYPESAFE_API_KEY = os.environ.get("TYPESAFE_API_KEY", "")
 SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY", "")
 
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", "")

@@ -532,6 +532,11 @@ OPENAI_API_KEY = os.environ.get(
     getattr(keys, "OPENAI_API_KEY", ""),
 )
 
+TYPESAFE_API_KEY = os.environ.get(
+    "TYPESAFE_API_KEY",
+    getattr(keys, "TYPESAFE_API_KEY", ""),
+)
+
 # Claude Platform on AWS (research_ai agent core). Anthropic's own Claude
 # Developer Platform fronted by AWS SigV4 auth and Marketplace billing --
 # distinct from Amazon Bedrock. Requests are signed with the ambient AWS
