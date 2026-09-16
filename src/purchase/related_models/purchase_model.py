@@ -135,36 +135,6 @@ class Purchase(PaidStatusModelMixin):
         )
         return data
 
-    def get_boost_time(self, amount=None):
-        day_multiplier = 60 * 60 * 24
-        previous_boost_time = 0
-        try:
-            if self.item and hasattr(self.item, "purchases"):
-                previous_boosts = self.item.purchases.exclude(id=self.id)
-                if previous_boosts.exists():
-                    previous_boost_amounts = previous_boosts.values_list(
-                        "amount", flat=True
-                    )
-                    previous_boost_time += sum(map(float, previous_boost_amounts))
-        except (AttributeError, ContentType.DoesNotExist):
-            # continue with previous_boost_time = 0
-            pass
-
-        if amount:
-            boost_time = float(amount) + previous_boost_time
-            boost_time = boost_time * day_multiplier
-            return boost_time
-
-        timestamp = self.created_date.timestamp()
-        boost_amount = float(self.amount) + previous_boost_time
-        boost_time = timestamp + (boost_amount * day_multiplier)
-        current_timestamp = datetime.utcnow().timestamp()
-
-        if boost_time > current_timestamp:
-            new_boost_time = boost_time - current_timestamp
-            return new_boost_time
-        return 0
-
     def get_aggregate_group(self):
         user = self.user
         object_id = self.object_id
@@ -177,7 +147,6 @@ class Purchase(PaidStatusModelMixin):
             content_type=content_type,
             object_id=object_id,
             paid_status=paid_status,
-            purchases__boost_time__gt=0,
         ).distinct()
 
         if aggregates.exists():
