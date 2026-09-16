@@ -20,6 +20,9 @@ from note.services.note_draft_service import save_note_draft_details
 from organizations.models import NonprofitOrg
 from organizations.serializers import NonprofitOrgSerializer
 from purchase.models import Grant
+from purchase.serializers.funding_pool_serializer import (
+    FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
+)
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
@@ -368,6 +371,11 @@ class NoteSerializer(ModelSerializer):
                 ]
             },
         }
+        # Pool contributors cost queries per note, so only the caller that
+        # serializes one post (the post detail endpoint) asks for them.
+        for key in FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT:
+            if key in self.context:
+                context[key] = self.context[key]
         serializer = DynamicPostSerializer(
             note.post,
             context=context,
@@ -523,6 +531,11 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                 ]
             },
         }
+        # Pool contributors cost queries per note, so only the caller that
+        # serializes one post (the post detail endpoint) asks for them.
+        for key in FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT:
+            if key in self.context:
+                context[key] = self.context[key]
         serializer = DynamicPostSerializer(
             note.post,
             context=context,

@@ -302,6 +302,13 @@ def _apply_server_block(
         is_error = isinstance(content, dict) and str(content.get("type", "")).endswith(
             "_error"
         )
+        if isinstance(content, dict) and data_type in {
+            "code_execution_tool_result",
+            "bash_code_execution_tool_result",
+        }:
+            return_code = content.get("return_code")
+            if type(return_code) is int and return_code != 0:
+                is_error = True
         walk.close(
             execution_id,
             data.get("tool_use_id"),
