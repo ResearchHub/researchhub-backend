@@ -20,6 +20,9 @@ from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
+from purchase.serializers.funding_pool_serializer import (
+    FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
+)
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
@@ -88,6 +91,15 @@ class ResearchhubPostViewSet(
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
     moderation_model = ResearchhubPost
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        # The RFP page reads the grant's funding pool off the post detail
+        # response, contributors included. List responses keep the lighter
+        # pool shape.
+        if self.action == "retrieve":
+            context.update(FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT)
+        return context
 
     def get_permissions(self):
         if self.action in ("create", "update"):
