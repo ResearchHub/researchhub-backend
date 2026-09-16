@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
+from note.models import Note
+from note.serializers import NoteSerializer
 from purchase.models import (
     Balance,
     FundingDistribution,
@@ -25,7 +27,11 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.follow_model import Follow
-from user.tests.helpers import create_random_authenticated_user, create_user
+from user.tests.helpers import (
+    create_organization,
+    create_random_authenticated_user,
+    create_user,
+)
 
 
 class FundingPoolViewTests(APITestCase):
@@ -115,6 +121,44 @@ class FundingPoolViewTests(APITestCase):
         self.assertEqual(response.data["status"], FundingPool.OPEN)
         self.assertEqual(float(response.data["amount_holding"]["rsc"]), 0.0)
         self.assertEqual(response.data["contributors"], {"total": 0, "top": []})
+
+    def _attach_note(self):
+        note = Note.objects.create(
+            created_by=self.creator,
+            organization=create_organization("pool_org", "pool org", "pool-org"),
+            title="Grant note",
+            unified_document=self.post.unified_document,
+        )
+        self.post.note = note
+        self.post.save(update_fields=["note"])
+        return note
+
+    def test_post_detail_includes_pool_contributors(self):
+        # Arrange
+        self._attach_note()
+        self.client.force_authenticate(self.creator)
+
+        # Act
+        response = self.client.get(f"/api/researchhubpost/{self.post.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        pool = response.data["note"]["post"]["unified_document"]["grant"][
+            "funding_pool"
+        ]
+        self.assertEqual(pool["contributors"], {"total": 0, "top": []})
+
+    def test_note_serializer_omits_pool_contributors_by_default(self):
+        # Arrange
+        note = self._attach_note()
+
+        # Act
+        data = NoteSerializer(note).data
+
+        # Assert
+        pool = data["post"]["unified_document"]["grant"]["funding_pool"]
+        self.assertEqual(pool["id"], self.pool.id)
+        self.assertNotIn("contributors", pool)
 
     def test_list_omits_contributors(self):
         # Arrange
