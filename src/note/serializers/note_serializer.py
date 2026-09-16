@@ -20,9 +20,6 @@ from note.services.note_draft_service import save_note_draft_details
 from organizations.models import NonprofitOrg
 from organizations.serializers import NonprofitOrgSerializer
 from purchase.models import Grant
-from purchase.serializers.funding_pool_serializer import (
-    FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
-)
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
@@ -370,7 +367,6 @@ class NoteSerializer(ModelSerializer):
                     "last_name",
                 ]
             },
-            **FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
         }
         serializer = DynamicPostSerializer(
             note.post,
@@ -526,7 +522,6 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "last_name",
                 ]
             },
-            **FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
         }
         serializer = DynamicPostSerializer(
             note.post,

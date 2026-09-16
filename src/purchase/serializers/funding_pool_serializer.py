@@ -18,8 +18,9 @@ FUNDING_POOL_DETAIL_FIELDS = (
     "contributors",
 )
 
-# Serializer context that asks for the detail shape above. Only single-document
-# endpoints should spread this in.
+# Serializer context that asks for the detail shape above. Spread it in only
+# where one document is serialized: today that is the unified document
+# detail endpoint, which feeds the RFP page.
 FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT = {
     "pch_dgs_get_funding_pool": {"_include_fields": FUNDING_POOL_DETAIL_FIELDS},
     "pch_dfps_get_contributors": {
