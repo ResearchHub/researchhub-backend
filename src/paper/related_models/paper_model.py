@@ -1,4 +1,5 @@
 import logging
+from typing import TYPE_CHECKING
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
@@ -9,12 +10,16 @@ from django.db.models import Func, Index, JSONField, Q
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
+from paper.related_models.authorship_model import Authorship
 from paper.related_models.citation_model import Citation
 from paper.storage.figure_storage import FigureStorage
 from reputation.models import Score, ScoreChange
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.user_model import User
 from utils.models import ModeratedDocumentMixin
+
+if TYPE_CHECKING:
+    from user.related_models.author_model import Author
 
 HOT_SCORE_WEIGHT = 5
 HELP_TEXT_IS_PUBLIC = "Hides the paper from the public."
@@ -242,6 +247,16 @@ class Paper(AbstractGenericReactionModel):
     @property
     def created_by(self):
         return self.uploaded_by
+
+    @property
+    def ordered_authors(self) -> list["Author"]:
+        """Credited authors in byline order: first, then middle, then last."""
+        ranks = Authorship.BYLINE_POSITION_RANKS
+        authorships = sorted(
+            self.authorships.all(),
+            key=lambda authorship: ranks.get(authorship.author_position, len(ranks)),
+        )
+        return [authorship.author for authorship in authorships]
 
     def get_discussion_count(self):
         from paper.services.paper_version_service import PaperService

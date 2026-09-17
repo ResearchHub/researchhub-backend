@@ -1329,6 +1329,21 @@ class ActivityFeedContentExclusionTests(AWSMockTestCase):
         self.assertNotIn(self.paper_comment_entry.id, ids)
         self.assertNotIn(self.paper_bounty_entry.id, ids)
 
+    def test_author_feed_drops_papers_awaiting_moderation(self):
+        """A paper sent back to moderation takes its activity off the author feed."""
+        # Arrange
+        self.paper_doc.status = ResearchhubUnifiedDocument.PENDING
+        self.paper_doc.save(update_fields=["status"])
+
+        # Act
+        response = self.client.get(
+            AUTHOR_ACTIVITY_URL, {"author_id": self.user.author_profile.id}
+        )
+
+        # Assert
+        ids = {entry["id"] for entry in response.data["results"]}
+        self.assertNotIn(self.paper_review_entry.id, ids)
+
 
 class ActivityFeedFinancialScopeTests(AWSMockTestCase):
     """

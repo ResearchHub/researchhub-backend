@@ -34,6 +34,7 @@ from feed.services.feed_entry_visibility_service import FeedEntryVisibilityServi
 from feed.services.user_activity_service import UserActivityService
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
+from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Figure, Paper
 from purchase.models import Fundraise
 from purchase.related_models.grant_application_model import GrantApplication
@@ -61,9 +62,8 @@ from researchhub_document.related_models.researchhub_post_model import (
 )
 from topic.models import UnifiedDocumentTopics
 from user.permissions import IsModerator
-from user.related_models.author_model import Author
 from user.related_models.funding_activity_model import FundingActivity
-from user.related_models.user_model import AI_EXPERT_EMAIL
+from user.related_models.user_model import AI_EXPERT_EMAIL, User
 
 
 def _match_peer_review_on_entry() -> Exists:
@@ -361,8 +361,10 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                     .prefetch_related("nonprofit_links__nonprofit"),
                 ),
                 Prefetch(
-                    "unified_document__paper__authors",
-                    queryset=Author.objects.select_related("user__userverification"),
+                    "unified_document__paper__authorships",
+                    queryset=Authorship.objects.select_related(
+                        "author__user__userverification"
+                    ),
                 ),
                 Prefetch(
                     "unified_document__paper__figures",
@@ -415,7 +417,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             # row beats building the set of every visible document. The paper
             # branch reads an already-joined column, so testing it first keeps
             # paper rows out of the post visibility subquery.
-            in_scope = self._build_paper_activity_filter() | Q(
+            in_scope = self._build_paper_activity_filter(self.request.user) | Q(
                 Exists(
                     visible_posts.filter(
                         unified_document_id=OuterRef("unified_document_id")
@@ -568,18 +570,34 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         return queryset.filter(unified_document_id__in=all_ud_ids)
 
     @staticmethod
-    def _build_paper_activity_filter() -> Q:
-        """Match published papers and the peer reviews written on them.
+    def _build_paper_activity_filter(user: User | None) -> Q:
+        """Match published papers the requester may see, and their peer reviews.
 
         Paper documents have no post, so they never satisfy the post
         visibility filter and need this branch to reach a feed. Bounty
-        payouts and plain comments on papers stay out.
+        payouts and plain comments on papers stay out. A paper is published
+        once it is public and has cleared moderation, the same gate that
+        direct paper retrieval applies.
         """
-        return Q(unified_document__document_type=PAPER) & (
-            Q(content_type=ContentType.objects.get_for_model(Paper))
-            | (
-                Q(content_type=ContentType.objects.get_for_model(RhCommentModel))
-                & Q(_match_peer_review_on_entry())
+        visible_papers = Paper.objects.visible_to(user).filter(
+            unified_document__is_public=True
+        )
+
+        return (
+            Q(unified_document__document_type=PAPER)
+            & Q(
+                Exists(
+                    visible_papers.filter(
+                        unified_document_id=OuterRef("unified_document_id")
+                    )
+                )
+            )
+            & (
+                Q(content_type=ContentType.objects.get_for_model(Paper))
+                | (
+                    Q(content_type=ContentType.objects.get_for_model(RhCommentModel))
+                    & Q(_match_peer_review_on_entry())
+                )
             )
         )
 

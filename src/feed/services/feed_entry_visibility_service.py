@@ -65,7 +65,7 @@ class FeedEntryVisibilityService:
                         "escrow",
                     ).prefetch_related("nonprofit_links__nonprofit"),
                 ),
-                "unified_document__paper__authors",
+                "unified_document__paper__authorships__author",
             )
             .order_by("-feed_hide__created_date")
         )

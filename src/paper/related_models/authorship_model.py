@@ -18,6 +18,13 @@ class Authorship(DefaultModel):
         (LAST_AUTHOR_POSITION, "Last"),
     ]
 
+    # Byline sort ranks. Positions outside this map sort last, as they do in SQL.
+    BYLINE_POSITION_RANKS = {
+        FIRST_AUTHOR_POSITION: 0,
+        MIDDLE_AUTHOR_POSITION: 1,
+        LAST_AUTHOR_POSITION: 2,
+    }
+
     institutions = models.ManyToManyField(
         "institution.Institution",
         related_name="authors",

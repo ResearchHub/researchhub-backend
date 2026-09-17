@@ -1113,11 +1113,7 @@ class RelatedWorkSerializer(serializers.Serializer):
         if not content:
             return None
 
-        authors = (
-            content.authors.all()
-            if unified_document.document_type == PAPER
-            else content.ordered_authors
-        )
+        authors = content.ordered_authors
         if not authors:
             return None
 
