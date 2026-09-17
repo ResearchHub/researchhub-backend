@@ -1,5 +1,6 @@
 import logging
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count
 from rest_framework.serializers import (
     CharField,
@@ -21,6 +22,7 @@ from discussion.serializers import (
 )
 from note.models import parse_note_json
 from purchase.models import GrantApplication, Purchase
+from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from researchhub.serializers import (
     DynamicModelFieldSerializer,
     ModeratedDocumentStatusSerializerMixin,
@@ -329,13 +331,41 @@ class ResearchhubPostSerializer(
                     "title": grant_post.title if grant_post else None,
                     "applicant_count": applicant_counts.get(grant.id, 0),
                     "application_visibility": grant.application_visibility,
+                    "application_id": application.id,
+                    "created_by": {"id": grant.created_by_id},
+                    "funding_pool": self._serialize_grant_funding_pool(grant),
                     "proposal": {
                         "unified_document_id": ud_id,
                         "ai_peer_review": ai_peer_review,
+                        "application_id": application.id,
                     },
                 }
             )
         return out
+
+    def _serialize_grant_funding_pool(self, grant):
+        """Expose pool holding/distributed/raised on nested grants[]."""
+        try:
+            pool = grant.funding_pool
+        except ObjectDoesNotExist:
+            return None
+
+        context = self.context
+        _context_fields = context.get(
+            "pch_dgs_get_funding_pool",
+            {
+                "_include_fields": (
+                    "id",
+                    "amount_holding",
+                    "amount_distributed",
+                    "amount_raised",
+                    "status",
+                )
+            },
+        )
+        return DynamicFundingPoolSerializer(
+            pool, context=context, **_context_fields
+        ).data
 
     @staticmethod
     def _get_grant_image(grant_post):
