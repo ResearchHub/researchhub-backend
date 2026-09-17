@@ -59,6 +59,7 @@ from researchhub_document.related_models.researchhub_post_model import (
     ResearchhubPost,
     ResearchhubPostAuthor,
 )
+from topic.models import UnifiedDocumentTopics
 from user.permissions import IsModerator
 from user.related_models.author_model import Author
 from user.related_models.funding_activity_model import FundingActivity
@@ -314,12 +315,20 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 "user__userverification",
                 "unified_document__paper__uploaded_by__author_profile",
             )
+            .defer(
+                # Bulky paper columns no feed field reads. Loading them costs
+                # more than everything else on the page put together.
+                "unified_document__paper__abstract",
+                "unified_document__paper__csl_item",
+                "unified_document__paper__open_alex_raw_json",
+                "unified_document__paper__raw_authors",
+            )
             .prefetch_related(
                 Prefetch(
                     "unified_document__posts",
-                    queryset=ResearchhubPost.objects.select_related(
-                        "created_by__author_profile"
-                    ).prefetch_related(
+                    queryset=ResearchhubPost.objects.defer("renderable_text")
+                    .select_related("created_by__author_profile")
+                    .prefetch_related(
                         Prefetch(
                             "author_links",
                             queryset=ResearchhubPostAuthor.objects.select_related(
@@ -358,6 +367,12 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 Prefetch(
                     "unified_document__paper__figures",
                     queryset=Figure.objects.filter(is_primary=True),
+                ),
+                Prefetch(
+                    "unified_document__unifieddocumenttopics_set",
+                    queryset=UnifiedDocumentTopics.objects.filter(
+                        is_primary=True
+                    ).select_related("topic"),
                 ),
                 "unified_document__hubs",
             )

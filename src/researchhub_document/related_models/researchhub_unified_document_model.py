@@ -173,11 +173,12 @@ class ResearchhubUnifiedDocument(
         return Author.objects.none()
 
     def get_primary_hub(self, fallback=False):
-        from topic.models import UnifiedDocumentTopics
-
-        primary_topic = UnifiedDocumentTopics.objects.filter(
-            unified_document=self, is_primary=True
-        ).first()
+        # Scanned in Python so that callers prefetching the topic links avoid a
+        # query per document.
+        primary_topic = next(
+            (link for link in self.unifieddocumenttopics_set.all() if link.is_primary),
+            None,
+        )
 
         if primary_topic:
             return Hub.objects.filter(
