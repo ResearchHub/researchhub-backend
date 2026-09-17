@@ -415,13 +415,10 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             # row beats building the set of every visible document. The paper
             # branch reads an already-joined column, so testing it first keeps
             # paper rows out of the post visibility subquery.
-            in_scope = (
-                self._build_paper_activity_filter()
-                | Q(
-                    Exists(
-                        visible_posts.filter(
-                            unified_document_id=OuterRef("unified_document_id")
-                        )
+            in_scope = self._build_paper_activity_filter() | Q(
+                Exists(
+                    visible_posts.filter(
+                        unified_document_id=OuterRef("unified_document_id")
                     )
                 )
             )
