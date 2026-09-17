@@ -148,8 +148,6 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             purchase.rsc_usd_rate = RscExchangeRate.get_latest()
             purchase_hash = purchase.hash()
             purchase.purchase_hash = purchase_hash
-            purchase_boost_time = purchase.get_boost_time(amount)
-            purchase.boost_time = purchase_boost_time
             purchase.group = purchase.get_aggregate_group()
             purchase.save()
 
