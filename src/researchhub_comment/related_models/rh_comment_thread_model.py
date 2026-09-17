@@ -33,16 +33,6 @@ def exclude_orphaned_comments(qs):
     return qs.exclude(_has_removed_ancestor())
 
 
-def hidden_comment_ids():
-    """Return IDs of all comments that should not appear in feeds:
-    directly removed or orphaned by a removed ancestor."""
-    from researchhub_comment.models import RhCommentModel
-
-    return RhCommentModel.all_objects.filter(
-        Q(is_removed=True) | _has_removed_ancestor()
-    ).values_list("id", flat=True)
-
-
 def match_hidden_comment_on_entry() -> Exists:
     """Match when object_id is a removed comment or one orphaned by a removed ancestor.
 

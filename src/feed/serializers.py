@@ -908,7 +908,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         """
         if obj.content_type.model != "paper":
             return None
-        paper = obj.item
+        # A document holds one paper, so this is the entry's item already
+        # joined, without a generic-key fetch per entry.
+        paper = getattr(obj.unified_document, "paper", None)
         return paper.external_metadata if paper else None
 
     # Known preprint sources for journal fallback
@@ -1042,6 +1044,9 @@ class RelatedWorkSerializer(serializers.Serializer):
     metrics = serializers.SerializerMethodField()
 
     _OPTIONAL_FIELDS = ("authors", "grant", "fundraise")
+    # Paper bylines run to hundreds of names, which an activity card never
+    # shows, so only the leading names are serialized.
+    _MAX_BYLINE_AUTHORS = 10
 
     @staticmethod
     def _first_prefetched(relation):
@@ -1116,7 +1121,9 @@ class RelatedWorkSerializer(serializers.Serializer):
         if not authors:
             return None
 
-        return SimpleAuthorSerializer(authors, many=True).data
+        return SimpleAuthorSerializer(
+            authors[: self._MAX_BYLINE_AUTHORS], many=True
+        ).data
 
     def get_metrics(self, unified_document):
         """Votes/score for the related document."""

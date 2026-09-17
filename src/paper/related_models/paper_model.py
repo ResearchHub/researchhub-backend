@@ -264,7 +264,11 @@ class Paper(AbstractGenericReactionModel):
 
     def get_image_url(self):
         try:
-            primary_figure = self.figures.filter(is_primary=True).first()
+            # Scanned prefetching figures avoid a query per paper.
+            primary_figure = next(
+                (figure for figure in self.figures.all() if figure.is_primary),
+                None,
+            )
             if primary_figure and primary_figure.file:
                 return primary_figure.file.url
         except Exception:
