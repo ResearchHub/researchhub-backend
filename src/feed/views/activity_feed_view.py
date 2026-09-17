@@ -412,16 +412,18 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         )
         if is_author_activity:
             # Candidates are already narrowed to one author, so checking each
-            # row beats building the set of every visible document.
+            # row beats building the set of every visible document. The paper
+            # branch reads an already-joined column, so testing it first keeps
+            # paper rows out of the post visibility subquery.
             in_scope = (
-                Q(
+                self._build_paper_activity_filter()
+                | Q(
                     Exists(
                         visible_posts.filter(
                             unified_document_id=OuterRef("unified_document_id")
                         )
                     )
                 )
-                | self._build_paper_activity_filter()
             )
         else:
             in_scope = Q(
@@ -588,13 +590,17 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     def _limit_peer_reviews_to_proposals_and_papers(
         queryset: QuerySet[FeedEntry],
     ) -> QuerySet[FeedEntry]:
-        """Drop peer reviews whose parent document is neither proposal nor paper."""
+        """Drop peer reviews whose parent document is neither proposal nor paper.
+
+        The document type is tested before the review subquery so that comments
+        on proposals and papers never run it.
+        """
         comment_ct = ContentType.objects.get_for_model(RhCommentModel)
 
         return queryset.exclude(
             Q(content_type=comment_ct)
-            & Q(_match_peer_review_on_entry())
             & ~Q(unified_document__document_type__in=[PREREGISTRATION, PAPER])
+            & Q(_match_peer_review_on_entry())
         )
 
     @staticmethod
