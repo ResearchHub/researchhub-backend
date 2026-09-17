@@ -473,19 +473,18 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         Entries credit nobody when a post has no byline or when the entry
         predates stored credits, so those fall back to the publishing user.
 
-        The ids are loaded first so Postgres starts from those rows. Left as
-        correlated subqueries of the wider feed filter, it walks the whole
-        table in date order instead.
+        Candidate ids stay in SQL so Postgres starts from those rows without
+        loading the author's full feed into Python. Left as a correlated
+        filter of the wider feed query, it walks the whole table in date
+        order instead.
         """
-        credited_ids = FeedEntry.objects.filter(authors=author_id).values_list(
-            "id", flat=True
-        )
+        credited_ids = FeedEntry.objects.filter(authors=author_id).values("id")
         uncredited_ids = FeedEntry.objects.filter(
             user__author_profile=author_id,
             authors__isnull=True,
-        ).values_list("id", flat=True)
+        ).values("id")
 
-        return queryset.filter(id__in=set(credited_ids) | set(uncredited_ids))
+        return queryset.filter(Q(id__in=credited_ids) | Q(id__in=uncredited_ids))
 
     @staticmethod
     def _filter_by_grant(queryset, grant_id):
