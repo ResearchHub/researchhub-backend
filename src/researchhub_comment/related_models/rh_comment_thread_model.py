@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import CharField, Count, JSONField, Q
+from django.db.models import CharField, Count, Exists, JSONField, OuterRef, Q
 
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import (
@@ -41,6 +41,21 @@ def hidden_comment_ids():
     return RhCommentModel.all_objects.filter(
         Q(is_removed=True) | _has_removed_ancestor()
     ).values_list("id", flat=True)
+
+
+def match_hidden_comment_on_entry() -> Exists:
+    """Match when object_id is a removed comment or one orphaned by a removed ancestor.
+
+    Pair with a comment content-type check so non-comment entries are not
+    compared against the comment table.
+    """
+    from researchhub_comment.models import RhCommentModel
+
+    return Exists(
+        RhCommentModel.all_objects.filter(
+            pk=OuterRef("object_id"),
+        ).filter(Q(is_removed=True) | _has_removed_ancestor())
+    )
 
 
 class RhCommentThreadQuerySet(models.QuerySet):

@@ -48,6 +48,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     hidden_comment_ids,
+    match_hidden_comment_on_entry,
 )
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -69,6 +70,16 @@ def _select_peer_review_ids() -> QuerySet:
     return RhCommentModel.objects.filter(
         comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
     ).values("id")
+
+
+def _match_peer_review_on_entry() -> Exists:
+    """Match a feed entry whose content object is a peer or community review."""
+    return Exists(
+        RhCommentModel.objects.filter(
+            pk=OuterRef("object_id"),
+            comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
+        )
+    )
 
 
 class CountedFeedPagination(PageNumberPagination):
@@ -291,11 +302,8 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         """
         query_serializer = AuthorActivityQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
-        author_id = query_serializer.validated_data["author_id"]
 
-        queryset = self._filter_by_author(
-            self.filter_queryset(self.get_queryset()), author_id
-        )
+        queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
         response = self.get_paginated_response(serializer.data)
@@ -348,39 +356,40 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             )
             .order_by("-action_date")
         )
-        queryset = exclude_hidden_feed_entries(queryset)
-        queryset = queryset.exclude(user__is_active=False)
-
-        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
-        queryset = queryset.exclude(
-            content_type=comment_ct,
-            object_id__in=hidden_comment_ids(),
-        )
-        queryset = queryset.exclude(
-            content_type=comment_ct,
-            user__email=AI_EXPERT_EMAIL,
-        )
-        queryset = self._limit_peer_reviews_to_proposals_and_papers(queryset)
 
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
 
-        # Unscoped list is a shared cached public page. Scoped, grant, and
-        # non-list requests are per-requester so grant owners can see
-        # private applications.
-        is_discovery = self.action == "list" and not scope and not grant_id
-        visible_posts = (
-            ResearchhubPost.objects.publicly_visible()
-            if is_discovery
-            else ResearchhubPost.objects.visible_to(self.request.user)
-        )
-        in_scope = Q(
-            unified_document_id__in=visible_posts.values("unified_document_id")
-        )
         if self.action == "list_author_activity":
-            in_scope |= self._build_paper_activity_filter()
+            queryset = self._limit_to_author_activity(queryset)
+        else:
+            queryset = exclude_hidden_feed_entries(queryset)
+            queryset = queryset.exclude(user__is_active=False)
 
-        queryset = queryset.filter(in_scope, unified_document__is_removed=False)
+            comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+            queryset = queryset.exclude(
+                content_type=comment_ct,
+                object_id__in=hidden_comment_ids(),
+            )
+            queryset = queryset.exclude(
+                content_type=comment_ct,
+                user__email=AI_EXPERT_EMAIL,
+            )
+            queryset = self._limit_peer_reviews_to_proposals_and_papers(queryset)
+
+            # Unscoped list is a shared cached public page. Scoped, grant, and
+            # non-list requests are per-requester so grant owners can see
+            # private applications.
+            is_discovery = self.action == "list" and not scope and not grant_id
+            visible_posts = (
+                ResearchhubPost.objects.publicly_visible()
+                if is_discovery
+                else ResearchhubPost.objects.visible_to(self.request.user)
+            )
+            queryset = queryset.filter(
+                unified_document_id__in=visible_posts.values("unified_document_id"),
+                unified_document__is_removed=False,
+            )
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
@@ -447,6 +456,39 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 timeout=ACTIVITY_FEED_CACHE_TIMEOUT,
             )
 
+    def _limit_to_author_activity(
+        self, queryset: QuerySet[FeedEntry]
+    ) -> QuerySet[FeedEntry]:
+        """Keep the author's visible entries without scanning the rest of the feed.
+
+        Author rows are resolved first so later visibility and comment checks
+        run against that set instead of every feed entry.
+        """
+        author_id = int(self.request.query_params["author_id"])
+        queryset = self._filter_by_author(queryset, author_id)
+        queryset = exclude_hidden_feed_entries(queryset)
+        queryset = queryset.exclude(user__is_active=False)
+
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        queryset = queryset.exclude(
+            Q(content_type=comment_ct) & Q(match_hidden_comment_on_entry())
+        )
+        queryset = queryset.exclude(
+            content_type=comment_ct,
+            user__email=AI_EXPERT_EMAIL,
+        )
+        queryset = self._limit_peer_reviews_to_proposals_and_papers(queryset)
+
+        visible_posts = ResearchhubPost.objects.visible_to(self.request.user)
+        in_scope = Q(
+            Exists(
+                visible_posts.filter(
+                    unified_document_id=OuterRef("unified_document_id")
+                )
+            )
+        ) | self._build_paper_activity_filter()
+        return queryset.filter(in_scope, unified_document__is_removed=False)
+
     @staticmethod
     def _filter_by_author(
         queryset: QuerySet[FeedEntry],
@@ -457,16 +499,23 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         Entries credit nobody when a post has no byline or when the entry
         predates stored credits, so those fall back to the publishing user.
 
-        Keeping the two sides as a union of id subqueries lets Postgres
-        start from the author's own rows; OR-ing them into one condition
-        makes it walk the whole feed in date order instead.
+        The author ids are loaded first so Postgres starts from those rows.
+        Leaving the lookup as a subquery of a larger feed filter makes it
+        walk the table in date order instead.
         """
-        credited_entries = FeedEntry.objects.filter(authors=author_id).values("id")
-        uncredited_entries = FeedEntry.objects.filter(
-            user__author_profile=author_id, authors__isnull=True
-        ).values("id")
-
-        return queryset.filter(id__in=credited_entries.union(uncredited_entries))
+        credited_ids = set(
+            FeedEntry.objects.filter(authors=author_id).values_list("id", flat=True)
+        )
+        uncredited_ids = set(
+            FeedEntry.objects.filter(
+                user__author_profile=author_id,
+                authors__isnull=True,
+            ).values_list("id", flat=True)
+        )
+        entry_ids = credited_ids | uncredited_ids
+        if not entry_ids:
+            return queryset.none()
+        return queryset.filter(id__in=entry_ids)
 
     @staticmethod
     def _filter_by_grant(queryset, grant_id):
@@ -523,9 +572,9 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         """
         return Q(unified_document__document_type=PAPER) & (
             Q(content_type=ContentType.objects.get_for_model(Paper))
-            | Q(
-                content_type=ContentType.objects.get_for_model(RhCommentModel),
-                object_id__in=_select_peer_review_ids(),
+            | (
+                Q(content_type=ContentType.objects.get_for_model(RhCommentModel))
+                & Q(_match_peer_review_on_entry())
             )
         )
 
@@ -537,7 +586,8 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         comment_ct = ContentType.objects.get_for_model(RhCommentModel)
 
         return queryset.exclude(
-            Q(content_type=comment_ct, object_id__in=_select_peer_review_ids())
+            Q(content_type=comment_ct)
+            & Q(_match_peer_review_on_entry())
             & ~Q(unified_document__document_type__in=[PREREGISTRATION, PAPER])
         )
 
