@@ -480,13 +480,16 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         queryset = self._limit_peer_reviews_to_proposals_and_papers(queryset)
 
         visible_posts = ResearchhubPost.objects.visible_to(self.request.user)
-        in_scope = Q(
-            Exists(
-                visible_posts.filter(
-                    unified_document_id=OuterRef("unified_document_id")
+        in_scope = (
+            Q(
+                Exists(
+                    visible_posts.filter(
+                        unified_document_id=OuterRef("unified_document_id")
+                    )
                 )
             )
-        ) | self._build_paper_activity_filter()
+            | self._build_paper_activity_filter()
+        )
         return queryset.filter(in_scope, unified_document__is_removed=False)
 
     @staticmethod
