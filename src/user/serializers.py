@@ -16,7 +16,6 @@ from rest_framework.serializers import (
 
 from hub.models import Hub
 from hub.serializers import HubSerializer, SimpleHubSerializer
-from institution.serializers import DynamicInstitutionSerializer
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
 from reputation.models import Contribution, Distribution, Withdrawal
@@ -39,8 +38,6 @@ from user.models import (
     UserVerification,
     Verdict,
 )
-from user.related_models.author_institution import AuthorInstitution
-from user.related_models.coauthor_model import CoAuthor
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.related_models.risk_score_model import RiskScoreEvent
@@ -922,113 +919,3 @@ class DynamicVerdictSerializer(DynamicModelFieldSerializer):
 
     def get_flagged_content_name(self, verdict):
         return verdict.flag.content_type.name
-
-
-class DynamicAuthorInstitutionSerializer(DynamicModelFieldSerializer):
-    institution = SerializerMethodField()
-
-    class Meta:
-        model = AuthorInstitution
-        fields = "__all__"
-
-    def get_institution(self, author_institution):
-        context = self.context
-        _context_fields = context.get("author_institution::get_institution", {})
-
-        institution = author_institution.institution
-        serializer = DynamicInstitutionSerializer(
-            institution, context=context, **_context_fields
-        )
-        return serializer.data
-
-
-class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
-    coauthor = SerializerMethodField()
-
-    class Meta:
-        model = CoAuthor
-        fields = "__all__"
-
-    def get_coauthor(self, coauthor):
-        context = self.context
-        _context_fields = context.get("coauthor::get_coauthor", {})
-
-        serializer = DynamicAuthorSerializer(
-            coauthor.coauthor, context=context, **_context_fields
-        )
-        return serializer.data
-
-
-class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
-    institutions = SerializerMethodField()
-    coauthors = SerializerMethodField()
-    summary_stats = SerializerMethodField()
-    achievements = SerializerMethodField()
-    headline = SerializerMethodField()
-    user = SerializerMethodField()
-
-    class Meta:
-        model = Author
-        fields = "__all__"
-
-    def get_achievements(self, author):
-        return author.achievements
-
-    def get_headline(self, author):
-        return author.build_headline()
-
-    def get_user(self, author):
-        user = author.user
-
-        if user is None:
-            return None
-
-        return {
-            "id": user.id,
-            "created_date": user.created_date,
-            "is_verified": user.is_verified,
-            "is_suspended": user.is_suspended,
-            "probable_spammer": user.probable_spammer,
-        }
-
-    def get_summary_stats(self, author):
-        stats = {
-            "works_count": author.paper_count,
-            "citation_count": author.citation_count,
-            "two_year_mean_citedness": author.two_year_mean_citedness or 0,
-            "amount_funded": author.user.amount_funded if author.user else 0,
-            "peer_review_count": author.user.peer_review_count if author.user else 0,
-            "open_access_pct": author.open_access_pct,
-        }
-
-        return stats
-
-    def get_institutions(self, author):
-        context = self.context
-        _context_fields = context.get("author_profile::get_institutions", {})
-
-        serializer = DynamicAuthorInstitutionSerializer(
-            author.institutions, context=context, many=True, **_context_fields
-        )
-        return serializer.data
-
-    def get_coauthors(self, author):
-        from django.db.models import Count
-
-        context = self.context
-        _context_fields = context.get("author_profile::get_coauthors", {})
-
-        coauthors = (
-            Author.objects.filter(coauthored_with__author=author)
-            .annotate(count=Count("coauthored_with"))
-            .select_related("user__userverification")
-            .order_by("-count")[:10]
-        )
-
-        serializer = DynamicAuthorSerializer(
-            coauthors,
-            context=context,
-            many=True,
-            **_context_fields,
-        )
-        return serializer.data

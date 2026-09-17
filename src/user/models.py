@@ -1,4 +1,5 @@
 from .related_models.action_model import Action
+from .related_models.author_institution import AuthorInstitution
 from .related_models.author_model import Author
 from .related_models.follow_model import Follow
 from .related_models.funding_activity_model import (
@@ -18,6 +19,7 @@ from .related_models.verdict_model import Verdict
 migratables = (
     Action,
     Author,
+    AuthorInstitution,
     Follow,
     FundingActivity,
     FundingActivityRecipient,
