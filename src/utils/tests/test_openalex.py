@@ -116,6 +116,42 @@ class OpenAlexTests(TestCase):
         self.assertIn("open_access.is_oa:true", filter_params)
 
     @patch.object(OpenAlex, "_get")
+    def test_get_works_adds_search_and_from_publication_date(self, mock_get):
+        """get_works supports free-text search and publication-date lower bound."""
+        # Arrange
+        mock_get.return_value = {"results": [], "meta": {"next_cursor": "n2"}}
+
+        # Act
+        works, cursor = OpenAlex().get_works(
+            search="CRISPR",
+            from_publication_date="2021-06-15",
+            batch_size=10,
+        )
+
+        # Assert
+        self.assertEqual(works, [])
+        self.assertEqual(cursor, "n2")
+        _, kwargs = mock_get.call_args
+        self.assertEqual(kwargs["filters"]["search"], "CRISPR")
+        self.assertEqual(kwargs["filters"]["per-page"], 10)
+        filter_params = kwargs["filters"]["filter"].split(",")
+        self.assertIn("from_publication_date:2021-06-15", filter_params)
+
+    @patch.object(OpenAlex, "_get")
+    def test_get_works_formats_from_publication_date_object(self, mock_get):
+        # Arrange
+        mock_get.return_value = {"results": [], "meta": {"next_cursor": None}}
+        from datetime import date
+
+        # Act
+        OpenAlex().get_works(from_publication_date=date(2020, 1, 1), batch_size=5)
+
+        # Assert
+        _, kwargs = mock_get.call_args
+        filter_params = kwargs["filters"]["filter"].split(",")
+        self.assertIn("from_publication_date:2020-01-01", filter_params)
+
+    @patch.object(OpenAlex, "_get")
     def test_get_author_fetches_author_by_id(self, mock_get):
         # Arrange
         mock_get.return_value = {"id": "https://openalex.org/A123"}

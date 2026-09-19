@@ -468,6 +468,8 @@ class OpenAlex:
         source=None,
         openalex_author_id=None,
         from_updated_date=None,
+        from_publication_date=None,
+        search=None,
         core_sources_only: bool = False,
         require_abstracts_and_authors: bool = False,
         open_access_only: bool = False,
@@ -484,6 +486,10 @@ class OpenAlex:
                 abstracts and authors.
             open_access_only (bool): If True, only fetch open-access works (those with
                 a free full-text copy OpenAlex knows about).
+            from_publication_date: Restrict to works published on/after this date
+                (``date`` or ``YYYY-MM-DD`` string). Distinct from ``since_date``,
+                which filters on OpenAlex *created* date.
+            search (str): Free-text query ranked by relevance (OpenAlex ``search``).
             sort (str): OpenAlex sort expression, e.g. "publication_date:desc".
         """
         # Build the filter
@@ -524,6 +530,14 @@ class OpenAlex:
             formatted_date = from_updated_date.strftime("%Y-%m-%d")
             oa_filters.append(f"from_updated_date:{formatted_date}")
 
+        if from_publication_date is not None:
+            if hasattr(from_publication_date, "strftime"):
+                pub_date = from_publication_date.strftime("%Y-%m-%d")
+            else:
+                pub_date = str(from_publication_date).strip()
+            if pub_date:
+                oa_filters.append(f"from_publication_date:{pub_date}")
+
         if isinstance(openalex_ids, list):
             oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
 
@@ -535,6 +549,9 @@ class OpenAlex:
             "per-page": batch_size,
             "cursor": next_cursor,
         }
+        search_q = str(search or "").strip()
+        if search_q:
+            filters["search"] = search_q
         if sort:
             filters["sort"] = sort
 
