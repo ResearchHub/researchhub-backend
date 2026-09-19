@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import CharField, Count, JSONField, Q
+from django.db.models import CharField, Count, Exists, JSONField, OuterRef, Q
 
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import (
@@ -33,14 +33,20 @@ def exclude_orphaned_comments(qs):
     return qs.exclude(_has_removed_ancestor())
 
 
-def hidden_comment_ids():
-    """Return IDs of all comments that should not appear in feeds:
-    directly removed or orphaned by a removed ancestor."""
+def match_hidden_comment_on_entry() -> Exists:
+    """Match a feed entry whose comment is removed or orphaned by a removed one.
+
+    Pair with a comment content-type check so non-comment entries are never
+    compared against the comment table.
+    """
     from researchhub_comment.models import RhCommentModel
 
-    return RhCommentModel.all_objects.filter(
-        Q(is_removed=True) | _has_removed_ancestor()
-    ).values_list("id", flat=True)
+    return Exists(
+        RhCommentModel.all_objects.filter(
+            Q(is_removed=True) | _has_removed_ancestor(),
+            pk=OuterRef("object_id"),
+        )
+    )
 
 
 class RhCommentThreadQuerySet(models.QuerySet):

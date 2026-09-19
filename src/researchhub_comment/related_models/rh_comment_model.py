@@ -10,6 +10,7 @@ from django.db.models import (
     F,
     FileField,
     ForeignKey,
+    Index,
     IntegerField,
     JSONField,
     TextField,
@@ -106,6 +107,11 @@ class RhCommentModel(
         related_query_name="rh_comment",
     )
     reviews = GenericRelation("review.Review")
+
+    class Meta:
+        indexes = [
+            Index(fields=["comment_type"], name="rh_comment_type_idx"),
+        ]
 
     """ --- PROPERTIES --- """
 
