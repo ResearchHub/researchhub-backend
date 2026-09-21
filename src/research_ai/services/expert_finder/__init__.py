@@ -3,7 +3,9 @@
 - ``finder`` -- the ``ExpertFinderService`` pipeline and the
   ``run_expert_finder_search`` entry point.
 - ``agent_runner`` -- tool-using agent (OpenAlex + Brave + SES + submit_experts)
-  via ``resolve_provider()``; grounds OpenAlex ids and re-validates emails.
+  via ``resolve_provider()``; grounds OpenAlex ids, hard-filters region, and
+  re-validates emails.
+- ``region_filter`` -- Region → ISO country codes and author match helpers.
 - ``web_search_tools`` -- Brave contact ``web_search`` for the agent path.
 - ``openai_finder`` -- legacy OpenAI Responses path (unused by the live finder).
 - ``openalex_tools`` -- works-first OpenAlex tools (``search_works`` + author

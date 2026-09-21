@@ -172,6 +172,43 @@ class GroundSubmittedExpertsTests(SimpleTestCase):
         self.assertEqual(kept, [])
         self.assertTrue(errors)
 
+    def test_drops_outside_region(self):
+        # Arrange
+        self.oa.returned_author_records["a999"] = {
+            "id": "https://openalex.org/A999",
+            "last_known_institutions": [{"display_name": "MPI", "country_code": "DE"}],
+        }
+        # Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+            region_filter=Region.US,
+        )
+        # Assert
+        self.assertEqual(kept, [])
+        self.assertTrue(any("outside region" in e for e in errors))
+        self.ses.get_email_address_insights.assert_not_called()
+
+    def test_keeps_in_region_author(self):
+        # Arrange
+        self.oa.returned_author_records["a999"] = {
+            "id": "https://openalex.org/A999",
+            "last_known_institutions": [{"display_name": "MIT", "country_code": "US"}],
+        }
+        # Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+            region_filter=Region.US,
+        )
+        # Assert
+        self.assertEqual(errors, [])
+        self.assertEqual(len(kept), 1)
+
 
 class RunExpertFinderAgentTests(SimpleTestCase):
     def setUp(self):
@@ -233,6 +270,31 @@ class RunExpertFinderAgentTests(SimpleTestCase):
         # Assert
         self.assertEqual(result["experts"], [])
         self.assertTrue(any("did not submit" in e for e in result["errors"]))
+
+    def test_hard_drops_out_of_region_on_submit(self):
+        # Arrange: author is US-affiliated but search asked for Europe.
+        provider = _scripted_provider(
+            [
+                (
+                    "get_author",
+                    {"openalex_author_id": "https://openalex.org/A999"},
+                ),
+                ("submit_experts", {"experts": [_expert_row()]}),
+            ]
+        )
+        # Act
+        result = run_expert_finder_agent(
+            query="CRISPR therapeutics",
+            expert_count=5,
+            expertise_level=ExpertiseLevel.MID_CAREER,
+            region_filter=Region.EUROPE,
+            provider=provider,
+            oa_client=self.oa_client,
+            email_validation=self.email,
+        )
+        # Assert
+        self.assertEqual(result["experts"], [])
+        self.assertTrue(any("outside region" in e for e in result["errors"]))
 
 
 class WebSearchToolTests(SimpleTestCase):

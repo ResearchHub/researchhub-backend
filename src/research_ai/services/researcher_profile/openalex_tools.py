@@ -64,6 +64,20 @@ def _institution_names(record: dict) -> list[str]:
     return names
 
 
+def _last_known_institutions(record: dict) -> list[dict]:
+    """Compact last-known institutions with ISO country codes for region filters."""
+    out: list[dict] = []
+    for inst in record.get("last_known_institutions") or []:
+        name = str((inst or {}).get("display_name") or "").strip()
+        code = str((inst or {}).get("country_code") or "").strip().upper() or None
+        if not name and not code:
+            continue
+        out.append({"display_name": name or None, "country_code": code})
+        if len(out) >= _MAX_INSTITUTIONS:
+            break
+    return out
+
+
 def _author_view(record: dict) -> dict:
     """Compact, model-friendly projection of an OpenAlex author entity."""
     topics = [
@@ -78,6 +92,7 @@ def _author_view(record: dict) -> dict:
         ],
         "orcid": record.get("orcid"),
         "institutions": _institution_names(record),
+        "last_known_institutions": _last_known_institutions(record),
         "top_topics": [t for t in topics if t][:_MAX_TOPICS],
         "works_count": record.get("works_count"),
         "cited_by_count": record.get("cited_by_count"),

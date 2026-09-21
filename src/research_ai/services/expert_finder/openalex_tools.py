@@ -3,6 +3,10 @@
 Works-first discovery: ``search_works`` finds recent papers by keyword, then the
 agent drills into authors via the shared profile tools (``get_author``,
 ``search_authors``, ``get_author_works``, ``search_institutions``).
+
+When a ``region_filter`` is set, author tool results are annotated with
+``matches_region`` (and optional soft ``matches_state`` for US), and raw author
+records are cached so server-side grounding can hard-drop out-of-region rows.
 """
 
 from __future__ import annotations
@@ -10,7 +14,13 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
+from research_ai.constants import EXPERT_FINDER_DEFAULT_STATE, Region
 from research_ai.services.agent import Tool, Toolset
+from research_ai.services.expert_finder.region_filter import (
+    affiliation_mentions_state,
+    author_matches_region,
+    institution_country_codes,
+)
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from utils.openalex import OpenAlex, Work, normalize_openalex_id
 
@@ -46,13 +56,19 @@ class ExpertFinderOpenAlexToolset:
         client: OpenAlex | None = None,
         openalex_toolset: OpenAlexToolset | None = None,
         default_publication_years: int = _DEFAULT_PUBLICATION_YEARS,
+        region_filter: str = Region.ALL_REGIONS,
+        state_filter: str = EXPERT_FINDER_DEFAULT_STATE,
     ):
         self._oa = client or OpenAlex()
         self._profile = openalex_toolset or OpenAlexToolset(client=self._oa)
         self._default_publication_years = default_publication_years
+        self.region_filter = region_filter or Region.ALL_REGIONS
+        self.state_filter = state_filter or EXPERT_FINDER_DEFAULT_STATE
         # Share the profile toolset's work provenance map.
         self.returned_works: dict[str, dict] = self._profile.returned_works
         self.returned_author_ids: set[str] = set()
+        # Bare OpenAlex author id -> raw author entity (for region grounding).
+        self.returned_author_records: dict[str, dict] = {}
 
     def build_tools(self) -> list[Tool]:
         """EF ``search_works`` plus reused author/institution tools."""
@@ -120,6 +136,28 @@ class ExpertFinderOpenAlexToolset:
         """True when ``openalex_author_id`` was returned by a tool this run."""
         bare = normalize_openalex_id(openalex_author_id).lower()
         return bool(bare) and bare in self.returned_author_ids
+
+    def resolve_author_record(self, openalex_author_id: str | None) -> dict | None:
+        """Return a cached or freshly fetched OpenAlex author entity."""
+        bare = normalize_openalex_id(openalex_author_id).lower()
+        if not bare:
+            return None
+        cached = self.returned_author_records.get(bare)
+        if cached is not None:
+            return cached
+        try:
+            record = self._oa.get_author(openalex_author_id)
+        except Exception as exc:  # noqa: BLE001 - grounding is best-effort
+            logger.info(
+                "OpenAlex get_author failed during region resolve for %r: %s",
+                openalex_author_id,
+                exc,
+            )
+            return None
+        if not isinstance(record, dict) or not record.get("id"):
+            return None
+        self._cache_author_record(record)
+        return record
 
     # -- handlers ---------------------------------------------------------
 
@@ -307,12 +345,64 @@ class ExpertFinderOpenAlexToolset:
         if not isinstance(result, dict) or result.get("error"):
             return
         if tool_name == "get_author":
-            self._record_author_id(result.get("openalex_author_id"))
+            self._annotate_and_cache_author_view(result)
             return
         if tool_name == "search_authors":
             for row in result.get("results") or []:
                 if isinstance(row, dict):
-                    self._record_author_id(row.get("openalex_author_id"))
+                    self._annotate_and_cache_author_view(row)
+
+    def _annotate_and_cache_author_view(self, view: dict) -> None:
+        """Cache grounding id, attach region/state hints, keep a synthetic record."""
+        author_id = view.get("openalex_author_id")
+        bare = self._record_author_id(author_id)
+        if not bare:
+            return
+
+        # Rebuild a minimal entity for region checks from the compact view when
+        # we do not already have a fuller raw record from OpenAlex.
+        if bare not in self.returned_author_records:
+            synthetic = {
+                "id": author_id,
+                "last_known_institutions": list(
+                    view.get("last_known_institutions") or []
+                ),
+                "affiliations": [
+                    {"institution": {"display_name": name}}
+                    for name in (view.get("institutions") or [])
+                    if name
+                ],
+            }
+            self.returned_author_records[bare] = synthetic
+
+        record = self.returned_author_records[bare]
+        country_codes = sorted(institution_country_codes(record))
+        view["country_codes"] = country_codes
+        if self.region_filter != Region.ALL_REGIONS:
+            view["matches_region"] = author_matches_region(record, self.region_filter)
+        if (
+            self.region_filter == Region.US
+            and self.state_filter != EXPERT_FINDER_DEFAULT_STATE
+        ):
+            affiliation_text = " ".join(
+                str(x or "")
+                for x in [
+                    *(view.get("institutions") or []),
+                    *[
+                        (inst or {}).get("display_name")
+                        for inst in (view.get("last_known_institutions") or [])
+                    ],
+                ]
+            )
+            view["matches_state"] = affiliation_mentions_state(
+                affiliation_text, self.state_filter
+            )
+
+    def _cache_author_record(self, record: dict) -> str:
+        bare = self._record_author_id(record.get("id"))
+        if bare:
+            self.returned_author_records[bare] = record
+        return bare
 
     def _record_author_id(self, value: str | None) -> str:
         bare = normalize_openalex_id(value).lower()

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from django.test import SimpleTestCase
 
+from research_ai.constants import Region
 from research_ai.services.expert_finder.openalex_tools import (
     ExpertFinderOpenAlexToolset,
 )
@@ -186,6 +187,31 @@ class AuthorGroundingTests(SimpleTestCase):
         # Assert
         self.assertEqual(result["openalex_author_id"], "https://openalex.org/A777")
         self.assertTrue(provider.has_returned_author("A777"))
+
+    def test_get_author_annotates_region_match(self):
+        # Arrange
+        client = MagicMock()
+        client.get_author.return_value = create_oa_author_record(
+            id="https://openalex.org/A777",
+            last_known_institutions=[
+                {"display_name": "MIT", "country_code": "US"},
+            ],
+        )
+        provider = ExpertFinderOpenAlexToolset(
+            client=client, region_filter=Region.US, state_filter="Massachusetts"
+        )
+        toolset = provider.as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(
+            "get_author", {"openalex_author_id": "https://openalex.org/A777"}
+        )
+
+        # Assert
+        self.assertEqual(result["country_codes"], ["US"])
+        self.assertTrue(result["matches_region"])
+        self.assertFalse(result["matches_state"])
+        self.assertIn("a777", provider.returned_author_records)
 
     def test_search_authors_records_candidate_ids(self):
         # Arrange

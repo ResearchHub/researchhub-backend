@@ -34,6 +34,7 @@ from research_ai.services.expert_finder.json_parsing import ExpertFinderJson
 from research_ai.services.expert_finder.openalex_tools import (
     ExpertFinderOpenAlexToolset,
 )
+from research_ai.services.expert_finder.region_filter import author_matches_region
 from research_ai.services.expert_finder.web_search_tools import (
     ExpertFinderWebSearchToolset,
 )
@@ -247,14 +248,17 @@ def ground_submitted_experts(
     email_validation: EmailValidationService,
     expert_count: int,
     excluded_expert_names: list[str] | None = None,
+    region_filter: str = Region.ALL_REGIONS,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Drop ungrounded / invalid / excluded rows; normalize persist shape.
+    """Drop ungrounded / invalid / excluded / out-of-region rows; normalize persist shape.
 
-    Server never trusts model-side ``email_validate`` alone.
+    Server never trusts model-side ``email_validate`` alone. Region is a hard
+    gate on OpenAlex institution country codes.
     """
     errors: list[str] = []
     grounded_rows: list[dict] = []
     excluded = _excluded_name_set(excluded_expert_names)
+    region = region_filter or Region.ALL_REGIONS
 
     if not isinstance(experts, list):
         if experts is not None:
@@ -279,6 +283,13 @@ def ground_submitted_experts(
         if excluded and _full_name(row) in excluded:
             errors.append(f"experts[{index}]: excluded by prior-search name")
             continue
+        if region != Region.ALL_REGIONS:
+            record = openalex_toolset.resolve_author_record(author_id)
+            if not author_matches_region(record, region):
+                errors.append(
+                    f"experts[{index}]: dropped outside region filter {region!r}"
+                )
+                continue
         grounded_rows.append(row)
 
     email_kept, email_drops = email_validation.gate_submitted_experts(grounded_rows)
@@ -332,9 +343,13 @@ class ExpertFinderAgentToolset:
         oa_client: OpenAlex | None = None,
         web_search_client: BraveSearch | None = None,
         email_validation: EmailValidationService | None = None,
+        region_filter: str = Region.ALL_REGIONS,
+        state_filter: str = EXPERT_FINDER_DEFAULT_STATE,
     ):
         self.openalex = openalex_toolset or ExpertFinderOpenAlexToolset(
-            client=oa_client
+            client=oa_client,
+            region_filter=region_filter,
+            state_filter=state_filter,
         )
         self.web_search = web_search_toolset or ExpertFinderWebSearchToolset(
             client=web_search_client
@@ -422,6 +437,8 @@ def run_expert_finder_agent(
         oa_client=oa_client,
         web_search_client=web_search_client,
         email_validation=email_service,
+        region_filter=region_filter,
+        state_filter=state_filter,
     )
     provider = provider or resolve_provider()
     agent = AgentService(provider=provider, max_iterations=max_iterations).create_agent(
@@ -462,6 +479,7 @@ def run_expert_finder_agent(
         email_validation=email_service,
         expert_count=expert_count,
         excluded_expert_names=excluded_expert_names,
+        region_filter=region_filter,
     )
     errors.extend(gate_errors)
     return {"experts": kept, "errors": errors}

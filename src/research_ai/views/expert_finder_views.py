@@ -11,7 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from research_ai.constants import ExpertiseLevel, Gender, Region
+from research_ai.constants import ExpertiseLevel, Region
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
@@ -119,7 +119,6 @@ class ExpertSearchListCreateView(APIView):
             ),
             "region": config.get("region", Region.ALL_REGIONS),
             "state": config.get("state", "All States"),
-            "gender": config.get("gender", Gender.ALL_GENDERS),
         }
 
         try:
