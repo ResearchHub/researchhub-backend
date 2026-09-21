@@ -103,6 +103,7 @@ jobs:
           run-task-started-by: github-${{ github.run_id }}
           wait-for-task-stopped: true
           wait-for-minutes: 55
+          wait-max-delay-seconds: 15
 
       - name: Show migration logs
         if: always() && steps.run.outputs.run-task-arn != '' && steps.run.outputs.run-task-arn != '[]'
