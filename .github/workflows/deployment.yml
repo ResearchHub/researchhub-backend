@@ -268,5 +268,5 @@ jobs:
       id-token: write
     uses: ./.github/workflows/deployment-docker.yml
     with:
-      git_ref: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
+      git_sha: ${{ needs.migrate.outputs.git_sha }}
     secrets: inherit
