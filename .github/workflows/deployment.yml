@@ -1,5 +1,5 @@
 name: Deployment
-run-name: Deploy to ${{ github.event.inputs.deploy_env || 'staging' }} (${{ github.event.inputs.git_ref || 'main' }})
+run-name: Deploy to ${{ github.event.inputs.deploy_env || 'staging' }} (${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }})
 
 
 on:
@@ -42,6 +42,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
         github.event.workflow_run.conclusion == 'success'
       )
     outputs:
@@ -49,15 +50,17 @@ jobs:
 
     steps:
       - name: Workflow details
+        env:
+          GIT_REF: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
         run: |
           echo "Event: ${{ github.event_name }}"
-          echo "Git reference: ${{ github.event.inputs.git_ref || github.ref }}"
+          echo "Git reference: $GIT_REF"
           echo "Environment: ${{ env.DEPLOY_ENV }}"
 
       - name: Checkout application repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.inputs.git_ref }}
+          ref: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
 
       - name: Get Git SHA
         id: git_sha
@@ -110,8 +113,34 @@ jobs:
           name: "backend-${{ steps.git_sha.outputs.short_git_sha }}"
           path: target/deploy.zip
 
+  # Staging migrates with the ECS task before anything is deployed. Prod still
+  # migrates in the Beanstalk predeploy hook.
+  migrate:
+    if: |
+      (github.event.inputs.deploy_env || 'staging') == 'staging' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.conclusion == 'success'
+        )
+      )
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/database-migration.yml
+    with:
+      git_ref: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
+    secrets: inherit
+
   deploy-api:
-    needs: build
+    needs: [build, migrate]
+    # The migration is skipped for prod, which must not skip the deployment.
+    if: |
+      !cancelled() &&
+      needs.build.result == 'success' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -168,6 +197,11 @@ jobs:
 
   deploy-workers:
     needs: [build, deploy-api]
+    # Without an explicit condition, the skipped prod migration further up the
+    # dependency chain would skip this job too, even though deploy-api succeeded.
+    if: |
+      !cancelled() &&
+      needs.deploy-api.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -225,3 +259,14 @@ jobs:
           region: ${{ env.AWS_REGION }}
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 300
+
+  # The Docker environments only exist in staging, where the migration runs.
+  deploy-docker:
+    needs: migrate
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deployment-docker.yml
+    with:
+      git_sha: ${{ needs.migrate.outputs.git_sha }}
+    secrets: inherit
