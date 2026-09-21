@@ -56,7 +56,7 @@ run_result=$(
     --output json
 )
 task_arn=$(jq -r '.tasks[0].taskArn // empty' <<<"$run_result")
-if [ -z "$task_arn" ]; then
+if [[ -z "$task_arn" ]]; then
   echo "Failed to start the migration task:" >&2
   jq .failures <<<"$run_result" >&2
   exit 1
@@ -73,11 +73,11 @@ while :; do
       --output json
   )
   status=$(jq -r .lastStatus <<<"$task")
-  if [ "$status" != "$last_status" ]; then
+  if [[ "$status" != "$last_status" ]]; then
     echo "Task status: $status"
     last_status=$status
   fi
-  if [ "$status" = "STOPPED" ]; then
+  if [[ "$status" == "STOPPED" ]]; then
     break
   fi
   sleep "$poll_interval"
@@ -98,7 +98,7 @@ aws logs get-log-events \
   echo "No logs available in $log_group/$log_stream" >&2
 
 exit_code=$(jq -r '.containers[0].exitCode // empty' <<<"$task")
-if [ "$exit_code" = "0" ]; then
+if [[ "$exit_code" == "0" ]]; then
   echo "Migration task succeeded"
   exit 0
 fi
