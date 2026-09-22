@@ -19,7 +19,7 @@ import sentry_sdk
 import stripe
 from sentry_sdk.integrations.django import DjangoIntegration
 
-from utils.aws_metadata import ec2_private_ip
+from utils.aws_metadata import private_ip
 
 logger = logging.getLogger(__name__)
 
@@ -127,11 +127,11 @@ ALLOWED_HOSTS = [
 ]
 
 if ELASTIC_BEANSTALK:
-    # ALB health checks use the instance's private IP:
+    # ALB health checks use the target node's private IP:
     try:
-        ALLOWED_HOSTS.append(ec2_private_ip())
+        ALLOWED_HOSTS.append(private_ip())
     except requests.exceptions.RequestException:
-        logger.warning("Instance IP unavailable from EC2 metadata")
+        logger.warning("Private IP unavailable from instance metadata")
 
 
 # Cors
