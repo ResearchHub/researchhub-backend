@@ -48,7 +48,6 @@ def celery_create_mention_notification(comment_id: int, recipients: list[int]) -
             unified_document=unified_document,
             email_subject="You were Mentioned in a Comment",
             email_message=(
-                f"{author.first_name} {author.last_name} mentioned you in "
-                "their comment"
+                f"{author.first_name} {author.last_name} mentioned you in their comment"
             ),
         )

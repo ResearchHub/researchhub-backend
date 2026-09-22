@@ -385,6 +385,7 @@ class SendHtmlEmailTests(SimpleTestCase):
 
     def test_returns_the_backend_message_id(self) -> None:
         """Return the message ID recorded by a backend that accepted the email."""
+
         # Arrange
         def accept_message(message: EmailMultiAlternatives, **kwargs: Any) -> int:
             """Record the provider message ID and report one accepted message."""
@@ -411,6 +412,4 @@ class SendHtmlEmailTests(SimpleTestCase):
         with patch.object(EmailMultiAlternatives, "send", return_value=0):
             # Assert
             with self.assertRaisesMessage(RuntimeError, "did not accept"):
-                service.send_html_email(
-                    "expert@example.com", "Subject", "<p>Hello</p>"
-                )
+                service.send_html_email("expert@example.com", "Subject", "<p>Hello</p>")

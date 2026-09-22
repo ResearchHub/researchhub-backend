@@ -204,24 +204,21 @@ class NotificationService:
         self, group: str, message: dict[str, Any], *, timeout: float | None = None
     ) -> bool:
         """Publish an existing Channels message from synchronous domain code."""
+
+        async def _send() -> None:
+            """Send the message within the synchronous caller's timeout."""
+            layer = self._channel_layer or get_channel_layer()
+            async with asyncio.timeout(timeout):
+                await layer.group_send(group, message)
+
         try:
-            async_to_sync(self._send_channel_message_async)(
-                group, message, timeout=timeout
-            )
+            async_to_sync(_send)()
             return True
         except Exception:  # Live transport failures must not interrupt domain work.
             logger.warning(
                 "Failed to publish channel message to %s", group, exc_info=True
             )
             return False
-
-    async def _send_channel_message_async(
-        self, group: str, message: dict[str, Any], *, timeout: float | None = None
-    ) -> None:
-        """Await a channel send within the caller's timeout."""
-        layer = self._channel_layer or get_channel_layer()
-        async with asyncio.timeout(timeout):
-            await layer.group_send(group, message)
 
     def publish_progress(self, channel: str, payload: dict[str, Any]) -> bool:
         """Publish an existing progress envelope through the shared Redis transport."""
