@@ -10,7 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
-import contextlib
+import logging
 import os
 import sys
 
@@ -18,6 +18,10 @@ import requests
 import sentry_sdk
 import stripe
 from sentry_sdk.integrations.django import DjangoIntegration
+
+from utils.aws_metadata import ec2_private_ip
+
+logger = logging.getLogger(__name__)
 
 APP_ENV = os.environ.get("APP_ENV") or "development"
 DEVELOPMENT = "development" in APP_ENV
@@ -116,61 +120,18 @@ if not (PRODUCTION or STAGING):
     DEBUG = True
 
 ALLOWED_HOSTS = [
-    ".compute.amazonaws.com",
     ".elasticbeanstalk.com",
     ".researchhub.com",
-    "127.0.0.1",  # localhost
+    "127.0.0.1",
     "localhost",
-    "staging.researchhub.com",
-    "www.staging.researchhub.com",
-    r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
-    r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
 ]
 
 if ELASTIC_BEANSTALK:
-    # Prefer X-Forwarded-Host header over Host header.
-    # See: https://docs.djangoproject.com/en/5.1/ref/settings/#use-x-forwarded-host
-    USE_X_FORWARDED_HOST = True
-
-    # This is for health checks
+    # ALB health checks use the instance's private IP:
     try:
-        EC2_METADATA_HEADERS = {"X-aws-ec2-metadata-token-ttl-seconds": "21600"}
-
-        EC2_METADATA_TOKEN = requests.put(
-            "http://169.254.169.254/latest/api/token",
-            timeout=0.01,
-            headers=EC2_METADATA_HEADERS,
-        ).text
-
-        EC2_METADATA_TOKEN_HEADER = {"X-aws-ec2-metadata-token": EC2_METADATA_TOKEN}
-
-        ALLOWED_HOSTS.append(
-            requests.get(
-                "http://169.254.169.254/latest/meta-data/local-ipv4",
-                timeout=0.01,
-                headers=EC2_METADATA_TOKEN_HEADER,
-            ).text
-        )
-
+        ALLOWED_HOSTS.append(ec2_private_ip())
     except requests.exceptions.RequestException:
-        pass
-
-DJANGO_ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
-if DJANGO_ALLOWED_HOSTS:
-    hosts = [host.strip() for host in DJANGO_ALLOWED_HOSTS.split(",")]
-    ALLOWED_HOSTS += hosts
-
-    # The AWS load balancers fronting the Beanstalk environment set the Host
-    # header to the load balancer's IP address. Therefore we also add the
-    # resolved IP addresses to the allowed hosts.
-    for host in hosts:
-        if host.endswith("elasticbeanstalk.com"):
-            import socket
-
-            ips = []
-            with contextlib.suppress(Exception):
-                ips = list({info[4][0] for info in socket.getaddrinfo(host, None)})
-            ALLOWED_HOSTS += ips
+        logger.warning("Instance IP unavailable from EC2 metadata")
 
 
 # Cors
