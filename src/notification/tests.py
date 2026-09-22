@@ -143,17 +143,16 @@ class NotificationServiceTests(AWSMockTransactionTestCase):
         initial_count = Notification.objects.count()
 
         # Act
-        with self.assertRaises(ValueError):
-            with transaction.atomic():
-                self.service.send(
-                    Notification.PUBLICATIONS_ADDED,
-                    recipient=self.recipient,
-                    action_user=self.actor,
-                    item=self.paper,
-                    email_subject="Subject",
-                    email_message="Message",
-                )
-                raise ValueError("Roll back the domain action")
+        with transaction.atomic():
+            self.service.send(
+                Notification.PUBLICATIONS_ADDED,
+                recipient=self.recipient,
+                action_user=self.actor,
+                item=self.paper,
+                email_subject="Subject",
+                email_message="Message",
+            )
+            transaction.set_rollback(True)
 
         # Assert
         self.assertEqual(Notification.objects.count(), initial_count)
