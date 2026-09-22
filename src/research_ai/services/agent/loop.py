@@ -31,6 +31,7 @@ from research_ai.services.agent.types import (
     ToolResultBlock,
     TurnUsage,
 )
+from research_ai.services.tracing_service import log_trace, trace_operation
 
 logger = logging.getLogger(__name__)
 
@@ -348,7 +349,16 @@ class Agent:
             logger.info(
                 "iter %d -> %s(%s)", iteration, call.name, _compact_args(call.input)
             )
-            result, tool_stop = self.toolset.dispatch(call.name, call.input)
+            with trace_operation(
+                call.name,
+                span_type="tool",
+                input=call.input,
+                metadata={"tool_call_id": call.id, "iteration": iteration},
+            ) as span:
+                result, tool_stop = self.toolset.dispatch(call.name, call.input)
+                log_trace(span, output=result)
+                if isinstance(result, dict) and "error" in result:
+                    log_trace(span, error=str(result["error"]))
             logger.info(
                 "iter %d <- %s: %s%s",
                 iteration,
@@ -367,6 +377,38 @@ class Agent:
         return result_blocks, stop
 
     def _drive(self, messages: list[Message], *, new_message: Message) -> AgentResult:
+        execution = getattr(self.recorder, "execution", None)
+        with trace_operation(
+            "agent.run",
+            span_type="task",
+            input={
+                "message": [
+                    block.text
+                    for block in new_message.content
+                    if isinstance(block, TextBlock)
+                ]
+            },
+            metadata={
+                "provider": type(self.provider).__name__,
+                "execution_id": getattr(execution, "id", None),
+                "conversation_id": getattr(execution, "conversation_id", None),
+                "max_iterations": self.max_iterations,
+            },
+        ) as span:
+            result = self._drive_recorded(messages, new_message=new_message)
+            log_trace(
+                span,
+                output=result.final_text,
+                metadata={
+                    "stop_reason": result.stop_reason,
+                    "iterations": result.iterations,
+                },
+            )
+            return result
+
+    def _drive_recorded(
+        self, messages: list[Message], *, new_message: Message
+    ) -> AgentResult:
         try:
             self._record_message(new_message)
             result = self._loop(messages)

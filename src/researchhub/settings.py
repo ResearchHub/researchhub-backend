@@ -36,6 +36,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CI = "GITHUB_ACTIONS" in os.environ
 CLOUD = PRODUCTION or STAGING or CI
 TESTING = ("test" in APP_ENV) or ("test" in sys.argv) or (APP_ENV == "test")
+BRAINTRUST_PROJECT_ID = os.environ.get(
+    "BRAINTRUST_PROJECT_ID", "525cc183-90df-4872-aba5-8c5a339e8107"
+)
+BRAINTRUST_PROJECT_NAME = os.environ.get("BRAINTRUST_PROJECT_NAME", "My Project")
 PYTHONPATH = "/var/app/current:$PYTHONPATH"
 DJANGO_SETTINGS_MODULE = "researchhub.settings"
 ELASTIC_BEANSTALK = APP_ENV in ["production", "staging"]
