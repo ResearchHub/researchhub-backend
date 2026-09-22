@@ -30,9 +30,9 @@ def celery_create_mention_notification(comment_id: int, recipients: list[int]) -
     from researchhub_comment.models import RhCommentModel
     from user.models import User
 
-    comment = RhCommentModel.objects.select_related(
-        "created_by", "thread__unified_document"
-    ).get(id=comment_id)
+    comment = RhCommentModel.objects.select_related("created_by", "thread").get(
+        id=comment_id
+    )
     author = comment.created_by
     unified_document = comment.thread.unified_document
     notifications = NotificationService()
