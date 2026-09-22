@@ -83,27 +83,29 @@ class NotificationServiceTests(AWSMockTransactionTestCase):
         self.layer.group_send.side_effect = redis.ConnectionError("Unavailable")
 
         # Act
-        with self.assertLogs("notification.services.notification_service", "WARNING"):
-            with transaction.atomic():
-                notification = self.service.send_once(
-                    Notification.PUBLICATIONS_ADDED,
-                    recipient=self.recipient,
-                    action_user=self.actor,
-                    item=self.paper,
-                    unified_document=self.paper.unified_document,
-                    email_subject="Subject",
-                    email_message="Message",
-                )
-                repeated = self.service.send_once(
-                    Notification.PUBLICATIONS_ADDED,
-                    recipient=self.recipient,
-                    action_user=self.actor,
-                    item=self.paper,
-                    email_subject="Subject",
-                    email_message="Message",
-                )
-                self.layer.group_send.assert_not_awaited()
-                self.emails.send_notification_email.assert_not_called()
+        with (
+            self.assertLogs("notification.services.notification_service", "WARNING"),
+            transaction.atomic(),
+        ):
+            notification = self.service.send_once(
+                Notification.PUBLICATIONS_ADDED,
+                recipient=self.recipient,
+                action_user=self.actor,
+                item=self.paper,
+                unified_document=self.paper.unified_document,
+                email_subject="Subject",
+                email_message="Message",
+            )
+            repeated = self.service.send_once(
+                Notification.PUBLICATIONS_ADDED,
+                recipient=self.recipient,
+                action_user=self.actor,
+                item=self.paper,
+                email_subject="Subject",
+                email_message="Message",
+            )
+            self.layer.group_send.assert_not_awaited()
+            self.emails.send_notification_email.assert_not_called()
 
         # Assert
         self.assertIsNone(repeated)

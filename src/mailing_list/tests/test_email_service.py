@@ -409,7 +409,9 @@ class SendHtmlEmailTests(SimpleTestCase):
         service = EmailService()
 
         # Act
-        with patch.object(EmailMultiAlternatives, "send", return_value=0):
+        with (
+            patch.object(EmailMultiAlternatives, "send", return_value=0),
             # Assert
-            with self.assertRaisesMessage(RuntimeError, "did not accept"):
-                service.send_html_email("expert@example.com", "Subject", "<p>Hello</p>")
+            self.assertRaisesMessage(RuntimeError, "did not accept"),
+        ):
+            service.send_html_email("expert@example.com", "Subject", "<p>Hello</p>")
