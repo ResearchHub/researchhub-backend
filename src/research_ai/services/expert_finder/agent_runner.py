@@ -35,6 +35,10 @@ from research_ai.services.expert_finder.openalex_tools import (
     ExpertFinderOpenAlexToolset,
 )
 from research_ai.services.expert_finder.region_filter import author_matches_region
+from research_ai.services.expert_finder.source_enrichment import (
+    merge_sources,
+    source_kinds_present,
+)
 from research_ai.services.expert_finder.web_search_tools import (
     ExpertFinderWebSearchToolset,
 )
@@ -226,6 +230,15 @@ def _ensure_openalex_source(sources: list[dict[str, str]], author_url: str) -> l
     return [{"text": "OpenAlex", "url": author_url}, *sources]
 
 
+def _ensure_orcid_source(sources: list[dict[str, str]], orcid_url: str | None) -> list:
+    """Append ORCID when OpenAlex has one and sources do not already include it."""
+    if not orcid_url:
+        return sources
+    if "orcid" in source_kinds_present(sources):
+        return sources
+    return merge_sources(sources, [{"text": "ORCID", "url": orcid_url}])
+
+
 def _full_name(row: dict) -> str:
     # Match prior-search exclusions on personal name (no honorific/suffix).
     return ExpertDisplay.build_name(
@@ -250,7 +263,7 @@ def ground_submitted_experts(
     excluded_expert_names: list[str] | None = None,
     region_filter: str = Region.ALL_REGIONS,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Drop ungrounded / invalid / excluded / out-of-region rows; normalize persist shape.
+    """Drop ungrounded / invalid / excluded / out-of-region rows; normalize.
 
     Server never trusts model-side ``email_validate`` alone. Region is a hard
     gate on OpenAlex institution country codes.
@@ -305,6 +318,9 @@ def ground_submitted_experts(
         sources = _ensure_openalex_source(
             ExpertFinderJson.normalize_sources(row.get("sources")),
             author_url,
+        )
+        sources = _ensure_orcid_source(
+            sources, openalex_toolset.resolve_orcid_url(author_id)
         )
         bare = normalize_openalex_id(author_id)
         kept.append(

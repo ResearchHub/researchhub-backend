@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
+from orcid.identifiers import normalize_orcid
 from research_ai.constants import EXPERT_FINDER_DEFAULT_STATE, Region
 from research_ai.services.agent import Tool, Toolset
 from research_ai.services.expert_finder.region_filter import (
@@ -145,11 +146,32 @@ class ExpertFinderOpenAlexToolset:
         cached = self.returned_author_records.get(bare)
         if cached is not None:
             return cached
+        return self._fetch_and_cache_author(openalex_author_id)
+
+    def resolve_orcid_url(self, openalex_author_id: str | None) -> str | None:
+        """Public ORCID URL for an author, when OpenAlex has one.
+
+        Uses the cached record when it already carries an ``orcid`` key (including
+        ``None``). Otherwise fetches the full OpenAlex author — needed when the
+        author was grounded only via ``search_works`` authorships.
+        """
+        bare = normalize_openalex_id(openalex_author_id).lower()
+        if not bare:
+            return None
+        record = self.returned_author_records.get(bare)
+        if record is None or "orcid" not in record:
+            record = self._fetch_and_cache_author(openalex_author_id)
+        if not isinstance(record, dict):
+            return None
+        url, _bare = normalize_orcid(record.get("orcid"))
+        return url
+
+    def _fetch_and_cache_author(self, openalex_author_id: str | None) -> dict | None:
         try:
             record = self._oa.get_author(openalex_author_id)
         except Exception as exc:  # noqa: BLE001 - grounding is best-effort
             logger.info(
-                "OpenAlex get_author failed during region resolve for %r: %s",
+                "OpenAlex get_author failed during resolve for %r: %s",
                 openalex_author_id,
                 exc,
             )
@@ -364,6 +386,7 @@ class ExpertFinderOpenAlexToolset:
         if bare not in self.returned_author_records:
             synthetic = {
                 "id": author_id,
+                "orcid": view.get("orcid"),
                 "last_known_institutions": list(
                     view.get("last_known_institutions") or []
                 ),

@@ -143,6 +143,30 @@ class GroundSubmittedExpertsTests(SimpleTestCase):
             {"text": "OpenAlex", "url": "https://openalex.org/A999"},
         )
 
+    def test_injects_orcid_from_openalex_record(self):
+        # Arrange
+        self.oa.returned_author_records["a999"] = {
+            "id": "https://openalex.org/A999",
+            "orcid": "https://orcid.org/0000-0002-1825-0097",
+        }
+        # Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+        )
+        # Assert
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            kept[0]["sources"],
+            [
+                {"text": "OpenAlex", "url": "https://openalex.org/A999"},
+                {"text": "Faculty page", "url": "https://mit.edu/ada"},
+                {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0097"},
+            ],
+        )
+
     def test_drops_ungrounded_openalex_id(self):
         # Arrange / Act
         kept, errors = ground_submitted_experts(
