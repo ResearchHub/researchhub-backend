@@ -6,7 +6,6 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from mailing_list.services import EmailService
 from notification.models import Notification
 from notification.services import NotificationService
 from paper.tests.helpers import create_paper
@@ -70,15 +69,12 @@ class NotificationServiceTests(AWSMockTransactionTestCase):
         self.recipient = create_random_default_user("recipient")
         self.actor = create_random_default_user("actor")
         self.paper = create_paper(uploaded_by=self.actor)
-        self.emails = MagicMock(spec=EmailService)
         self.layer = MagicMock()
         self.layer.group_send = AsyncMock()
-        self.service = NotificationService(
-            email_service=self.emails, channel_layer=self.layer
-        )
+        self.service = NotificationService(channel_layer=self.layer)
 
-    def test_sends_email_after_commit_when_the_socket_fails(self) -> None:
-        """A failed socket send preserves one notification and its independent email."""
+    def test_preserves_one_notification_when_the_socket_fails(self) -> None:
+        """A failed socket send leaves one inbox row and does not interrupt commit."""
         # Arrange
         self.layer.group_send.side_effect = redis.ConnectionError("Unavailable")
 
@@ -93,19 +89,14 @@ class NotificationServiceTests(AWSMockTransactionTestCase):
                 action_user=self.actor,
                 item=self.paper,
                 unified_document=self.paper.unified_document,
-                email_subject="Subject",
-                email_message="Message",
             )
             repeated = self.service.send_once(
                 Notification.PUBLICATIONS_ADDED,
                 recipient=self.recipient,
                 action_user=self.actor,
                 item=self.paper,
-                email_subject="Subject",
-                email_message="Message",
             )
             self.layer.group_send.assert_not_awaited()
-            self.emails.send_notification_email.assert_not_called()
 
         # Assert
         self.assertIsNone(repeated)
@@ -131,13 +122,6 @@ class NotificationServiceTests(AWSMockTransactionTestCase):
                 "recipient",
             },
         )
-        self.emails.send_notification_email.assert_called_once_with(
-            [self.recipient.email],
-            "Subject",
-            "Message",
-            link=self.paper.unified_document.frontend_view_link(),
-            heading=None,
-        )
 
     def test_discards_delivery_when_the_transaction_rolls_back(self) -> None:
         """A rolled-back domain action creates no notification or external message."""
@@ -151,12 +135,9 @@ class NotificationServiceTests(AWSMockTransactionTestCase):
                 recipient=self.recipient,
                 action_user=self.actor,
                 item=self.paper,
-                email_subject="Subject",
-                email_message="Message",
             )
             transaction.set_rollback(True)
 
         # Assert
         self.assertEqual(Notification.objects.count(), initial_count)
         self.layer.group_send.assert_not_awaited()
-        self.emails.send_notification_email.assert_not_called()

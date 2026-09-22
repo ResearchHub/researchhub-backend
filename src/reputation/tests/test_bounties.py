@@ -14,6 +14,7 @@ from hub.models import Hub
 from hub.tests.helpers import create_hub
 from mailing_list.services import EmailService
 from notification.models import Notification
+from notification.services import NotificationService
 from paper.tests.helpers import create_paper
 from purchase.models import Fundraise
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
@@ -2400,8 +2401,9 @@ class BountyNotificationTests(APITestCase):
             notification.notification_type, Notification.BOUNTY_EXPIRING_SOON
         )
 
-    def test_bounty_expiring_soon_notification_not_sent_twice(self):
-        """Test that BOUNTY_EXPIRING_SOON notification is not sent twice."""
+    def test_sends_bounty_expiration_notice_and_email_once(self) -> None:
+        """Send one inbox notice and one email after commit across repeated checks."""
+        # Arrange
         self._authenticate_bounty_manager()
 
         expiration_date = datetime.now(UTC) + timedelta(hours=23)
@@ -2409,28 +2411,36 @@ class BountyNotificationTests(APITestCase):
         self.assertEqual(bounty_res.status_code, 201)
         bounty_id = bounty_res.data["id"]
 
-        # Run task once
-        check_open_bounties()
+        # Act
+        with (
+            patch.object(EmailService, "send_message_email") as send_email,
+            patch.object(NotificationService, "_send_notification"),
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                check_open_bounties()
+                send_email.assert_not_called()
+            with self.captureOnCommitCallbacks(execute=True):
+                check_open_bounties()
 
-        # Count notifications
-        notification_count_before = Notification.objects.filter(
+        # Assert
+        notification_count = Notification.objects.filter(
             object_id=bounty_id,
             content_type=ContentType.objects.get_for_model(Bounty),
             notification_type=Notification.BOUNTY_EXPIRING_SOON,
         ).count()
-
-        # Run task again
-        check_open_bounties()
-
-        # Verify notification count didn't increase
-        notification_count_after = Notification.objects.filter(
-            object_id=bounty_id,
-            content_type=ContentType.objects.get_for_model(Bounty),
-            notification_type=Notification.BOUNTY_EXPIRING_SOON,
-        ).count()
-
-        self.assertEqual(notification_count_before, notification_count_after)
-        self.assertEqual(notification_count_before, 1)
+        self.assertEqual(notification_count, 1)
+        send_email.assert_called_once_with(
+            [self.foundation.email],
+            "Your ResearchHub Bounty Submission Period Ending",
+            (
+                "Your bounty submission period is ending in 24 hours. After "
+                "that, no new reviews will be submitted. You'll have "
+                f"{ASSESSMENT_PERIOD_DAYS} days to review and award the best "
+                "solutions."
+            ),
+            link=self.comment.unified_document.frontend_view_link(),
+            heading="Bounty Submission Period Ending Soon",
+        )
 
     def test_bounty_entered_assessment_notification_sent_to_creator(self):
         """Test that BOUNTY_ENTERED_ASSESSMENT notification is sent to creator."""

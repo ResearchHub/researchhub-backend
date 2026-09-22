@@ -7,9 +7,9 @@ from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from mailing_list.tasks import send_message_email
 from notification.models import Notification
 from notification.services import NotificationService
-from notification.tasks import email_notification_recipients
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import create_preregistration_update_reward_distribution
@@ -96,25 +96,26 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         object_id=document.id,
     ).select_related("user")
 
+    recipient_emails = [follow.user.email for follow in follows]
     notifications = NotificationService()
-    notification_ids = []
     for follow in follows:
-        notification = notifications.send(
+        notifications.send(
             Notification.PREREGISTRATION_UPDATE,
             recipient=follow.user,
             action_user=author,
             item=comment,
             unified_document=comment.unified_document,
         )
-        notification_ids.append(notification.id)
 
-    if notification_ids:
+    if recipient_emails:
+        link = comment.unified_document.frontend_view_link()
         transaction.on_commit(
-            lambda: email_notification_recipients.delay(
-                notification_ids,
+            lambda: send_message_email.delay(
+                recipient_emails,
                 "Update on Preregistration You're Following",
                 f"{author.first_name} {author.last_name} posted an update to a "
                 "preregistration you're following",
+                link=link,
             ),
             robust=True,
         )

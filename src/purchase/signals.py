@@ -7,7 +7,7 @@ from django.dispatch import receiver
 from notification.models import Notification
 from notification.services import NotificationService
 from purchase.related_models.grant_application_model import GrantApplication
-from purchase.tasks import send_grant_application_email
+from purchase.tasks import send_grant_application_owner_email
 
 logger = logging.getLogger(__name__)
 
@@ -34,17 +34,16 @@ def notify_grant_owner_on_application(sender, instance, created, **kwargs):
         if unified_document is None:
             unified_document = grant.unified_document
 
-        notification = NotificationService().try_send(
+        NotificationService().try_send(
             Notification.GRANT_APPLICATION_SUBMITTED,
             recipient=recipient,
             action_user=action_user,
             item=instance,
             unified_document=unified_document,
         )
-        if notification:
-            transaction.on_commit(
-                lambda: send_grant_application_email.delay(notification.id), robust=True
-            )
+        transaction.on_commit(
+            lambda: send_grant_application_owner_email.delay(instance.id), robust=True
+        )
     except Exception:
         logger.exception(
             "Failed to send GRANT_APPLICATION_SUBMITTED notification for "

@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -205,10 +205,10 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         self.assertEqual(notifications.count(), 0)
 
     @patch.object(NotificationService, "_send_notification")
-    def test_send_notification_called_for_each_follower(self, mock_send_notification):
-        """
-        Test that send_notification is called for each notification created.
-        """
+    def test_notifies_followers_after_commit(
+        self, mock_send_notification: Mock
+    ) -> None:
+        """Followers receive inbox updates and a queued email after commit."""
         # Arrange
         thread = RhCommentThreadModel.objects.create(
             thread_type=AUTHOR_UPDATE,
@@ -217,9 +217,8 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         )
 
         # Act
-
         with (
-            patch("researchhub_comment.signals.email_notification_recipients.delay"),
+            patch("researchhub_comment.signals.send_message_email.delay") as send_email,
             self.captureOnCommitCallbacks(execute=True),
         ):
             RhCommentModel.objects.create(
@@ -228,10 +227,24 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
                 comment_content_json={"text": "This is an author update"},
                 comment_type=AUTHOR_UPDATE,
             )
+            mock_send_notification.assert_not_called()
+            send_email.assert_not_called()
 
         # Assert
-        # Verify send_notification was called twice (once for each follower)
         self.assertEqual(mock_send_notification.call_count, 2)
+        send_email.assert_called_once()
+        recipients, subject, message = send_email.call_args.args
+        self.assertCountEqual(recipients, [self.follower1.email, self.follower2.email])
+        self.assertEqual(subject, "Update on Preregistration You're Following")
+        self.assertEqual(
+            message,
+            f"{self.author.first_name} {self.author.last_name} posted an update "
+            "to a preregistration you're following",
+        )
+        self.assertEqual(
+            send_email.call_args.kwargs,
+            {"link": self.preregistration_unified_doc.frontend_view_link()},
+        )
 
     def test_signal_handles_update_operations(self):
         """
@@ -270,7 +283,7 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         )
         self.assertEqual(notifications.count(), 0)
 
-    @patch("researchhub_comment.signals.email_notification_recipients.delay")
+    @patch("researchhub_comment.signals.send_message_email.delay")
     def test_reply_to_author_update_only_notifies_author(self, mock_send_update_emails):
         # Arrange
         thread = RhCommentThreadModel.objects.create(

@@ -12,7 +12,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Model
 
-from mailing_list.services import EmailService
 from notification.models import Notification
 from notification.serializers import (
     DynamicNotificationSerializer,
@@ -27,17 +26,15 @@ logger = logging.getLogger(__name__)
 
 
 class NotificationService:
-    """Create inbox notifications and deliver email and live notification messages."""
+    """Create inbox notifications and publish live updates."""
 
     def __init__(
         self,
-        email_service: EmailService | None = None,
         *,
         channel_layer: BaseChannelLayer | None = None,
         redis_client: redis.Redis | None = None,
     ) -> None:
-        """Use the shared email service and configured live transports."""
-        self._emails = email_service
+        """Use the configured live transports."""
         self._channel_layer = channel_layer
         self._redis_client = redis_client
 
@@ -50,11 +47,8 @@ class NotificationService:
         item: Model,
         unified_document: ResearchhubUnifiedDocument | None = None,
         extra: dict[str, Any] | None = None,
-        email_subject: str | None = None,
-        email_heading: str | None = None,
-        email_message: str | None = None,
     ) -> Notification:
-        """Create a notification and send its selected channels after commit."""
+        """Create an inbox notification and publish it after commit."""
         notification = Notification.objects.create(
             notification_type=notification_type,
             recipient=recipient,
@@ -66,10 +60,6 @@ class NotificationService:
         transaction.on_commit(
             lambda: self._send_notification(notification), robust=True
         )
-        if email_subject and email_message:
-            self._email_recipient(
-                notification, email_subject, email_message, heading=email_heading
-            )
         return notification
 
     def send_once(
@@ -81,9 +71,6 @@ class NotificationService:
         item: Model,
         unified_document: ResearchhubUnifiedDocument | None = None,
         extra: dict[str, Any] | None = None,
-        email_subject: str | None = None,
-        email_heading: str | None = None,
-        email_message: str | None = None,
         since: datetime | None = None,
     ) -> Notification | None:
         """Skip an existing notice for this recipient and item within the cutoff."""
@@ -104,9 +91,6 @@ class NotificationService:
             item=item,
             unified_document=unified_document,
             extra=extra,
-            email_subject=email_subject,
-            email_heading=email_heading,
-            email_message=email_message,
         )
 
     def try_send(
@@ -138,41 +122,6 @@ class NotificationService:
                 item.pk,
             )
             return None
-
-    def email_recipients(
-        self, notification_ids: list[int], subject: str, message: str
-    ) -> None:
-        """Email the audience of existing notifications using their stored links."""
-        notifications = Notification.objects.filter(
-            id__in=notification_ids
-        ).select_related("recipient", "unified_document")
-        for notification in notifications.iterator():
-            self._email_recipient(notification, subject, message)
-
-    def _email_recipient(
-        self,
-        notification: Notification,
-        subject: str,
-        message: str,
-        *,
-        heading: str | None = None,
-    ) -> None:
-        """Email the recipient after commit with the notification's existing link."""
-        link = notification.navigation_url
-        if not link and notification.unified_document_id:
-            link = notification.unified_document.frontend_view_link()
-        if self._emails is None:
-            self._emails = EmailService()
-        transaction.on_commit(
-            lambda: self._emails.send_notification_email(
-                [notification.recipient.email],
-                subject,
-                message,
-                link=link,
-                heading=heading,
-            ),
-            robust=True,
-        )
 
     def _send_notification(self, notification: Notification) -> bool:
         """Serialize an inbox row and publish its existing personal socket payload."""

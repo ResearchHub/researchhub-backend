@@ -10,6 +10,7 @@ from django.db.models.functions import Cast
 
 import utils.locking as lock
 from hub.models import Hub
+from mailing_list.services import EmailService
 from notification.models import Notification
 from notification.services import NotificationService
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
@@ -165,6 +166,7 @@ def check_hotwallet_balance():
 def check_open_bounties():
     now = datetime.now(UTC)
     notifications = NotificationService()
+    emails = EmailService()
 
     open_bounties = (
         Bounty.objects.filter(status=Bounty.OPEN, parent__isnull=True)
@@ -182,20 +184,31 @@ def check_open_bounties():
     )
     for bounty in upcoming_expirations.iterator():
         bounty_creator = bounty.created_by
-        notifications.send_once(
+        notification = notifications.send_once(
             Notification.BOUNTY_EXPIRING_SOON,
             recipient=bounty_creator,
             action_user=bounty_creator,
             item=bounty,
             unified_document=bounty.unified_document,
-            email_subject="Your ResearchHub Bounty Submission Period Ending",
-            email_heading="Bounty Submission Period Ending Soon",
-            email_message=(
-                "Your bounty submission period is ending in 24 hours. After "
-                "that, no new reviews will be submitted. You'll have "
-                f"{ASSESSMENT_PERIOD_DAYS} days to review and award the best "
-                "solutions."
+        )
+        if notification is None:
+            continue
+
+        link = bounty.unified_document.frontend_view_link()
+        transaction.on_commit(
+            lambda email=bounty_creator.email, link=link: emails.send_message_email(
+                [email],
+                "Your ResearchHub Bounty Submission Period Ending",
+                (
+                    "Your bounty submission period is ending in 24 hours. After "
+                    "that, no new reviews will be submitted. You'll have "
+                    f"{ASSESSMENT_PERIOD_DAYS} days to review and award the best "
+                    "solutions."
+                ),
+                link=link,
+                heading="Bounty Submission Period Ending Soon",
             ),
+            robust=True,
         )
 
     # Transition OPEN -> ASSESSMENT when expiration_date passes
@@ -213,13 +226,21 @@ def check_open_bounties():
             action_user=bounty_creator,
             item=bounty,
             unified_document=unified_doc,
-            email_subject="Your ResearchHub Bounty Entered Assessment Phase",
-            email_heading="Bounty Entered Assessment Phase",
-            email_message=(
-                "Submission period has ended. No new peer reviews will be "
-                f"submitted. You have {ASSESSMENT_PERIOD_DAYS} days to review and "
-                "award the best solutions."
+        )
+        link = unified_doc.frontend_view_link()
+        transaction.on_commit(
+            lambda email=bounty_creator.email, link=link: emails.send_message_email(
+                [email],
+                "Your ResearchHub Bounty Entered Assessment Phase",
+                (
+                    "Submission period has ended. No new peer reviews will be "
+                    f"submitted. You have {ASSESSMENT_PERIOD_DAYS} days to review and "
+                    "award the best solutions."
+                ),
+                link=link,
+                heading="Bounty Entered Assessment Phase",
             ),
+            robust=True,
         )
 
         # Notify reviewers who submitted peer reviews on this document
@@ -271,18 +292,29 @@ def check_open_bounties():
     )
     for bounty in upcoming_assessment_expirations.iterator():
         bounty_creator = bounty.created_by
-        notifications.send_once(
+        notification = notifications.send_once(
             Notification.BOUNTY_ASSESSMENT_EXPIRING_SOON,
             recipient=bounty_creator,
             action_user=bounty_creator,
             item=bounty,
             unified_document=bounty.unified_document,
-            email_subject="Your ResearchHub Bounty Assessment Period Ending",
-            email_heading="Bounty Assessment Period Ending Soon",
-            email_message=(
-                "Assessment period ending in 24 hours. Award solutions now or "
-                "remaining funds will be refunded."
+        )
+        if notification is None:
+            continue
+
+        link = bounty.unified_document.frontend_view_link()
+        transaction.on_commit(
+            lambda email=bounty_creator.email, link=link: emails.send_message_email(
+                [email],
+                "Your ResearchHub Bounty Assessment Period Ending",
+                (
+                    "Assessment period ending in 24 hours. Award solutions now or "
+                    "remaining funds will be refunded."
+                ),
+                link=link,
+                heading="Bounty Assessment Period Ending Soon",
             ),
+            robust=True,
         )
 
     expired_assessment_bounties = assessment_bounties.filter(

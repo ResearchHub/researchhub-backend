@@ -16,7 +16,7 @@ from mailing_list.services.email_subscription_service import EmailSubscriptionSe
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEND_INTERVAL_SECONDS = 0.2
-NOTIFICATION_EMAIL_TEMPLATE = "general_email_message"
+MESSAGE_EMAIL_TEMPLATE = "general_email_message"
 
 
 class EmailService:
@@ -47,7 +47,7 @@ class EmailService:
         cc: list[str] | None = None,
     ) -> None:
         """
-        Send notification email, skipping addresses that have opted out.
+        Send optional email, skipping addresses that have opted out.
 
         `template` base name of the template without extension.
 
@@ -83,12 +83,12 @@ class EmailService:
         cc: list[str] | None = None,
     ) -> None:
         """
-        Send transactional email that ignores notification opt-outs.
+        Send transactional email regardless of optional-email preferences.
 
         `template` base name of the template without extension.
 
         Transactional emails can include email confirmation, password reset, and
-        others. Opting out of other notifications must not lock someone out of
+        others. Opting out of optional email must not lock someone out of
         their own account.
         """
         self._send(
@@ -102,7 +102,7 @@ class EmailService:
             unsubscribable=False,
         )
 
-    def send_notification_email(
+    def send_message_email(
         self,
         recipients: str | list[str],
         subject: str,
@@ -111,7 +111,7 @@ class EmailService:
         link: str | None = None,
         heading: str | None = None,
     ) -> None:
-        """Send an opt-out-aware notification with an optional action link."""
+        """Send an opt-out-aware message with an optional action link."""
         self.send_email(
             recipients,
             subject,
@@ -119,7 +119,7 @@ class EmailService:
                 "subject": heading or subject,
                 "action": {"message": message, "frontend_view_link": link},
             },
-            template=NOTIFICATION_EMAIL_TEMPLATE,
+            template=MESSAGE_EMAIL_TEMPLATE,
         )
 
     def send_html_email(
@@ -135,8 +135,8 @@ class EmailService:
         """Send prepared HTML and return its backend message ID when available.
 
         Preserve outreach's caller-managed sending policy and propagate failures.
-        Unlike notification mail, this path does not apply opt-outs, unsubscribe
-        links, or the recipient whitelist. The backend still applies its policy.
+        This path does not apply opt-outs, unsubscribe links, or the recipient
+        whitelist. The backend still applies its policy.
         """
         return self._send_message(
             recipient,
