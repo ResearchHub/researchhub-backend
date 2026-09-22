@@ -7,6 +7,7 @@ from django.test import TestCase
 
 from mailing_list.services import EmailService
 from notification.models import Notification
+from notification.services import NotificationService
 from purchase.models import Grant, GrantApplication
 from purchase.tasks import send_grant_application_email
 from researchhub_document.helpers import create_post
@@ -115,7 +116,7 @@ class GrantApplicationNotificationDispatchTests(AWSMockTransactionTestCase):
     @patch.object(
         send_grant_application_email, "delay", new=send_grant_application_email
     )
-    @patch.object(Notification, "send_notification")
+    @patch.object(NotificationService, "_send_notification")
     def test_dispatches_notifications_after_commit(
         self,
         mock_send_notification: MagicMock,

@@ -340,14 +340,19 @@ class CommentViewTests(APITestCase):
         self.assertEqual(regular_res.status_code, 200)
         self.assertEqual(regular_res.data["count"], 1)
 
-    def test_comment_mentions(self):
+    def test_notifies_mentioned_users(self) -> None:
+        """A blank mention does not prevent notifying a valid recipient."""
+        # Arrange
         creator = self.user_1
         recipient = self.user_2
-        self._create_paper_comment(self.paper.id, creator, mentions=[self.user_2.id])
+
+        # Act
+        self._create_paper_comment(self.paper.id, creator, mentions=["", recipient.id])
         self.client.force_authenticate(recipient)
 
         notification_res = self.client.get("/api/notification/")
 
+        # Assert
         self.assertEqual(notification_res.status_code, 200)
         self.assertEqual(notification_res.data["count"], 1)
 

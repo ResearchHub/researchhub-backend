@@ -24,7 +24,7 @@ from research_ai.serializers import (
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.outreach.email_generator import create_expert_email_draft
-from research_ai.services.outreach.email_sender import send_plain_email
+from research_ai.services.outreach.email_sender import send_outreach_email
 from research_ai.services.outreach.proposal_draft_outreach import (
     prepare_proposal_outreach,
 )
@@ -311,7 +311,7 @@ class PreviewEmailView(APIView):
         sent = 0
         for rec in qs:
             try:
-                send_plain_email(
+                send_outreach_email(
                     recipient,
                     rec.email_subject,
                     rec.email_body,
@@ -557,7 +557,7 @@ class InviteRfpApplicantsView(APIView):
         if result.generated_email_ids:
             send_queued_emails_task.delay(
                 generated_email_ids=result.generated_email_ids,
-                reply_to=reply_to,
+                reply_to=[reply_to] if reply_to else None,
                 cc=cc_list,
                 from_email=from_email,
             )

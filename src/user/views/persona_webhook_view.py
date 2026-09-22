@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from notification.models import Notification
+from notification.services import NotificationService
 from user.models import User, UserVerification
 
 logger = logging.getLogger(__name__)
@@ -112,16 +113,13 @@ class PersonaWebhookView(APIView):
 
     def _create_notification(self, user_verification: UserVerification):
         user = User.objects.get(id=user_verification.user_id)
-        notification = Notification.objects.create(
-            action_user=user,
-            extra={
-                "status": user_verification.status.value,
-            },
-            item=user_verification,
-            notification_type=Notification.IDENTITY_VERIFICATION_UPDATED,
+        NotificationService().send(
+            Notification.IDENTITY_VERIFICATION_UPDATED,
             recipient=user,
+            action_user=user,
+            item=user_verification,
+            extra={"status": user_verification.status.value},
         )
-        notification.send_notification()
 
     def _validate_signature(self, request: Request) -> bool:
         """

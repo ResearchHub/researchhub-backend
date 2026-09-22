@@ -1,8 +1,34 @@
+from typing import Any
+
 import rest_framework.serializers as serializers
 
 from notification.models import Notification
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer, UserSerializer
+
+
+def get_notification_context() -> dict[str, Any]:
+    """Share the existing nested serializer fields between REST and live delivery."""
+    return {
+        "not_dns_get_action": {"_include_fields": ["content_type", "item"]},
+        "not_dns_get_action_user": {
+            "_include_fields": ["author_profile", "first_name", "last_name"]
+        },
+        "not_dns_get_recipient": {
+            "_include_fields": ["author_profile", "first_name", "last_name"]
+        },
+        "not_dns_get_unified_document": {
+            "_include_fields": ["documents", "document_type"]
+        },
+        "doc_duds_get_documents": {
+            "_include_fields": ["id", "paper_title", "slug", "title"]
+        },
+        "usr_dus_get_author_profile": {"_include_fields": ["id", "profile_image"]},
+        "pap_dpss_get_paper": {"_include_fields": ["id", "title"]},
+        "pap_dps_get_unified_document": {
+            "_include_fields": ["id", "title", "document_type", "slug"]
+        },
+    }
 
 
 class NotificationSerializer(serializers.ModelSerializer):

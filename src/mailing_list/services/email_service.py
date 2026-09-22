@@ -16,11 +16,12 @@ from mailing_list.services.email_subscription_service import EmailSubscriptionSe
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEND_INTERVAL_SECONDS = 0.2
+NOTIFICATION_EMAIL_TEMPLATE = "general_email_message"
 
 
 class EmailService:
     """
-    Render and send templated email, honoring notification opt-outs.
+    Render and send email through Django's configured backend.
     """
 
     def __init__(
@@ -28,7 +29,8 @@ class EmailService:
         subscription_service: EmailSubscriptionService | None = None,
         sender: str | None = None,
         send_interval_seconds: float = DEFAULT_SEND_INTERVAL_SECONDS,
-    ):
+    ) -> None:
+        """Configure subscription handling, the sender, and batch pacing."""
         self._subscriptions = subscription_service or EmailSubscriptionService()
         self._sender = sender or f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>"
         self._send_interval_seconds = send_interval_seconds
@@ -41,7 +43,7 @@ class EmailService:
         *,
         template: str,
         sender: str | None = None,
-        reply_to: str | None = None,
+        reply_to: str | list[str] | None = None,
         cc: list[str] | None = None,
     ) -> None:
         """
@@ -77,7 +79,7 @@ class EmailService:
         *,
         template: str,
         sender: str | None = None,
-        reply_to: str | None = None,
+        reply_to: str | list[str] | None = None,
         cc: list[str] | None = None,
     ) -> None:
         """
@@ -100,6 +102,52 @@ class EmailService:
             unsubscribable=False,
         )
 
+    def send_notification_email(
+        self,
+        recipients: str | list[str],
+        subject: str,
+        message: str,
+        *,
+        link: str | None = None,
+        heading: str | None = None,
+    ) -> None:
+        """Send an opt-out-aware notification with an optional action link."""
+        self.send_email(
+            recipients,
+            subject,
+            {
+                "subject": heading or subject,
+                "action": {"message": message, "frontend_view_link": link},
+            },
+            template=NOTIFICATION_EMAIL_TEMPLATE,
+        )
+
+    def send_html_email(
+        self,
+        recipient: str,
+        subject: str,
+        body: str,
+        *,
+        sender: str | None = None,
+        reply_to: str | list[str] | None = None,
+        cc: list[str] | None = None,
+    ) -> str | None:
+        """Send prepared HTML and return its backend message ID when available.
+
+        Preserve outreach's caller-managed sending policy and propagate failures.
+        Unlike notification mail, this path does not apply opt-outs, unsubscribe
+        links, or the recipient whitelist. The backend still applies its policy.
+        """
+        return self._send_message(
+            recipient,
+            subject,
+            body,
+            self._html_to_text(body) or "(No content)",
+            sender=sender,
+            reply_to=reply_to,
+            cc=cc,
+        )
+
     def _send(
         self,
         recipients: str | list[str],
@@ -108,7 +156,7 @@ class EmailService:
         *,
         template: str,
         sender: str | None,
-        reply_to: str | None,
+        reply_to: str | list[str] | None,
         cc: list[str] | None,
         unsubscribable: bool,
     ) -> None:
@@ -118,13 +166,8 @@ class EmailService:
         Sends are best-effort: a recipient that fails is logged and skipped so one
         bad address cannot abort the rest of the batch.
         """
-        subject = subject.replace("\n", "").replace("\r", "")
-
         if not isinstance(recipients, list):
             recipients = [recipients]
-
-        if not settings.PRODUCTION:
-            subject = "[Staging] " + subject
 
         html_template = get_template(f"{template}.html")
         try:
@@ -170,21 +213,50 @@ class EmailService:
             )
 
             try:
-                message = EmailMultiAlternatives(
-                    subject=subject,
-                    body=plain_body,
-                    from_email=sender or self._sender,
-                    to=[recipient],
-                    reply_to=[reply_to] if reply_to else None,
+                self._send_message(
+                    recipient,
+                    subject,
+                    html_body,
+                    plain_body,
+                    sender=sender,
+                    reply_to=reply_to,
                     cc=cc,
                     headers=headers,
                 )
-                message.attach_alternative(html_body, "text/html")
-                message.send(fail_silently=False)
             except Exception:
                 logger.exception("Email send failed to %s", recipient)
 
             sleep(self._send_interval_seconds)
+
+    def _send_message(
+        self,
+        recipient: str,
+        subject: str,
+        html_body: str,
+        plain_body: str,
+        *,
+        sender: str | None,
+        reply_to: str | list[str] | None,
+        cc: list[str] | None,
+        headers: dict[str, str] | None = None,
+    ) -> str | None:
+        """Send one multipart message and require backend acceptance."""
+        subject = subject.replace("\n", "").replace("\r", "")
+        if isinstance(reply_to, str):
+            reply_to = [reply_to] if reply_to else None
+        message = EmailMultiAlternatives(
+            subject=subject if settings.PRODUCTION else f"[Staging] {subject}",
+            body=plain_body,
+            from_email=sender or self._sender,
+            to=[recipient],
+            reply_to=reply_to,
+            cc=cc,
+            headers=headers,
+        )
+        message.attach_alternative(html_body, "text/html")
+        if message.send(fail_silently=False) != 1:
+            raise RuntimeError("The email backend did not accept the message.")
+        return message.extra_headers.get("message_id")
 
     @staticmethod
     def _html_to_text(html: str) -> str:

@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from notification.models import Notification
+from notification.services import NotificationService
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.related_models.distribution import Distribution as DistributionModel
@@ -203,7 +204,7 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         )
         self.assertEqual(notifications.count(), 0)
 
-    @patch("notification.models.Notification.send_notification")
+    @patch.object(NotificationService, "_send_notification")
     def test_send_notification_called_for_each_follower(self, mock_send_notification):
         """
         Test that send_notification is called for each notification created.
@@ -217,12 +218,16 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
 
         # Act
 
-        RhCommentModel.objects.create(
-            thread=thread,
-            created_by=self.author,
-            comment_content_json={"text": "This is an author update"},
-            comment_type=AUTHOR_UPDATE,
-        )
+        with (
+            patch("researchhub_comment.signals.email_notification_recipients.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            RhCommentModel.objects.create(
+                thread=thread,
+                created_by=self.author,
+                comment_content_json={"text": "This is an author update"},
+                comment_type=AUTHOR_UPDATE,
+            )
 
         # Assert
         # Verify send_notification was called twice (once for each follower)
@@ -265,7 +270,7 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         )
         self.assertEqual(notifications.count(), 0)
 
-    @patch("researchhub_comment.signals.send_author_update_email_notifications.delay")
+    @patch("researchhub_comment.signals.email_notification_recipients.delay")
     def test_reply_to_author_update_only_notifies_author(self, mock_send_update_emails):
         # Arrange
         thread = RhCommentThreadModel.objects.create(
@@ -282,13 +287,17 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         mock_send_update_emails.reset_mock()
 
         # Act
-        reply = RhCommentModel.objects.create(
-            thread=thread,
-            parent=update,
-            created_by=self.non_follower,
-            comment_content_json={"text": "This is a reply"},
-            comment_type=GENERIC_COMMENT,
-        )
+        with (
+            patch.object(NotificationService, "_send_notification"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            reply = RhCommentModel.objects.create(
+                thread=thread,
+                parent=update,
+                created_by=self.non_follower,
+                comment_content_json={"text": "This is a reply"},
+                comment_type=GENERIC_COMMENT,
+            )
 
         # Assert
         self.assertFalse(

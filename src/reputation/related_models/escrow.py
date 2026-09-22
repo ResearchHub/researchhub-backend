@@ -101,6 +101,7 @@ class Escrow(DefaultModel):
 
     def payout(self, recipient, payout_amount):
         from notification.models import Notification
+        from notification.services import NotificationService
         from reputation.distributor import Distributor
 
         if not recipient:
@@ -149,27 +150,24 @@ class Escrow(DefaultModel):
             else:
                 escrow.set_paid_status(should_save=True)
 
+            notifications = NotificationService()
             if escrow.hold_type == escrow.BOUNTY:
-                unified_document = escrow.item.unified_document
-                notification = Notification.objects.create(
-                    unified_document=unified_document,
+                notifications.try_send(
+                    Notification.BOUNTY_PAYOUT,
                     recipient=recipient,
                     action_user=escrow.created_by,
                     item=escrow,
-                    notification_type=Notification.BOUNTY_PAYOUT,
+                    unified_document=escrow.item.unified_document,
                     extra={"amount": str(payout_amount)},
                 )
-                notification.send_notification()
             elif escrow.hold_type == escrow.FUNDRAISE:
-                unified_document = escrow.item.unified_document
-                notification = Notification.objects.create(
-                    unified_document=unified_document,
+                notifications.try_send(
+                    Notification.FUNDRAISE_PAYOUT,
                     recipient=recipient,
                     action_user=escrow.created_by,
                     item=escrow,
-                    notification_type=Notification.FUNDRAISE_PAYOUT,
+                    unified_document=escrow.item.unified_document,
                 )
-                notification.send_notification()
 
             self.amount_holding = escrow.amount_holding
             self.amount_paid = escrow.amount_paid
