@@ -5,7 +5,13 @@ from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import serializers
 
+from note.services.grant_selection_service import (
+    GrantSelectionError,
+    selectable_grants,
+    validate_selection,
+)
 from paper.serializers import PaperSerializer
+from purchase.models import Grant
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
     EmailTemplateType,
@@ -14,6 +20,7 @@ from research_ai.constants import (
     Region,
 )
 from research_ai.models import (
+    AgentConversation,
     EmailTemplate,
     Expert,
     ExpertSearch,
@@ -35,7 +42,10 @@ from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
 from research_ai.utils import trimmed_str
-from researchhub_document.related_models.constants.document_type import PAPER
+from researchhub_document.related_models.constants.document_type import (
+    PAPER,
+    PREREGISTRATION,
+)
 from researchhub_document.serializers import ResearchhubPostSerializer
 from user.models import Author
 
@@ -1091,6 +1101,50 @@ class NotebookChatCreateSerializer(serializers.Serializer):
     title = serializers.CharField(
         max_length=255, required=False, allow_blank=True, default=""
     )
+
+
+class AssistantChatCreateSerializer(NotebookChatCreateSerializer):
+    """
+    Request body for starting an assistant chat.
+
+    ``intent`` says what the user is here to do and fixes the type of note the
+    chat may create; ``selected_grant`` is the Request for Proposals a proposal
+    it creates will answer, so it only goes with a chat that seeks funding.
+    Both are optional.
+    """
+
+    intent = serializers.ChoiceField(
+        choices=AgentConversation.Intent.choices,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
+    selected_grant = serializers.PrimaryKeyRelatedField(
+        queryset=Grant.objects.none(),
+        required=False,
+        allow_null=True,
+        default=None,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get("request")
+        if request is not None:
+            self.fields["selected_grant"].queryset = selectable_grants(request.user)
+
+    def validate(self, attrs):
+        grant = attrs.get("selected_grant")
+        if grant is None:
+            return attrs
+        if attrs.get("intent") == AgentConversation.Intent.FUND:
+            raise serializers.ValidationError(
+                {"selected_grant": "A chat that funds research does not answer an RFP."}
+            )
+        try:
+            validate_selection(document_type=PREREGISTRATION, grant=grant)
+        except GrantSelectionError as exc:
+            raise serializers.ValidationError({"selected_grant": str(exc)}) from exc
+        return attrs
 
 
 class NotebookChatUpdateSerializer(serializers.Serializer):

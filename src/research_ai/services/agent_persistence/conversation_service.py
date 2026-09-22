@@ -17,11 +17,15 @@ class AgentConversationService:
         user=None,
         workflow: str = "",
         title: str = "",
+        intent: str = "",
+        selected_grant=None,
     ) -> AgentConversation:
         return AgentConversation.objects.create(
             user=user,
             workflow=workflow,
             title=title,
+            intent=intent,
+            selected_grant=selected_grant,
         )
 
     def set_title(self, conversation: AgentConversation, title: str) -> None:

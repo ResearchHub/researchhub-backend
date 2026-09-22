@@ -18,7 +18,7 @@ from rest_framework.views import APIView
 from research_ai.models import AgentConversation
 from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.serializers import (
-    NotebookChatCreateSerializer,
+    AssistantChatCreateSerializer,
     NotebookChatMessageCreateSerializer,
     NotebookChatUpdateSerializer,
 )
@@ -58,11 +58,16 @@ class AssistantChatListCreateView(APIView):
         )
 
     def post(self, request):
-        serializer = NotebookChatCreateSerializer(data=request.data)
+        serializer = AssistantChatCreateSerializer(
+            data=request.data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
         service = AssistantChatService()
         conversation = service.create_conversation(
-            request.user, title=serializer.validated_data["title"]
+            request.user,
+            title=serializer.validated_data["title"],
+            intent=serializer.validated_data["intent"],
+            selected_grant=serializer.validated_data["selected_grant"],
         )
         return Response(
             service.representation(conversation), status=status.HTTP_201_CREATED

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -6,12 +7,15 @@ from rest_framework.test import APITestCase
 
 from note.models import Note
 from note.tests.helpers import create_note
+from purchase.models import Grant
 from research_ai.models import (
     AgentConversation,
     AgentExecution,
     NoteAgentConversation,
 )
 from research_ai.services.notebook_chat import NotebookChatService
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import GRANT
 
 MODEL_SETTINGS = {
     "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
@@ -75,6 +79,85 @@ class AssistantChatViewTests(APITestCase):
         self.assertEqual(response.data["messages"], [])
         self.assertEqual(response.data["executions"], [])
         self.assertEqual(response.data["notes"], [])
+
+    def _grant(self, status=Grant.OPEN):
+        post = create_post(created_by=self.other, document_type=GRANT, title="Open RFP")
+        return Grant.objects.create(
+            created_by=self.other,
+            unified_document=post.unified_document,
+            short_title="Open RFP",
+            organization="Research Foundation",
+            description="Funds research.",
+            amount=Decimal("50000.00"),
+            currency="USD",
+            status=status,
+        )
+
+    def test_create_chat_records_intent_and_the_rfp_it_answers(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        grant = self._grant()
+
+        # Act
+        response = self.client.post(
+            CHATS_URL,
+            {"intent": "need_funding", "selected_grant": grant.id},
+            format="json",
+        )
+        listing = self.client.get(CHATS_URL)
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["intent"], "need_funding")
+        self.assertEqual(response.data["selected_grant_id"], grant.id)
+        self.assertEqual(listing.data["chats"][0]["intent"], "need_funding")
+        conversation = AgentConversation.objects.get(
+            id=response.data["conversation_id"]
+        )
+        self.assertEqual(conversation.selected_grant, grant)
+
+    def test_create_chat_without_intent_leaves_both_blank(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        response = self.client.post(CHATS_URL, {}, format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["intent"], "")
+        self.assertIsNone(response.data["selected_grant_id"])
+
+    def test_create_chat_rejects_an_unknown_intent(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        response = self.client.post(CHATS_URL, {"intent": "browse"}, format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("intent", response.data)
+
+    def test_create_chat_rejects_an_rfp_that_cannot_be_answered(self):
+        # Arrange: a closed RFP, and an open one on a chat that funds rather
+        # than seeks funding.
+        self.client.force_authenticate(self.owner)
+        closed = self._grant(status=Grant.CLOSED)
+        open_grant = self._grant()
+
+        for payload in (
+            {"intent": "need_funding", "selected_grant": closed.id},
+            {"intent": "fund", "selected_grant": open_grant.id},
+            {"intent": "need_funding", "selected_grant": 999_999},
+        ):
+            with self.subTest(payload=payload):
+                # Act
+                response = self.client.post(CHATS_URL, payload, format="json")
+
+                # Assert
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("selected_grant", response.data)
 
     def test_regular_users_can_create_chats(self):
         # Arrange

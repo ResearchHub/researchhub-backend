@@ -62,13 +62,22 @@ class AssistantChatService:
                 "updated_date": conversation.updated_date,
                 "last_message_preview": conversation.last_message_preview,
                 "has_active_turn": conversation.has_active_turn,
+                "intent": conversation.intent,
             }
             for conversation in conversations
         ]
 
-    def create_conversation(self, user, title: str = "") -> AgentConversation:
+    def create_conversation(
+        self, user, title: str = "", intent: str = "", selected_grant=None
+    ) -> AgentConversation:
+        """Start a chat. ``intent`` fixes the type of note it may create, and
+        ``selected_grant`` is the RFP a proposal it creates will answer."""
         return self.engine.conversations.create(
-            user=user, workflow=WORKFLOW, title=title
+            user=user,
+            workflow=WORKFLOW,
+            title=title,
+            intent=intent,
+            selected_grant=selected_grant,
         )
 
     def rename_conversation(
@@ -114,12 +123,15 @@ class AssistantChatService:
     def representation(
         self, conversation: AgentConversation, *, activity_scope: str = ACTIVITY_ALL
     ) -> dict:
-        """The notebook chat projection plus the notes this chat created."""
+        """The notebook chat projection plus the notes this chat created,
+        what the user opened it to do, and the RFP they set out to answer."""
         data = self.engine.representation(conversation, activity_scope=activity_scope)
         data["notes"] = [
             {"id": note.id, "title": note.title}
             for note in self.engine._linked_notes(conversation)
         ]
+        data["intent"] = conversation.intent
+        data["selected_grant_id"] = conversation.selected_grant_id
         return data
 
     def submit_message(

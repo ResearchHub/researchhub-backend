@@ -45,6 +45,10 @@ from django.db.models.functions import Left
 from django.utils import timezone
 
 from note.related_models.note_model import Note
+from note.services.grant_selection_service import (
+    GrantSelectionError,
+    validate_selection,
+)
 from note.services.note_creation_service import NoteCreationService
 from research_ai.models import (
     AgentConversation,
@@ -909,7 +913,11 @@ class NotebookChatService:
     def _system_prompt(self, note: Note | None, conversation) -> str:
         if note is not None:
             return build_notebook_chat_system_prompt(note)
-        return build_assistant_chat_system_prompt(self._linked_notes(conversation))
+        return build_assistant_chat_system_prompt(
+            self._linked_notes(conversation),
+            intent=conversation.intent,
+            selected_grant=conversation.selected_grant,
+        )
 
     def _note_toolset(
         self, conversation: AgentConversation, note: Note | None
@@ -928,16 +936,26 @@ class NotebookChatService:
             note_creator=lambda title, document_type: self._create_note(
                 conversation, title, document_type
             ),
+            creatable_note_types=conversation.creatable_note_types,
         )
 
     def _create_note(
         self, conversation: AgentConversation, title: str, document_type: str
     ) -> Note:
+        """Create the note and attach it to the chat. A proposal answers the
+        RFP the chat was opened for, if that RFP still takes applications;
+        one that no longer does is left off rather than failing the note."""
+        selected_grant = conversation.selected_grant
+        try:
+            validate_selection(document_type=document_type, grant=selected_grant)
+        except GrantSelectionError:
+            selected_grant = None
         with transaction.atomic():
             note = self.note_creation.create_private_note(
                 created_by=conversation.user,
                 title=title,
                 document_type=document_type,
+                selected_grant=selected_grant,
             )
             self.note_conversations.attach(conversation, note)
         return note

@@ -86,11 +86,13 @@ class NoteToolset:
         service: NoteContentService | None = None,
         note_ids: Collection[int] | None = None,
         note_creator: Callable[[str, str], Note] | None = None,
+        creatable_note_types: Collection[str] = _CREATABLE_NOTE_TYPES,
     ):
         self._user = user
         self._service = service or NoteContentService()
         self._note_ids = None if note_ids is None else set(note_ids)
         self._note_creator = note_creator
+        self._creatable_note_types = tuple(creatable_note_types)
 
     # -- tool construction ------------------------------------------------
 
@@ -117,13 +119,8 @@ class NoteToolset:
                             },
                             "document_type": {
                                 "type": "string",
-                                "enum": list(_CREATABLE_NOTE_TYPES),
-                                "description": (
-                                    "GRANT for an RFP or call for proposals; "
-                                    "PREREGISTRATION for a research proposal or "
-                                    "funding application (including an RFP response). "
-                                    "Only these two document types can be created."
-                                ),
+                                "enum": list(self._creatable_note_types),
+                                "description": self._document_type_description(),
                             },
                         },
                         "required": ["title", "document_type"],
@@ -278,6 +275,22 @@ class NoteToolset:
 
     # -- handlers ---------------------------------------------------------
 
+    def _document_type_description(self) -> str:
+        if self._creatable_note_types == (GRANT,):
+            return (
+                "GRANT: the only type this chat creates, an RFP or call for proposals."
+            )
+        if self._creatable_note_types == (PREREGISTRATION,):
+            return (
+                "PREREGISTRATION: the only type this chat creates, a research "
+                "proposal or funding application (including an RFP response)."
+            )
+        return (
+            "GRANT for an RFP or call for proposals; PREREGISTRATION for a "
+            "research proposal or funding application (including an RFP "
+            "response). Only these two document types can be created."
+        )
+
     def _create_note(self, input: dict) -> dict:
         if self._user is None or getattr(self._user, "is_anonymous", False):
             return {"error": "a signed-in user is required to create a note"}
@@ -288,8 +301,11 @@ class NoteToolset:
         if len(title) > _MAX_TITLE_CHARS:
             return {"error": f"title must be at most {_MAX_TITLE_CHARS} characters"}
         document_type = input.get("document_type")
-        if document_type not in _CREATABLE_NOTE_TYPES:
-            return {"error": "document_type must be PREREGISTRATION or GRANT"}
+        if document_type not in self._creatable_note_types:
+            return {
+                "error": "document_type must be "
+                + " or ".join(self._creatable_note_types)
+            }
         try:
             note = self._note_creator(title, document_type)
         except Exception as exc:  # noqa: BLE001 - reported to the model

@@ -623,6 +623,31 @@ class NoteToolsetCreateNoteTests(TestCase):
         self.assertEqual(read["title"], "New idea")
         self.assertIn("error", outside_read)
 
+    def test_creatable_note_types_narrow_the_schema_and_the_guard(self):
+        # Arrange: a toolset that may only create proposals.
+        toolset = NoteToolset(
+            user=self.owner,
+            note_ids=set(),
+            note_creator=self.toolset._note_creator,
+            creatable_note_types=("PREREGISTRATION",),
+        )
+        tools = {tool.name: tool for tool in toolset.build_tools()}
+
+        # Act
+        schema = tools[CREATE_NOTE].input_schema["properties"]["document_type"]
+        refused = tools[CREATE_NOTE].handler(
+            {"title": "An RFP", "document_type": "GRANT"}
+        )
+        created = tools[CREATE_NOTE].handler(
+            {"title": "A proposal", "document_type": "PREREGISTRATION"}
+        )
+
+        # Assert
+        self.assertEqual(schema["enum"], ["PREREGISTRATION"])
+        self.assertEqual(refused, {"error": "document_type must be PREREGISTRATION"})
+        self.assertEqual(created["title"], "A proposal")
+        self.assertEqual([note.title for note in self.created], ["A proposal"])
+
     def test_create_note_rejects_missing_or_unsupported_document_type(self):
         for document_type in (None, "NOTE", "RFP", "PAPER", "", ["GRANT"]):
             with self.subTest(document_type=document_type):

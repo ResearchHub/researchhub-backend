@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -6,6 +7,7 @@ from django.test import TestCase, override_settings
 
 from note.models import Note
 from note.tests.helpers import create_note
+from purchase.models import Grant
 from research_ai.models import AgentExecution
 from research_ai.services.agent.types import TurnUsage
 from research_ai.services.assistant_chat import WORKFLOW, AssistantChatService
@@ -17,6 +19,7 @@ from research_ai.tests.agent.persistence_test_helpers import (
     tool_turn,
 )
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
+from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     NOTE,
@@ -42,6 +45,20 @@ class LazyProvider(FakeProvider):
         if callable(self.turns[0]):
             self.turns[0] = self.turns[0]()
         return super().complete(**kwargs)
+
+
+def _open_grant(user):
+    post = create_post(created_by=user, document_type=GRANT, title="Open RFP")
+    return Grant.objects.create(
+        created_by=user,
+        unified_document=post.unified_document,
+        short_title="Open RFP",
+        organization="Research Foundation",
+        description="Funds research.",
+        amount=Decimal("50000.00"),
+        currency="USD",
+        status=Grant.OPEN,
+    )
 
 
 def _make_service(provider=None, **kwargs):
@@ -97,6 +114,72 @@ class AssistantChatServiceTests(TestCase):
         self.conversation.refresh_from_db()
         self.assertEqual(self.conversation.title, "Draft a proposal outline.")
         delay.assert_called_once_with(execution.id)
+
+    def test_intent_narrows_the_prompt_and_the_notes_the_chat_creates(self):
+        # Arrange: a chat opened to fund research.
+        self.conversation = self.service.create_conversation(
+            self.user, intent=self.conversation.Intent.FUND
+        )
+        execution, _delay = self._submit("Draft an RFP on lab automation.")
+
+        # Act: the model tries a proposal first, then the RFP the chat is for.
+        self._run(
+            execution,
+            [
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {"title": "Wrong type", "document_type": PREREGISTRATION},
+                ),
+                tool_turn(
+                    "t2",
+                    "create_note",
+                    {"title": "Lab automation", "document_type": GRANT},
+                ),
+                text_turn("Created the RFP."),
+            ],
+        )
+
+        # Assert
+        self.assertIn("opened this chat to fund research", execution.system_prompt)
+        self.assertIn("Every note you create here is a GRANT", execution.system_prompt)
+        self.assertFalse(Note.objects.filter(title="Wrong type").exists())
+        self.assertEqual(Note.objects.get(title="Lab automation").document_type, GRANT)
+        statuses = [
+            event["status"]
+            for event in self._activity(0)
+            if event.get("tool") == "create_note"
+        ]
+        self.assertEqual(statuses, ["failed", "succeeded"])
+
+    def test_a_proposal_the_chat_creates_answers_the_rfp_it_was_opened_for(self):
+        # Arrange
+        grant = _open_grant(self.user)
+        self.conversation = self.service.create_conversation(
+            self.user,
+            intent=self.conversation.Intent.NEED_FUNDING,
+            selected_grant=grant,
+        )
+        execution, _delay = self._submit("Draft my proposal.")
+
+        # Act
+        self._run(
+            execution,
+            [
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {"title": "My proposal", "document_type": PREREGISTRATION},
+                ),
+                text_turn("Created the proposal."),
+            ],
+        )
+
+        # Assert
+        self.assertIn(
+            f'"{grant.short_title}" (grant {grant.id})', execution.system_prompt
+        )
+        self.assertEqual(Note.objects.get(title="My proposal").selected_grant, grant)
 
     def test_create_note_preserves_requested_document_type(self):
         for document_type in (GRANT, PREREGISTRATION):

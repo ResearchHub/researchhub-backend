@@ -1,11 +1,21 @@
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from utils.models import DefaultModel
 
 
 class AgentConversation(DefaultModel):
     """Durable grouping for related agent executions and user-visible turns."""
+
+    class Intent(models.TextChoices):
+        """What the user opened an assistant chat to do; blank on older chats."""
+
+        FUND = "fund", "I want to fund"
+        NEED_FUNDING = "need_funding", "I need funding"
 
     user = models.ForeignKey(
         "user.User",
@@ -32,6 +42,28 @@ class AgentConversation(DefaultModel):
             "one (typically from the first message) or the user sets it."
         ),
     )
+    intent = models.CharField(
+        max_length=16,
+        choices=Intent.choices,
+        blank=True,
+        db_comment=(
+            "For assistant chats: whether the user is here to fund research "
+            "(their notes are RFPs) or to get funding (their notes are "
+            "proposals). Blank leaves the note type to the model."
+        ),
+    )
+    selected_grant = models.ForeignKey(
+        "purchase.Grant",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        db_index=False,
+        db_comment=(
+            "The Request for Proposals the user set out to answer, applied to "
+            "the proposal note this chat creates."
+        ),
+    )
     next_trace_sequence = models.PositiveBigIntegerField(default=1)
     next_chat_sequence = models.PositiveBigIntegerField(default=1)
     is_removed = models.BooleanField(
@@ -42,6 +74,15 @@ class AgentConversation(DefaultModel):
         ),
     )
     removed_date = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def creatable_note_types(self) -> tuple[str, ...]:
+        """The note types this chat's ``create_note`` may make, by intent."""
+        if self.intent == self.Intent.FUND:
+            return (GRANT,)
+        if self.intent == self.Intent.NEED_FUNDING:
+            return (PREREGISTRATION,)
+        return (PREREGISTRATION, GRANT)
 
     class Meta:
         db_table = "research_ai_agent_conversation"
