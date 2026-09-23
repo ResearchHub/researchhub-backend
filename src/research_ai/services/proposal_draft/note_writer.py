@@ -6,6 +6,7 @@ from django.db import transaction
 
 from note.models import Note, NoteContent
 from note.services.note_creation_service import NoteCreationService
+from research_ai.services.editor_document import prepare_agent_document
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
@@ -35,6 +36,8 @@ def write_proposal_note(
         selected_grant=selected_grant,
     )
     prosemirror = submitted.get("prosemirror")
+    if prosemirror is not None:
+        prosemirror = prepare_agent_document(prosemirror)
     NoteContent.objects.create(
         note=note,
         # Store the ProseMirror doc as a JSON-encoded string, matching the
