@@ -9,6 +9,7 @@ from note.services.note_creation_service import NoteCreationService
 from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
+from utils.prosemirror import normalize_block_document
 
 
 @transaction.atomic
@@ -35,6 +36,9 @@ def write_proposal_note(
         selected_grant=selected_grant,
     )
     prosemirror = submitted.get("prosemirror")
+    if prosemirror is not None:
+        # The editor's load-time shape, so opening the note does not save.
+        prosemirror = normalize_block_document(prosemirror)
     NoteContent.objects.create(
         note=note,
         # Store the ProseMirror doc as a JSON-encoded string, matching the

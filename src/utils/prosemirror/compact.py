@@ -19,6 +19,8 @@ dialect (canonical form is a subset of it) and returns validated canonical
 block dicts.
 """
 
+from collections.abc import Collection
+
 from prosemirror.model import Mark, Node
 
 from utils.prosemirror.loader import parse_document
@@ -26,14 +28,19 @@ from utils.prosemirror.loader import parse_document
 __all__ = ["compact_blocks", "expand_blocks", "parse_blocks"]
 
 
-def compact_blocks(schema_name: str, doc: dict) -> list[dict | str]:
+def compact_blocks(
+    schema_name: str, doc: dict, *, omit_attrs: Collection[str] = ()
+) -> list[dict | str]:
     """Validate ``doc`` and return its top-level blocks in compact form.
 
+    Node attributes named in ``omit_attrs`` are dropped at every depth, as
+    if they held their default (a lossy view, e.g. for editor-generated ids).
     Raises ``ValueError`` (from ``parse_document``) when the document does
     not satisfy the schema.
     """
     node = parse_document(schema_name, doc)
-    return [_compact_block(child) for child in node.children]
+    omit = frozenset(omit_attrs)
+    return [_compact_block(child, omit) for child in node.children]
 
 
 def expand_blocks(blocks: list) -> list[dict]:
@@ -62,21 +69,21 @@ def parse_blocks(schema_name: str, blocks: list) -> list[dict]:
 # -- compaction ------------------------------------------------------------
 
 
-def _compact_block(node: Node) -> dict | str:
+def _compact_block(node: Node, omit: frozenset) -> dict | str:
     """A top-level block; plain default paragraphs compact to bare strings."""
     if node.type.name == "paragraph" and not node.marks:
-        if _non_default_attrs(node):
-            return _compact_node(node)
+        if _non_default_attrs(node, omit):
+            return _compact_node(node, omit)
         if node.child_count == 0:
             return ""
         if node.child_count == 1:
             child = node.child(0)
             if child.is_text and not child.marks:
                 return child.text
-    return _compact_node(node)
+    return _compact_node(node, omit)
 
 
-def _compact_node(node: Node) -> dict | str:
+def _compact_node(node: Node, omit: frozenset) -> dict | str:
     if node.is_text:
         if not node.marks:
             return node.text
@@ -86,13 +93,13 @@ def _compact_node(node: Node) -> dict | str:
             "marks": [_compact_mark(mark) for mark in node.marks],
         }
     compacted: dict = {"type": node.type.name}
-    attrs = _non_default_attrs(node)
+    attrs = _non_default_attrs(node, omit)
     if attrs:
         compacted["attrs"] = attrs
     if node.marks:
         compacted["marks"] = [_compact_mark(mark) for mark in node.marks]
     if node.child_count:
-        compacted["content"] = [_compact_node(child) for child in node.children]
+        compacted["content"] = [_compact_node(child, omit) for child in node.children]
     return compacted
 
 
@@ -104,12 +111,14 @@ def _compact_mark(mark: Mark) -> dict:
     return compacted
 
 
-def _non_default_attrs(node_or_mark: Node | Mark) -> dict:
+def _non_default_attrs(
+    node_or_mark: Node | Mark, omit: frozenset = frozenset()
+) -> dict:
     specs = node_or_mark.type.attrs
     return {
         name: value
         for name, value in node_or_mark.attrs.items()
-        if not _is_default(specs[name], value)
+        if name not in omit and not _is_default(specs[name], value)
     }
 
 

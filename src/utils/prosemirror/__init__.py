@@ -19,13 +19,20 @@ mention's user id exists or that a link is safe. That remains
 application-level validation.
 
 ``compact_blocks``/``parse_blocks`` (see ``compact``) additionally convert
-documents to and from a token-lean dialect for model-facing tools.
+documents to and from a token-lean dialect for model-facing tools, and
+``normalize_block_document`` (see ``editor_shape``) gives backend-written
+documents the ids and trailing paragraph the editor would add on load.
 """
 
 from utils.prosemirror.compact import (
     compact_blocks,
     expand_blocks,
     parse_blocks,
+)
+from utils.prosemirror.editor_shape import (
+    EDITOR_ID_ATTRS,
+    is_trailing_paragraph,
+    normalize_block_document,
 )
 from utils.prosemirror.loader import (
     BLOCK_EDITOR,
@@ -37,9 +44,12 @@ from utils.prosemirror.loader import (
 __all__ = [
     "BLOCK_EDITOR",
     "COMMENT_EDITOR",
+    "EDITOR_ID_ATTRS",
     "compact_blocks",
     "expand_blocks",
     "get_schema",
+    "is_trailing_paragraph",
+    "normalize_block_document",
     "parse_blocks",
     "parse_document",
 ]

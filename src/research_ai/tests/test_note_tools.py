@@ -5,7 +5,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from note.models import NoteContent
-from note.tests.helpers import create_note
+from note.tests.helpers import create_note, without_editor_shape
+from research_ai.services.agent.types import Message, ToolResultBlock, ToolUseBlock
 from research_ai.services.note_tools import (
     CREATE_NOTE,
     EDIT_NOTE,
@@ -15,6 +16,7 @@ from research_ai.services.note_tools import (
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
+from utils.prosemirror import normalize_block_document
 
 # A two-block document the way the frontend editor stores it (defaults spelled
 # out), used to seed notes with structured content.
@@ -331,8 +333,12 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(result["block_count"], 3)
         self.note.refresh_from_db()
         stored = json.loads(self.note.latest_version.json)
-        # The untouched heading is spliced through byte-identical.
-        self.assertEqual(stored["content"][0], EDITOR_DOC["content"][0])
+        # The untouched heading is spliced through unchanged apart from the
+        # ids the editor would stamp on it.
+        self.assertEqual(
+            without_editor_shape(stored)["content"][0],
+            without_editor_shape(EDITOR_DOC)["content"][0],
+        )
         self.assertEqual(
             [block["type"] for block in stored["content"]],
             ["heading", "paragraph", "paragraph"],
@@ -502,10 +508,194 @@ class NoteToolsetTests(TestCase):
             },
         )
 
-        # Assert
+        # Assert: nothing saved, and the current version comes back to
+        # re-apply against.
         self.assertIn("stale version", result["error"])
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, newer["version_id"])
+        self.assertEqual(result["current"]["version_id"], newer["version_id"])
+        self.assertEqual(result["current"]["blocks"], {"0": "First edit"})
+
+    def test_edit_note_retried_against_the_stale_result_current_version(self):
+        # Arrange: the user saved a version after the agent's read.
+        read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        user_version = self._seed_version(EDITOR_DOC)
+        stale, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": read["version_id"],
+                "edits": _insert(["Agent intro"]),
+            },
+        )
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": stale["current"]["version_id"],
+                "edits": _insert(["Agent intro"]),
+            },
+        )
+
+        # Assert: the edit landed on the user's version, keeping their work.
+        self.assertTrue(result.get("saved"))
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.latest_version.parent_version_id, user_version.id)
+        self.assertEqual(
+            self.note.latest_version.plain_text, "Agent intro\nTitle\nOriginal body"
+        )
+
+    # -- editor shape -------------------------------------------------------
+
+    def test_edit_note_saves_the_ids_and_trailing_paragraph_the_editor_adds(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": seeded.id,
+                "edits": [
+                    {
+                        "op": "insert",
+                        "at": 2,
+                        "blocks": [
+                            {
+                                "type": "heading",
+                                "attrs": {"level": 2},
+                                "content": ["End"],
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+        # Assert: loading this in the editor has nothing left to rewrite.
+        self.note.refresh_from_db()
+        stored = json.loads(self.note.latest_version.json)
+        self.assertEqual(stored, normalize_block_document(stored))
+        heading = stored["content"][2]
+        self.assertIsNotNone(heading["attrs"]["id"])
+        self.assertEqual(heading["attrs"]["data-toc-id"], heading["attrs"]["id"])
+        self.assertEqual(stored["content"][-1]["type"], "paragraph")
+        self.assertNotIn("content", stored["content"][-1])
+        self.assertEqual(result["block_count"], 3)
+
+    def test_read_note_hides_editor_ids_and_trailing_paragraph(self):
+        # Arrange
+        self._seed_version(normalize_block_document(EDITOR_DOC))
+
+        # Act
+        result, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+
+        # Assert
+        self.assertEqual(result["block_count"], 2)
+        self.assertEqual(
+            result["blocks"],
+            {
+                "0": {"type": "heading", "attrs": {"level": 2}, "content": ["Title"]},
+                "1": "Original body",
+            },
+        )
+
+    def test_edit_note_keeps_ids_of_untouched_blocks_and_ignores_the_trailer(self):
+        # Arrange: the stored note ends in the editor's trailing paragraph,
+        # which the read does not count.
+        seeded = self._seed_version(normalize_block_document(EDITOR_DOC))
+        stored_before = json.loads(seeded.json)["content"]
+
+        # Act: append at block_count as read.
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": seeded.id,
+                "edits": _insert(["Appended"], at=2),
+            },
+        )
+
+        # Assert: no empty paragraph stranded before the appended block, and
+        # none needed after a paragraph that ends the note.
+        self.assertTrue(result.get("saved"))
+        self.note.refresh_from_db()
+        stored = json.loads(self.note.latest_version.json)["content"]
+        self.assertEqual(stored[0], stored_before[0])
+        self.assertEqual(stored[1], stored_before[1])
+        self.assertEqual(stored[2]["content"], [{"type": "text", "text": "Appended"}])
+        self.assertEqual(len(stored), 3)
+        self.assertEqual(result["block_count"], 3)
+
+    # -- changed notes --------------------------------------------------------
+
+    def _seen_messages(self, tool_result: dict) -> list:
+        return [
+            Message(
+                role="assistant",
+                content=[ToolUseBlock(id="t1", name=READ_NOTE, input={})],
+            ),
+            Message(
+                role="user",
+                content=[ToolResultBlock(tool_use_id="t1", content=tool_result)],
+            ),
+        ]
+
+    def test_changed_notes_notice_is_none_while_the_seen_version_is_current(self):
+        # Arrange
+        read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+
+        # Act
+        notice = NoteToolset(user=self.owner).changed_notes_notice(
+            self._seen_messages(read)
+        )
+
+        # Assert
+        self.assertIsNone(notice)
+
+    def test_changed_notes_notice_names_a_note_edited_since_it_was_seen(self):
+        # Arrange
+        read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        newer = self._seed_version(EDITOR_DOC)
+
+        # Act
+        notice = NoteToolset(user=self.owner).changed_notes_notice(
+            self._seen_messages(read)
+        )
+
+        # Assert
+        self.assertIn(f"note {self.note.id} is now at version {newer.id}", notice)
+        self.assertIn(f"you last saw version {read['version_id']}", notice)
+        self.assertIn("read_note", notice)
+
+    def test_changed_notes_notice_uses_the_version_a_stale_edit_returned(self):
+        # Arrange: a stale edit's result already showed the newer version.
+        newer = self._seed_version(EDITOR_DOC)
+        stale = {
+            "error": "stale version",
+            "current": {"note_id": self.note.id, "version_id": newer.id},
+        }
+        messages = [
+            Message(
+                role="assistant",
+                content=[ToolUseBlock(id="t1", name=EDIT_NOTE, input={})],
+            ),
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(tool_use_id="t1", content=stale, is_error=True)
+                ],
+            ),
+        ]
+
+        # Act
+        notice = NoteToolset(user=self.owner).changed_notes_notice(messages)
+
+        # Assert
+        self.assertIsNone(notice)
 
     def test_edit_note_denied_for_viewer(self):
         # Arrange
