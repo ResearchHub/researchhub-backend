@@ -364,29 +364,6 @@ class RunExpertFinderAgentTests(SimpleTestCase):
         self.assertEqual(large.web_search.max_searches, 125)
 
 
-class ExpertFinderProgressTests(SimpleTestCase):
-    def test_email_accepted_reports_discovery_progress(self):
-        # Arrange
-        progress = MagicMock()
-        ses = MagicMock()
-        ses.get_email_address_insights.return_value = _insights()
-        toolset = ExpertFinderAgentToolset(
-            email_validation=EmailValidationService(client=ses),
-            expert_count=10,
-            progress_callback=progress,
-            web_search_max=1,
-        )
-        # Act
-        toolset.email_validate.as_toolset().dispatch(
-            "email_validate", {"email": "ada@mit.edu"}
-        )
-        # Assert
-        progress.assert_called_once()
-        message, percent = progress.call_args.args
-        self.assertIn("1/10", message)
-        self.assertEqual(percent, 32)  # 28 + 42 * 0.1
-
-
 class WebSearchToolTests(SimpleTestCase):
     def test_returns_results_when_configured(self):
         # Arrange

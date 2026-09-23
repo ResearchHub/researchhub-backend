@@ -363,9 +363,6 @@ class ExpertFinderService:
             if progress_callback:
                 progress_callback(search_id, percent, message)
 
-        def agent_progress(message: str, percent: int) -> None:
-            publish_progress(message, percent)
-
         def persist_seen_work_ids(new_ids: list[str] | None) -> None:
             merged = _merge_seen_work_ids(
                 _normalize_seen_work_ids(new_ids),
@@ -505,7 +502,6 @@ class ExpertFinderService:
                     excluded_expert_names=excluded_names,
                     additional_context=additional_context,
                     exclude_work_ids=exclude_work_ids or None,
-                    progress_callback=agent_progress,
                 )
             except BudgetExceededError:
                 raise

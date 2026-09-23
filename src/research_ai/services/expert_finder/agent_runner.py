@@ -2,14 +2,12 @@
 
 import json
 import logging
-from collections.abc import Callable
 from typing import Any
 
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
     ExpertiseLevel,
     Region,
-    expert_finder_discovery_progress_percent,
     expert_finder_max_iterations,
     expert_finder_web_search_budget,
     get_choice_label,
@@ -55,8 +53,6 @@ logger = logging.getLogger(__name__)
 SUBMIT_EXPERTS = "submit_experts"
 
 _SYSTEM_PROMPT = load_template("expert_finder_agent_system.txt").strip()
-
-ProgressCallback = Callable[[str, int], None]
 
 _SUBMIT_INPUT_SCHEMA = {
     "type": "object",
@@ -368,10 +364,8 @@ class ExpertFinderAgentToolset:
         exclude_work_ids: list[str] | None = None,
         web_search_max: int | None = None,
         expert_count: int = 10,
-        progress_callback: ProgressCallback | None = None,
     ):
         self._expert_count = max(1, int(expert_count))
-        self._progress_callback = progress_callback
         self.openalex = openalex_toolset or ExpertFinderOpenAlexToolset(
             client=oa_client,
             region_filter=region_filter,
@@ -389,19 +383,8 @@ class ExpertFinderAgentToolset:
         )
         self.email_validate = email_validate_toolset or EmailValidateToolset(
             service=email_validation,
-            on_accepted=self._on_email_accepted,
         )
         self.submitted: dict | None = None
-
-    def _on_email_accepted(self, email: str) -> None:
-        if self._progress_callback is None:
-            return
-        count = self.email_validate.accepted_count
-        percent = expert_finder_discovery_progress_percent(count, self._expert_count)
-        self._progress_callback(
-            f"Found {count}/{self._expert_count} validated emails...",
-            percent,
-        )
 
     def build_tools(self) -> list[Tool]:
         tools: list[Tool] = []
@@ -464,7 +447,6 @@ def run_expert_finder_agent(
     excluded_expert_names: list[str] | None = None,
     additional_context: str | None = None,
     exclude_work_ids: list[str] | None = None,
-    progress_callback: ProgressCallback | None = None,
     provider: LLMProvider | None = None,
     oa_client: OpenAlex | None = None,
     web_search_client: BraveSearch | None = None,
@@ -495,7 +477,6 @@ def run_expert_finder_agent(
         exclude_work_ids=exclude_work_ids,
         web_search_max=expert_finder_web_search_budget(target or 10),
         expert_count=target or 10,
-        progress_callback=progress_callback,
     )
     provider = provider or resolve_provider()
     agent = AgentService(provider=provider, max_iterations=iterations).create_agent(
