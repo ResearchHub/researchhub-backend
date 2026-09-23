@@ -27,6 +27,7 @@ from purchase.related_models.constants import (
     USD_FUNDRAISE_FEE_PERCENT,
 )
 from purchase.related_models.constants.currency import RSC, USD
+from purchase.services.fundraise_notification_service import notify_contribution_authors
 from referral.services.referral_bonus_service import ReferralBonusService
 from reputation.distributions import create_bounty_refund_distribution
 from reputation.distributor import Distributor
@@ -343,6 +344,10 @@ class FundraiseService:
             escrow.amount_holding += amount
             escrow.save(update_fields=["amount_holding", "updated_date"])
 
+            transaction.on_commit(
+                lambda: notify_contribution_authors(purchase.id, RSC), robust=True
+            )
+
         return purchase, None
 
     @staticmethod
@@ -514,6 +519,10 @@ class FundraiseService:
                     "USD",
                 ),
                 priority=1,
+            )
+
+            transaction.on_commit(
+                lambda: notify_contribution_authors(contribution.id, USD), robust=True
             )
 
         return contribution, None

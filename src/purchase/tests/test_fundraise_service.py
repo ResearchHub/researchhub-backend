@@ -3,10 +3,14 @@ from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from mailing_list.services import EmailService
+from notification.models import Notification
+from notification.services import NotificationService
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import (
     Balance,
@@ -611,15 +615,18 @@ class CloseFundraiseTests(TestCase):
 
     # --- use_credits toggle tests ---
 
-    def test_create_rsc_contribution_use_credits_true_uses_only_funding_credits(self):
+    def test_create_rsc_contribution_use_credits_true_uses_only_funding_credits(
+        self,
+    ) -> None:
         """
         With use_credits=True, the full contribution + fee must be paid from
-        funding credits, even when available and promotional RSC also exist.
+        funding credits, and author alerts must wait for a successful commit.
         """
         # Arrange
         User.objects.get_or_create(id=1)
 
         contributor = create_random_authenticated_user("credits_contributor")
+        self.post.authors.add(self.user.author_profile, contributor.author_profile)
 
         dist_ct = ContentType.objects.get(model="distribution")
         Balance.objects.create(
@@ -641,12 +648,41 @@ class CloseFundraiseTests(TestCase):
         )
 
         # Act
-        purchase, error = self.fundraise_service.create_rsc_contribution(
-            contributor, self.fundraise, Decimal(100), use_credits=True
-        )
+        with (
+            patch.object(EmailService, "send_message_email") as send_email,
+            patch.object(NotificationService, "_send_notification"),
+        ):
+            for rollback in (True, False):
+                with self.captureOnCommitCallbacks(execute=True), transaction.atomic():
+                    purchase, error = self.fundraise_service.create_rsc_contribution(
+                        contributor, self.fundraise, Decimal(100), use_credits=True
+                    )
+                    send_email.assert_not_called()
+                    transaction.set_rollback(rollback)
+                if rollback:
+                    send_email.assert_not_called()
+                    self.assertFalse(
+                        Notification.objects.filter(
+                            notification_type=Notification.FUNDRAISE_CONTRIBUTION
+                        ).exists()
+                    )
 
         # Assert
         self.assertIsNone(error)
+        send_email.assert_called_once()
+        self.assertCountEqual(
+            send_email.call_args.args[0], [self.user.email, contributor.email]
+        )
+        self.assertEqual(
+            send_email.call_args.kwargs["link"],
+            self.post.unified_document.frontend_view_link(),
+        )
+        self.assertCountEqual(
+            Notification.objects.filter(
+                notification_type=Notification.FUNDRAISE_CONTRIBUTION
+            ).values_list("recipient_id", flat=True),
+            [self.user.id, contributor.id],
+        )
 
         debits = Balance.objects.filter(purchase=purchase)
         self.assertTrue(
@@ -1284,9 +1320,9 @@ class CreateUsdContributionTests(TestCase):
             nonprofit=self.nonprofit,
         )
 
-    def test_create_usd_contribution(self):
+    def test_create_usd_contribution(self) -> None:
         """
-        Test successful USD contribution creates record with transfer ID (happy path).
+        Record a submitted USD contribution and notify its proposal author.
         """
         # Arrange
         self.mock_endaoment_service.transfer_to_researchhub_fund.return_value = {
@@ -1294,14 +1330,29 @@ class CreateUsdContributionTests(TestCase):
         }
 
         # Act
-        contribution, error = self.service.create_usd_contribution(
-            user=self.user,
-            fundraise=self.fundraise,
-            amount_cents=10000,
-            origin_fund_id="fund_abc",
-        )
+        with (
+            patch.object(EmailService, "send_message_email") as send_email,
+            patch.object(NotificationService, "_send_notification"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            contribution, error = self.service.create_usd_contribution(
+                user=self.user,
+                fundraise=self.fundraise,
+                amount_cents=10000,
+                origin_fund_id="fund_abc",
+            )
 
         # Assert
+        send_email.assert_called_once()
+        self.assertEqual(send_email.call_args.args[0], [self.creator.email])
+        message = "submitted a contribution of 100.00 USD"
+        self.assertIn(message, send_email.call_args.args[2])
+        notification = Notification.objects.get(
+            notification_type=Notification.FUNDRAISE_CONTRIBUTION
+        )
+        self.assertEqual(notification.recipient, self.creator)
+        self.assertEqual(notification.item, contribution)
+        self.assertIn(message, "".join(part["value"] for part in notification.body))
         self.assertIsNone(error)
         self.assertIsNotNone(contribution)
         self.assertEqual(contribution.amount_cents, 10000)

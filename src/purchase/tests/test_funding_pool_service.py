@@ -1,9 +1,13 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from mailing_list.services import EmailService
+from notification.models import Notification
+from notification.services import NotificationService
 from purchase.models import (
     Balance,
     FundingDistribution,
@@ -203,21 +207,34 @@ class FundingPoolServiceTests(TestCase):
             )
         self.assertIn("Only RSC", str(ctx.exception))
 
-    def test_distribute_to_open_proposal_fundraise(self):
+    def test_distribute_to_open_proposal_fundraise(self) -> None:
+        """Allocate pool funding to a proposal and notify its author."""
         # Arrange
         self._seed_pool_holding(Decimal(200))
         _, application, fundraise = self._create_proposal_application_with_fundraise()
         creator_balance_before = self.creator.get_available_balance()
 
         # Act
-        distribution = self.service.distribute(
-            self.pool,
-            self.creator,
-            Decimal(75),
-            application.id,
-        )
+        with (
+            patch.object(EmailService, "send_message_email") as send_email,
+            patch.object(NotificationService, "_send_notification"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            distribution = self.service.distribute(
+                self.pool,
+                self.creator,
+                Decimal(75),
+                application.id,
+            )
 
         # Assert
+        send_email.assert_called_once()
+        self.assertEqual(send_email.call_args.args[0], [application.applicant.email])
+        notification = Notification.objects.get(
+            notification_type=Notification.FUNDRAISE_CONTRIBUTION
+        )
+        self.assertEqual(notification.recipient, application.applicant)
+        self.assertEqual(notification.item, distribution.fundraise_purchase)
         self.assertIsNotNone(distribution)
         self.assertEqual(distribution.status, FundingDistribution.APPLIED)
         self.assertEqual(distribution.amount, Decimal(75))

@@ -20,6 +20,7 @@ from purchase.related_models.constants import (
     MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
 )
 from purchase.related_models.constants.currency import RSC
+from purchase.services.fundraise_notification_service import notify_contribution_authors
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import BountyFee, Escrow
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
@@ -300,6 +301,10 @@ class FundingPoolService:
                 target_fundraise=fundraise,
                 fundraise_purchase=purchase,
                 status=FundingDistribution.APPLIED,
+            )
+
+            transaction.on_commit(
+                lambda: notify_contribution_authors(purchase.id, RSC), robust=True
             )
 
         return distribution
