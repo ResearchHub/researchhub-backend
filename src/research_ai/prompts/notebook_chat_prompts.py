@@ -32,5 +32,6 @@ def build_notebook_chat_system_prompt(note) -> str:
     return (
         template.replace("{{NOTE_ID}}", str(note.id))
         .replace("{{NOTE_TITLE}}", str(note.title or "Untitled"))
+        .replace("{{NOTE_VERSION_ID}}", str(note.latest_version_id or "null"))
         .replace("{{SELECTED_RFP_CAPABILITY}}", selected_rfp_capability)
     )

@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-from note.models import Note
+from note.models import Note, NoteContent
 from note.tests.helpers import create_note
 from research_ai.models import AgentExecution
 from research_ai.services.agent.types import TurnUsage
@@ -202,6 +202,10 @@ class AssistantChatServiceTests(TestCase):
         )
         own_note = self.conversation.note_links.get().note
         other_note, _content = create_note(self.user, organization=None)
+        own_content = NoteContent.objects.create(
+            note=own_note,
+            plain_text="Drafted in this chat",
+        )
 
         # Act
         second, _delay = self._submit("Read both notes.")
@@ -217,6 +221,10 @@ class AssistantChatServiceTests(TestCase):
         # Assert: the prompt names the created note; the other note is
         # invisible even though the user could open it in the notebook.
         self.assertIn(f"note {own_note.id}", second.system_prompt)
+        self.assertIn(
+            f'note {own_note.id} ("Mine"); current version_id: {own_content.id}',
+            second.system_prompt,
+        )
         self.assertNotIn(f"note {other_note.id}", second.system_prompt)
         self.assertEqual(result["final_text"], "Done.")
         reads = [

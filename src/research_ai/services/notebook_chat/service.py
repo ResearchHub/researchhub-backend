@@ -908,6 +908,7 @@ class NotebookChatService:
 
     def _system_prompt(self, note: Note | None, conversation) -> str:
         if note is not None:
+            note.refresh_from_db(fields=["latest_version"])
             return build_notebook_chat_system_prompt(note)
         return build_assistant_chat_system_prompt(self._linked_notes(conversation))
 
