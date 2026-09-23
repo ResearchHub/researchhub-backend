@@ -141,9 +141,12 @@ class NoteToolset:
                     "as `blocks`: a map from global top-level block index "
                     '("0", "1", ...) to that block. Use start_block and '
                     "max_blocks to continue through a long note; next_start_block "
-                    "is null at the end. Pass the first response's version_id "
-                    "on every continuation read so all pages come from the same "
-                    "immutable note version. "
+                    "is null at the end. Start each new turn without version_id "
+                    "and at block 0 to read the latest version. Pass that "
+                    "response's version_id on continuation reads. If the note "
+                    "changed or a continuation omits version_id, read_note "
+                    "restarts at block 0 of the latest version and returns a "
+                    "notice; use its new version_id for subsequent pages. "
                     f"{_BLOCK_FORMAT} A note with no content yet reads as "
                     "`blocks` null; populate it with an insert."
                 ),
@@ -170,8 +173,9 @@ class NoteToolset:
                         "version_id": {
                             "type": "integer",
                             "description": (
-                                "Version returned by the first read. Required "
-                                "when start_block is greater than 0."
+                                "Version returned by this turn's first read. "
+                                "Omit for a fresh read; pass it when continuing "
+                                "from start_block greater than 0."
                             ),
                         },
                     },
@@ -191,6 +195,9 @@ class NoteToolset:
                     "Call edit_note directly, including retries; it is not "
                     "available inside code_execution. Pass edits as an actual "
                     "array of operation objects, never a JSON-encoded string. "
+                    "Before editing an existing note, read it from block 0 "
+                    "without version_id to get its current version. Do not "
+                    "reuse a version_id from a previous conversation turn. "
                     "Pass the version_id from your latest read_note or "
                     "edit_note result as expected_version_id; the edit is "
                     "rejected as stale if the note changed since. "
@@ -317,9 +324,13 @@ class NoteToolset:
                 minimum=1,
                 maximum=_MAX_BLOCKS_PER_READ,
             )
-            version = self._read_version(note, input.get("version_id"), start=start)
+            version, notice = self._read_version(
+                note, input.get("version_id"), start=start
+            )
         except ValueError as exc:
             return {"error": str(exc)}
+        if notice:
+            start = 0
 
         # Stored JSON may be a JSON-encoded string rather than a dict;
         # normalize before block extraction.
@@ -357,24 +368,37 @@ class NoteToolset:
                 else {str(index): blocks[index] for index in range(start, end)}
             ),
         }
+        if notice:
+            result["notice"] = notice
         return result
 
     @staticmethod
-    def _read_version(note: Note, version_id, *, start: int) -> NoteContent | None:
-        """Resolve one immutable version and require it for continuation reads."""
+    def _read_version(
+        note: Note, version_id, *, start: int
+    ) -> tuple[NoteContent | None, str | None]:
+        """Read the latest version, restarting a stale or unpinned page at zero."""
         if version_id is None:
             if start > 0:
-                raise ValueError(
-                    "version_id is required when start_block is greater than 0; "
-                    "pass the version_id from the first read_note response"
+                return (
+                    note.latest_version,
+                    "A continuation needs version_id. Restarted at block 0 of "
+                    "the latest version; use this version_id for later pages "
+                    "and edits.",
                 )
-            return note.latest_version
+            return note.latest_version, None
         if isinstance(version_id, bool) or not isinstance(version_id, int):
             raise ValueError("read_note version_id must be an integer")
         version = NoteContent.objects.filter(note_id=note.id, id=version_id).first()
         if version is None:
             raise ValueError(f"version {version_id} not found for note {note.id}")
-        return version
+        if version.id != note.latest_version_id:
+            return (
+                note.latest_version,
+                f"Version {version.id} is no longer latest. Restarted at block 0 "
+                "of the latest version; use this version_id for later pages "
+                "and edits.",
+            )
+        return version, None
 
     @staticmethod
     def _read_bound(value, *, default: int, minimum: int, maximum: int | None = None):

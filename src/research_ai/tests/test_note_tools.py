@@ -169,9 +169,9 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(second["blocks"]["50"], "Block 50")
         self.assertEqual(second["blocks"]["74"], "Block 74")
 
-    def test_read_note_continuation_stays_on_the_requested_version(self):
+    def test_read_note_continuation_restarts_on_latest_version(self):
         # Arrange: read the first page, then append a newer version whose
-        # insertion would shift every later global block index.
+        # insertion shifts every later global block index.
         original = self._seed_version(
             {
                 "type": "doc",
@@ -204,22 +204,94 @@ class NoteToolsetTests(TestCase):
             },
         )
 
-        # Assert: the page uses the original immutable content even though the
-        # note now has a newer latest version.
+        # Assert: stale indices are not used against the new version. The
+        # agent sees its new id and begins again at block zero.
         self.assertTrue(edit["saved"])
         self.assertNotEqual(edit["version_id"], original.id)
-        self.assertEqual(continuation["version_id"], original.id)
-        self.assertEqual(continuation["block_count"], 75)
-        self.assertEqual(continuation["blocks"]["50"], "Block 50")
+        self.assertEqual(continuation["version_id"], edit["version_id"])
+        self.assertEqual(continuation["start_block"], 0)
+        self.assertEqual(continuation["block_count"], 76)
+        self.assertEqual(continuation["blocks"]["0"], "New first block")
+        self.assertIn("no longer latest", continuation["notice"])
 
-    def test_read_note_continuation_requires_version_id(self):
+    def test_read_note_continuation_without_version_restarts_at_zero(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
         # Act
         result, _ = self.toolset.dispatch(
             READ_NOTE, {"note_id": self.note.id, "start_block": 1}
         )
 
         # Assert
-        self.assertIn("version_id is required", result["error"])
+        self.assertEqual(result["version_id"], seeded.id)
+        self.assertEqual(result["start_block"], 0)
+        self.assertEqual(result["blocks"]["0"]["content"], ["Title"])
+        self.assertIn("needs version_id", result["notice"])
+
+    def test_read_note_with_old_version_restarts_on_latest(self):
+        # Arrange: the agent carries a version id from an earlier turn.
+        old = self._seed_version(EDITOR_DOC)
+        current = self._seed_version(
+            {"type": "doc", "content": [EDITOR_DOC["content"][1]]}
+        )
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            READ_NOTE, {"note_id": self.note.id, "version_id": old.id}
+        )
+
+        # Assert
+        self.assertEqual(result["version_id"], current.id)
+        self.assertEqual(result["start_block"], 0)
+        self.assertEqual(result["blocks"], {"0": "Original body"})
+        self.assertIn("no longer latest", result["notice"])
+
+    def test_edit_after_stale_read_uses_current_block_indices(self):
+        # Arrange: an editor inserted a block after the agent's prior read.
+        old = self._seed_version(EDITOR_DOC)
+        current = self._seed_version(
+            {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": "Intro"}],
+                    },
+                    *EDITOR_DOC["content"],
+                ],
+            }
+        )
+
+        # Act: a stale continuation restarts on the editor version, then the
+        # agent edits the body's new index against that version.
+        refreshed, _ = self.toolset.dispatch(
+            READ_NOTE,
+            {"note_id": self.note.id, "version_id": old.id, "start_block": 1},
+        )
+        saved, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": refreshed["version_id"],
+                "edits": [
+                    {"op": "replace", "from": 2, "to": 2, "blocks": ["New body"]}
+                ],
+            },
+        )
+
+        # Assert: the editor's insertion survives and the edit links to it.
+        self.assertEqual(refreshed["start_block"], 0)
+        self.assertEqual(refreshed["blocks"]["0"], "Intro")
+        self.assertEqual(refreshed["version_id"], current.id)
+        self.assertTrue(saved["saved"])
+        self.assertEqual(
+            NoteContent.objects.get(id=saved["version_id"]).parent_version_id,
+            current.id,
+        )
+        latest, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        self.assertEqual(latest["blocks"]["0"], "Intro")
+        self.assertEqual(latest["blocks"]["2"], "New body")
 
     def test_read_note_rejects_version_from_another_note(self):
         # Arrange
