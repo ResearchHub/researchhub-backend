@@ -66,7 +66,7 @@ def _apply_generate_template_rules(attrs, initial_data):
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
-    expert_count = serializers.IntegerField(default=10, min_value=5, max_value=100)
+    expert_count = serializers.IntegerField(min_value=5, max_value=25)
     expertise_level = serializers.ListField(
         child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
         required=False,
@@ -80,8 +80,6 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
     state = serializers.CharField(default=EXPERT_FINDER_DEFAULT_STATE)
 
     def validate(self, attrs):
-        expert_count = attrs.get("expert_count", 10)
-        attrs["expert_count"] = expert_count
         expertise_level = attrs.get("expertise_level") or []
         if not isinstance(expertise_level, list):
             expertise_level = [expertise_level] if expertise_level else []
@@ -111,11 +109,18 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
         choices=ExpertSearch.InputType.choices,
         required=True,
     )
-    config = ExpertSearchConfigSerializer(required=False, default=dict)
+    config = ExpertSearchConfigSerializer(required=True)
 
-    def validate(self, attrs):
-        attrs["config"] = attrs.get("config") or {}
-        return attrs
+
+class ExpertSearchFindMoreSerializer(serializers.Serializer):
+    """POST body for ``/expert-finder/searches/<id>/find-more/``."""
+
+    expert_count = serializers.IntegerField(min_value=5, max_value=25)
+    additional_context = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=ADDITIONAL_CONTEXT_MAX_LENGTH,
+    )
 
 
 class ExpertCurrentDocumentOutreachSerializer(serializers.Serializer):

@@ -83,6 +83,7 @@ class SearchWorksTests(SimpleTestCase):
             from_publication_date=expected_from,
             next_cursor="*",
             batch_size=10,
+            exclude_openalex_ids=None,
         )
         self.assertEqual(result["from_publication_date"], expected_from)
         self.assertEqual(result["next_cursor"], "cursor-2")
@@ -119,6 +120,7 @@ class SearchWorksTests(SimpleTestCase):
             from_publication_date="2022-01-01",
             next_cursor="page-2",
             batch_size=5,
+            exclude_openalex_ids=None,
         )
         self.assertEqual(result["from_publication_date"], "2022-01-01")
         self.assertFalse(result["has_more"])
@@ -250,3 +252,45 @@ class AuthorGroundingTests(SimpleTestCase):
         url = result["works"][0]["source_url"]
         self.assertIn(url, provider.returned_works)
         self.assertFalse(provider.has_returned_author("A123"))
+
+
+class ExcludeWorkIdsTests(SimpleTestCase):
+    def test_search_works_passes_exclude_ids_to_client(self):
+        # Arrange
+        client = MagicMock()
+        client.get_works.return_value = ([], None)
+        toolset = ExpertFinderOpenAlexToolset(
+            client=client,
+            exclude_work_ids=["https://openalex.org/W111", "W222"],
+        ).as_toolset()
+
+        # Act
+        toolset.dispatch("search_works", {"query": "CRISPR", "max_results": 5})
+
+        # Assert
+        kwargs = client.get_works.call_args.kwargs
+        self.assertEqual(kwargs["exclude_openalex_ids"], ["W111", "W222"])
+
+    def test_search_works_filters_excluded_ids_from_payload(self):
+        # Arrange
+        client = MagicMock()
+        keep = create_oa_work("Keep", 2024, "first")
+        keep["id"] = "https://openalex.org/WKEEP"
+        drop = create_oa_work("Drop", 2024, "first")
+        drop["id"] = "https://openalex.org/WDROP"
+        client.get_works.return_value = ([keep, drop], None)
+        provider = ExpertFinderOpenAlexToolset(
+            client=client,
+            exclude_work_ids=["WDROP"],
+        )
+        toolset = provider.as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(
+            "search_works", {"query": "topic", "max_results": 10}
+        )
+
+        # Assert
+        titles = [w["title"] for w in result["works"]]
+        self.assertEqual(titles, ["Keep"])
+        self.assertEqual(provider.collected_work_ids(), ["WKEEP"])

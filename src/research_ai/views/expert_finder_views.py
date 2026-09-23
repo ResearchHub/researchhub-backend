@@ -11,7 +11,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from research_ai.constants import ExpertiseLevel, Region
+from research_ai.constants import (
+    ExpertiseLevel,
+    Region,
+)
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
@@ -19,6 +22,7 @@ from research_ai.serializers import (
     ExpertFinderListItemSerializer,
     ExpertSearchCreateSerializer,
     ExpertSearchDetailSerializer,
+    ExpertSearchFindMoreSerializer,
     ExpertSearchListItemSerializer,
     ExpertSerializer,
     ExpertUpdateSerializer,
@@ -110,10 +114,10 @@ class ExpertSearchListCreateView(APIView):
         additional_context = (data.get("additional_context") or "").strip()
         search_name = (data.get("name") or "").strip()
         input_type = data["input_type"]
-        config = data.get("config") or {}
+        config = data["config"]
 
         search_config = {
-            "expert_count": config.get("expert_count", 10),
+            "expert_count": config["expert_count"],
             "expertise_level": config.get(
                 "expertise_level", [ExpertiseLevel.ALL_LEVELS]
             ),
@@ -280,6 +284,101 @@ class ExpertSearchAddExpertView(APIView):
         return Response(
             ExpertSerializer(expert).data,
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ExpertSearchFindMoreView(APIView):
+    """POST ``/expert-finder/searches/<search_id>/find-more/`` — append more experts.
+
+    Re-runs the finder agent and appends new ``SearchExpert`` rows.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def post(self, request, search_id):
+        ser = ExpertSearchFindMoreSerializer(data=request.data or {})
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        with transaction.atomic():
+            try:
+                expert_search = ExpertSearch.objects.select_for_update().get(
+                    id=search_id
+                )
+            except ExpertSearch.DoesNotExist:
+                return Response(
+                    {"detail": "Expert search not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            if expert_search.status in (
+                ExpertSearch.Status.PENDING,
+                ExpertSearch.Status.PROCESSING,
+            ):
+                return Response(
+                    {"detail": "Expert search is already running."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            if expert_search.status not in (
+                ExpertSearch.Status.COMPLETED,
+                ExpertSearch.Status.FAILED,
+            ):
+                return Response(
+                    {"detail": "Expert search cannot find more in its current state."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            batch_count = data["expert_count"]
+            config = dict(expert_search.config or {})
+            config["expert_count"] = batch_count
+            additional_context = data.get("additional_context")
+            if additional_context is not None:
+                ctx = (additional_context or "").strip()
+                expert_search.additional_context = ctx
+            else:
+                ctx = (expert_search.additional_context or "").strip()
+
+            expert_search.config = config
+            expert_search.status = ExpertSearch.Status.PROCESSING
+            expert_search.progress = 0
+            expert_search.current_step = "Queued to find more experts"
+            expert_search.error_message = ""
+            expert_search.save(
+                update_fields=[
+                    "config",
+                    "additional_context",
+                    "status",
+                    "progress",
+                    "current_step",
+                    "error_message",
+                    "updated_date",
+                ]
+            )
+
+        is_pdf = expert_search.input_type == ExpertSearch.InputType.PDF
+        run_expert_finder_search.delay(
+            search_id=str(expert_search.id),
+            query=expert_search.query,
+            config=config,
+            is_pdf=is_pdf,
+            additional_context=ctx or None,
+            append=True,
+        )
+
+        sse_url = _get_sse_url(request, str(expert_search.id))
+        return Response(
+            {
+                "search_id": expert_search.id,
+                "status": ExpertSearch.Status.PROCESSING,
+                "message": "Find-more expert search submitted for processing",
+                "sse_url": sse_url,
+                "expert_count": batch_count,
+                "append": True,
+            },
+            status=status.HTTP_202_ACCEPTED,
         )
 
 

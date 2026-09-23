@@ -59,17 +59,41 @@ class ExpertFinderOpenAlexToolset:
         default_publication_years: int = _DEFAULT_PUBLICATION_YEARS,
         region_filter: str = Region.ALL_REGIONS,
         state_filter: str = EXPERT_FINDER_DEFAULT_STATE,
+        exclude_work_ids: list[str] | None = None,
     ):
         self._oa = client or OpenAlex()
         self._profile = openalex_toolset or OpenAlexToolset(client=self._oa)
         self._default_publication_years = default_publication_years
         self.region_filter = region_filter or Region.ALL_REGIONS
         self.state_filter = state_filter or EXPERT_FINDER_DEFAULT_STATE
+        self._exclude_work_ids = [
+            normalize_openalex_id(wid)
+            for wid in (exclude_work_ids or [])
+            if normalize_openalex_id(wid)
+        ]
+        self._exclude_work_id_set = {wid.lower() for wid in self._exclude_work_ids}
         # Share the profile toolset's work provenance map.
         self.returned_works: dict[str, dict] = self._profile.returned_works
         self.returned_author_ids: set[str] = set()
         # Bare OpenAlex author id -> raw author entity (for region grounding).
         self.returned_author_records: dict[str, dict] = {}
+
+    def collected_work_ids(self) -> list[str]:
+        """Bare OpenAlex work ids seen via ``search_works`` / author works this run."""
+        out: list[str] = []
+        seen: set[str] = set()
+        for record in self.returned_works.values():
+            if not isinstance(record, dict):
+                continue
+            bare = normalize_openalex_id(
+                record.get("openalex_work_id") or record.get("id")
+            )
+            key = bare.lower()
+            if not bare or key in seen:
+                continue
+            seen.add(key)
+            out.append(bare)
+        return out
 
     def build_tools(self) -> list[Tool]:
         """EF ``search_works`` plus reused author/institution tools."""
@@ -151,24 +175,27 @@ class ExpertFinderOpenAlexToolset:
     def resolve_orcid_url(self, openalex_author_id: str | None) -> str | None:
         """Public ORCID URL for an author, when OpenAlex has one.
 
-        Uses the cached record when it already carries an ``orcid`` key (including
-        ``None``). Otherwise fetches the full OpenAlex author — needed when the
-        author was grounded only via ``search_works`` authorships.
+        Prefers a cached record that already has an ORCID value. When the cache is
+        missing or only has a null/empty ORCID (common for synthetic records from
+        compact tool views), fetches the full OpenAlex author entity.
         """
         bare = normalize_openalex_id(openalex_author_id).lower()
         if not bare:
             return None
         record = self.returned_author_records.get(bare)
-        if record is None or "orcid" not in record:
-            record = self._fetch_and_cache_author(openalex_author_id)
-        if not isinstance(record, dict):
-            return None
-        url, _bare = normalize_orcid(record.get("orcid"))
-        return url
+        url = self._orcid_url_from_record(record)
+        if url:
+            return url
+        record = self._fetch_and_cache_author(openalex_author_id)
+        return self._orcid_url_from_record(record)
 
     def _fetch_and_cache_author(self, openalex_author_id: str | None) -> dict | None:
+        bare = normalize_openalex_id(openalex_author_id)
+        if not bare:
+            return None
         try:
-            record = self._oa.get_author(openalex_author_id)
+            # Always use the bare id — full openalex.org URLs break path parsing.
+            record = self._oa.get_author(bare)
         except Exception as exc:  # noqa: BLE001 - grounding is best-effort
             logger.info(
                 "OpenAlex get_author failed during resolve for %r: %s",
@@ -180,6 +207,24 @@ class ExpertFinderOpenAlexToolset:
             return None
         self._cache_author_record(record)
         return record
+
+    @staticmethod
+    def _orcid_url_from_record(record: dict | None) -> str | None:
+        """ORCID public URL from a raw or compact OpenAlex author dict."""
+        if not isinstance(record, dict):
+            return None
+        raw = record.get("orcid")
+        if not raw:
+            ids = record.get("ids") if isinstance(record.get("ids"), dict) else {}
+            raw = ids.get("orcid")
+        if not raw:
+            observed = record.get("observed_orcids")
+            if not observed and isinstance(record.get("ids"), dict):
+                observed = record["ids"].get("observed_orcids")
+            if isinstance(observed, list) and observed:
+                raw = observed[0]
+        url, _bare = normalize_orcid(raw)
+        return url
 
     # -- handlers ---------------------------------------------------------
 
@@ -208,6 +253,7 @@ class ExpertFinderOpenAlexToolset:
                 from_publication_date=from_pub,
                 next_cursor=cursor,
                 batch_size=max_results,
+                exclude_openalex_ids=self._exclude_work_ids or None,
             )
         except Exception as exc:  # noqa: BLE001 - miss goes back to the model
             logger.info("OpenAlex search_works failed for %r: %s", query, exc)
@@ -215,6 +261,9 @@ class ExpertFinderOpenAlexToolset:
 
         payload = []
         for entity in raw_works or []:
+            bare = normalize_openalex_id(entity.get("id")).lower()
+            if bare and bare in self._exclude_work_id_set:
+                continue
             card = self._work_card_with_authors(entity)
             if card is None:
                 continue
@@ -248,7 +297,8 @@ class ExpertFinderOpenAlexToolset:
                 if oa_url and oa_url not in self.returned_works:
                     self.returned_works[oa_url] = record
 
-        authors = self._select_authors(entity.get("authorships") or [])
+        authorships = entity.get("authorships") or []
+        authors = self._select_authors(authorships)
 
         return {
             "title": data["title"],
@@ -271,8 +321,9 @@ class ExpertFinderOpenAlexToolset:
         cards: list[dict] = []
         for authorship in authorships:
             card = self._authorship_card(authorship)
-            if card is not None:
-                cards.append(card)
+            if card is None:
+                continue
+            cards.append(card)
         if not cards:
             return []
 

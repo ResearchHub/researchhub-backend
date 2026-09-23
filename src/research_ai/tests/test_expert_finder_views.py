@@ -43,6 +43,7 @@ class ExpertSearchListCreateViewTests(APITestCase):
             {
                 "unified_document_id": paper.unified_document_id,
                 "input_type": "abstract",
+                "config": {"expert_count": 10},
             },
             format="json",
         )
@@ -71,6 +72,7 @@ class ExpertSearchListCreateViewTests(APITestCase):
             {
                 "unified_document_id": paper.unified_document_id,
                 "input_type": "abstract",
+                "config": {"expert_count": 10},
                 "additional_context": "  Prefer experts in oncology.  ",
             },
             format="json",
@@ -93,7 +95,11 @@ class ExpertSearchListCreateViewTests(APITestCase):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
             self.url,
-            {"unified_document_id": 999999, "input_type": "abstract"},
+            {
+                "unified_document_id": 999999,
+                "input_type": "abstract",
+                "config": {"expert_count": 10},
+            },
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -269,3 +275,65 @@ class ExpertSearchAddExpertViewTests(APITestCase):
         rec = GeneratedEmail.objects.get()
         self.assertEqual(rec.expert_email, "alice@example.com")
         self.assertEqual(rec.expert_search_id, self.search.id)
+
+
+class ExpertSearchFindMoreViewTests(APITestCase):
+    def setUp(self):
+        self.moderator = create_random_authenticated_user("mod", moderator=True)
+        self.user = create_random_authenticated_user("user", moderator=False)
+        self.search = _make_search(self.moderator)
+        self.url = (
+            f"/api/research_ai/expert-finder/searches/{self.search.id}/find-more/"
+        )
+
+    def test_post_requires_authentication(self):
+        response = self.client.post(self.url, {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_post_requires_editor(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(self.url, {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_post_409_when_already_processing(self):
+        self.search.status = ExpertSearch.Status.PROCESSING
+        self.search.save(update_fields=["status"])
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(self.url, {"expert_count": 10}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
+    def test_post_enqueues_append_run(self, mock_delay):
+        # Arrange
+        Expert.objects.create(email="keep@u.edu", first_name="Keep")
+        keep = Expert.objects.get(email="keep@u.edu")
+        SearchExpert.objects.create(expert_search=self.search, expert=keep, position=0)
+        self.search.config = {"expert_count": 10, "region": "all_regions"}
+        self.search.save(update_fields=["config"])
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {"expert_count": 15, "additional_context": "  Prefer US.  "},
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        data = response.json()
+        self.assertTrue(data["append"])
+        self.assertEqual(data["expert_count"], 15)
+        self.search.refresh_from_db()
+        self.assertEqual(self.search.status, ExpertSearch.Status.PROCESSING)
+        self.assertEqual(self.search.config["expert_count"], 15)
+        self.assertEqual(self.search.additional_context, "Prefer US.")
+        mock_delay.assert_called_once()
+        _, kwargs = mock_delay.call_args
+        self.assertTrue(kwargs.get("append"))
+        self.assertEqual(kwargs.get("config", {}).get("expert_count"), 15)
+        self.assertEqual(kwargs.get("additional_context"), "Prefer US.")
+        # Existing experts remain while re-queued.
+        self.assertEqual(
+            SearchExpert.objects.filter(expert_search=self.search).count(), 1
+        )

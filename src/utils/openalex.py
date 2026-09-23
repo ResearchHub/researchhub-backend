@@ -473,6 +473,7 @@ class OpenAlex:
         core_sources_only: bool = False,
         open_access_only: bool = False,
         sort=None,
+        exclude_openalex_ids=None,
     ):
         """
         Fetches works from OpenAlex based on the given criteria.
@@ -488,6 +489,7 @@ class OpenAlex:
                 which filters on OpenAlex *created* date.
             search (str): Free-text query ranked by relevance (OpenAlex ``search``).
             sort (str): OpenAlex sort expression, e.g. "publication_date:desc".
+            exclude_openalex_ids: Bare OpenAlex work ids to exclude (``!id`` filters).
         """
         # Build the filter
         oa_filters = []
@@ -535,6 +537,11 @@ class OpenAlex:
 
         if openalex_author_id:
             oa_filters.append(f"author.id:{openalex_author_id}")
+
+        for raw_id in exclude_openalex_ids or []:
+            bare = normalize_openalex_id(raw_id)
+            if bare:
+                oa_filters.append(f"ids.openalex:!{bare}")
 
         filters = {
             "filter": ",".join(oa_filters),

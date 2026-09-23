@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -258,8 +259,15 @@ class EmailValidationService:
 class EmailValidateToolset:
     """Agent-facing ``email_validate`` tool over ``EmailValidationService``."""
 
-    def __init__(self, *, service: EmailValidationService | None = None):
+    def __init__(
+        self,
+        *,
+        service: EmailValidationService | None = None,
+        on_accepted: Callable[[str], None] | None = None,
+    ):
         self._service = service or EmailValidationService()
+        self._on_accepted = on_accepted
+        self.accepted_count = 0
 
     @property
     def service(self) -> EmailValidationService:
@@ -298,4 +306,9 @@ class EmailValidateToolset:
         email = str((args or {}).get("email") or "").strip()
         if not email:
             return {"error": "email is required"}
-        return self._service.validate(email).as_dict()
+        result = self._service.validate(email)
+        if result.accepted:
+            self.accepted_count += 1
+            if self._on_accepted is not None:
+                self._on_accepted(result.email or email)
+        return result.as_dict()

@@ -2,13 +2,20 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 
-from research_ai.constants import ExpertiseLevel, Region
+from research_ai.constants import (
+    EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY,
+    ExpertiseLevel,
+    Region,
+)
 from research_ai.models import Expert, ExpertSearch, SearchExpert
+from research_ai.services.agent.providers.registry import generator_model_ref
 from research_ai.services.expert_finder.finder import (
     PDF_TOO_LARGE_MESSAGE,
     _extract_text_from_pdf_bytes,
     _get_paper_pdf_bytes,
+    _merge_seen_work_ids,
     _names_and_emails_from_prior_document_searches,
+    _seen_work_ids_from_prior_document_searches,
     get_document_content,
     run_expert_finder_search,
 )
@@ -268,13 +275,11 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         "research_ai.services.expert_finder.finder.generate_pdf_report",
         return_value=b"p",
     )
-    @patch("research_ai.services.expert_finder.finder.generator_model_ref")
     @patch("research_ai.services.expert_finder.finder.run_expert_finder_agent")
     def test_run_success_persists_and_returns_completed(
-        self, mock_agent, mock_model_ref, _pdf, _csv, _up
+        self, mock_agent, _pdf, _csv, _up
     ):
         # Arrange
-        mock_model_ref.return_value = "bedrock:test-model"
         mock_agent.return_value = {
             "experts": [
                 {
@@ -295,6 +300,7 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
                 }
             ],
             "errors": [],
+            "seen_openalex_work_ids": ["W111"],
         }
 
         # Act
@@ -311,12 +317,19 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         # Assert
         self.assertEqual(r["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(r["expert_count"], 1)
-        self.assertEqual(r["llm_model"], "bedrock:test-model")
+        self.assertEqual(r["llm_model"], generator_model_ref())
+        self.assertEqual(
+            r["config"].get(EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY), ["W111"]
+        )
         se = SearchExpert.objects.filter(expert_search_id=self.search.id)
         self.assertEqual(se.count(), 1)
         self.assertTrue(Expert.objects.filter(email="u_test@mit.edu").exists())
         self.assertFalse(Expert.objects.filter(email="u@mit.edu").exists())
         mock_agent.assert_called_once()
+        self.assertEqual(
+            mock_agent.call_args.kwargs.get("exclude_work_ids"),
+            None,
+        )
 
 
 class PriorDocumentExpertExclusionTests(TestCase):
@@ -426,3 +439,53 @@ class PriorDocumentExpertExclusionTests(TestCase):
         # Assert
         self.assertEqual(names, [])
         self.assertEqual(emails, set())
+
+
+class SeenWorkIdHelpersTests(TestCase):
+    def test_merge_seen_work_ids_newest_first_and_caps(self):
+        # Arrange
+        from research_ai.constants import EXPERT_FINDER_SEEN_WORK_IDS_CAP
+
+        newest = [f"W{i}" for i in range(50)]
+        older = [f"W{i}" for i in range(40, 100)]
+
+        # Act
+        merged = _merge_seen_work_ids(newest, older)
+
+        # Assert
+        self.assertEqual(len(merged), EXPERT_FINDER_SEEN_WORK_IDS_CAP)
+        self.assertEqual(merged[:50], newest)
+        self.assertEqual(merged[50], "W50")
+
+    def test_seen_work_ids_from_prior_searches_on_same_document(self):
+        # Arrange
+        from paper.tests.helpers import create_paper
+
+        user = create_random_authenticated_user("seen_works")
+        paper = create_paper(title="Paper", paper_publish_date="2020-01-01")
+        prior = ExpertSearch.objects.create(
+            created_by=user,
+            query="Q",
+            status=ExpertSearch.Status.COMPLETED,
+            unified_document_id=paper.unified_document_id,
+            config={EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY: ["W1", "W2"]},
+        )
+        current = ExpertSearch.objects.create(
+            created_by=user,
+            query="Q2",
+            status=ExpertSearch.Status.PENDING,
+            unified_document_id=paper.unified_document_id,
+            config={},
+        )
+
+        # Act
+        ids = _seen_work_ids_from_prior_document_searches(
+            paper.unified_document_id,
+            exclude_search_id=current.id,
+        )
+
+        # Assert
+        self.assertEqual(ids, ["W1", "W2"])
+        self.assertEqual(
+            prior.config[EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY], ["W1", "W2"]
+        )

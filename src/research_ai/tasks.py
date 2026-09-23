@@ -5,7 +5,7 @@ from functools import partial
 from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
-from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
+from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft, SearchExpert
 from research_ai.services.expert_finder import finder as expert_finder_mod
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
@@ -111,18 +111,23 @@ def _finalize_expert_search_in_db(
     sid = int(search_id)
     if result.get("status") == ExpertSearch.Status.FAILED:
         error_message = (result.get("error_message") or "")[:10000]
-        ExpertSearch.objects.filter(id=sid).update(
-            status=ExpertSearch.Status.FAILED,
-            progress=0,
-            current_step=(result.get("current_step") or "Expert search failed")[:512],
-            expert_count=0,
-            report_pdf_url="",
-            report_csv_url="",
-            processing_time=processing_time,
-            completed_at=end_time,
-            llm_model=result.get("llm_model", ""),
-            error_message=error_message,
-        )
+        update_fields: dict = {
+            "status": ExpertSearch.Status.FAILED,
+            "progress": 0,
+            "current_step": (result.get("current_step") or "Expert search failed")[
+                :512
+            ],
+            "expert_count": 0,
+            "report_pdf_url": "",
+            "report_csv_url": "",
+            "processing_time": processing_time,
+            "completed_at": end_time,
+            "llm_model": result.get("llm_model", ""),
+            "error_message": error_message,
+        }
+        if isinstance(result.get("config"), dict):
+            update_fields["config"] = result["config"]
+        ExpertSearch.objects.filter(id=sid).update(**update_fields)
         snippet = error_message[:200] if len(error_message) > 200 else error_message
         current_step = (result.get("current_step") or "Expert search failed")[:512]
         logger.warning(
@@ -133,17 +138,21 @@ def _finalize_expert_search_in_db(
         )
         return True
 
-    ExpertSearch.objects.filter(id=sid).update(
-        status=ExpertSearch.Status.COMPLETED,
-        progress=100,
-        current_step="Expert search completed!",
-        expert_count=result.get("expert_count", 0),
-        report_pdf_url=result.get("report_urls", {}).get("pdf", ""),
-        report_csv_url=result.get("report_urls", {}).get("csv", ""),
-        processing_time=processing_time,
-        completed_at=end_time,
-        llm_model=result.get("llm_model", ""),
-    )
+    update_fields = {
+        "status": ExpertSearch.Status.COMPLETED,
+        "progress": 100,
+        "current_step": "Expert search completed!",
+        "expert_count": result.get("expert_count", 0),
+        "report_pdf_url": result.get("report_urls", {}).get("pdf", ""),
+        "report_csv_url": result.get("report_urls", {}).get("csv", ""),
+        "processing_time": processing_time,
+        "completed_at": end_time,
+        "llm_model": result.get("llm_model", ""),
+        "error_message": (result.get("error_message") or "")[:10000],
+    }
+    if isinstance(result.get("config"), dict):
+        update_fields["config"] = result["config"]
+    ExpertSearch.objects.filter(id=sid).update(**update_fields)
     return False
 
 
@@ -179,6 +188,7 @@ def run_expert_finder_search(
     *,
     is_pdf: bool = False,
     additional_context: str | None = None,
+    append: bool = False,
 ):
     """
     Background task to process an expert search.
@@ -189,6 +199,7 @@ def run_expert_finder_search(
         config: Dict with expert_count, expertise_level, region, state.
         is_pdf: True if query was extracted from PDF.
         additional_context: Optional user notes to steer the model alongside query.
+        append: When True, add new experts without replacing existing links.
     """
 
     progress_callback = partial(_expert_search_task_progress_callback, self)
@@ -200,7 +211,9 @@ def run_expert_finder_search(
         return {"status": "not_found", "search_id": search_id}
 
     try:
-        logger.info("Starting expert finder for search_id=%s", search_id)
+        logger.info(
+            "Starting expert finder for search_id=%s append=%s", search_id, append
+        )
         _update_search_progress(
             search_id,
             5,
@@ -215,6 +228,7 @@ def run_expert_finder_search(
             is_pdf=is_pdf,
             additional_context=additional_context,
             progress_callback=progress_callback,
+            append=append,
         )
         end_time = timezone.now()
         processing_time = (end_time - start_time).total_seconds()
@@ -224,9 +238,10 @@ def run_expert_finder_search(
         if failed:
             return result
         logger.info(
-            "Expert finder completed search_id=%s experts=%s time=%.2fs",
+            "Expert finder completed search_id=%s experts=%s appended=%s time=%.2fs",
             search_id,
             result.get("expert_count", 0),
+            result.get("appended_count"),
             processing_time,
         )
         return result
@@ -235,16 +250,41 @@ def run_expert_finder_search(
             "Expert finder search task failed", extra={"search_id": search_id}
         )
         err = str(e)[:10000]
-        _update_search_progress(
-            search_id,
-            0,
-            f"Processing failed: {err}",
-            status=ExpertSearch.Status.FAILED,
-        )
-        ExpertSearch.objects.filter(id=int(search_id)).update(
-            status=ExpertSearch.Status.FAILED,
-            error_message=err,
-        )
+        if append:
+            existing = SearchExpert.objects.filter(
+                expert_search_id=int(search_id)
+            ).count()
+            keep = existing > 0
+            _update_search_progress(
+                search_id,
+                100 if keep else 0,
+                f"Processing failed: {err}",
+                status=(
+                    ExpertSearch.Status.COMPLETED
+                    if keep
+                    else ExpertSearch.Status.FAILED
+                ),
+            )
+            ExpertSearch.objects.filter(id=int(search_id)).update(
+                status=(
+                    ExpertSearch.Status.COMPLETED
+                    if keep
+                    else ExpertSearch.Status.FAILED
+                ),
+                expert_count=existing,
+                error_message=err,
+            )
+        else:
+            _update_search_progress(
+                search_id,
+                0,
+                f"Processing failed: {err}",
+                status=ExpertSearch.Status.FAILED,
+            )
+            ExpertSearch.objects.filter(id=int(search_id)).update(
+                status=ExpertSearch.Status.FAILED,
+                error_message=err,
+            )
         raise
 
 
