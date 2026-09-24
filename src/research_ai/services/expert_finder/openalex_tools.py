@@ -8,7 +8,6 @@ agent drills into authors via the shared profile tools (``get_author``,
 from __future__ import annotations
 
 import logging
-import random
 from datetime import date, timedelta
 
 from research_ai.services.agent import Tool, Toolset
@@ -204,8 +203,8 @@ class ExpertFinderOpenAlexToolset:
     def _select_authors(self, authorships: list) -> list[dict]:
         """Select authors for a work card, capped at ``_MAX_AUTHORS_PER_WORK``.
 
-        Prefer first/last leads, then up to ``_MAX_MIDDLE_AUTHORS`` random middle
-        coauthors. Only selected authors are grounded.
+        Prefer first/last leads, then up to ``_MAX_MIDDLE_AUTHORS`` middle
+        coauthors (in list order). Only selected authors are grounded.
         When OpenAlex omits ``author_position`` tags, the
         first and last list entries are treated as leads.
         """
@@ -234,11 +233,7 @@ class ExpertFinderOpenAlexToolset:
             last = [cards[-1]] if len(cards) > 1 else []
             middle = cards[1:-1] if len(cards) > 2 else []
 
-        middle_pick = (
-            random.sample(middle, k=min(_MAX_MIDDLE_AUTHORS, len(middle)))
-            if middle
-            else []
-        )
+        middle_pick = middle[:_MAX_MIDDLE_AUTHORS]
         lead_budget = max(0, _MAX_AUTHORS_PER_WORK - len(middle_pick))
         first_take, last_take = self._allocate_lead_slots(first, last, lead_budget)
 

@@ -1,7 +1,7 @@
 """Unit tests for the expert-finder OpenAlex tool layer."""
 
 from datetime import date, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from django.test import SimpleTestCase
 
@@ -122,11 +122,7 @@ class SearchWorksTests(SimpleTestCase):
         self.assertEqual(result["from_publication_date"], "2022-01-01")
         self.assertFalse(result["has_more"])
 
-    @patch(
-        "research_ai.services.expert_finder.openalex_tools.random.sample",
-        side_effect=lambda population, k: population[:k],
-    )
-    def test_search_works_keeps_first_last_and_samples_middle(self, _mock_sample):
+    def test_search_works_keeps_first_last_and_trims_middle(self):
         # Arrange: 1 first + 7 middle + 1 last → keep first, last, and 5 middle.
         client = MagicMock()
         authorships = [
