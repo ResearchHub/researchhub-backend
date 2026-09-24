@@ -270,3 +270,14 @@ jobs:
     with:
       git_sha: ${{ needs.migrate.outputs.git_sha }}
     secrets: inherit
+
+  # The ECS environments only exist in staging.
+  deploy-ecs:
+    needs: migrate
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deployment-ecs.yml
+    with:
+      git_sha: ${{ needs.migrate.outputs.git_sha }}
+    secrets: inherit
