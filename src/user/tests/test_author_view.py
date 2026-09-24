@@ -29,18 +29,6 @@ class AuthorApiTests(APITestCase):
             author=self.user_with_published_works.author_profile, paper=paper2
         )
 
-    def test_get_author_summary_stats(self):
-        author_profile = self.user_with_published_works.author_profile
-        url = f"/api/author/{author_profile.id}/summary_stats/"
-        response = self.client.get(url, {})
-        self.assertIn("summary_stats", response.data)
-
-    def test_get_achievements(self):
-        author_profile = self.user_with_published_works.author_profile
-        url = f"/api/author/{author_profile.id}/achievements/"
-        response = self.client.get(url, {})
-        self.assertIn("achievements", response.data)
-
     def test_minimal_overview(self):
         author_profile = self.user_with_published_works.author_profile
         url = f"/api/author/{author_profile.id}/minimal_overview/"

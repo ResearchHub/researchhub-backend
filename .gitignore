@@ -42,3 +42,7 @@ uploads/
 
 # Python virtual environment
 .venv
+
+# Braintrust local credentials
+.env.braintrust
+.braintrust.json

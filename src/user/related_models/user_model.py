@@ -7,7 +7,7 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import UserManager as DjangoUserManager
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import Count, DecimalField, Q, Sum, Value
+from django.db.models import DecimalField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce, Lower
 from django.utils import timezone
 
@@ -498,12 +498,6 @@ class User(SoftDeletableModel, AbstractUser):
         author.calculate_hub_scores()
 
     @property
-    def amount_funded(self):
-        from user.services.funding_activity_service import get_funder_total_amount
-
-        return get_funder_total_amount(self.id)
-
-    @property
     def is_verified(self):
         """
         Check if the user account is verified.
@@ -514,21 +508,3 @@ class User(SoftDeletableModel, AbstractUser):
             return self.userverification.is_verified
         except Exception:
             return False
-
-    @property
-    def peer_review_count(self):
-        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-
-        peer_review_count = (
-            RhCommentModel.objects.filter(
-                created_by=self,
-                comment_type="REVIEW",
-                is_removed=False,
-                reviews__is_assessed=True,
-                reviews__is_removed=False,
-            )
-            .distinct()
-            .aggregate(count=Count("id"))["count"]
-        )
-
-        return peer_review_count

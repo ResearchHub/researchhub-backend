@@ -906,13 +906,11 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         Return external_metadata from Paper if content is a Paper.
         Returns None for non-paper content.
         """
-        if (
-            obj.item
-            and obj.content_type.model == "paper"
-            and hasattr(obj.item, "external_metadata")
-        ):
-            return obj.item.external_metadata
-        return None
+        # Tested before reading the item so non-paper entries never pay for a
+        # generic-key fetch.
+        if obj.content_type.model != "paper":
+            return None
+        return getattr(obj.item, "external_metadata", None)
 
     # Known preprint sources for journal fallback
     PREPRINT_SOURCES = {"medrxiv", "biorxiv", "chemrxiv", "arxiv"}

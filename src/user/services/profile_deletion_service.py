@@ -41,10 +41,8 @@ class ProfileDeletionService:
     def _invalidate_author_caches(self, author_id: int) -> None:
         self.cache.delete_many(
             [
-                f"author-{author_id}-achievements",
                 f"author-{author_id}-overview",
                 f"author-{author_id}-profile",
                 f"author-{author_id}-publications",
-                f"author-{author_id}-summary-stats",
             ]
         )
