@@ -94,7 +94,6 @@ class Purchase(PaidStatusModelMixin):
         blank=True,
         help_text="RSC-to-USD exchange rate at the time of purchase.",
     )
-    boost_time = models.FloatField(null=True)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
