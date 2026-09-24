@@ -250,7 +250,9 @@ def ground_submitted_experts(
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Drop ungrounded / invalid / excluded rows; normalize persist shape.
 
-    Server never trusts model-side ``email_validate`` alone.
+    OpenAlex grounding requires both a previously returned author id and a
+    name that binds to that grounded record (not merely id presence). Server
+    never trusts model-side ``email_validate`` alone.
     """
     errors: list[str] = []
     grounded_rows: list[dict] = []
@@ -274,6 +276,14 @@ def ground_submitted_experts(
         if not openalex_toolset.has_returned_author(author_id):
             errors.append(
                 f"experts[{index}]: dropped ungrounded openalex_author_id {author_id!r}"
+            )
+            continue
+        if not openalex_toolset.author_identity_matches(
+            row, openalex_author_id=author_id
+        ):
+            errors.append(
+                f"experts[{index}]: dropped identity mismatch for "
+                f"openalex_author_id {author_id!r}"
             )
             continue
         if excluded and _full_name(row) in excluded:
