@@ -1,0 +1,113 @@
+name: ECS Deployment
+
+on:
+  workflow_call:
+    inputs:
+      git_sha:
+        description: "Commit to deploy. The caller must have verified that its image exists."
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Git hash or branch to deploy. Its image must have been built."
+        required: true
+        type: string
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
+  DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
+  DEPLOY_PARAMETER: /researchhub/staging/applications/api/deploy
+
+jobs:
+  deploy-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # required for requesting JWT token from AWS
+
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.git_sha || inputs.git_ref }}
+
+      - name: Get Git SHA
+        id: git_sha
+        run: |
+          echo "long=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify container image exists
+        env:
+          IMAGE_TAG: ${{ steps.git_sha.outputs.long }}
+        run: |
+          REPOSITORY_NAME=${CONTAINER_REPOSITORY#*/}
+          aws ecr describe-images \
+            --repository-name "$REPOSITORY_NAME" \
+            --image-ids "imageTag=$IMAGE_TAG" \
+            > /dev/null
+
+      - name: Assume staging deploy role
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          role-session-name: github-actions-ecs-deployment-session
+          role-chaining: true
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+          aws-region: ${{ env.AWS_REGION }}
+          retry-max-attempts: 3
+
+      - name: Read deployment configuration
+        id: config
+        run: |
+          config=$(
+            aws ssm get-parameter \
+              --name "$DEPLOY_PARAMETER" \
+              --query Parameter.Value \
+              --output text
+          )
+          {
+            echo "cluster=$(jq -r .cluster <<<"$config")"
+            echo "service=$(jq -r .service <<<"$config")"
+            echo "family=$(jq -r .taskDefinition <<<"$config")"
+            echo "container=$(jq -r .container <<<"$config")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Render task definition with the image to deploy
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1.9.0
+        with:
+          task-definition-family: ${{ steps.config.outputs.family }}
+          container-name: ${{ steps.config.outputs.container }}
+          image: ${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
+
+      - name: Deploy staging Backend - API
+        id: deploy
+        uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster: ${{ steps.config.outputs.cluster }}
+          service: ${{ steps.config.outputs.service }}
+          wait-for-service-stability: true
+          wait-for-minutes: 20
+
+      - name: Summary
+        env:
+          GIT_SHA: ${{ steps.git_sha.outputs.long }}
+          IMAGE: ${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
+          TASK_DEFINITION_ARN: ${{ steps.deploy.outputs.task-definition-arn }}
+        run: |
+          {
+            echo "Commit: \`$GIT_SHA\`"
+            echo "Image: \`$IMAGE\`"
+            echo "Task definition: \`$TASK_DEFINITION_ARN\`"
+          } >> "$GITHUB_STEP_SUMMARY"
