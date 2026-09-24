@@ -11,9 +11,9 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailService, EmailSubscriptionService
 
-TEMPLATE = "general_email_message"
+TEMPLATE = "general_branded_email"
 TEMPLATE_WITH_TEXT = "support_receipt"
-BASE_CONTEXT = {"action": {"message": "hello"}, "subject": "Test"}
+BASE_CONTEXT = {"body": "hello", "subject": "Test"}
 
 
 @override_settings(
@@ -154,7 +154,7 @@ class SendEmailTests(TestCase):
 
     def test_derived_text_body_decodes_html_entities(self):
         # Arrange: autoescaping encodes the apostrophe as &#x27; in the HTML
-        context = {"action": {"message": "it's here"}, "subject": "subject1"}
+        context = {"body": "it's here", "subject": "subject1"}
 
         # Act
         self._send(["good@example.com"], email_context=context)
@@ -169,8 +169,9 @@ class SendEmailTests(TestCase):
         # The template renders the message with white-space: pre-line,
         # so its own line breaks are visible in HTML and must survive in text
         context = {
-            "action": {"message": "First alert.\n\nSecond alert."},
+            "body": "First alert.\n\nSecond alert.",
             "subject": "Test",
+            "preserve_linebreaks": True,
         }
 
         # Act
@@ -184,10 +185,9 @@ class SendEmailTests(TestCase):
         # Indentation around a line break is layout, not content: the break
         # itself survives, the horizontal whitespace hugging it does not
         context = {
-            "action": {
-                "message": "First alert.  \n   Second alert.  \n  \n  Third alert."
-            },
+            "body": "First alert.  \n   Second alert.  \n  \n  Third alert.",
             "subject": "Test",
+            "preserve_linebreaks": True,
         }
 
         # Act

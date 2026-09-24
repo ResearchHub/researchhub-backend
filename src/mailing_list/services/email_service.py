@@ -16,7 +16,6 @@ from mailing_list.services.email_subscription_service import EmailSubscriptionSe
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEND_INTERVAL_SECONDS = 0.2
-MESSAGE_EMAIL_TEMPLATE = "general_email_message"
 
 
 class EmailService:
@@ -117,9 +116,11 @@ class EmailService:
             subject,
             {
                 "subject": heading or subject,
-                "action": {"message": message, "frontend_view_link": link},
+                "body": message,
+                "cta_url": link,
+                "preserve_linebreaks": True,
             },
-            template=MESSAGE_EMAIL_TEMPLATE,
+            template="general_branded_email",
         )
 
     def send_html_email(

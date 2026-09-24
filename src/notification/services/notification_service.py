@@ -1,22 +1,15 @@
 import asyncio
-import json
 import logging
 from datetime import datetime
 from typing import Any
 
-import redis
 from asgiref.sync import async_to_sync
 from channels.layers import BaseChannelLayer, get_channel_layer
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Model
 
 from notification.models import Notification
-from notification.serializers import (
-    DynamicNotificationSerializer,
-    get_notification_context,
-)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -32,11 +25,9 @@ class NotificationService:
         self,
         *,
         channel_layer: BaseChannelLayer | None = None,
-        redis_client: redis.Redis | None = None,
     ) -> None:
-        """Use the configured live transports."""
+        """Use the configured channel layer for live updates."""
         self._channel_layer = channel_layer
-        self._redis_client = redis_client
 
     def send(
         self,
@@ -125,6 +116,12 @@ class NotificationService:
 
     def _send_notification(self, notification: Notification) -> bool:
         """Serialize an inbox row and publish its existing personal socket payload."""
+        # Notification serializers import Note, which imports this service.
+        from notification.serializers import (
+            DynamicNotificationSerializer,
+            get_notification_context,
+        )
+
         serialized_data = DynamicNotificationSerializer(
             notification,
             _include_fields=[
@@ -167,18 +164,4 @@ class NotificationService:
             logger.warning(
                 "Failed to publish channel message to %s", group, exc_info=True
             )
-            return False
-
-    def publish_progress(self, channel: str, payload: dict[str, Any]) -> bool:
-        """Publish an existing progress envelope through the shared Redis transport."""
-        message = json.dumps(payload)
-        if self._redis_client is None:
-            host = getattr(settings, "REDIS_HOST", "localhost")
-            port = getattr(settings, "REDIS_PORT", 6379)
-            self._redis_client = redis.from_url(f"redis://{host}:{port}/3")
-        try:
-            self._redis_client.publish(channel, message)
-            return True
-        except redis.RedisError:
-            logger.warning("Failed to publish progress to %s", channel, exc_info=True)
             return False
