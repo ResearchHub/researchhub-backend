@@ -5,10 +5,12 @@ from unittest.mock import MagicMock
 from botocore.exceptions import ClientError
 from django.test import SimpleTestCase
 
-from research_ai.services.expert_finder.email_validation import (
+from mailing_list.services.email_insights_service import (
     CONFIDENCE_HIGH,
     CONFIDENCE_LOW,
     CONFIDENCE_MEDIUM,
+)
+from research_ai.services.expert_finder.email_validation import (
     EMAIL_VALIDATE,
     EmailValidateToolset,
     EmailValidationService,

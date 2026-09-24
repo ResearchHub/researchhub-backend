@@ -1,9 +1,4 @@
-"""SES v2 email validation.
-
-Wraps ``GetEmailAddressInsights`` so the agent (and the server-side submit
-gate) only keep addresses that look like real personal mailboxes. Role-like
-locals (``info@``, ``contact@``, …) are rejected before any SES call.
-"""
+"""Expert-finder email gate over SES address insights."""
 
 from __future__ import annotations
 
@@ -12,25 +7,19 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 
+from mailing_list.services.email_insights_service import (
+    CONFIDENCE_HIGH,
+    CONFIDENCE_MEDIUM,
+    EmailInsightsService,
+    confidence_at_least,
+)
 from research_ai.services.agent import Tool, Toolset
 from research_ai.services.expert_finder.display import ExpertDisplay
-from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
-
-# Confidence levels returned by SES. Higher rank = stronger signal.
-CONFIDENCE_LOW = "LOW"
-CONFIDENCE_MEDIUM = "MEDIUM"
-CONFIDENCE_HIGH = "HIGH"
-_CONFIDENCE_RANK = {
-    CONFIDENCE_LOW: 1,
-    CONFIDENCE_MEDIUM: 2,
-    CONFIDENCE_HIGH: 3,
-}
 
 # Gate: IsValid and MailboxExists must be at least this strong.
 MIN_ACCEPT_CONFIDENCE = CONFIDENCE_MEDIUM
@@ -111,14 +100,6 @@ class EmailValidationResult:
         return asdict(self)
 
 
-def _confidence_at_least(verdict: str | None, minimum: str) -> bool:
-    rank = _CONFIDENCE_RANK.get(str(verdict or "").strip().upper())
-    min_rank = _CONFIDENCE_RANK.get(minimum)
-    if rank is None or min_rank is None:
-        return False
-    return rank >= min_rank
-
-
 def is_role_local_part(email: str) -> bool:
     """True when the local part is a known shared/role mailbox label."""
     local = ExpertDisplay.normalize_email(email).split("@", 1)[0]
@@ -133,34 +114,24 @@ def is_role_local_part(email: str) -> bool:
     return False
 
 
-def _verdict(block: dict | None) -> str | None:
-    if not isinstance(block, dict):
-        return None
-    value = block.get("ConfidenceVerdict")
-    if value is None:
-        return None
-    text = str(value).strip().upper()
-    return text or None
-
-
 class EmailValidationService:
-    """SES ``GetEmailAddressInsights`` client with the expert-finder gate.
+    """Expert-finder accept/reject gate over ``EmailInsightsService``.
 
-    Inject ``client`` in tests (any object with ``get_email_address_insights``).
-    When omitted, builds a real ``sesv2`` client via ``utils.aws.create_client``.
+    Inject ``insights`` (or a raw SES ``client`` for tests) via the constructor.
     """
 
-    def __init__(self, *, client: Any | None = None):
-        self._client = client
+    def __init__(
+        self,
+        *,
+        insights: EmailInsightsService | None = None,
+        client: Any | None = None,
+    ):
+        self._insights = insights or EmailInsightsService(client=client)
 
     @property
     def client(self) -> Any:
-        if self._client is None:
-            region = getattr(settings, "AWS_SES_REGION_NAME", None) or getattr(
-                settings, "AWS_REGION_NAME", None
-            )
-            self._client = create_client("sesv2", region)
-        return self._client
+        """Underlying SES client (shared with ``EmailInsightsService``)."""
+        return self._insights.client
 
     def validate(self, email: str) -> EmailValidationResult:
         """Return an accept/reject verdict for ``email``.
@@ -190,7 +161,7 @@ class EmailValidationService:
             )
 
         try:
-            response = self.client.get_email_address_insights(EmailAddress=normalized)
+            insights = self._insights.get_insights(normalized)
         except Exception as exc:  # noqa: BLE001 - submit gate must fail closed
             # ClientError / BotoCoreError are the expected cases; anything else
             # still rejects so a bad mock or transient bug never accepts mail.
@@ -204,34 +175,24 @@ class EmailValidationService:
                 reason=f"ses insights unavailable: {exc}",
             )
 
-        mailbox = (response or {}).get("MailboxValidation") or {}
-        evaluations = mailbox.get("Evaluations") or {}
-        is_valid = _verdict(mailbox.get("IsValid"))
-        mailbox_exists = _verdict(evaluations.get("MailboxExists"))
-        is_disposable = _verdict(evaluations.get("IsDisposable"))
-        is_role_address = _verdict(evaluations.get("IsRoleAddress"))
-        is_random_input = _verdict(evaluations.get("IsRandomInput"))
-        has_valid_syntax = _verdict(evaluations.get("HasValidSyntax"))
-        has_valid_dns = _verdict(evaluations.get("HasValidDnsRecords"))
-
         reason = self._reject_reason(
-            is_valid=is_valid,
-            mailbox_exists=mailbox_exists,
-            is_disposable=is_disposable,
-            is_role_address=is_role_address,
-            is_random_input=is_random_input,
+            is_valid=insights.is_valid,
+            mailbox_exists=insights.mailbox_exists,
+            is_disposable=insights.is_disposable,
+            is_role_address=insights.is_role_address,
+            is_random_input=insights.is_random_input,
         )
         return EmailValidationResult(
             email=normalized,
             accepted=reason is None,
             reason=reason,
-            is_valid=is_valid,
-            mailbox_exists=mailbox_exists,
-            is_disposable=is_disposable,
-            is_role_address=is_role_address,
-            is_random_input=is_random_input,
-            has_valid_syntax=has_valid_syntax,
-            has_valid_dns_records=has_valid_dns,
+            is_valid=insights.is_valid,
+            mailbox_exists=insights.mailbox_exists,
+            is_disposable=insights.is_disposable,
+            is_role_address=insights.is_role_address,
+            is_random_input=insights.is_random_input,
+            has_valid_syntax=insights.has_valid_syntax,
+            has_valid_dns_records=insights.has_valid_dns_records,
         )
 
     @staticmethod
@@ -243,18 +204,18 @@ class EmailValidationService:
         is_role_address: str | None,
         is_random_input: str | None,
     ) -> str | None:
-        if not _confidence_at_least(is_valid, MIN_ACCEPT_CONFIDENCE):
+        if not confidence_at_least(is_valid, MIN_ACCEPT_CONFIDENCE):
             return f"IsValid confidence {is_valid!r} below {MIN_ACCEPT_CONFIDENCE}"
-        if not _confidence_at_least(mailbox_exists, MIN_ACCEPT_CONFIDENCE):
+        if not confidence_at_least(mailbox_exists, MIN_ACCEPT_CONFIDENCE):
             return (
                 f"MailboxExists confidence {mailbox_exists!r} below "
                 f"{MIN_ACCEPT_CONFIDENCE}"
             )
-        if _confidence_at_least(is_disposable, MIN_REJECT_RISK_CONFIDENCE):
+        if confidence_at_least(is_disposable, MIN_REJECT_RISK_CONFIDENCE):
             return f"disposable address (confidence {is_disposable!r})"
-        if _confidence_at_least(is_role_address, MIN_REJECT_RISK_CONFIDENCE):
+        if confidence_at_least(is_role_address, MIN_REJECT_RISK_CONFIDENCE):
             return f"role address (confidence {is_role_address!r})"
-        if _confidence_at_least(is_random_input, MIN_REJECT_RISK_CONFIDENCE):
+        if confidence_at_least(is_random_input, MIN_REJECT_RISK_CONFIDENCE):
             return f"random-looking address (confidence {is_random_input!r})"
         return None
 
