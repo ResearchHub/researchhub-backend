@@ -19,7 +19,7 @@ def send_outreach_email(
     cc: list[str] | None = None,
     from_email: str | None = None,
 ) -> str | None:
-    """Send approved outreach through EmailService when outreach is enabled."""
+    """Send approved outreach; return None if skipped or its ID (possibly empty)."""
     if not settings.EXPERT_FINDER_OUTREACH_ENABLED:
         logger.warning(
             "Expert finder outreach disabled; refusing send to %s",

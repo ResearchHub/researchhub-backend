@@ -366,7 +366,7 @@ class SendHtmlEmailTests(SimpleTestCase):
         body = "<p>Hello {{ expert }}</p>"
 
         # Act
-        EmailService().send_html_email(
+        message_id = EmailService().send_html_email(
             "expert@example.com",
             "Subject\r\n",
             body,
@@ -375,6 +375,7 @@ class SendHtmlEmailTests(SimpleTestCase):
         )
 
         # Assert
+        self.assertEqual(message_id, "")
         message = mail.outbox[0]
         self.assertEqual(message.to, ["expert@example.com"])
         self.assertEqual(message.reply_to, ["reply@example.com"])
@@ -403,15 +404,20 @@ class SendHtmlEmailTests(SimpleTestCase):
         # Assert
         self.assertEqual(message_id, "messageId1")
 
-    def test_raises_when_the_backend_accepts_no_messages(self) -> None:
-        """Prevent callers from recording a suppressed email as sent."""
+    def test_logs_when_the_backend_accepts_no_messages(self) -> None:
+        """Report a skipped email without raising or returning a message ID."""
         # Arrange
         service = EmailService()
 
         # Act
         with (
             patch.object(EmailMultiAlternatives, "send", return_value=0),
-            # Assert
-            self.assertRaisesMessage(RuntimeError, "did not accept"),
+            self.assertLogs("mailing_list.services.email_service", "WARNING") as logs,
         ):
-            service.send_html_email("expert@example.com", "Subject", "<p>Hello</p>")
+            message_id = service.send_html_email(
+                "expert@example.com", "Subject", "<p>Hello</p>"
+            )
+
+        # Assert
+        self.assertIsNone(message_id)
+        self.assertIn("expert@example.com", logs.output[0])
