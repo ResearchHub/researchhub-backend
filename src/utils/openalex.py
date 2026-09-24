@@ -471,7 +471,6 @@ class OpenAlex:
         from_publication_date=None,
         search=None,
         core_sources_only: bool = False,
-        require_abstracts_and_authors: bool = False,
         open_access_only: bool = False,
         sort=None,
     ):
@@ -482,8 +481,6 @@ class OpenAlex:
 
         Args:
             core_sources_only (bool): If True, only fetch works from "core sources".
-            require_abstracts_and_authors (bool): If True, only fetch works that have
-                abstracts and authors.
             open_access_only (bool): If True, only fetch open-access works (those with
                 a free full-text copy OpenAlex knows about).
             from_publication_date: Restrict to works published on/after this date
@@ -510,11 +507,6 @@ class OpenAlex:
             # Only fetch works that are from "core sources".
             # See: https://docs.openalex.org/api-entities/sources/source-object#is_core
             oa_filters.append("primary_location.source.is_core:true")
-
-        if require_abstracts_and_authors:
-            # Only fetch works that have abstracts and authors
-            oa_filters.append("has_abstract:true")
-            oa_filters.append("authors_count:>0")
 
         if open_access_only:
             # Only fetch open-access works (a free full-text copy exists).

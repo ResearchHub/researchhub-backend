@@ -291,7 +291,7 @@ class ExpertFinderOpenAlexToolset:
 
         def handler(args: dict) -> dict:
             result = original(args or {})
-            self._record_authors_from_tool_result(tool.name, args or {}, result)
+            self._record_authors_from_tool_result(tool.name, result)
             return result
 
         return Tool(
@@ -303,9 +303,7 @@ class ExpertFinderOpenAlexToolset:
             eager_input_streaming=tool.eager_input_streaming,
         )
 
-    def _record_authors_from_tool_result(
-        self, tool_name: str, args: dict, result: dict
-    ) -> None:
+    def _record_authors_from_tool_result(self, tool_name: str, result: dict) -> None:
         if not isinstance(result, dict) or result.get("error"):
             return
         if tool_name == "get_author":
