@@ -1,10 +1,9 @@
 import json
 
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.db import models, transaction
 
 from note.related_models.note_author_model import NoteAuthor
+from notification.services import NotificationService
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import DOCUMENT_TYPES
 from user.models import Author, Organization, User
@@ -95,27 +94,25 @@ class Note(DefaultModel):
     def notify_note_created(self):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
-        channel_layer = get_channel_layer()
 
         serialized_data = self._get_serialized_notification_data()
         data = {
             "type": "create",
             "data": serialized_data,
         }
-        async_to_sync(channel_layer.group_send)(
+        NotificationService().send_channel_message(
             room, {"type": "send_note_notification", "data": data}
         )
 
     def notify_note_deleted(self):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
-        channel_layer = get_channel_layer()
         serialized_data = self._get_serialized_notification_data()
         data = {
             "type": "delete",
             "data": serialized_data,
         }
-        async_to_sync(channel_layer.group_send)(
+        NotificationService().send_channel_message(
             room,
             {
                 "type": "send_note_notification",
@@ -126,13 +123,12 @@ class Note(DefaultModel):
     def notify_note_updated_title(self):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
-        channel_layer = get_channel_layer()
         serialized_data = self._get_serialized_notification_data()
         data = {
             "type": "update_title",
             "data": serialized_data,
         }
-        async_to_sync(channel_layer.group_send)(
+        NotificationService().send_channel_message(
             room,
             {
                 "type": "send_note_notification",
@@ -143,14 +139,13 @@ class Note(DefaultModel):
     def notify_note_updated_permission(self, requester):
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
-        channel_layer = get_channel_layer()
         serialized_data = self._get_serialized_notification_data()
         data = {
             "type": "update_permission",
             "data": serialized_data,
         }
 
-        async_to_sync(channel_layer.group_send)(
+        NotificationService().send_channel_message(
             room,
             {
                 "type": "send_note_notification",

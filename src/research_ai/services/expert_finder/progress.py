@@ -56,8 +56,7 @@ class ProgressService:
                 "timestamp": datetime.utcnow().isoformat(),
                 **progress_data,
             }
-            message_json = json.dumps(message)
-            self.redis_client.publish(channel, message_json)
+            self.redis_client.publish(channel, json.dumps(message))
         except Exception as e:
             logger.warning(
                 "Failed to publish progress for %s:%s: %s",

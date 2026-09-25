@@ -1,13 +1,13 @@
 import logging
 
-from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from notification.models import Notification
+from notification.services import NotificationService
 from purchase.related_models.grant_application_model import GrantApplication
-from purchase.tasks import send_grant_application_email
+from purchase.tasks import send_grant_application_owner_email
 
 logger = logging.getLogger(__name__)
 
@@ -34,17 +34,15 @@ def notify_grant_owner_on_application(sender, instance, created, **kwargs):
         if unified_document is None:
             unified_document = grant.unified_document
 
-        notification = Notification.objects.create(
-            notification_type=Notification.GRANT_APPLICATION_SUBMITTED,
+        NotificationService().try_send(
+            Notification.GRANT_APPLICATION_SUBMITTED,
             recipient=recipient,
             action_user=action_user,
-            content_type=ContentType.objects.get_for_model(instance),
-            object_id=instance.id,
+            item=instance,
             unified_document=unified_document,
         )
-        transaction.on_commit(notification.send_notification, robust=True)
         transaction.on_commit(
-            lambda: send_grant_application_email.delay(notification.id), robust=True
+            lambda: send_grant_application_owner_email.delay(instance.id), robust=True
         )
     except Exception:
         logger.exception(

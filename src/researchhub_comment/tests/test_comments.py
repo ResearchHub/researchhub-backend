@@ -7,7 +7,9 @@ from django.db import connection, transaction
 from rest_framework.test import APIClient, APITestCase, APITransactionTestCase
 
 from hub.models import Hub
+from mailing_list.services import EmailService
 from notification.models import Notification
+from notification.services import NotificationService
 from paper.tests.helpers import create_paper
 from purchase.models import Balance
 from reputation.distributions import Distribution as Dist
@@ -15,6 +17,7 @@ from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee, Score
 from reputation.views.bounty_view import _create_bounty_checks
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.tasks import celery_create_mention_notification
 from review.models import Review
 from user.models import User
 from user.related_models.user_model import FOUNDATION_EMAIL
@@ -340,16 +343,36 @@ class CommentViewTests(APITestCase):
         self.assertEqual(regular_res.status_code, 200)
         self.assertEqual(regular_res.data["count"], 1)
 
-    def test_comment_mentions(self):
+    def test_notifies_mentioned_users(self) -> None:
+        """Valid mentions send one inbox notice and one email after commit."""
+        # Arrange
         creator = self.user_1
         recipient = self.user_2
-        self._create_paper_comment(self.paper.id, creator, mentions=[self.user_2.id])
+
+        # Act
+        with (
+            patch.object(NotificationService, "_send_notification"),
+            patch.object(EmailService, "send_message_email") as send_email,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            comment = self._create_paper_comment(
+                self.paper.id, creator, mentions=["", recipient.id]
+            )
+            celery_create_mention_notification(comment.data["id"], [recipient.id])
+            send_email.assert_not_called()
         self.client.force_authenticate(recipient)
 
         notification_res = self.client.get("/api/notification/")
 
+        # Assert
         self.assertEqual(notification_res.status_code, 200)
         self.assertEqual(notification_res.data["count"], 1)
+        send_email.assert_called_once_with(
+            [recipient.email],
+            "You were Mentioned in a Comment",
+            f"{creator.first_name} {creator.last_name} mentioned you in their comment",
+            link=f"{self.paper.unified_document.frontend_view_link()}#comments",
+        )
 
     def test_notify_qualified_users_about_bounty(self):
 

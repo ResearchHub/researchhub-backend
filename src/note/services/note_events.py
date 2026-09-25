@@ -23,13 +23,9 @@ emits every couple of seconds while someone types, which only clients
 actually viewing the note should receive.
 """
 
-import logging
-
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.db import transaction
 
-logger = logging.getLogger(__name__)
+from notification.services import NotificationService
 
 # Channel-layer message type; Channels routes it to the consumer handler of
 # the same name.
@@ -77,16 +73,7 @@ class NoteVersionEventPublisher:
         )
 
     def _send(self, note_id: int, data: dict) -> None:
-        try:
-            layer = self._channel_layer or get_channel_layer()
-            async_to_sync(layer.group_send)(
-                note_group(note_id),
-                {"type": EVENT_TYPE, "data": data},
-            )
-        except Exception:  # noqa: BLE001 - push is best-effort by contract
-            logger.warning(
-                "note version event publish failed (note=%s version=%s)",
-                note_id,
-                data.get("version_id"),
-                exc_info=True,
-            )
+        """Publish the version event through the shared notification transport."""
+        NotificationService(channel_layer=self._channel_layer).send_channel_message(
+            note_group(note_id), {"type": EVENT_TYPE, "data": data}
+        )
