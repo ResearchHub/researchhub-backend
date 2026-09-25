@@ -542,14 +542,15 @@ def check_hotwallet():
 
     if should_send:
         context = {
-            "action": {"message": "\n\n".join(messages)},
+            "body": "\n\n".join(messages),
             "subject": "Hotwallet Balance Alert",
+            "preserve_linebreaks": True,
         }
         EmailService().send_transactional_email(
             ["pat@researchhub.com", "tyler@researchhub.com", "dev@researchhub.com"],
             "Hotwallet Balance Alert",
             context,
-            template="general_email_message",
+            template="general_branded_email",
         )
 
 
