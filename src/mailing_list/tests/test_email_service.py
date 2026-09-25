@@ -11,9 +11,9 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailService, EmailSubscriptionService
 
-TEMPLATE = "general_email_message"
+TEMPLATE = "general_branded_email"
 TEMPLATE_WITH_TEXT = "support_receipt"
-BASE_CONTEXT = {"action": {"message": "hello"}, "subject": "Test"}
+BASE_CONTEXT = {"body": "hello", "subject": "Test"}
 
 
 @override_settings(
@@ -154,7 +154,7 @@ class SendEmailTests(TestCase):
 
     def test_derived_text_body_decodes_html_entities(self):
         # Arrange: autoescaping encodes the apostrophe as &#x27; in the HTML
-        context = {"action": {"message": "it's here"}, "subject": "subject1"}
+        context = {"body": "it's here", "subject": "subject1"}
 
         # Act
         self._send(["good@example.com"], email_context=context)
@@ -169,8 +169,9 @@ class SendEmailTests(TestCase):
         # The template renders the message with white-space: pre-line,
         # so its own line breaks are visible in HTML and must survive in text
         context = {
-            "action": {"message": "First alert.\n\nSecond alert."},
+            "body": "First alert.\n\nSecond alert.",
             "subject": "Test",
+            "preserve_linebreaks": True,
         }
 
         # Act
@@ -184,10 +185,9 @@ class SendEmailTests(TestCase):
         # Indentation around a line break is layout, not content: the break
         # itself survives, the horizontal whitespace hugging it does not
         context = {
-            "action": {
-                "message": "First alert.  \n   Second alert.  \n  \n  Third alert."
-            },
+            "body": "First alert.  \n   Second alert.  \n  \n  Third alert.",
             "subject": "Test",
+            "preserve_linebreaks": True,
         }
 
         # Act
@@ -366,7 +366,7 @@ class SendHtmlEmailTests(SimpleTestCase):
         body = "<p>Hello {{ expert }}</p>"
 
         # Act
-        EmailService().send_html_email(
+        message_id = EmailService().send_html_email(
             "expert@example.com",
             "Subject\r\n",
             body,
@@ -375,6 +375,7 @@ class SendHtmlEmailTests(SimpleTestCase):
         )
 
         # Assert
+        self.assertEqual(message_id, "")
         message = mail.outbox[0]
         self.assertEqual(message.to, ["expert@example.com"])
         self.assertEqual(message.reply_to, ["reply@example.com"])
@@ -403,15 +404,20 @@ class SendHtmlEmailTests(SimpleTestCase):
         # Assert
         self.assertEqual(message_id, "messageId1")
 
-    def test_raises_when_the_backend_accepts_no_messages(self) -> None:
-        """Prevent callers from recording a suppressed email as sent."""
+    def test_logs_when_the_backend_accepts_no_messages(self) -> None:
+        """Report a skipped email without raising or returning a message ID."""
         # Arrange
         service = EmailService()
 
         # Act
         with (
             patch.object(EmailMultiAlternatives, "send", return_value=0),
-            # Assert
-            self.assertRaisesMessage(RuntimeError, "did not accept"),
+            self.assertLogs("mailing_list.services.email_service", "WARNING") as logs,
         ):
-            service.send_html_email("expert@example.com", "Subject", "<p>Hello</p>")
+            message_id = service.send_html_email(
+                "expert@example.com", "Subject", "<p>Hello</p>"
+            )
+
+        # Assert
+        self.assertIsNone(message_id)
+        self.assertIn("expert@example.com", logs.output[0])

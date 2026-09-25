@@ -16,7 +16,6 @@ from mailing_list.services.email_subscription_service import EmailSubscriptionSe
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEND_INTERVAL_SECONDS = 0.2
-MESSAGE_EMAIL_TEMPLATE = "general_email_message"
 
 
 class EmailService:
@@ -117,9 +116,11 @@ class EmailService:
             subject,
             {
                 "subject": heading or subject,
-                "action": {"message": message, "frontend_view_link": link},
+                "body": message,
+                "cta_url": link,
+                "preserve_linebreaks": True,
             },
-            template=MESSAGE_EMAIL_TEMPLATE,
+            template="general_branded_email",
         )
 
     def send_html_email(
@@ -133,6 +134,9 @@ class EmailService:
         cc: list[str] | None = None,
     ) -> str | None:
         """Send prepared HTML and return its backend message ID when available.
+
+        Return None when the backend skips the message, or an empty string when
+        it sends successfully without providing a message ID.
 
         Preserve outreach's caller-managed sending policy and propagate failures.
         This path does not apply opt-outs, unsubscribe links, or the recipient
@@ -240,7 +244,7 @@ class EmailService:
         cc: list[str] | None,
         headers: dict[str, str] | None = None,
     ) -> str | None:
-        """Send one multipart message and require backend acceptance."""
+        """Send one multipart message, logging and returning None when skipped."""
         subject = subject.replace("\n", "").replace("\r", "")
         if isinstance(reply_to, str):
             reply_to = [reply_to] if reply_to else None
@@ -255,8 +259,9 @@ class EmailService:
         )
         message.attach_alternative(html_body, "text/html")
         if message.send(fail_silently=False) != 1:
-            raise RuntimeError("The email backend did not accept the message.")
-        return message.extra_headers.get("message_id")
+            logger.warning("Email backend did not send message to %s", recipient)
+            return None
+        return message.extra_headers.get("message_id") or ""
 
     @staticmethod
     def _html_to_text(html: str) -> str:

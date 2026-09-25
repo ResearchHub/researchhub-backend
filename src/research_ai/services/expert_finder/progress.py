@@ -7,8 +7,6 @@ from typing import Any
 import redis
 from django.conf import settings
 
-from notification.services import NotificationService
-
 logger = logging.getLogger(__name__)
 
 
@@ -58,9 +56,7 @@ class ProgressService:
                 "timestamp": datetime.utcnow().isoformat(),
                 **progress_data,
             }
-            NotificationService(redis_client=self.redis_client).publish_progress(
-                channel, message
-            )
+            self.redis_client.publish(channel, json.dumps(message))
         except Exception as e:
             logger.warning(
                 "Failed to publish progress for %s:%s: %s",

@@ -311,14 +311,15 @@ class PreviewEmailView(APIView):
         sent = 0
         for rec in qs:
             try:
-                send_outreach_email(
+                message_id = send_outreach_email(
                     recipient,
                     rec.email_subject,
                     rec.email_body,
                     reply_to=reply_to,
                     from_email=from_email,
                 )
-                sent += 1
+                if message_id is not None:
+                    sent += 1
             except Exception as e:
                 logger.exception("Preview send failed for email id=%s", rec.id)
                 return Response(

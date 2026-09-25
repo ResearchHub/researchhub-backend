@@ -3,6 +3,7 @@ import json
 from django.db import models, transaction
 
 from note.related_models.note_author_model import NoteAuthor
+from notification.services import NotificationService
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import DOCUMENT_TYPES
 from user.models import Author, Organization, User
@@ -91,8 +92,6 @@ class Note(DefaultModel):
         return NoteSerializer(self).data
 
     def notify_note_created(self):
-        from notification.services import NotificationService
-
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
 
@@ -106,8 +105,6 @@ class Note(DefaultModel):
         )
 
     def notify_note_deleted(self):
-        from notification.services import NotificationService
-
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         serialized_data = self._get_serialized_notification_data()
@@ -124,8 +121,6 @@ class Note(DefaultModel):
         )
 
     def notify_note_updated_title(self):
-        from notification.services import NotificationService
-
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         serialized_data = self._get_serialized_notification_data()
@@ -142,8 +137,6 @@ class Note(DefaultModel):
         )
 
     def notify_note_updated_permission(self, requester):
-        from notification.services import NotificationService
-
         organization_slug = self.organization.slug
         room = f"{organization_slug}_notebook"
         serialized_data = self._get_serialized_notification_data()

@@ -1,7 +1,7 @@
 """Tests for research_ai.tasks: expert search, bulk email, send queued emails."""
 
 from datetime import timedelta
-from unittest.mock import ANY, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -291,6 +291,47 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertEqual(result["failed"], 1)
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
+
+    @patch("research_ai.tasks.send_outreach_email")
+    def test_skips_suppressed_email_and_continues_sending(
+        self, mock_send: MagicMock
+    ) -> None:
+        """Skip suppressed outreach while accepting a send without a message ID."""
+        # Arrange
+        mock_send.side_effect = [None, ""]
+        experts = [
+            Expert.objects.create(email=email)
+            for email in ("blocked@example.com", "accepted@example.com")
+        ]
+        records = [
+            GeneratedEmail.objects.create(
+                created_by=self.user,
+                expert_email=expert.email,
+                email_subject="Subject",
+                email_body="Body",
+                status=GeneratedEmail.Status.SENDING,
+            )
+            for expert in experts
+        ]
+
+        # Act
+        with patch("research_ai.tasks.grant_invited_expert_access_for_send") as grant:
+            result = send_queued_emails_task.apply(
+                kwargs={"generated_email_ids": [record.id for record in records]}
+            ).get()
+        for record in [*records, *experts]:
+            record.refresh_from_db()
+
+        # Assert
+        self.assertEqual(result, {"sent": 1, "failed": 1})
+        self.assertEqual(records[0].status, GeneratedEmail.Status.SEND_FAILED)
+        self.assertEqual(records[0].channels, [])
+        self.assertIsNone(experts[0].last_email_sent_at)
+        self.assertEqual(records[1].status, GeneratedEmail.Status.SENT)
+        self.assertEqual(records[1].channels, [GeneratedEmail.Channel.EMAIL])
+        self.assertEqual(records[1].ses_message_id, "")
+        self.assertIsNotNone(experts[1].last_email_sent_at)
+        grant.assert_called_once_with(generated_email=records[1])
 
     @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_success_sets_expert_last_email_sent_at(self, mock_send):

@@ -1,5 +1,5 @@
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.conf import settings
 from django.utils import timezone
@@ -1157,6 +1157,34 @@ class PreviewEmailViewTests(APITestCase):
         call_kw = mock_send.call_args[1]
         self.assertEqual(call_kw["reply_to"], reply_to_emails)
         self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, call_kw["from_email"])
+
+    @patch("research_ai.views.email_views.send_outreach_email")
+    def test_excludes_suppressed_previews_from_sent_count(
+        self, mock_send: MagicMock
+    ) -> None:
+        """Report a skipped preview without claiming delivery or returning an error."""
+        # Arrange
+        mock_send.return_value = None
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            email_subject="Subject",
+            email_body="Body",
+        )
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {
+                "generated_email_ids": [email_rec.id],
+                "reply_to": ["reply@example.com"],
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json(), {"sent": 0})
 
     @patch("research_ai.views.email_views.send_outreach_email")
     def test_preview_accepts_multiple_reply_to_addresses(self, mock_send):
