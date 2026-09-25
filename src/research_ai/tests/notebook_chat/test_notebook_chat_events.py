@@ -75,7 +75,7 @@ class ConversationEventPublisherTests(TestCase):
         # Act & Assert: the failure is logged, never raised into the caller.
         with (
             self.assertLogs(
-                "research_ai.services.notebook_chat.events", level="WARNING"
+                "notification.services.notification_service", level="WARNING"
             ),
             self.captureOnCommitCallbacks(execute=True),
         ):
@@ -133,7 +133,7 @@ class ConversationEventPublisherTests(TestCase):
         with (
             patch.object(events, "STREAM_PUBLISH_TIMEOUT_SECONDS", 0.001),
             self.assertLogs(
-                "research_ai.services.notebook_chat.events", level="WARNING"
+                "notification.services.notification_service", level="WARNING"
             ),
         ):
             published = publisher.publish_stream(
@@ -144,6 +144,28 @@ class ConversationEventPublisherTests(TestCase):
                 iteration=1,
                 deltas=[],
             )
+        self.assertFalse(published)
+
+    def test_returns_false_when_the_channel_bridge_fails(self) -> None:
+        """A bridge failure stops optional previews without failing the chat turn."""
+        # Arrange
+        publisher = ConversationEventPublisher()
+
+        # Act
+        with (
+            patch(
+                "notification.services.notification_service.async_to_sync",
+                side_effect=RuntimeError("Cannot start the channel bridge"),
+            ),
+            self.assertLogs(
+                "notification.services.notification_service", level="WARNING"
+            ),
+        ):
+            published = publisher.publish_stream(
+                12, 34, stream_id="34:1", sequence=1, iteration=1, deltas=[]
+            )
+
+        # Assert
         self.assertFalse(published)
 
 

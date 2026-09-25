@@ -155,7 +155,9 @@ class ContentModerationServiceTests(TestCase):
 
     def test_notification_failure_does_not_block_approve(self):
         # Arrange
-        with patch("user.services.moderation.Notification") as mock_notif_cls:
+        with patch(
+            "notification.services.notification_service.Notification"
+        ) as mock_notif_cls:
             mock_notif_cls.objects.create.side_effect = Exception("boom")
 
             # Act
