@@ -8,6 +8,7 @@ from notification.models import Notification
 from notification.serializers import (
     DynamicNotificationSerializer,
     NotificationSerializer,
+    get_notification_context,
 )
 
 
@@ -38,7 +39,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        context = self._get_context()
+        context = get_notification_context()
 
         page = self.paginate_queryset(queryset)
         serializer = DynamicNotificationSerializer(
@@ -85,57 +86,3 @@ class NotificationViewSet(viewsets.ModelViewSet):
             self.get_queryset().filter(read=False, recipient_id=request.user.id).count()
         )
         return Response({"count": unread_count}, status=status.HTTP_200_OK)
-
-    def _get_context(self):
-        context = {
-            "not_dns_get_action": {
-                "_include_fields": [
-                    "content_type",
-                    "item",
-                ]
-            },
-            "not_dns_get_action_user": {
-                "_include_fields": [
-                    "author_profile",
-                    "first_name",
-                    "last_name",
-                ]
-            },
-            "not_dns_get_recipient": {
-                "_include_fields": [
-                    "author_profile",
-                    "first_name",
-                    "last_name",
-                ]
-            },
-            "not_dns_get_unified_document": {
-                "_include_fields": [
-                    "documents",
-                    "document_type",
-                ]
-            },
-            "doc_duds_get_documents": {
-                "_include_fields": [
-                    "id",
-                    "paper_title",
-                    "slug",
-                    "title",
-                ]
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": [
-                    "id",
-                    "profile_image",
-                ]
-            },
-            "pap_dpss_get_paper": {"_include_fields": ["id", "title"]},
-            "pap_dps_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "title",
-                    "document_type",
-                    "slug",
-                ]
-            },
-        }
-        return context

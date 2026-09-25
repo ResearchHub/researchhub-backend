@@ -7,11 +7,9 @@ from django_opensearch_dsl.registries import registry
 from feed.signals.post_signals import _create_post_feed_entries
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from notification.models import Notification
+from notification.services import NotificationService
 from purchase.models import Grant
-from user.services.moderation import (
-    create_removal_verdict,
-    send_moderation_notification,
-)
+from user.services.moderation import create_removal_verdict
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +93,10 @@ class GrantModerationService:
         transaction.on_commit(_update)
 
     def _send_moderation_notification(self, grant, action_user, notification_type):
-        send_moderation_notification(
+        NotificationService().try_send(
             notification_type,
             recipient=grant.created_by,
             action_user=action_user,
             item=grant,
+            unified_document=grant.unified_document,
         )

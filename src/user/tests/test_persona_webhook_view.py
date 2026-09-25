@@ -4,6 +4,7 @@ from unittest import mock
 from django.test import TestCase, override_settings
 
 from notification.models import Notification
+from notification.services import NotificationService
 from user.models import User, UserVerification
 from user.views import PersonaWebhookView
 
@@ -80,7 +81,7 @@ class PersonaWebhookViewTests(TestCase):
             digest, "0fd4586aa5cb67c098a920ed55906fb2669a2bb21c6ed2de58e4f5cfb79814c7"
         )
 
-    @mock.patch("notification.models.Notification.send_notification")
+    @mock.patch.object(NotificationService, "_send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook(self, send_notification_mock):
         # arrange
@@ -96,12 +97,13 @@ class PersonaWebhookViewTests(TestCase):
         )
 
         # act
-        response = self.client.post(
-            "/webhooks/persona/",
-            body,
-            content_type="application/json",
-            headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/webhooks/persona/",
+                body,
+                content_type="application/json",
+                headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
+            )
 
         user_verification = UserVerification.objects.get(user=user)
 
@@ -124,7 +126,7 @@ class PersonaWebhookViewTests(TestCase):
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
 
-    @mock.patch("notification.models.Notification.send_notification")
+    @mock.patch.object(NotificationService, "_send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook_declined_status(self, send_notification_mock):
         # arrange
@@ -140,12 +142,13 @@ class PersonaWebhookViewTests(TestCase):
         )
 
         # act
-        response = self.client.post(
-            "/webhooks/persona/",
-            body,
-            content_type="application/json",
-            headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/webhooks/persona/",
+                body,
+                content_type="application/json",
+                headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
+            )
 
         user_verification = UserVerification.objects.get(user=user)
 
@@ -168,7 +171,7 @@ class PersonaWebhookViewTests(TestCase):
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
 
-    @mock.patch("notification.models.Notification.send_notification")
+    @mock.patch.object(NotificationService, "_send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook_failed_status(self, send_notification_mock):
         # arrange
@@ -184,12 +187,13 @@ class PersonaWebhookViewTests(TestCase):
         )
 
         # act
-        response = self.client.post(
-            "/webhooks/persona/",
-            body,
-            content_type="application/json",
-            headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/webhooks/persona/",
+                body,
+                content_type="application/json",
+                headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
+            )
 
         user_verification = UserVerification.objects.get(user=user)
 
@@ -212,7 +216,7 @@ class PersonaWebhookViewTests(TestCase):
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
 
-    @mock.patch("notification.models.Notification.send_notification")
+    @mock.patch.object(NotificationService, "_send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook_marked_for_review_status(self, send_notification_mock):
         # arrange
@@ -228,12 +232,13 @@ class PersonaWebhookViewTests(TestCase):
         )
 
         # act
-        response = self.client.post(
-            "/webhooks/persona/",
-            body,
-            content_type="application/json",
-            headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/webhooks/persona/",
+                body,
+                content_type="application/json",
+                headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
+            )
 
         user_verification = UserVerification.objects.get(user=user)
 

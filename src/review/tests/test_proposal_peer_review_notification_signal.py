@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from notification.models import Notification
+from notification.services import NotificationService
 from purchase.models import Grant, GrantApplication
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
@@ -165,7 +166,7 @@ class ProposalPeerReviewNotificationDispatchTests(TestCase):
         self.comment_ct = ContentType.objects.get_for_model(self.comment)
         self.proposal_ud = proposal.unified_document
 
-    @patch.object(Notification, "send_notification")
+    @patch.object(NotificationService, "_send_notification")
     def test_notification_dispatched_on_commit(self, mock_send):
         # Act
         with self.captureOnCommitCallbacks(execute=True):

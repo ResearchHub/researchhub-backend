@@ -85,7 +85,9 @@ class NoteVersionEventPublisherTests(TestCase):
 
         # Act & Assert: the failure is logged, never raised into the caller.
         with (
-            self.assertLogs("note.services.note_events", level="WARNING"),
+            self.assertLogs(
+                "notification.services.notification_service", level="WARNING"
+            ),
             self.captureOnCommitCallbacks(execute=True),
         ):
             publisher.publish_created(version)
@@ -108,7 +110,10 @@ class NoteVersionCreatedSignalTests(TestCase):
 
         # Act
         with (
-            patch("note.services.note_events.get_channel_layer", return_value=layer),
+            patch(
+                "notification.services.notification_service.get_channel_layer",
+                return_value=layer,
+            ),
             self.captureOnCommitCallbacks(execute=True),
         ):
             version = NoteContent.objects.create(
@@ -143,8 +148,13 @@ class NoteVersionCreatedSignalTests(TestCase):
 
         # Act: the version write goes through even though every publish fails.
         with (
-            patch("note.services.note_events.get_channel_layer", return_value=layer),
-            self.assertLogs("note.services.note_events", level="WARNING"),
+            patch(
+                "notification.services.notification_service.get_channel_layer",
+                return_value=layer,
+            ),
+            self.assertLogs(
+                "notification.services.notification_service", level="WARNING"
+            ),
             self.captureOnCommitCallbacks(execute=True),
         ):
             version = NoteContent.objects.create(note=self.note, plain_text="v2")
@@ -159,7 +169,10 @@ class NoteVersionCreatedSignalTests(TestCase):
 
         # Act: only creation signals a new version.
         with (
-            patch("note.services.note_events.get_channel_layer", return_value=layer),
+            patch(
+                "notification.services.notification_service.get_channel_layer",
+                return_value=layer,
+            ),
             self.captureOnCommitCallbacks(execute=True),
         ):
             self.seed_version.plain_text = "edited in place"
