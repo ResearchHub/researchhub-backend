@@ -293,6 +293,14 @@ def ground_submitted_experts(
                 f"experts[{index}]: dropped ungrounded openalex_author_id {author_id!r}"
             )
             continue
+        if not openalex_toolset.author_identity_matches(
+            row, openalex_author_id=author_id
+        ):
+            errors.append(
+                f"experts[{index}]: dropped identity mismatch for "
+                f"openalex_author_id {author_id!r}"
+            )
+            continue
         if excluded and _full_name(row) in excluded:
             errors.append(f"experts[{index}]: excluded by prior-search name")
             continue

@@ -105,6 +105,7 @@ class InviteRfpApplicantsViewTests(APITestCase):
 
         mock_delay.assert_called_once()
         kwargs = mock_delay.call_args.kwargs
+        self.assertEqual(kwargs["reply_to"], [self.creator.email])
         self.assertEqual(
             sorted(kwargs["generated_email_ids"]),
             sorted(data["generated_email_ids"]),

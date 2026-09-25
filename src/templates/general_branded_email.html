@@ -20,7 +20,7 @@
       {% endif %}
     </div>
     <div class="content">
-      <div class="body">
+      <div class="body"{% if preserve_linebreaks %} style="white-space: pre-line;"{% endif %}>
         {{ body }}
       </div>
       {% if cta_url %}
@@ -36,6 +36,7 @@
       <a href="{{ opt_out }}">Unsubscribe</a>
       {% endif %}
     </div>
+  </div>
 </body>
 
 </html>
