@@ -22,7 +22,6 @@ from discussion.serializers import (
 )
 from note.models import parse_note_json
 from purchase.models import GrantApplication, Purchase
-from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from researchhub.serializers import (
     DynamicModelFieldSerializer,
     ModeratedDocumentStatusSerializerMixin,
@@ -345,26 +344,29 @@ class ResearchhubPostSerializer(
 
     def _serialize_grant_funding_pool(self, grant):
         """Expose pool holding/distributed/raised on nested grants[]."""
+        from purchase.serializers.funding_pool_serializer import (
+            DynamicFundingPoolSerializer,
+        )
+
         try:
             pool = grant.funding_pool
         except ObjectDoesNotExist:
             return None
 
-        context = self.context
-        _context_fields = context.get(
-            "pch_dgs_get_funding_pool",
-            {
-                "_include_fields": (
-                    "id",
-                    "amount_holding",
-                    "amount_distributed",
-                    "amount_raised",
-                    "status",
-                )
-            },
-        )
+        # Always use the amount-only shape. Retrieve installs
+        # FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT under pch_dgs_get_funding_pool
+        # for the post's own grant pool; reading that key here would serialize
+        # contributors for every pool in grants[].
         return DynamicFundingPoolSerializer(
-            pool, context=context, **_context_fields
+            pool,
+            context=self.context,
+            _include_fields=(
+                "id",
+                "amount_holding",
+                "amount_distributed",
+                "amount_raised",
+                "status",
+            ),
         ).data
 
     @staticmethod
