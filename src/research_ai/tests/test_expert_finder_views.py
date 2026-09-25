@@ -337,3 +337,43 @@ class ExpertSearchFindMoreViewTests(APITestCase):
         self.assertEqual(
             SearchExpert.objects.filter(expert_search=self.search).count(), 1
         )
+
+    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
+    def test_post_restores_prior_state_when_enqueue_fails(self, mock_delay):
+        # Arrange: completed search; broker refuses the find-more task.
+        self.search.config = {"expert_count": 10, "region": "all_regions"}
+        self.search.additional_context = "Original notes"
+        self.search.progress = 100
+        self.search.current_step = "Done"
+        self.search.error_message = ""
+        self.search.save(
+            update_fields=[
+                "config",
+                "additional_context",
+                "progress",
+                "current_step",
+                "error_message",
+            ]
+        )
+        mock_delay.side_effect = RuntimeError("broker unavailable")
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {"expert_count": 15, "additional_context": "Prefer US."},
+            format="json",
+        )
+
+        # Assert: 503 and terminal state restored so a later find-more is not 409.
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.search.refresh_from_db()
+        self.assertEqual(self.search.status, ExpertSearch.Status.COMPLETED)
+        self.assertEqual(self.search.progress, 100)
+        self.assertEqual(self.search.current_step, "Done")
+        self.assertEqual(self.search.error_message, "")
+        self.assertEqual(
+            self.search.config, {"expert_count": 10, "region": "all_regions"}
+        )
+        self.assertEqual(self.search.additional_context, "Original notes")
+        mock_delay.assert_called_once()

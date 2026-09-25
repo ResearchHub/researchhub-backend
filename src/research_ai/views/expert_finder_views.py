@@ -331,8 +331,15 @@ class ExpertSearchFindMoreView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            prior_status = expert_search.status
+            prior_progress = expert_search.progress
+            prior_current_step = expert_search.current_step
+            prior_error_message = expert_search.error_message
+            prior_config = dict(expert_search.config or {})
+            prior_additional_context = expert_search.additional_context
+
             batch_count = data["expert_count"]
-            config = dict(expert_search.config or {})
+            config = dict(prior_config)
             config["expert_count"] = batch_count
             additional_context = data.get("additional_context")
             if additional_context is not None:
@@ -359,14 +366,34 @@ class ExpertSearchFindMoreView(APIView):
             )
 
         is_pdf = expert_search.input_type == ExpertSearch.InputType.PDF
-        run_expert_finder_search.delay(
-            search_id=str(expert_search.id),
-            query=expert_search.query,
-            config=config,
-            is_pdf=is_pdf,
-            additional_context=ctx or None,
-            append=True,
-        )
+        try:
+            run_expert_finder_search.delay(
+                search_id=str(expert_search.id),
+                query=expert_search.query,
+                config=config,
+                is_pdf=is_pdf,
+                additional_context=ctx or None,
+                append=True,
+            )
+        except Exception:
+            logger.exception(
+                "could not queue find-more for expert search %s", expert_search.id
+            )
+            ExpertSearch.objects.filter(
+                id=expert_search.id,
+                status=ExpertSearch.Status.PROCESSING,
+            ).update(
+                status=prior_status,
+                progress=prior_progress,
+                current_step=prior_current_step,
+                error_message=prior_error_message,
+                config=prior_config,
+                additional_context=prior_additional_context,
+            )
+            return Response(
+                {"detail": "Could not queue find-more expert search."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         sse_url = _get_sse_url(request, str(expert_search.id))
         return Response(
