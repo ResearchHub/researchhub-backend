@@ -23,13 +23,11 @@ creator: the consumer admits only the owner, so events never reach an
 org-wide room the way note notifications do.
 """
 
-import asyncio
 import logging
 
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.db import transaction
 
+from notification.services import NotificationService
 from research_ai.services.notebook_chat.streaming import (
     STREAM_DELTA,
     STREAM_PUBLISH_TIMEOUT_SECONDS,
@@ -52,12 +50,6 @@ TURN_PROGRESS = "turn_progress"
 TURN_FINISHED = "turn_finished"
 TURN_FAILED = "turn_failed"
 TURN_CANCELLED = "turn_cancelled"
-
-
-async def _group_send_with_timeout(layer, group: str, message: dict) -> None:
-    """Bound a best-effort channel send so it cannot stall a worker."""
-    async with asyncio.timeout(STREAM_PUBLISH_TIMEOUT_SECONDS):
-        await layer.group_send(group, message)
 
 
 def conversation_group(conversation_id: int | str) -> str:
@@ -127,25 +119,14 @@ class ConversationEventPublisher:
         )
 
     def _send_data(self, conversation_id: int, data: dict) -> bool:
-        try:
-            layer = self._channel_layer or get_channel_layer()
-            async_to_sync(_group_send_with_timeout)(
-                layer,
-                conversation_group(conversation_id),
-                {
-                    "type": EVENT_TYPE,
-                    "data": data,
-                },
-            )
-            return True
-        except Exception:  # noqa: BLE001 - push is best-effort by contract
-            logger.warning(
-                "notebook chat event publish failed (conversation=%s kind=%s)",
-                conversation_id,
-                data.get("kind"),
-                exc_info=True,
-            )
-            return False
+        """Publish chat events within the existing stream timeout."""
+        return NotificationService(
+            channel_layer=self._channel_layer
+        ).send_channel_message(
+            conversation_group(conversation_id),
+            {"type": EVENT_TYPE, "data": data},
+            timeout=STREAM_PUBLISH_TIMEOUT_SECONDS,
+        )
 
 
 class PublishingRecorder:

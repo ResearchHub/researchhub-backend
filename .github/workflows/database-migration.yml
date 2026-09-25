@@ -1,0 +1,130 @@
+name: Database Migration
+
+on:
+  workflow_call:
+    inputs:
+      git_ref:
+        description: "Git hash or branch to run the migrations from"
+        required: true
+        type: string
+    outputs:
+      git_sha:
+        description: "The commit the migrations ran from"
+        value: ${{ jobs.migrate.outputs.git_sha }}
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
+  DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
+  MIGRATION_TASK_PARAMETER: /researchhub/staging/tasks/database-migration/run-task
+  CONTAINER_NAME: migration
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write # required for requesting JWT token from AWS
+    outputs:
+      git_sha: ${{ steps.git_sha.outputs.long }}
+
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.git_ref }}
+
+      - name: Get Git SHA
+        id: git_sha
+        run: |
+          echo "long=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify container image exists
+        env:
+          IMAGE_TAG: ${{ steps.git_sha.outputs.long }}
+        run: |
+          REPOSITORY_NAME=${CONTAINER_REPOSITORY#*/}
+          aws ecr describe-images \
+            --repository-name "$REPOSITORY_NAME" \
+            --image-ids "imageTag=$IMAGE_TAG" \
+            > /dev/null
+
+      - name: Assume staging deploy role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          role-session-name: github-actions-database-migration-session
+          role-chaining: true
+          role-duration-seconds: 3600
+          role-skip-session-tagging: true
+          aws-region: ${{ env.AWS_REGION }}
+          retry-max-attempts: 3
+
+      - name: Read run-task configuration
+        id: config
+        run: |
+          config=$(
+            aws ssm get-parameter \
+              --name "$MIGRATION_TASK_PARAMETER" \
+              --query Parameter.Value \
+              --output text
+          )
+          {
+            echo "cluster=$(jq -r .cluster <<<"$config")"
+            echo "family=$(jq -r .taskDefinition <<<"$config")"
+            echo "subnets=$(jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")' <<<"$config")"
+            echo "security_groups=$(jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")' <<<"$config")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Render task definition with the image to deploy
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1.9.0
+        with:
+          task-definition-family: ${{ steps.config.outputs.family }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
+
+      - name: Run database migrations
+        id: run
+        uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          cluster: ${{ steps.config.outputs.cluster }}
+          run-task: true
+          run-task-subnets: ${{ steps.config.outputs.subnets }}
+          run-task-security-groups: ${{ steps.config.outputs.security_groups }}
+          run-task-started-by: github-${{ github.run_id }}
+          wait-for-task-stopped: true
+          wait-for-minutes: 55
+          wait-max-delay-seconds: 15
+
+      - name: Show migration logs
+        if: always() && steps.run.outputs.run-task-arn != '' && steps.run.outputs.run-task-arn != '[]'
+        shell: bash
+        env:
+          TASK_ARN: ${{ fromJSON(steps.run.outputs.run-task-arn)[0] }}
+          TASK_DEFINITION: ${{ steps.render.outputs.task-definition }}
+        run: |
+          log_options=$(
+            jq --arg name "$CONTAINER_NAME" \
+              '.containerDefinitions[] | select(.name == $name) | .logConfiguration.options' \
+              "$TASK_DEFINITION"
+          )
+          log_group=$(jq -r '."awslogs-group"' <<<"$log_options")
+          log_stream="$(jq -r '."awslogs-stream-prefix"' <<<"$log_options")/$CONTAINER_NAME/${TASK_ARN##*/}"
+
+          # The log stream does not exist when the container never started.
+          aws logs get-log-events \
+            --log-group-name "$log_group" \
+            --log-stream-name "$log_stream" \
+            --start-from-head \
+            --output json |
+            jq -r '.events[].message' ||
+            echo "No logs available in $log_group/$log_stream"

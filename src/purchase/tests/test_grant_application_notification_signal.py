@@ -7,8 +7,9 @@ from django.test import TestCase
 
 from mailing_list.services import EmailService
 from notification.models import Notification
+from notification.services import NotificationService
 from purchase.models import Grant, GrantApplication
-from purchase.tasks import send_grant_application_email
+from purchase.tasks import send_grant_application_owner_email
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -113,9 +114,11 @@ class GrantApplicationNotificationDispatchTests(AWSMockTransactionTestCase):
 
     @patch.object(EmailService, "send_email")
     @patch.object(
-        send_grant_application_email, "delay", new=send_grant_application_email
+        send_grant_application_owner_email,
+        "delay",
+        new=send_grant_application_owner_email,
     )
-    @patch.object(Notification, "send_notification")
+    @patch.object(NotificationService, "_send_notification")
     def test_dispatches_notifications_after_commit(
         self,
         mock_send_notification: MagicMock,
@@ -142,3 +145,35 @@ class GrantApplicationNotificationDispatchTests(AWSMockTransactionTestCase):
         self.assertEqual(recipients, [self.owner.email])
         self.assertEqual(subject, "Someone applied to your RFP")
         self.assertEqual(context["cta_url"], proposal_url)
+
+    @patch.object(EmailService, "send_email")
+    @patch.object(
+        send_grant_application_owner_email,
+        "delay",
+        new=send_grant_application_owner_email,
+    )
+    def test_sends_email_when_notification_creation_fails(
+        self, mock_send_email: MagicMock
+    ) -> None:
+        """Email the grant owner even when the inbox notification cannot be created."""
+        # Arrange
+        with (
+            patch.object(NotificationService, "try_send", return_value=None),
+            transaction.atomic(),
+        ):
+            # Act
+            GrantApplication.objects.create(
+                grant=self.grant,
+                preregistration_post=self.proposal,
+                applicant=self.applicant,
+            )
+            mock_send_email.assert_not_called()
+
+        # Assert
+        mock_send_email.assert_called_once()
+        recipients, subject, context = mock_send_email.call_args.args
+        self.assertEqual(recipients, [self.owner.email])
+        self.assertEqual(subject, "Someone applied to your RFP")
+        self.assertEqual(
+            context["cta_url"], self.proposal.unified_document.frontend_view_link()
+        )

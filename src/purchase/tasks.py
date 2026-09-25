@@ -3,21 +3,27 @@ from datetime import UTC, datetime, timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.utils.html import format_html
 
 from mailing_list.services import EmailService
 from notification.models import Notification
+from notification.services import NotificationService
 from paper.models import Paper
 from purchase.circle.service import CircleWalletService
 from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
+from purchase.services.grant_application_service import GrantApplicationService
 from reputation.models import Deposit
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
 
 logger = logging.getLogger(__name__)
+
+SUPPORT_RECEIPT_SUBJECTS = {
+    "sender": "Receipt From ResearchHub",
+    "recipient": "Someone Sent You RSC on ResearchHub!",
+}
 
 
 @app.task(queue=QUEUE_PURCHASES)
@@ -70,29 +76,9 @@ def complete_eligible_fundraises():
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
-def send_grant_application_email(notification_id: int) -> None:
+def send_grant_application_owner_email(application_id: int) -> None:
     """Email the RFP owner the applicant's name and a link to the proposal."""
-    notification = Notification.objects.select_related(
-        "action_user", "recipient", "unified_document"
-    ).get(id=notification_id)
-    subject = "Someone applied to your RFP"
-    context = {
-        "subject": subject,
-        "body": format_html(
-            "<p>A new research proposal has been submitted</p>"
-            "<p>{} submitted proposal: {}</p>",
-            notification.action_user.first_name,
-            notification.unified_document.get_display_title(),
-        ),
-        "cta_url": notification.navigation_url,
-        "cta_label": "View Proposal",
-    }
-    EmailService().send_email(
-        [notification.recipient.email],
-        subject,
-        context,
-        template="general_branded_email",
-    )
+    GrantApplicationService().send_application_email(application_id)
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
@@ -108,6 +94,7 @@ def send_monthly_preregistration_update_reminders():
     )
 
     fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+    notifications = NotificationService()
     sent_count = 0
     seen_pairs = set()
 
@@ -134,14 +121,13 @@ def send_monthly_preregistration_update_reminders():
             continue
 
         try:
-            notification = Notification.objects.create(
-                item=fundraise,
-                action_user=fundraise.created_by,
+            notifications.send(
+                Notification.PREREGISTRATION_UPDATE_REMINDER,
                 recipient=fundraise.created_by,
+                action_user=fundraise.created_by,
+                item=fundraise,
                 unified_document=fundraise.unified_document,
-                notification_type=Notification.PREREGISTRATION_UPDATE_REMINDER,
             )
-            notification.send_notification()
             sent_count += 1
         except Exception:
             logger.exception(
@@ -163,7 +149,7 @@ def send_funding_credits_reminders():
 
     now = datetime.now(UTC)
     reminder_cutoff = now - timedelta(days=14)
-    user_ct = ContentType.objects.get_for_model(User)
+    notifications = NotificationService()
 
     # Prefilter to users who have at least one locked, spendable balance row
     # (funding credits or promotional). The effective balance is confirmed
@@ -188,26 +174,16 @@ def send_funding_credits_reminders():
         if balance <= 0:
             continue
 
-        already_sent = Notification.objects.filter(
-            notification_type=Notification.FUNDING_CREDITS_REMINDER,
-            recipient=user,
-            created_date__gte=reminder_cutoff,
-        ).exists()
-        if already_sent:
-            continue
-
         try:
-            notification = Notification.objects.create(
-                item=user,
-                content_type=user_ct,
-                object_id=user.id,
-                action_user=user,
+            if notifications.send_once(
+                Notification.FUNDING_CREDITS_REMINDER,
                 recipient=user,
-                notification_type=Notification.FUNDING_CREDITS_REMINDER,
+                action_user=user,
+                item=user,
                 extra={"amount": str(balance)},
-            )
-            notification.send_notification()
-            sent_count += 1
+                since=reminder_cutoff,
+            ):
+                sent_count += 1
         except Exception:
             logger.exception(
                 "Error sending funding credits reminder for user %s", user.id
@@ -260,16 +236,9 @@ def send_support_email(
         "url": url,
     }
 
-    if email_type == "sender":
-        subject = "Receipt From ResearchHub"
-        EmailService().send_transactional_email(
-            email,
-            subject,
-            context,
-            template="support_receipt",
-        )
-    elif email_type == "recipient":
-        subject = "Someone Sent You RSC on ResearchHub!"
+    subject = SUPPORT_RECEIPT_SUBJECTS.get(email_type)
+
+    if subject:
         EmailService().send_transactional_email(
             email,
             subject,

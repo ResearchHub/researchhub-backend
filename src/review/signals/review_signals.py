@@ -1,11 +1,11 @@
 import logging
 
-from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from notification.models import Notification
+from notification.services import NotificationService
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.purchase_model import Purchase
 from reputation.related_models.bounty import BountySolution
@@ -90,7 +90,7 @@ def notify_grant_owner_on_proposal_review(sender, instance, created, **kwargs):
         if not action_user:
             return
 
-        review_ct = ContentType.objects.get_for_model(instance)
+        notifications = NotificationService()
         notified_recipient_ids = set()
 
         for application in applications:
@@ -102,15 +102,13 @@ def notify_grant_owner_on_proposal_review(sender, instance, created, **kwargs):
             ):
                 continue
 
-            notification = Notification.objects.create(
-                notification_type=Notification.PROPOSAL_PEER_REVIEW,
+            notifications.try_send(
+                Notification.PROPOSAL_PEER_REVIEW,
                 recipient=recipient,
                 action_user=action_user,
-                content_type=review_ct,
-                object_id=instance.id,
+                item=instance,
                 unified_document=instance.unified_document,
             )
-            transaction.on_commit(notification.send_notification)
             notified_recipient_ids.add(recipient.id)
     except Exception:
         logger.exception(
