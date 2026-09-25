@@ -611,10 +611,11 @@ class CloseFundraiseTests(TestCase):
 
     # --- use_credits toggle tests ---
 
-    def test_create_rsc_contribution_use_credits_true_uses_only_funding_credits(
-        self,
-    ) -> None:
-        """Pay the full contribution and fee using only funding credits."""
+    def test_create_rsc_contribution_use_credits_true_uses_only_funding_credits(self):
+        """
+        With use_credits=True, the full contribution + fee must be paid from
+        funding credits, even when available and promotional RSC also exist.
+        """
         # Arrange
         User.objects.get_or_create(id=1)
 
@@ -1283,8 +1284,10 @@ class CreateUsdContributionTests(TestCase):
             nonprofit=self.nonprofit,
         )
 
-    def test_create_usd_contribution(self) -> None:
-        """Record a submitted USD contribution and its transfer details."""
+    def test_create_usd_contribution(self):
+        """
+        Test successful USD contribution creates record with transfer ID (happy path).
+        """
         # Arrange
         self.mock_endaoment_service.transfer_to_researchhub_fund.return_value = {
             "id": "transfer_123"

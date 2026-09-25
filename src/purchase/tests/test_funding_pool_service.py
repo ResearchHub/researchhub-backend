@@ -203,8 +203,7 @@ class FundingPoolServiceTests(TestCase):
             )
         self.assertIn("Only RSC", str(ctx.exception))
 
-    def test_distribute_to_open_proposal_fundraise(self) -> None:
-        """Allocate pool funding to an open proposal fundraise."""
+    def test_distribute_to_open_proposal_fundraise(self):
         # Arrange
         self._seed_pool_holding(Decimal(200))
         _, application, fundraise = self._create_proposal_application_with_fundraise()
