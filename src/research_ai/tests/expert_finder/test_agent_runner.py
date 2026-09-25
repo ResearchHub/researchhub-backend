@@ -8,6 +8,10 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
+from mailing_list.services.email_insights_service import (
+    CONFIDENCE_HIGH,
+    CONFIDENCE_LOW,
+)
 from research_ai.constants import ExpertiseLevel, Region
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.types import (
@@ -22,11 +26,7 @@ from research_ai.services.expert_finder.agent_runner import (
     ground_submitted_experts,
     run_expert_finder_agent,
 )
-from research_ai.services.expert_finder.email_validation import (
-    CONFIDENCE_HIGH,
-    CONFIDENCE_LOW,
-    EmailValidationService,
-)
+from research_ai.services.expert_finder.email_validation import EmailValidationService
 from research_ai.services.expert_finder.openalex_tools import (
     ExpertFinderOpenAlexToolset,
 )
@@ -121,7 +121,7 @@ class ToolCompositionTests(SimpleTestCase):
 class GroundSubmittedExpertsTests(SimpleTestCase):
     def setUp(self):
         self.oa = ExpertFinderOpenAlexToolset(client=MagicMock())
-        self.oa.returned_author_ids.add("a999")
+        self.oa._record_author("https://openalex.org/A999", "Ada Expert")
         self.ses = MagicMock()
         self.ses.get_email_address_insights.return_value = _insights()
         self.email = EmailValidationService(client=self.ses)
@@ -178,6 +178,23 @@ class GroundSubmittedExpertsTests(SimpleTestCase):
         # Assert
         self.assertEqual(kept, [])
         self.assertTrue(any("ungrounded" in e for e in errors))
+        self.ses.get_email_address_insights.assert_not_called()
+
+    def test_drops_identity_mismatch_for_grounded_id(self):
+        # Arrange: Alice's OpenAlex id with Carol's name/email must not bind.
+        row = _expert_row(email="carol@uni.edu")
+        row["first_name"] = "Carol"
+        row["last_name"] = "Other"
+        # Act
+        kept, errors = ground_submitted_experts(
+            [row],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+        )
+        # Assert
+        self.assertEqual(kept, [])
+        self.assertTrue(any("identity mismatch" in e for e in errors))
         self.ses.get_email_address_insights.assert_not_called()
 
     def test_drops_invalid_email(self):

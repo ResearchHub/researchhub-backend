@@ -11,7 +11,7 @@ from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.outreach.email_generator import generate_expert_email
-from research_ai.services.outreach.email_sender import send_plain_email
+from research_ai.services.outreach.email_sender import send_outreach_email
 from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
@@ -611,7 +611,7 @@ def send_queued_emails_task(
             failed += 1
             continue
         try:
-            ses_message_id = send_plain_email(
+            ses_message_id = send_outreach_email(
                 rec.expert_email,
                 rec.email_subject,
                 rec.email_body,
@@ -619,10 +619,17 @@ def send_queued_emails_task(
                 cc=cc_list or None,
                 from_email=from_email,
             )
+            if ses_message_id is None:
+                GeneratedEmail.objects.filter(id=rec.id).update(
+                    status=GeneratedEmail.Status.SEND_FAILED,
+                    updated_date=timezone.now(),
+                )
+                failed += 1
+                continue
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
                 channels=[GeneratedEmail.Channel.EMAIL],
-                ses_message_id=ses_message_id or "",
+                ses_message_id=ses_message_id,
                 updated_date=timezone.now(),
             )
             ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
