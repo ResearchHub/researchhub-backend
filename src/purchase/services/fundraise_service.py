@@ -27,6 +27,9 @@ from purchase.related_models.constants import (
     USD_FUNDRAISE_FEE_PERCENT,
 )
 from purchase.related_models.constants.currency import RSC, USD
+from purchase.services.fundraise_notification_service import (
+    FundraiseNotificationService,
+)
 from referral.services.referral_bonus_service import ReferralBonusService
 from reputation.distributions import create_bounty_refund_distribution
 from reputation.distributor import Distributor
@@ -67,9 +70,14 @@ class FundraiseService:
         self,
         referral_bonus_service: ReferralBonusService | None = None,
         endaoment_service: EndaomentService | None = None,
+        fundraise_notification_service: FundraiseNotificationService | None = None,
     ) -> None:
+        """Configure referral, transfer, and contribution notification services."""
         self.referral_bonus_service = referral_bonus_service or ReferralBonusService()
         self.endaoment_service = endaoment_service or EndaomentService()
+        self.fundraise_notification_service = (
+            fundraise_notification_service or FundraiseNotificationService()
+        )
 
     def validate_fundraise_for_contribution(
         self, fundraise: Fundraise, user: User, check_self_contribution: bool = True
@@ -343,6 +351,13 @@ class FundraiseService:
             escrow.amount_holding += amount
             escrow.save(update_fields=["amount_holding", "updated_date"])
 
+            transaction.on_commit(
+                lambda: self.fundraise_notification_service.notify_contribution_authors(
+                    purchase.id, RSC
+                ),
+                robust=True,
+            )
+
         return purchase, None
 
     @staticmethod
@@ -514,6 +529,13 @@ class FundraiseService:
                     "USD",
                 ),
                 priority=1,
+            )
+
+            transaction.on_commit(
+                lambda: self.fundraise_notification_service.notify_contribution_authors(
+                    contribution.id, USD
+                ),
+                robust=True,
             )
 
         return contribution, None
