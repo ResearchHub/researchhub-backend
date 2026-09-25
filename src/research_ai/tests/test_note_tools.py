@@ -1,4 +1,5 @@
 import json
+from uuid import UUID
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -293,6 +294,7 @@ class NoteToolsetTests(TestCase):
             [{"type": "text", "text": "Written by the agent"}],
         )
         self.assertIn("attrs", stored["content"][0])
+        UUID(stored["content"][0]["attrs"]["id"])
         self.assertEqual(self.note.latest_version.plain_text, "Written by the agent")
         # The prior version is kept as history.
         self.assertEqual(self.note.notes.count(), 2)
@@ -305,7 +307,16 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(self.note.latest_version.parent_version_id, self.content.id)
 
         read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
-        self.assertEqual(read["blocks"], {"0": "Written by the agent"})
+        self.assertEqual(
+            read["blocks"],
+            {
+                "0": {
+                    "type": "paragraph",
+                    "attrs": {"id": stored["content"][0]["attrs"]["id"]},
+                    "content": ["Written by the agent"],
+                }
+            },
+        )
         self.assertEqual(read["version_id"], result["version_id"])
 
     def test_edit_note_touches_only_the_addressed_blocks(self):
@@ -331,8 +342,12 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(result["block_count"], 3)
         self.note.refresh_from_db()
         stored = json.loads(self.note.latest_version.json)
-        # The untouched heading is spliced through byte-identical.
-        self.assertEqual(stored["content"][0], EDITOR_DOC["content"][0])
+        # The untouched heading keeps its content and other attributes; the
+        # editor-facing copy fills in its missing ID.
+        self.assertEqual(
+            stored["content"][0]["content"], EDITOR_DOC["content"][0]["content"]
+        )
+        UUID(stored["content"][0]["attrs"]["id"])
         self.assertEqual(
             [block["type"] for block in stored["content"]],
             ["heading", "paragraph", "paragraph"],
@@ -340,6 +355,32 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(
             self.note.latest_version.plain_text, "Title\nNew body\nFootnote"
         )
+
+    def test_edit_note_adds_editor_trailing_paragraph_after_heading(self):
+        # Arrange: the initial note has no structured content.
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            EDIT_NOTE,
+            {
+                "note_id": self.note.id,
+                "expected_version_id": self.content.id,
+                "edits": _insert([{"type": "heading", "content": ["Section"]}]),
+            },
+        )
+
+        # Assert: the editor won't need to append or stamp any blocks on load.
+        self.assertTrue(result["saved"])
+        self.assertEqual(result["block_count"], 2)
+        self.note.refresh_from_db()
+        blocks = json.loads(self.note.latest_version.json)["content"]
+        self.assertEqual([block["type"] for block in blocks], ["heading", "paragraph"])
+        self.assertEqual(blocks[0]["content"], [{"type": "text", "text": "Section"}])
+        self.assertNotIn("content", blocks[1])
+        for block in blocks:
+            UUID(block["attrs"]["id"])
+        self.assertNotEqual(blocks[0]["attrs"]["id"], blocks[1]["attrs"]["id"])
+        self.assertEqual(self.note.latest_version.plain_text, "Section")
 
     def test_edit_note_stores_a_clean_document_root(self):
         # Arrange: root metadata is not part of the agent surface; whatever

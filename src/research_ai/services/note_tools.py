@@ -35,6 +35,7 @@ from django.db import transaction
 from note.related_models.note_model import Note, NoteContent, parse_note_json
 from note.services.note_content_service import NoteContentService
 from research_ai.services.agent import Tool, Toolset
+from research_ai.services.editor_document import prepare_agent_document
 from research_ai.services.note_block_edits import (
     apply_block_edits,
     check_block_edits,
@@ -451,7 +452,7 @@ class NoteToolset:
                             "a note needs at least one block"
                         )
                     }
-                document = {"type": "doc", "content": content}
+                document = prepare_agent_document({"type": "doc", "content": content})
                 version = self._service.create_version(
                     locked,
                     document,
@@ -467,7 +468,7 @@ class NoteToolset:
             "note_id": note.id,
             "version_id": version.id,
             "saved": True,
-            "block_count": len(content),
+            "block_count": len(document["content"]),
         }
 
     def _get_readable_note(self, note_id) -> Note | None:

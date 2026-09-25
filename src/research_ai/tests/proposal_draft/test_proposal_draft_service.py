@@ -372,7 +372,20 @@ class ProposalDraftServiceTests(TestCase):
         # assembles the doc + plain text from the submitted sections.
         expected_plain, expected_doc = assemble_proposal(_clean_sections())
         self.assertIsInstance(note.latest_version.json, str)
-        self.assertEqual(json.loads(note.latest_version.json), expected_doc)
+        stored_doc = json.loads(note.latest_version.json)
+        self.assertEqual(stored_doc["type"], expected_doc["type"])
+        self.assertEqual(len(stored_doc["content"]), len(expected_doc["content"]))
+        for stored, expected in zip(
+            stored_doc["content"], expected_doc["content"], strict=True
+        ):
+            self.assertEqual(stored["type"], expected["type"])
+            self.assertEqual(stored["content"], expected["content"])
+            self.assertEqual(
+                {key: value for key, value in stored["attrs"].items() if key != "id"},
+                expected.get("attrs", {}),
+            )
+            self.assertTrue(stored["attrs"]["id"])
+        self.assertEqual(stored_doc["content"][-1]["type"], "paragraph")
         self.assertEqual(note.latest_version.plain_text, expected_plain)
 
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
