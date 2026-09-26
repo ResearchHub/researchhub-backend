@@ -15,13 +15,10 @@ from research_ai.constants import (
     Region,
 )
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.prompts.expert_finder_prompts import (
-    build_system_prompt,
-    build_user_prompt,
-)
+from research_ai.services.agent import generator_model_ref
+from research_ai.services.agent.errors import BudgetExceededError
+from research_ai.services.expert_finder.agent_runner import run_expert_finder_agent
 from research_ai.services.expert_finder.display import ExpertDisplay
-from research_ai.services.expert_finder.json_parsing import ExpertFinderJson
-from research_ai.services.expert_finder.openai_finder import OpenAIExpertFinderService
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.expert_finder.progress import ProgressService, TaskType
 from research_ai.services.expert_finder.report_generator import (
@@ -71,12 +68,7 @@ PDF_TOO_LARGE_MESSAGE = (
 )
 MAX_ERROR_MESSAGE_LENGTH = 10000
 
-EXPERT_FILL_MAX_ROUNDS = 8
-EXPERT_FILL_TOLERANCE_SHORT = 10
 EXPERT_FILL_EXCLUDED_NAMES_CAP = 250
-EXPERT_FILL_BATCH_MAX = 30
-
-PROMPT_EXPERT_HEADROOM_PCT = 10
 
 _DECEASED_ROW_REGEX = re.compile(
     r"(?i)(?:"
@@ -142,12 +134,6 @@ def get_document_content(unified_doc, input_type: str):
     raise ValueError("Post has no content available")
 
 
-def _prompt_expert_count_for_round(remaining: int) -> int:
-    need = max(1, remaining)
-    with_headroom = (need * (100 + PROMPT_EXPERT_HEADROOM_PCT) + 99) // 100
-    return min(with_headroom, EXPERT_FILL_BATCH_MAX)
-
-
 def clear_expert_search_links(expert_search_id: int) -> None:
     SearchExpert.objects.filter(expert_search_id=expert_search_id).delete()
 
@@ -188,7 +174,6 @@ def _names_and_emails_from_prior_document_searches(
 
 class ExpertFinderService:
     def __init__(self):
-        self.openai_expert = OpenAIExpertFinderService()
         self.progress_service = ProgressService()
 
     @staticmethod
@@ -214,25 +199,6 @@ class ExpertFinderService:
         return _DECEASED_ROW_REGEX.search(blob) is not None
 
     @staticmethod
-    def _accumulated_display_names(accumulated: list[dict[str, Any]]) -> list[str]:
-        names: list[str] = []
-        for e in accumulated:
-            n = (e.get("name") or "").strip()
-            if n:
-                names.append(n)
-                continue
-            lab = ExpertDisplay.build_name(
-                honorific=e.get("honorific") or "",
-                first_name=e.get("first_name") or "",
-                middle_name=e.get("middle_name") or "",
-                last_name=e.get("last_name") or "",
-                name_suffix=e.get("name_suffix") or "",
-            ).strip()
-            if lab:
-                names.append(lab)
-        return names
-
-    @staticmethod
     def _dedupe_experts_by_normalized_email(
         experts: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
@@ -256,30 +222,16 @@ class ExpertFinderService:
         return out
 
     @staticmethod
-    def _effective_excluded_for_fill(
-        user_excluded: list[str],
-        accumulated: list[dict[str, Any]],
-    ) -> list[str]:
-        acc_names = ExpertFinderService._accumulated_display_names(accumulated)
-        combined = list(user_excluded) + acc_names
-        if len(combined) <= EXPERT_FILL_EXCLUDED_NAMES_CAP:
-            return combined
-        n_user = len(user_excluded)
-        if n_user >= EXPERT_FILL_EXCLUDED_NAMES_CAP:
-            logger.warning(
-                "Expert fill: user exclusion list length %s exceeds cap %s; truncating",
-                n_user,
-                EXPERT_FILL_EXCLUDED_NAMES_CAP,
-            )
-            return list(user_excluded)[:EXPERT_FILL_EXCLUDED_NAMES_CAP]
-        tail = EXPERT_FILL_EXCLUDED_NAMES_CAP - n_user
+    def _capped_excluded_names(names: list[str]) -> list[str]:
+        cleaned = [n for n in names if n]
+        if len(cleaned) <= EXPERT_FILL_EXCLUDED_NAMES_CAP:
+            return cleaned
         logger.warning(
-            "Expert fill: exclusion list capped to %s (user=%s accumulated_names=%s)",
+            "Expert finder: exclusion list length %s exceeds cap %s; truncating",
+            len(cleaned),
             EXPERT_FILL_EXCLUDED_NAMES_CAP,
-            n_user,
-            len(acc_names),
         )
-        return list(user_excluded) + acc_names[-tail:]
+        return cleaned[:EXPERT_FILL_EXCLUDED_NAMES_CAP]
 
     def process_expert_search(
         self,
@@ -287,7 +239,7 @@ class ExpertFinderService:
         query: str,
         config: dict[str, Any],
         *,
-        is_pdf: bool = False,
+        is_pdf: bool = False,  # noqa: ARG002 — kept for Celery/task API compat
         additional_context: str | None = None,
         progress_callback: Callable[[str, int, str], None] | None = None,
     ) -> dict[str, Any]:
@@ -301,7 +253,7 @@ class ExpertFinderService:
         except ExpertSearch.DoesNotExist:
             unified_document_id = None
         progress_service = self.progress_service
-        openai = self.openai_expert
+        llm_model = generator_model_ref()
 
         def publish_progress(
             message: str,
@@ -358,7 +310,7 @@ class ExpertFinderService:
                 "experts": [],
                 "report_urls": {},
                 "expert_count": 0,
-                "llm_model": openai.model_id,
+                "llm_model": llm_model,
                 "error_message": err,
                 "current_step": current_step[:512],
             }
@@ -393,123 +345,51 @@ class ExpertFinderService:
                 expertise_level = [ExpertiseLevel.ALL_LEVELS]
             region_filter = config.get("region", Region.ALL_REGIONS)
             state_filter = config.get("state", EXPERT_FINDER_DEFAULT_STATE)
-            llm_response = ""
-            accumulated: list[dict[str, Any]] = []
-            all_filtered_by_exclusion = False
+            excluded_names = self._capped_excluded_names(
+                [n for n in search_id_names if n]
+            )
 
-            for round_num in range(1, EXPERT_FILL_MAX_ROUNDS + 1):
-                if len(accumulated) >= target_expert_count:
-                    break
-
-                if (
-                    round_num > 1
-                    and target_expert_count > EXPERT_FILL_TOLERANCE_SHORT
-                    and len(accumulated)
-                    >= target_expert_count - EXPERT_FILL_TOLERANCE_SHORT
-                ):
-                    break
-
-                remaining = target_expert_count - len(accumulated)
-                prompt_expert_count = _prompt_expert_count_for_round(remaining)
-                names_from_prior_searches = [n for n in search_id_names if n]
-                effective_excluded = self._effective_excluded_for_fill(
-                    names_from_prior_searches,
-                    accumulated,
-                )
-
-                publish_progress(
-                    "Preparing expert search prompt...", 18 + round_num * 2
-                )
-                finder_system = build_system_prompt(
-                    expert_count=prompt_expert_count,
+            publish_progress("Finding experts via agent search...", 28)
+            try:
+                agent_result = run_expert_finder_agent(
+                    query=query,
+                    expert_count=target_expert_count,
                     expertise_level=expertise_level,
                     region_filter=region_filter,
                     state_filter=state_filter,
-                    excluded_expert_names=effective_excluded,
-                )
-                finder_user = build_user_prompt(
-                    query=query,
-                    expert_count=prompt_expert_count,
-                    expertise_level=expertise_level,
-                    region_filter=region_filter,
-                    is_pdf=is_pdf,
+                    excluded_expert_names=excluded_names,
                     additional_context=additional_context,
                 )
-                publish_progress(
-                    f"Finding experts (round {round_num}/{EXPERT_FILL_MAX_ROUNDS}, "
-                    f"{len(accumulated)}/{target_expert_count})...",
-                    38 + round_num * 4,
+            except BudgetExceededError:
+                raise
+            except Exception as e:
+                return fail_return(
+                    f"Expert agent search failed: {e}"[:2000],
+                    current_step="Agent search failed",
+                    exc=e,
                 )
-                llm_response = openai.invoke(
-                    system_prompt=finder_system,
-                    user_prompt=finder_user,
-                )
-                publish_progress(
-                    "Parsing expert recommendations (JSON)...",
-                    58 + round_num * 2,
-                )
-                try:
-                    obj = ExpertFinderJson.parse_text(llm_response)
-                except ValueError as e:
-                    response_text = (llm_response or "").strip()
-                    return fail_return(
-                        "No valid JSON object was returned. "
-                        "The model output could not be parsed.",
-                        current_step="JSON parse failed",
-                        store_full_response_error=(
-                            response_text[:MAX_ERROR_MESSAGE_LENGTH]
-                        )
-                        or str(e)[:MAX_ERROR_MESSAGE_LENGTH],
-                        exc=e,
-                        extra={
-                            "round_num": round_num,
-                            "prompt_expert_count": prompt_expert_count,
-                            "target_expert_count": target_expert_count,
-                            "llm_response_length": len(response_text),
-                            "llm_response_tail": response_text[-500:],
-                        },
-                    )
-                try:
-                    batch = ExpertFinderJson.validate_output(obj)
-                except ValueError as e:
-                    return fail_return(
-                        f"Invalid expert JSON structure: {e}"[:2000],
-                        current_step="Expert output validation failed",
-                        exc=e,
-                        extra={
-                            "round_num": round_num,
-                            "prompt_expert_count": prompt_expert_count,
-                        },
-                    )
 
-                n_before = len(batch)
-                kept: list[dict[str, Any]] = []
-                for row in batch:
-                    em = (row.get("email") or "").strip().lower()
-                    if not em:
-                        continue
-                    if search_id_emails and em in search_id_emails:
-                        continue
-                    kept.append(row)
-                if round_num == 1 and search_id_emails and n_before > 0 and not kept:
-                    all_filtered_by_exclusion = True
+            publish_progress("Validating grounded expert recommendations...", 58)
+            batch = list(agent_result.get("experts") or [])
+            n_before = len(batch)
+            kept: list[dict[str, Any]] = []
+            for row in batch:
+                em = (row.get("email") or "").strip().lower()
+                if not em:
+                    continue
+                if search_id_emails and em in search_id_emails:
+                    continue
+                kept.append(row)
+            all_filtered_by_exclusion = bool(
+                search_id_emails and n_before > 0 and not kept
+            )
 
-                batch = [r for r in kept if not self._expert_row_suggests_deceased(r)]
+            experts_rows = self._dedupe_experts_by_normalized_email(
+                [r for r in kept if not self._expert_row_suggests_deceased(r)]
+            )[:target_expert_count]
 
-                batch = self._dedupe_experts_by_normalized_email(batch)
-
-                acc_before = len(accumulated)
-                accumulated = self._dedupe_experts_by_normalized_email(
-                    accumulated + batch
-                )
-                if len(accumulated) == acc_before:
-                    break
-
-                if len(accumulated) >= target_expert_count:
-                    break
-
-            experts_rows = accumulated[:target_expert_count]
             if len(experts_rows) == 0:
+                agent_errors = agent_result.get("errors") or []
                 if all_filtered_by_exclusion:
                     umsg = (
                         "Every recommendation matched an email from a prior expert "
@@ -518,25 +398,21 @@ class ExpertFinderService:
                     return fail_return(umsg, current_step="All experts excluded")
 
                 umsg = (
-                    "No expert recommendations were returned. The model did not return "
-                    "usable JSON with at least one valid expert."
+                    "No expert recommendations were returned. The agent did not "
+                    "yield at least one grounded expert with a validated email."
                 )
-                llm_err = (llm_response or "").strip()
-                if llm_err:
+                if agent_errors:
+                    detail = "; ".join(str(e) for e in agent_errors)
                     umsg = (
-                        umsg
-                        + " Response from model:\n\n"
-                        + llm_err[:MAX_ERROR_MESSAGE_LENGTH]
+                        umsg + " Agent details:\n\n" + detail[:MAX_ERROR_MESSAGE_LENGTH]
                     )
                 return fail_return(
                     umsg,
-                    current_step="No experts after parsing",
-                    store_full_response_error=(
-                        llm_err[:MAX_ERROR_MESSAGE_LENGTH] or umsg
-                    ),
+                    current_step="No experts after agent search",
+                    store_full_response_error=umsg[:MAX_ERROR_MESSAGE_LENGTH],
                     extra={
                         "target_expert_count": target_expert_count,
-                        "llm_response_length": len(llm_err),
+                        "agent_error_count": len(agent_errors),
                     },
                 )
 
@@ -580,7 +456,7 @@ class ExpertFinderService:
                 "experts": [],
                 "report_urls": {"pdf": pdf_url, "csv": csv_url},
                 "expert_count": len(experts),
-                "llm_model": openai.model_id,
+                "llm_model": llm_model,
             }
             publish_progress(
                 "Expert search complete!", 100, status=ExpertSearch.Status.COMPLETED
@@ -592,6 +468,8 @@ class ExpertFinderService:
                 replace_count,
             )
             return result
+        except BudgetExceededError:
+            raise
         except Exception as e:  # noqa: BLE001
             error_message = f"Expert search processing failed: {e}"
             logger.exception(error_message)
