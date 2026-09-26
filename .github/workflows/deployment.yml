@@ -260,17 +260,6 @@ jobs:
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 300
 
-  # The Docker environments only exist in staging, where the migration runs.
-  deploy-docker:
-    needs: migrate
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/deployment-docker.yml
-    with:
-      git_sha: ${{ needs.migrate.outputs.git_sha }}
-    secrets: inherit
-
   # The ECS environments only exist in staging.
   deploy-ecs:
     needs: migrate
