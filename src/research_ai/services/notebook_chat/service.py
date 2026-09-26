@@ -803,8 +803,9 @@ class NotebookChatService:
             native_tools=frozenset({"web_search"}),
             **provider_options,
         )
+        note_toolset = self._note_toolset(conversation, note)
         toolset = compose_notebook_toolset(
-            note_toolset=self._note_toolset(conversation, note),
+            note_toolset=note_toolset,
             user_profile_toolset=UserProfileToolset(user=conversation.user),
             researcher_profile_toolset=self._researcher_profile_toolset_factory(
                 user=conversation.user
@@ -847,8 +848,14 @@ class NotebookChatService:
             if execution.context_parent_id
             else []
         )
+        prompt = trigger.content
+        # The user may have edited a note between turns; the model's earlier
+        # reads (and version ids) of it would otherwise look current.
+        notice = note_toolset.changed_notes_notice(context)
+        if notice:
+            prompt = f"{notice}\n\n{prompt}"
         try:
-            result = agent.continue_conversation(context, trigger.content)
+            result = agent.continue_conversation(context, prompt)
         except AgentRunError as exc:
             # The loop already recorded the failure (status, error fields,
             # partial trace) through the recorder; report, don't re-raise.

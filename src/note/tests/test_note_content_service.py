@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from note.related_models.note_model import NoteContent
 from note.services.note_content_service import NoteContentService, extract_plain_text
-from note.tests.helpers import create_note
+from note.tests.helpers import create_note, without_editor_shape
 from researchhub_document.registered_report_note_metadata import (
     add_registered_report_prefill_metadata,
 )
@@ -73,7 +73,7 @@ class NoteContentServiceTests(TestCase):
         # Stored as a JSON-encoded string: the shape the frontend editor's
         # JSON.parse(contentJson) load path expects.
         self.assertIsInstance(version.json, str)
-        self.assertEqual(json.loads(version.json), TIPTAP_DOC)
+        self.assertEqual(without_editor_shape(json.loads(version.json)), TIPTAP_DOC)
         self.assertEqual(version.plain_text, "Title\nHello world")
         self.assertEqual(self.note.notes.count(), 2)
         # No attribution unless the caller provides it.
@@ -151,7 +151,7 @@ class RegisteredReportPrefillTests(TestCase):
         # Assert
         stored = json.loads(version.json)
         self.assertEqual(stored["attrs"]["registered_report_prefill"], PREFILL)
-        self.assertEqual(stored["content"], TIPTAP_DOC["content"])
+        self.assertEqual(without_editor_shape(stored)["content"], TIPTAP_DOC["content"])
 
     def test_create_version_overrides_tampered_prefill(self):
         # Arrange
@@ -176,4 +176,4 @@ class RegisteredReportPrefillTests(TestCase):
         version = self.service.create_version(note, TIPTAP_DOC)
 
         # Assert
-        self.assertEqual(json.loads(version.json), TIPTAP_DOC)
+        self.assertEqual(without_editor_shape(json.loads(version.json)), TIPTAP_DOC)
