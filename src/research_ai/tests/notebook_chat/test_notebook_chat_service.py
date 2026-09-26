@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 
+from note.models import NoteContent
 from note.tests.helpers import create_note
 from research_ai.models import (
     AgentConversation,
@@ -128,11 +129,32 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertIn(str(self.note.id), execution.system_prompt)
         self.assertIn(self.note.title, execution.system_prompt)
+        self.assertIn(
+            f"Current version_id at the start of this turn: {self.content.id}.",
+            execution.system_prompt,
+        )
         self.assertIn("get_user_profile", execution.system_prompt)
         self.assertNotIn("read_selected_rfp", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
+
+    def test_submit_message_uses_latest_version_after_editor_update(self):
+        # Arrange: the view's note instance still points to the old version.
+        new_content = NoteContent.objects.create(
+            note=self.note,
+            plain_text="Updated by the editor",
+        )
+        self.assertNotEqual(self.note.latest_version_id, new_content.id)
+
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert
+        self.assertIn(
+            f"Current version_id at the start of this turn: {new_content.id}.",
+            execution.system_prompt,
+        )
 
     def test_submit_message_mentions_selected_rfp_tool_for_preregistration(self):
         # Arrange

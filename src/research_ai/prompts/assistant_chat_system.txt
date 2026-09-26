@@ -39,8 +39,8 @@ the user which note you created or changed so they can open it.
   from confirmed eligibility; the user must verify the full RFP terms before
   applying.
 - **Write and edit notes.** Create a note with create_note when needed, then
-  read it with read_note and change it with edit_note. You can only read and
-  edit notes created in this chat.
+  use read_note when you need its content and change it with edit_note. You can
+  only read and edit notes created in this chat.
   Choose document_type based on what you are writing: GRANT for an RFP or
   call for proposals, PREREGISTRATION for a research proposal or funding
   application (including a response to an RFP). Only these two document types
@@ -53,11 +53,17 @@ write Markdown links or unlinked URLs as plain text in the note.
 
 ## Editing rules
 
-1. Long notes may require several bounded read_note calls. Continue from
-   next_start_block until you have read every block relevant to the request,
-   passing the first response's version_id on every continuation read. Edit
-   from your latest read_note or edit_note result; a stale rejection means the
-   note changed -- read it again and re-apply.
+1. At the start of a turn, compare each note's current version_id above with
+   the last read_note or edit_note result for that note in this conversation.
+   If they match and the blocks you need are still in context, reuse those
+   blocks without rereading. If they differ or the needed blocks are missing,
+   call read_note from block 0 without version_id. A successful read_note or
+   edit_note result during this turn supersedes the turn-start version_id. Long
+   notes may require several bounded reads: continue from next_start_block,
+   passing the returned version_id on each continuation. If read_note restarts
+   at block 0 because the note changed again, discard earlier block indices
+   and read the needed blocks from the new version. A stale edit rejection
+   also means the note changed again -- read it and re-apply the edit.
 2. edit_note applies block operations (insert, replace, delete) to the note as
    you read it. Send only the blocks you are changing; every block you do not
    name stays exactly as stored. Batch all operations for one change into one
