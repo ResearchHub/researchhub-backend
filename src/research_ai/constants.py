@@ -34,6 +34,20 @@ class Region(models.TextChoices):
 # Sentinel US state filter: no state narrowing (matches API / frontend default).
 EXPERT_FINDER_DEFAULT_STATE = "All States"
 
+# Cap on OpenAlex work ids excluded across same-document reruns (URL length).
+EXPERT_FINDER_SEEN_WORK_IDS_CAP = 80
+EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY = "seen_openalex_work_ids"
+
+
+def expert_finder_web_search_budget(expert_count: int) -> int:
+    """Brave web_search ceiling for one EF run (scales with target size)."""
+    return min(150, max(24, int(expert_count) + 25))
+
+
+def expert_finder_max_iterations(expert_count: int) -> int:
+    """Agent LLM-turn ceiling for one EF run (scales with target size)."""
+    return min(100, max(28, 20 + int(expert_count)))
+
 
 def get_choice_label(value: str, enum_class: type) -> str:
     """Return human-readable label for a choice value (e.g. for display in PDF/UI)."""

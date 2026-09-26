@@ -10,13 +10,15 @@ from django.core.validators import EmailValidator
 
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
+    EXPERT_FINDER_SEEN_WORK_IDS_CAP,
+    EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY,
     MAX_PDF_SIZE_BYTES,
     ExpertiseLevel,
     Region,
 )
 from research_ai.models import Expert, ExpertSearch, SearchExpert
-from research_ai.services.agent import generator_model_ref
 from research_ai.services.agent.errors import BudgetExceededError
+from research_ai.services.agent.providers.registry import generator_model_ref
 from research_ai.services.expert_finder.agent_runner import run_expert_finder_agent
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
@@ -35,6 +37,7 @@ from research_ai.services.pdf_text import (
     get_paper_pdf_bytes as _get_paper_pdf_bytes,
 )
 from researchhub_document.related_models.constants.document_type import PAPER
+from utils.openalex import normalize_openalex_id
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +150,28 @@ def load_experts_for_expert_search(expert_search_id: int) -> list[Expert]:
     return [se.expert for se in qs]
 
 
+def _names_and_emails_from_search(
+    expert_search_id: int,
+) -> tuple[list[str], set[str]]:
+    """Names/emails already linked to this search (for find-more exclusion)."""
+    out_names: list[str] = []
+    out_emails: set[str] = set()
+    qs = (
+        SearchExpert.objects.filter(expert_search_id=expert_search_id)
+        .select_related("expert")
+        .order_by("position")
+    )
+    for se in qs:
+        e = se.expert
+        label = ExpertDisplay.personal_name_for(e)
+        if label:
+            out_names.append(label)
+        em = (e.email or "").strip().lower()
+        if em:
+            out_emails.add(em)
+    return out_names, out_emails
+
+
 def _names_and_emails_from_prior_document_searches(
     unified_document_id: int | None,
     *,
@@ -170,6 +195,63 @@ def _names_and_emails_from_prior_document_searches(
         if em:
             out_emails.add(em)
     return out_names, out_emails
+
+
+def _normalize_seen_work_ids(raw: Any) -> list[str]:
+    """Bare OpenAlex work ids from a config value; order preserved, deduped."""
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        bare = normalize_openalex_id(item)
+        if not bare:
+            continue
+        key = bare.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(bare)
+    return out
+
+
+def _merge_seen_work_ids(*batches: list[str]) -> list[str]:
+    """Newest batch first, then older; capped for OpenAlex filter URL length."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for batch in batches:
+        for bare in batch:
+            key = bare.lower()
+            if not bare or key in seen:
+                continue
+            seen.add(key)
+            out.append(bare)
+            if len(out) >= EXPERT_FINDER_SEEN_WORK_IDS_CAP:
+                return out
+    return out
+
+
+def _seen_work_ids_from_prior_document_searches(
+    unified_document_id: int | None,
+    *,
+    exclude_search_id: int | None = None,
+) -> list[str]:
+    """Collect capped seen OpenAlex work ids from prior searches on the same doc."""
+    if not unified_document_id:
+        return []
+    qs = ExpertSearch.objects.filter(
+        unified_document_id=unified_document_id,
+    ).order_by("-id")
+    if exclude_search_id is not None:
+        qs = qs.exclude(id=exclude_search_id)
+    batches: list[list[str]] = []
+    for cfg in qs.values_list("config", flat=True):
+        ids = _normalize_seen_work_ids(
+            (cfg or {}).get(EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY)
+        )
+        if ids:
+            batches.append(ids)
+    return _merge_seen_work_ids(*batches)
 
 
 class ExpertFinderService:
@@ -242,6 +324,7 @@ class ExpertFinderService:
         is_pdf: bool = False,  # noqa: ARG002 — kept for Celery/task API compat
         additional_context: str | None = None,
         progress_callback: Callable[[str, int, str], None] | None = None,
+        append: bool = False,
     ) -> dict[str, Any]:
         expert_search_id = int(search_id)
         try:
@@ -254,6 +337,8 @@ class ExpertFinderService:
             unified_document_id = None
         progress_service = self.progress_service
         llm_model = generator_model_ref()
+        # Mutate a copy so callers keep their original dict identity-safe.
+        config = deepcopy(config) if isinstance(config, dict) else {}
 
         def publish_progress(
             message: str,
@@ -278,6 +363,17 @@ class ExpertFinderService:
             if progress_callback:
                 progress_callback(search_id, percent, message)
 
+        def persist_seen_work_ids(new_ids: list[str] | None) -> None:
+            merged = _merge_seen_work_ids(
+                _normalize_seen_work_ids(new_ids),
+                _normalize_seen_work_ids(
+                    config.get(EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY)
+                ),
+                prior_seen_work_ids,
+            )
+            config[EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY] = merged
+            ExpertSearch.objects.filter(id=expert_search_id).update(config=config)
+
         def fail_return(
             msg: str,
             *,
@@ -289,6 +385,7 @@ class ExpertFinderService:
             payload: dict[str, Any] = {
                 "search_id": search_id,
                 "current_step": current_step,
+                "append": append,
             }
             if extra:
                 payload.update(extra)
@@ -299,8 +396,32 @@ class ExpertFinderService:
                 exc_info=(exc if exc is not None else RuntimeError(current_step)),
                 extra=extra,
             )
-            clear_expert_search_links(expert_search_id)
+            if not append:
+                clear_expert_search_links(expert_search_id)
             err = (store_full_response_error or msg)[:MAX_ERROR_MESSAGE_LENGTH]
+            # Find-more must not wipe experts already linked to this search.
+            existing_count = (
+                SearchExpert.objects.filter(expert_search_id=expert_search_id).count()
+                if append
+                else 0
+            )
+
+            if append and existing_count > 0:
+                publish_progress(msg, 100, status=ExpertSearch.Status.COMPLETED)
+                return {
+                    "search_id": search_id,
+                    "status": ExpertSearch.Status.COMPLETED,
+                    "query": query,
+                    "config": config,
+                    "experts": [],
+                    "report_urls": {},
+                    "expert_count": existing_count,
+                    "llm_model": llm_model,
+                    "error_message": err,
+                    "current_step": current_step[:512],
+                    "append": True,
+                    "appended_count": 0,
+                }
             publish_progress(msg, 0, status=ExpertSearch.Status.FAILED)
             return {
                 "search_id": search_id,
@@ -313,15 +434,29 @@ class ExpertFinderService:
                 "llm_model": llm_model,
                 "error_message": err,
                 "current_step": current_step[:512],
+                "append": append,
+                "appended_count": 0,
             }
 
         data_persisted = False
+        prior_seen_work_ids: list[str] = []
         try:
-            search_id_names, search_id_emails = (
-                _names_and_emails_from_prior_document_searches(
-                    unified_document_id,
-                    exclude_search_id=expert_search_id,
-                )
+            prior_names, prior_emails = _names_and_emails_from_prior_document_searches(
+                unified_document_id,
+                exclude_search_id=expert_search_id,
+            )
+            this_names, this_emails = _names_and_emails_from_search(expert_search_id)
+            search_id_names = list(prior_names) + list(this_names)
+            search_id_emails = set(prior_emails) | set(this_emails)
+            prior_seen_work_ids = _seen_work_ids_from_prior_document_searches(
+                unified_document_id,
+                exclude_search_id=expert_search_id,
+            )
+            exclude_work_ids = _merge_seen_work_ids(
+                _normalize_seen_work_ids(
+                    config.get(EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY)
+                ),
+                prior_seen_work_ids,
             )
             expert_count = int(config.get("expert_count", 10) or 10)
             target_expert_count = max(0, expert_count)
@@ -349,7 +484,14 @@ class ExpertFinderService:
                 [n for n in search_id_names if n]
             )
 
-            publish_progress("Finding experts via agent search...", 28)
+            publish_progress(
+                (
+                    "Finding more experts via agent search..."
+                    if append
+                    else "Finding experts via agent search..."
+                ),
+                28,
+            )
             try:
                 agent_result = run_expert_finder_agent(
                     query=query,
@@ -359,6 +501,7 @@ class ExpertFinderService:
                     state_filter=state_filter,
                     excluded_expert_names=excluded_names,
                     additional_context=additional_context,
+                    exclude_work_ids=exclude_work_ids or None,
                 )
             except BudgetExceededError:
                 raise
@@ -368,6 +511,8 @@ class ExpertFinderService:
                     current_step="Agent search failed",
                     exc=e,
                 )
+
+            persist_seen_work_ids(agent_result.get("seen_openalex_work_ids"))
 
             publish_progress("Validating grounded expert recommendations...", 58)
             batch = list(agent_result.get("experts") or [])
@@ -392,8 +537,9 @@ class ExpertFinderService:
                 agent_errors = agent_result.get("errors") or []
                 if all_filtered_by_exclusion:
                     umsg = (
-                        "Every recommendation matched an email from a prior expert "
-                        "search on this document. Try broadening criteria."
+                        "Every recommendation matched an email already linked to "
+                        "this search or a prior search on this document. Try "
+                        "broadening criteria."
                     )
                     return fail_return(umsg, current_step="All experts excluded")
 
@@ -420,9 +566,14 @@ class ExpertFinderService:
                 to_persist = _maybe_obfuscate_expert_emails_for_non_production(
                     experts_rows
                 )
-                replace_count = ExpertPersist.replace_search_experts_for_search(
-                    expert_search_id, to_persist
-                )
+                if append:
+                    replace_count = ExpertPersist.append_search_experts_for_search(
+                        expert_search_id, to_persist
+                    )
+                else:
+                    replace_count = ExpertPersist.replace_search_experts_for_search(
+                        expert_search_id, to_persist
+                    )
             except Exception as e:
                 logger.exception("Expert persist failed search_id=%s", search_id)
                 return fail_return(
@@ -435,7 +586,11 @@ class ExpertFinderService:
             experts = load_experts_for_expert_search(expert_search_id)
             publish_progress("Enriching expert profile links...", 72)
             try:
-                SourceEnrichmentService().enrich_experts(experts)
+                # Enrich only the batch just added when appending.
+                to_enrich = (
+                    experts[-replace_count:] if append and replace_count else experts
+                )
+                SourceEnrichmentService().enrich_experts(to_enrich)
             except Exception:
                 logger.exception("Source enrichment failed search_id=%s", search_id)
             publish_progress("Generating PDF report...", 80)
@@ -457,15 +612,18 @@ class ExpertFinderService:
                 "report_urls": {"pdf": pdf_url, "csv": csv_url},
                 "expert_count": len(experts),
                 "llm_model": llm_model,
+                "append": append,
+                "appended_count": replace_count if append else len(experts),
             }
             publish_progress(
                 "Expert search complete!", 100, status=ExpertSearch.Status.COMPLETED
             )
             logger.info(
-                "expert finder search_id=%s completed experts=%s persist=%s",
+                "expert finder search_id=%s completed experts=%s persist=%s append=%s",
                 search_id,
                 len(experts),
                 replace_count,
+                append,
             )
             return result
         except BudgetExceededError:
@@ -473,7 +631,7 @@ class ExpertFinderService:
         except Exception as e:  # noqa: BLE001
             error_message = f"Expert search processing failed: {e}"
             logger.exception(error_message)
-            if not data_persisted:
+            if not data_persisted and not append:
                 clear_expert_search_links(expert_search_id)
             publish_progress(str(e), 0, status=ExpertSearch.Status.FAILED)
             raise
@@ -487,6 +645,7 @@ def run_expert_finder_search(
     is_pdf: bool = False,
     additional_context: str | None = None,
     progress_callback: Callable[[str, int, str], None] | None = None,
+    append: bool = False,
 ) -> dict[str, Any]:
     return ExpertFinderService().process_expert_search(
         search_id,
@@ -495,4 +654,5 @@ def run_expert_finder_search(
         is_pdf=is_pdf,
         additional_context=additional_context,
         progress_callback=progress_callback,
+        append=append,
     )

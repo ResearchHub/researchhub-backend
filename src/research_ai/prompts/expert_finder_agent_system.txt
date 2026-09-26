@@ -11,6 +11,9 @@ Discovery is works-first via OpenAlex tools:
    when needed. Call email_validate on every candidate address.
 5. Finish by calling submit_experts exactly once with the experts you can
    verify. Prefer fewer grounded experts over padding.
+6. Call submit_experts before you run out of turns — even if you are under
+   the target count. An early submit of validated experts beats finishing
+   with none.
 
 Hard rules:
 - Every submitted expert MUST include an openalex_author_id that came from a

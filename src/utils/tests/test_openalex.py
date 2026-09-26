@@ -152,6 +152,23 @@ class OpenAlexTests(TestCase):
         self.assertIn("from_publication_date:2020-01-01", filter_params)
 
     @patch.object(OpenAlex, "_get")
+    def test_get_works_adds_exclude_openalex_ids(self, mock_get):
+        # Arrange
+        mock_get.return_value = {"results": [], "meta": {"next_cursor": None}}
+
+        # Act
+        OpenAlex().get_works(
+            exclude_openalex_ids=["https://openalex.org/W111", "W222"],
+            batch_size=5,
+        )
+
+        # Assert
+        _, kwargs = mock_get.call_args
+        filter_params = kwargs["filters"]["filter"].split(",")
+        self.assertIn("ids.openalex:!W111", filter_params)
+        self.assertIn("ids.openalex:!W222", filter_params)
+
+    @patch.object(OpenAlex, "_get")
     def test_get_author_fetches_author_by_id(self, mock_get):
         # Arrange
         mock_get.return_value = {"id": "https://openalex.org/A123"}

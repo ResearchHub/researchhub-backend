@@ -8,6 +8,8 @@ from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
     ExpertiseLevel,
     Region,
+    expert_finder_max_iterations,
+    expert_finder_web_search_budget,
     get_choice_label,
 )
 from research_ai.prompts._loader import load_template
@@ -24,7 +26,7 @@ from research_ai.services.agent import (
     Toolset,
     resolve_provider,
 )
-from research_ai.services.agent.errors import BudgetExceededError
+from research_ai.services.agent.errors import BudgetExceededError, IterationLimitError
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.email_validation import (
     EmailValidateToolset,
@@ -49,8 +51,6 @@ from utils.openalex import OpenAlex, normalize_openalex_id
 logger = logging.getLogger(__name__)
 
 SUBMIT_EXPERTS = "submit_experts"
-
-_MAX_ITERATIONS = 28  # tool turns before the agent loop gives up
 
 _SYSTEM_PROMPT = load_template("expert_finder_agent_system.txt").strip()
 
@@ -369,17 +369,28 @@ class ExpertFinderAgentToolset:
         email_validation: EmailValidationService | None = None,
         region_filter: str = Region.ALL_REGIONS,
         state_filter: str = EXPERT_FINDER_DEFAULT_STATE,
+        exclude_work_ids: list[str] | None = None,
+        web_search_max: int | None = None,
+        expert_count: int = 10,
     ):
+        self._expert_count = max(1, int(expert_count))
         self.openalex = openalex_toolset or ExpertFinderOpenAlexToolset(
             client=oa_client,
             region_filter=region_filter,
             state_filter=state_filter,
+            exclude_work_ids=exclude_work_ids,
+        )
+        search_budget = (
+            web_search_max
+            if web_search_max is not None
+            else expert_finder_web_search_budget(self._expert_count)
         )
         self.web_search = web_search_toolset or ExpertFinderWebSearchToolset(
-            client=web_search_client
+            client=web_search_client,
+            max_searches=search_budget,
         )
         self.email_validate = email_validate_toolset or EmailValidateToolset(
-            service=email_validation
+            service=email_validation,
         )
         self.submitted: dict | None = None
 
@@ -410,7 +421,8 @@ class ExpertFinderAgentToolset:
                 "Submit the final list of grounded experts with validated "
                 "professional emails. Each expert must include an "
                 "openalex_author_id returned by a tool this run. Call exactly "
-                "once when finished; prefer fewer experts over inventing fillers."
+                "once when finished; prefer fewer experts over inventing fillers. "
+                "Call this before running out of turns even if under target."
             ),
             input_schema=_SUBMIT_INPUT_SCHEMA,
             handler=self._submit_experts,
@@ -442,20 +454,27 @@ def run_expert_finder_agent(
     state_filter: str = EXPERT_FINDER_DEFAULT_STATE,
     excluded_expert_names: list[str] | None = None,
     additional_context: str | None = None,
+    exclude_work_ids: list[str] | None = None,
     provider: LLMProvider | None = None,
     oa_client: OpenAlex | None = None,
     web_search_client: BraveSearch | None = None,
     email_validation: EmailValidationService | None = None,
     recorder=None,
-    max_iterations: int = _MAX_ITERATIONS,
+    max_iterations: int | None = None,
 ) -> dict[str, Any]:
     """Run the expert-finder agent and return grounded expert rows.
 
-    Returns ``{"experts": [...], "errors": [...]}``. Budget exhaustion
-    propagates so the owning Celery task can stop cleanly; other agent failures
-    are recorded in ``errors`` and yield an empty expert list.
+    Returns ``{"experts": [...], "errors": [...], "seen_openalex_work_ids": [...]}``.
+    Budget exhaustion propagates so the owning Celery task can stop cleanly;
+    iteration-limit and other agent failures are recorded in ``errors``.
     """
     errors: list[str] = []
+    target = max(0, int(expert_count))
+    iterations = (
+        max_iterations
+        if max_iterations is not None
+        else expert_finder_max_iterations(target or 10)
+    )
     email_service = email_validation or EmailValidationService()
     toolset = ExpertFinderAgentToolset(
         oa_client=oa_client,
@@ -463,12 +482,15 @@ def run_expert_finder_agent(
         email_validation=email_service,
         region_filter=region_filter,
         state_filter=state_filter,
+        exclude_work_ids=exclude_work_ids,
+        web_search_max=expert_finder_web_search_budget(target or 10),
+        expert_count=target or 10,
     )
     provider = provider or resolve_provider()
-    agent = AgentService(provider=provider, max_iterations=max_iterations).create_agent(
+    agent = AgentService(provider=provider, max_iterations=iterations).create_agent(
         toolset.as_toolset(native_tool_names=provider.native_tool_names),
         system_prompt=build_agent_system_prompt(
-            expert_count=expert_count,
+            expert_count=target,
             expertise_level=expertise_level,
             region_filter=region_filter,
             state_filter=state_filter,
@@ -481,7 +503,7 @@ def run_expert_finder_agent(
         agent.run(
             build_agent_user_prompt(
                 query=query,
-                expert_count=expert_count,
+                expert_count=target,
                 expertise_level=expertise_level,
                 region_filter=region_filter,
                 additional_context=additional_context,
@@ -489,21 +511,41 @@ def run_expert_finder_agent(
         )
     except BudgetExceededError:
         raise
+    except IterationLimitError as exc:
+        logger.warning(
+            "expert-finder agent hit iteration limit (%s)",
+            getattr(exc, "iterations", iterations),
+        )
+        errors.append(
+            "agent: iteration budget exhausted before submit_experts "
+            f"({getattr(exc, 'iterations', iterations)} turns)"
+        )
     except Exception as exc:  # noqa: BLE001 - agent run is best-effort
         logger.exception("expert-finder agent failed")
         errors.append(f"agent: {exc}")
 
+    seen_work_ids = toolset.openalex.collected_work_ids()
+
     if toolset.submitted is None:
-        errors.append("agent: did not submit experts")
-        return {"experts": [], "errors": errors}
+        if not any("iteration budget exhausted" in e for e in errors):
+            errors.append("agent: did not submit experts")
+        return {
+            "experts": [],
+            "errors": errors,
+            "seen_openalex_work_ids": seen_work_ids,
+        }
 
     kept, gate_errors = ground_submitted_experts(
         toolset.submitted.get("experts"),
         openalex_toolset=toolset.openalex,
         email_validation=email_service,
-        expert_count=expert_count,
+        expert_count=target,
         excluded_expert_names=excluded_expert_names,
         region_filter=region_filter,
     )
     errors.extend(gate_errors)
-    return {"experts": kept, "errors": errors}
+    return {
+        "experts": kept,
+        "errors": errors,
+        "seen_openalex_work_ids": seen_work_ids,
+    }

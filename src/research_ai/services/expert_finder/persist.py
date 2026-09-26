@@ -2,6 +2,7 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Max
 from django.db.models.functions import Lower
 from django.utils import timezone
 
@@ -109,6 +110,41 @@ class ExpertPersist:
                     position=position,
                 )
             return len(expert_dicts)
+
+    @classmethod
+    def append_search_experts_for_search(
+        cls,
+        expert_search_id: int,
+        expert_dicts: list[dict[str, Any]],
+    ) -> int:
+        """Append SearchExpert links after existing ones. Skips duplicates.
+
+        Returns the number of newly linked experts (not the total on the search).
+        """
+        with transaction.atomic():
+            max_position = SearchExpert.objects.filter(
+                expert_search_id=expert_search_id
+            ).aggregate(Max("position"))["position__max"]
+            next_position = (max_position if max_position is not None else -1) + 1
+            existing_expert_ids = set(
+                SearchExpert.objects.filter(
+                    expert_search_id=expert_search_id
+                ).values_list("expert_id", flat=True)
+            )
+            added = 0
+            for d in expert_dicts:
+                expert = cls.upsert_from_parsed_dict(d)
+                if expert.id in existing_expert_ids:
+                    continue
+                SearchExpert.objects.create(
+                    expert_search_id=expert_search_id,
+                    expert_id=expert.id,
+                    position=next_position,
+                )
+                existing_expert_ids.add(expert.id)
+                next_position += 1
+                added += 1
+            return added
 
     @staticmethod
     def mark_last_email_sent_at(email: str) -> None:

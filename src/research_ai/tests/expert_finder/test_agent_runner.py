@@ -4,7 +4,7 @@ Covers the critical success and failure flows: tool composition, grounded
 submit, OpenAlex/email gates, and Brave web search. Edge cases live elsewhere.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
@@ -336,6 +336,49 @@ class RunExpertFinderAgentTests(SimpleTestCase):
         # Assert
         self.assertEqual(result["experts"], [])
         self.assertTrue(any("outside region" in e for e in result["errors"]))
+
+    def test_iteration_limit_records_error_without_raising(self):
+        # Arrange
+        from research_ai.services.agent.errors import IterationLimitError
+
+        agent = MagicMock()
+        agent.run.side_effect = IterationLimitError("exceeded", iterations=28)
+        service = MagicMock()
+        service.create_agent.return_value = agent
+
+        # Act
+        with patch(
+            "research_ai.services.expert_finder.agent_runner.AgentService",
+            return_value=service,
+        ):
+            result = run_expert_finder_agent(
+                query="Something",
+                expert_count=3,
+                expertise_level=ExpertiseLevel.ALL_LEVELS,
+                region_filter=Region.ALL_REGIONS,
+                provider=_scripted_provider([]),
+                oa_client=self.oa_client,
+                email_validation=self.email,
+                max_iterations=28,
+            )
+
+        # Assert
+        self.assertEqual(result["experts"], [])
+        self.assertTrue(
+            any("iteration budget exhausted" in e for e in result["errors"])
+        )
+        self.assertNotIn(
+            "did not submit experts",
+            " ".join(result["errors"]),
+        )
+
+    def test_web_search_budget_scales_with_expert_count(self):
+        # Arrange / Act
+        small = ExpertFinderAgentToolset(expert_count=10)
+        large = ExpertFinderAgentToolset(expert_count=100)
+        # Assert
+        self.assertEqual(small.web_search.max_searches, 35)
+        self.assertEqual(large.web_search.max_searches, 125)
 
 
 class WebSearchToolTests(SimpleTestCase):
