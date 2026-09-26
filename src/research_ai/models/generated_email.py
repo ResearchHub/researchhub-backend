@@ -92,6 +92,24 @@ class GeneratedEmail(DefaultModel):
         db_index=True,
         db_comment="SES message ID to correlate email events.",
     )
+    gmail_message_id = models.CharField(
+        max_length=255,
+        blank=True,
+        db_index=True,
+        db_comment="Gmail API message ID to correlate send and bounce events.",
+    )
+    gmail_thread_id = models.CharField(
+        max_length=255,
+        blank=True,
+        db_comment="Gmail thread ID for the sent outreach message.",
+    )
+    open_tracking_token = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        unique=True,
+        db_comment="Opaque token for the open-tracking pixel; set at send time.",
+    )
     opened_at = models.DateTimeField(
         null=True,
         blank=True,
