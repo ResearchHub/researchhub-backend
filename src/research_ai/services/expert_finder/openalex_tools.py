@@ -37,7 +37,7 @@ class ExpertFinderOpenAlexToolset:
 
     Shares ``returned_works`` with the underlying profile toolset so
     ``get_author_works`` provenance and ``search_works`` provenance live in one
-    map.
+    map. Grounded authors map bare id → display_name for a cheap submit check.
     """
 
     def __init__(
@@ -52,7 +52,8 @@ class ExpertFinderOpenAlexToolset:
         self._default_publication_years = default_publication_years
         # Share the profile toolset's work provenance map.
         self.returned_works: dict[str, dict] = self._profile.returned_works
-        self.returned_author_ids: set[str] = set()
+        # bare lowercase OpenAlex author id → display_name (may be "").
+        self.returned_authors: dict[str, str] = {}
 
     def build_tools(self) -> list[Tool]:
         """EF ``search_works`` plus reused author/institution tools."""
@@ -119,7 +120,21 @@ class ExpertFinderOpenAlexToolset:
     def has_returned_author(self, openalex_author_id: str | None) -> bool:
         """True when ``openalex_author_id`` was returned by a tool this run."""
         bare = normalize_openalex_id(openalex_author_id).lower()
-        return bool(bare) and bare in self.returned_author_ids
+        return bool(bare) and bare in self.returned_authors
+
+    def author_identity_matches(
+        self, row: dict, *, openalex_author_id: str | None = None
+    ) -> bool:
+        """True when submitted last name appears in the grounded display name."""
+        bare = normalize_openalex_id(
+            openalex_author_id or row.get("openalex_author_id")
+        ).lower()
+        if not bare or bare not in self.returned_authors:
+            return False
+        last = str(row.get("last_name") or "").strip().casefold()
+        if not last:
+            return False
+        return last in self.returned_authors[bare].casefold()
 
     # -- handlers ---------------------------------------------------------
 
@@ -240,11 +255,13 @@ class ExpertFinderOpenAlexToolset:
         ordered: list[dict] = []
         seen: set[str] = set()
         for card in [*first_take, *middle_pick, *last_take]:
-            bare = normalize_openalex_id(card.get("openalex_author_id")).lower()
+            bare = self._record_author(
+                card.get("openalex_author_id"),
+                card.get("display_name"),
+            )
             if not bare or bare in seen:
                 continue
             seen.add(bare)
-            self._record_author_id(bare)
             ordered.append(card)
             if len(ordered) >= _MAX_AUTHORS_PER_WORK:
                 break
@@ -307,17 +324,33 @@ class ExpertFinderOpenAlexToolset:
         if not isinstance(result, dict) or result.get("error"):
             return
         if tool_name == "get_author":
-            self._record_author_id(result.get("openalex_author_id"))
+            self._record_author(
+                result.get("openalex_author_id"),
+                result.get("display_name"),
+            )
             return
         if tool_name == "search_authors":
             for row in result.get("results") or []:
                 if isinstance(row, dict):
-                    self._record_author_id(row.get("openalex_author_id"))
+                    self._record_author(
+                        row.get("openalex_author_id"),
+                        row.get("display_name"),
+                    )
 
-    def _record_author_id(self, value: str | None) -> str:
-        bare = normalize_openalex_id(value).lower()
-        if bare:
-            self.returned_author_ids.add(bare)
+    def _record_author(
+        self,
+        openalex_author_id: str | None,
+        display_name: str | None = None,
+    ) -> str:
+        """Remember author id → display_name; return bare lowercase id or empty."""
+        bare = normalize_openalex_id(openalex_author_id).lower()
+        if not bare:
+            return ""
+        name = str(display_name or "").strip()
+        # Keep a prior name if this call only had an id.
+        if not name:
+            name = self.returned_authors.get(bare, "")
+        self.returned_authors[bare] = name
         return bare
 
     def _default_from_publication_date(self) -> str:
