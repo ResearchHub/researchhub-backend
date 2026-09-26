@@ -186,7 +186,7 @@ def run_expert_finder_search(
     Args:
         search_id: ExpertSearch id (string of integer).
         query: Research description or document text.
-        config: Dict with expert_count, expertise_level, region, state, gender.
+        config: Dict with expert_count, expertise_level, region, state.
         is_pdf: True if query was extracted from PDF.
         additional_context: Optional user notes to steer the model alongside query.
     """
