@@ -34,7 +34,7 @@ env:
   DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
 
 jobs:
-  build:
+  package:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -135,18 +135,18 @@ jobs:
     secrets: inherit
 
   deploy-api:
-    needs: [build, migrate]
+    needs: [package, migrate]
     # The migration is skipped for prod, which must not skip the deployment.
     if: |
       !cancelled() &&
-      needs.build.result == 'success' &&
+      needs.package.result == 'success' &&
       (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       id-token: write # required for requesting JWT token from AWS
     env:
-      SHORT_GIT_SHA: ${{ needs.build.outputs.short_git_sha }}
+      SHORT_GIT_SHA: ${{ needs.package.outputs.short_git_sha }}
 
     steps:
       - name: Download deployment package
@@ -196,7 +196,7 @@ jobs:
           wait_for_environment_recovery: 300
 
   deploy-workers:
-    needs: [build, deploy-api]
+    needs: [package, deploy-api]
     # Without an explicit condition, the skipped prod migration further up the
     # dependency chain would skip this job too, even though deploy-api succeeded.
     if: |
@@ -211,7 +211,7 @@ jobs:
       matrix:
         worker: [main, cermine, lite]
     env:
-      SHORT_GIT_SHA: ${{ needs.build.outputs.short_git_sha }}
+      SHORT_GIT_SHA: ${{ needs.package.outputs.short_git_sha }}
 
     steps:
       - name: Download deployment package
