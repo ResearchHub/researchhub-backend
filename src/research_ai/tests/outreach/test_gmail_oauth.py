@@ -2,16 +2,20 @@ from unittest.mock import Mock
 
 from allauth.socialaccount.models import SocialApp
 from django.contrib.sites.models import Site
-from django.core import signing
 from django.test import TestCase, override_settings
 
 from research_ai.models import OutreachMailboxConnection
 from research_ai.services.outreach.gmail_oauth import (
     GmailMailboxNotAllowedError,
+    GmailOAuthError,
+    GmailOAuthRedirectUriError,
     GmailOAuthService,
     get_google_oauth_credentials,
+    is_allowed_oauth_redirect_uri,
 )
 from user.tests.helpers import create_random_default_user
+
+_FE_REDIRECT = "http://localhost:3000/expert-finder/settings"
 
 
 def _create_google_social_app(
@@ -28,10 +32,7 @@ def _create_google_social_app(
 
 
 @override_settings(
-    GMAIL_OUTREACH_REDIRECT_URI=(
-        "http://localhost:8000/api/research_ai/expert-finder/mailbox/callback/"
-    ),
-    GMAIL_OUTREACH_FRONTEND_RETURN_URL=("http://localhost:3000/expert-finder/settings"),
+    GMAIL_OUTREACH_REDIRECT_URI=_FE_REDIRECT,
     CORS_ALLOWED_ORIGINS=["http://localhost:3000", "https://researchhub.com"],
 )
 class GmailOAuthServiceTests(TestCase):
@@ -63,24 +64,34 @@ class GmailOAuthServiceTests(TestCase):
         self.assertEqual(client_id, "settings-client")
         self.assertEqual(secret, "settings-secret")
 
-    def test_build_auth_url_includes_gmail_scopes_and_offline_consent(self):
-        # Arrange
-        user = create_random_default_user("editor")
-
+    def test_get_connect_params_returns_client_id_scopes_and_redirect(self):
         # Act
-        payload = self.service.build_auth_url(user.id)
+        payload = self.service.get_connect_params()
 
         # Assert
-        self.assertIn("auth_url", payload)
-        self.assertIn("state", payload)
-        self.assertIn("gmail.send", payload["auth_url"])
-        self.assertIn("gmail.readonly", payload["auth_url"])
-        self.assertIn("access_type=offline", payload["auth_url"])
-        self.assertIn("prompt=consent", payload["auth_url"])
-        state_data = signing.loads(payload["state"])
-        self.assertEqual(state_data["user_id"], user.id)
+        self.assertEqual(payload["client_id"], "google-client-id")
+        self.assertEqual(payload["redirect_uri"], _FE_REDIRECT)
+        self.assertIn("https://www.googleapis.com/auth/gmail.send", payload["scopes"])
+        self.assertIn(
+            "https://www.googleapis.com/auth/gmail.readonly", payload["scopes"]
+        )
+        self.assertIn("openid", payload["scopes"])
+        self.assertIn("email", payload["scopes"])
 
-    def test_process_callback_accepts_gmail_com(self):
+    def test_is_allowed_oauth_redirect_uri_accepts_configured_and_cors(self):
+        # Assert
+        self.assertTrue(is_allowed_oauth_redirect_uri(_FE_REDIRECT))
+        self.assertTrue(
+            is_allowed_oauth_redirect_uri("http://localhost:3000/expert-finder/other")
+        )
+        self.assertTrue(
+            is_allowed_oauth_redirect_uri("https://researchhub.com/settings")
+        )
+        self.assertFalse(is_allowed_oauth_redirect_uri("https://evil.com/phish"))
+        self.assertFalse(is_allowed_oauth_redirect_uri(""))
+        self.assertFalse(is_allowed_oauth_redirect_uri(None))
+
+    def test_connect_with_code_accepts_gmail_com(self):
         # Arrange
         user = create_random_default_user("gmail_ok")
         self.mock_client.exchange_code_for_token.return_value = {
@@ -95,21 +106,26 @@ class GmailOAuthServiceTests(TestCase):
         self.mock_client.fetch_userinfo.return_value = {
             "email": "Editor@Gmail.com",
         }
-        state = signing.dumps({"user_id": user.id})
 
         # Act
-        result = self.service.process_callback("auth-code", state)
+        result = self.service.connect_with_code(
+            user, code="auth-code", redirect_uri=_FE_REDIRECT
+        )
 
         # Assert
-        self.assertIn("gmail=connected", result)
+        self.assertTrue(result["connected"])
+        self.assertEqual(result["email"], "editor@gmail.com")
+        self.assertEqual(result["status"], OutreachMailboxConnection.Status.ACTIVE)
         connection = OutreachMailboxConnection.objects.get(user=user)
         self.assertEqual(connection.email, "editor@gmail.com")
-        self.assertEqual(connection.status, OutreachMailboxConnection.Status.ACTIVE)
         self.assertEqual(connection.access_token, "access-1")
         self.assertEqual(connection.refresh_token, "refresh-1")
-        self.assertNotEqual(connection.access_token, "")  # encrypted at rest OK
+        self.mock_client.exchange_code_for_token.assert_called_once()
+        call_kwargs = self.mock_client.exchange_code_for_token.call_args.kwargs
+        self.assertEqual(call_kwargs["redirect_uri"], _FE_REDIRECT)
+        self.assertEqual(call_kwargs["code"], "auth-code")
 
-    def test_process_callback_accepts_googlemail_com(self):
+    def test_connect_with_code_accepts_googlemail_com(self):
         # Arrange
         user = create_random_default_user("googlemail_ok")
         self.mock_client.exchange_code_for_token.return_value = {
@@ -120,19 +136,20 @@ class GmailOAuthServiceTests(TestCase):
         self.mock_client.fetch_userinfo.return_value = {
             "email": "user@googlemail.com",
         }
-        state = signing.dumps({"user_id": user.id})
 
         # Act
-        result = self.service.process_callback("auth-code", state)
+        result = self.service.connect_with_code(
+            user, code="auth-code", redirect_uri=_FE_REDIRECT
+        )
 
         # Assert
-        self.assertIn("gmail=connected", result)
+        self.assertEqual(result["email"], "user@googlemail.com")
         self.assertEqual(
             OutreachMailboxConnection.objects.get(user=user).email,
             "user@googlemail.com",
         )
 
-    def test_process_callback_rejects_researchhub_foundation(self):
+    def test_connect_with_code_rejects_researchhub_foundation(self):
         # Arrange
         user = create_random_default_user("rh_foundation")
         self.mock_client.exchange_code_for_token.return_value = {
@@ -143,16 +160,15 @@ class GmailOAuthServiceTests(TestCase):
         self.mock_client.fetch_userinfo.return_value = {
             "email": "user@researchhub.foundation",
         }
-        state = signing.dumps({"user_id": user.id})
 
-        # Act
-        result = self.service.process_callback("auth-code", state)
-
-        # Assert
-        self.assertIn("gmail=error", result)
+        # Act / Assert
+        with self.assertRaises(GmailMailboxNotAllowedError):
+            self.service.connect_with_code(
+                user, code="auth-code", redirect_uri=_FE_REDIRECT
+            )
         self.assertFalse(OutreachMailboxConnection.objects.filter(user=user).exists())
 
-    def test_process_callback_rejects_researchhub_com(self):
+    def test_connect_with_code_rejects_researchhub_com(self):
         # Arrange
         user = create_random_default_user("rh_com")
         self.mock_client.exchange_code_for_token.return_value = {
@@ -163,14 +179,34 @@ class GmailOAuthServiceTests(TestCase):
         self.mock_client.fetch_userinfo.return_value = {
             "email": "editor@researchhub.com",
         }
-        state = signing.dumps({"user_id": user.id})
 
-        # Act
-        result = self.service.process_callback("auth-code", state)
-
-        # Assert
-        self.assertIn("gmail=error", result)
+        # Act / Assert
+        with self.assertRaises(GmailMailboxNotAllowedError):
+            self.service.connect_with_code(
+                user, code="auth-code", redirect_uri=_FE_REDIRECT
+            )
         self.assertFalse(OutreachMailboxConnection.objects.filter(user=user).exists())
+
+    def test_connect_with_code_rejects_evil_redirect_uri(self):
+        # Arrange
+        user = create_random_default_user("evil_redirect")
+
+        # Act / Assert
+        with self.assertRaises(GmailOAuthRedirectUriError):
+            self.service.connect_with_code(
+                user,
+                code="auth-code",
+                redirect_uri="https://evil.com/phish",
+            )
+        self.mock_client.exchange_code_for_token.assert_not_called()
+
+    def test_connect_with_code_rejects_missing_code(self):
+        # Arrange
+        user = create_random_default_user("missing_code")
+
+        # Act / Assert
+        with self.assertRaises(GmailOAuthError):
+            self.service.connect_with_code(user, code="", redirect_uri=_FE_REDIRECT)
 
     def test_email_from_token_response_raises_for_disallowed_domain(self):
         # Arrange
@@ -220,16 +256,3 @@ class GmailOAuthServiceTests(TestCase):
                 "last_error": None,
             },
         )
-
-    def test_get_redirect_url_defaults_and_rejects_evil_return(self):
-        # Act
-        success = self.service.get_redirect_url(
-            return_url="http://localhost:3000/settings?x=1"
-        )
-        evil = self.service.get_redirect_url(return_url="https://evil.com/phish")
-
-        # Assert
-        self.assertIn("gmail=connected", success)
-        self.assertIn("x=1", success)
-        self.assertNotIn("evil.com", evil)
-        self.assertIn("expert-finder/settings", evil)
