@@ -99,6 +99,7 @@ jobs:
           service: ${{ steps.config.outputs.service }}
           wait-for-service-stability: true
           wait-for-minutes: 20
+          wait-max-delay-seconds: 15
 
       - name: Summary
         env:
