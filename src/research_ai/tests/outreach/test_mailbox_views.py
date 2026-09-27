@@ -5,9 +5,11 @@ from rest_framework import status
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 
 from research_ai.models import OutreachMailboxConnection
-from research_ai.services.outreach.gmail_oauth import GmailOAuthConfigError
+from research_ai.services.outreach.gmail_oauth import (
+    GmailMailboxNotAllowedError,
+    GmailOAuthConfigError,
+)
 from research_ai.views.mailbox_views import (
-    OutreachMailboxCallbackView,
     OutreachMailboxConnectView,
     OutreachMailboxView,
 )
@@ -16,9 +18,11 @@ from user.tests.helpers import (
     create_random_authenticated_user,
 )
 
+_FE_REDIRECT = "http://localhost:3000/expert-finder/settings"
+
 
 @override_settings(
-    GMAIL_OUTREACH_FRONTEND_RETURN_URL=("http://localhost:3000/expert-finder/settings"),
+    GMAIL_OUTREACH_REDIRECT_URI=_FE_REDIRECT,
 )
 class OutreachMailboxViewTests(APITestCase):
     def setUp(self):
@@ -94,16 +98,19 @@ class OutreachMailboxViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.mock_service.disconnect.assert_called_once_with(self.moderator)
 
-    def test_connect_returns_auth_url_and_state(self):
+    def test_connect_get_returns_client_id_scopes_and_redirect(self):
         # Arrange
-        self.mock_service.build_auth_url.return_value = {
-            "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?x=1",
-            "state": "signed-state",
+        self.mock_service.get_connect_params.return_value = {
+            "client_id": "google-client-id",
+            "scopes": [
+                "openid",
+                "email",
+                "https://www.googleapis.com/auth/gmail.send",
+                "https://www.googleapis.com/auth/gmail.readonly",
+            ],
+            "redirect_uri": _FE_REDIRECT,
         }
-        request = self.factory.get(
-            "/api/research_ai/expert-finder/mailbox/connect/",
-            {"return_url": "http://localhost:3000/settings"},
-        )
+        request = self.factory.get("/api/research_ai/expert-finder/mailbox/connect/")
         force_authenticate(request, user=self.editor)
 
         # Act
@@ -113,14 +120,16 @@ class OutreachMailboxViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["state"], "signed-state")
-        self.mock_service.build_auth_url.assert_called_once_with(
-            self.editor.id, "http://localhost:3000/settings"
+        self.assertEqual(response.data["client_id"], "google-client-id")
+        self.assertEqual(response.data["redirect_uri"], _FE_REDIRECT)
+        self.assertIn(
+            "https://www.googleapis.com/auth/gmail.send", response.data["scopes"]
         )
+        self.mock_service.get_connect_params.assert_called_once_with()
 
-    def test_connect_missing_config_returns_500(self):
+    def test_connect_get_missing_config_returns_500(self):
         # Arrange
-        self.mock_service.build_auth_url.side_effect = GmailOAuthConfigError()
+        self.mock_service.get_connect_params.side_effect = GmailOAuthConfigError()
         request = self.factory.get("/api/research_ai/expert-finder/mailbox/connect/")
         force_authenticate(request, user=self.editor)
 
@@ -133,44 +142,85 @@ class OutreachMailboxViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         self.assertIn("not configured", response.data["detail"])
 
-    def test_callback_redirects_on_success(self):
+    def test_connect_post_exchanges_code_for_editor(self):
         # Arrange
-        self.mock_service.process_callback.return_value = (
-            "http://localhost:3000/expert-finder/settings?gmail=connected"
+        self.mock_service.connect_with_code.return_value = {
+            "connected": True,
+            "email": "editor@gmail.com",
+            "status": OutreachMailboxConnection.Status.ACTIVE,
+            "last_error": None,
+        }
+        request = self.factory.post(
+            "/api/research_ai/expert-finder/mailbox/connect/",
+            {"code": "auth-code", "redirect_uri": _FE_REDIRECT},
+            format="json",
         )
-        request = self.factory.get(
-            "/api/research_ai/expert-finder/mailbox/callback/",
-            {"code": "abc", "state": "st"},
-        )
+        force_authenticate(request, user=self.editor)
 
         # Act
-        response = OutreachMailboxCallbackView.as_view()(
+        response = OutreachMailboxConnectView.as_view()(
             request, gmail_oauth_service=self.mock_service
         )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
-        self.assertIn("gmail=connected", response.url)
-        self.mock_service.process_callback.assert_called_once_with(
-            code="abc", state="st"
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["email"], "editor@gmail.com")
+        self.mock_service.connect_with_code.assert_called_once_with(
+            self.editor, code="auth-code", redirect_uri=_FE_REDIRECT
         )
 
-    def test_callback_cancelled_redirects_with_error(self):
+    def test_connect_post_requires_code_and_redirect_uri(self):
         # Arrange
-        self.mock_service.get_redirect_url.return_value = (
-            "http://localhost:3000/expert-finder/settings?gmail=error"
+        request = self.factory.post(
+            "/api/research_ai/expert-finder/mailbox/connect/",
+            {"code": "auth-code"},
+            format="json",
         )
-        request = self.factory.get(
-            "/api/research_ai/expert-finder/mailbox/callback/",
-            {"error": "access_denied"},
-        )
+        force_authenticate(request, user=self.editor)
 
         # Act
-        response = OutreachMailboxCallbackView.as_view()(
+        response = OutreachMailboxConnectView.as_view()(
             request, gmail_oauth_service=self.mock_service
         )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
-        self.assertIn("gmail=error", response.url)
-        self.mock_service.get_redirect_url.assert_called_once_with(error="error")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.mock_service.connect_with_code.assert_not_called()
+
+    def test_connect_post_rejects_disallowed_mailbox(self):
+        # Arrange
+        self.mock_service.connect_with_code.side_effect = GmailMailboxNotAllowedError(
+            "user@researchhub.foundation"
+        )
+        request = self.factory.post(
+            "/api/research_ai/expert-finder/mailbox/connect/",
+            {"code": "auth-code", "redirect_uri": _FE_REDIRECT},
+            format="json",
+        )
+        force_authenticate(request, user=self.editor)
+
+        # Act
+        response = OutreachMailboxConnectView.as_view()(
+            request, gmail_oauth_service=self.mock_service
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "mailbox_not_allowed")
+        self.assertEqual(response.data["email"], "user@researchhub.foundation")
+
+    def test_connect_post_requires_auth(self):
+        # Arrange
+        request = self.factory.post(
+            "/api/research_ai/expert-finder/mailbox/connect/",
+            {"code": "auth-code", "redirect_uri": _FE_REDIRECT},
+            format="json",
+        )
+
+        # Act
+        response = OutreachMailboxConnectView.as_view()(
+            request, gmail_oauth_service=self.mock_service
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

@@ -1,7 +1,7 @@
 """Expert outreach: generating, templating, and sending emails to experts.
 
 - ``email_generator`` -- LLM generation of outreach emails for an expert.
-- ``email_sender`` -- SES send of a finished email.
+- ``email_sender`` / ``gmail_sender`` -- Gmail send of a finished email.
 - ``template_service`` -- CRUD/rendering of user-defined email templates.
 - ``template_variables`` -- ``{{entity.field}}`` variable substitution (see
   ``EMAIL_TEMPLATE_VARIABLES.md`` in this directory).

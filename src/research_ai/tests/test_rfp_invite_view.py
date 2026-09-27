@@ -7,7 +7,13 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from purchase.models import Grant
-from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
+from research_ai.models import (
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    OutreachMailboxConnection,
+    SearchExpert,
+)
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
 from user.tests.helpers import create_random_authenticated_user
@@ -31,12 +37,29 @@ def _make_grant(*, created_by, contacts=None):
     return grant
 
 
+def _connect_gmail(user, email: str):
+    return OutreachMailboxConnection.objects.create(
+        user=user,
+        email=email,
+        provider=OutreachMailboxConnection.Provider.GMAIL,
+        refresh_token="refresh-token",
+        access_token="access-token",
+        access_token_expires_at=timezone.now() + timedelta(hours=1),
+        scopes=["https://www.googleapis.com/auth/gmail.send"],
+        status=OutreachMailboxConnection.Status.ACTIVE,
+        connected_at=timezone.now(),
+    )
+
+
 class InviteRfpApplicantsViewTests(APITestCase):
     def setUp(self):
         self.creator = create_random_authenticated_user("creator", moderator=False)
         self.contact = create_random_authenticated_user("contact", moderator=False)
         self.other = create_random_authenticated_user("other", moderator=False)
         self.moderator = create_random_authenticated_user("mod", moderator=True)
+        _connect_gmail(self.creator, "creator@gmail.com")
+        _connect_gmail(self.contact, "contact@gmail.com")
+        _connect_gmail(self.moderator, "mod@gmail.com")
         self.grant = _make_grant(created_by=self.creator, contacts=[self.contact])
         self.url = (
             f"/api/research_ai/expert-finder/rfp/{self.grant.id}/invite-applicants/"
@@ -106,10 +129,22 @@ class InviteRfpApplicantsViewTests(APITestCase):
         mock_delay.assert_called_once()
         kwargs = mock_delay.call_args.kwargs
         self.assertEqual(kwargs["reply_to"], [self.creator.email])
+        self.assertEqual(kwargs["sender_user_id"], self.creator.id)
+        self.assertNotIn("from_email", kwargs)
         self.assertEqual(
             sorted(kwargs["generated_email_ids"]),
             sorted(data["generated_email_ids"]),
         )
+
+    def test_invite_without_gmail_returns_409(self):
+        user = create_random_authenticated_user("invite_nogmail", moderator=False)
+        grant = _make_grant(created_by=user)
+        url = f"/api/research_ai/expert-finder/rfp/{grant.id}/invite-applicants/"
+        self.client.force_authenticate(user)
+        resp = self.client.post(url, {"emails": ["a@example.com"]}, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(resp.json().get("code"), "gmail_not_connected")
+        self.assertEqual(GeneratedEmail.objects.count(), 0)
 
     @patch("research_ai.views.email_views.send_queued_emails_task.delay")
     def test_grant_contact_can_invite(self, mock_delay):
