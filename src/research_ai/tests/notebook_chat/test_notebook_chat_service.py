@@ -168,11 +168,11 @@ class NotebookChatServiceTests(TestCase):
 
     def test_submit_message_snapshots_generation_options(self):
         # Act
-        execution, _delay = self._submit(effort="high", thinking="disabled")
+        execution, _delay = self._submit(effort="high", thinking="adaptive")
 
         # Assert
         self.assertEqual(execution.configuration["effort"], "high")
-        self.assertEqual(execution.configuration["thinking"], "disabled")
+        self.assertEqual(execution.configuration["thinking"], "adaptive")
 
     def test_later_messages_inherit_or_repeat_the_effort(self):
         # Arrange
@@ -724,9 +724,9 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(result["final_text"], "Done.")
         self.assertEqual(event.user, self.user)
         self.assertEqual(event.feature, "notebook_chat")
-        self.assertEqual(event.cost_microusd, 7500)
+        self.assertEqual(event.cost_microusd, 6000)
         self.assertEqual(len(provider.calls), 1)
-        self.assertEqual(budget_status(self.user).as_dict()["credits"]["used"], "7.5")
+        self.assertEqual(budget_status(self.user).as_dict()["credits"]["used"], "6")
 
     def test_run_turn_honors_the_recorded_iteration_limit(self):
         # Arrange: the turn was submitted with a one-iteration budget; the

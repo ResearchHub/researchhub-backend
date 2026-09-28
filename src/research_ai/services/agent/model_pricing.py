@@ -64,6 +64,7 @@ def _price(
 
 # Sources reviewed 2026-09-28:
 # - Claude Platform pricing: https://platform.claude.com/docs/en/about-claude/pricing
+# - Opus 5.5 cache read: https://platform.claude.com/docs/en/models/opus-5-5/overview
 # - AWS billing: https://docs.aws.amazon.com/claude-platform/latest/userguide/billing.html
 # - OpenRouter live catalog: https://openrouter.ai/api/v1/models
 # - OpenRouter usage cost: https://openrouter.ai/docs/cookbook/administration/usage-accounting

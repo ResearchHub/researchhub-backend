@@ -265,7 +265,7 @@ class AssistantChatServiceTests(TestCase):
         # Assert
         event = execution.usage_events.get()
         self.assertEqual(event.feature, WORKFLOW)
-        self.assertEqual(budget_status(self.user).as_dict()["credits"]["used"], "7.5")
+        self.assertEqual(budget_status(self.user).as_dict()["credits"]["used"], "6")
 
     def test_get_conversation_is_scoped_to_owner_and_workflow(self):
         # Arrange
