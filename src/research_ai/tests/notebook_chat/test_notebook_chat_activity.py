@@ -1501,6 +1501,78 @@ class NotebookChatActivityProjectionTests(TestCase):
         self.assertNotIn("sources", event)
         self.assertNotIn("max_uses_exceeded", json.dumps(event, default=str))
 
+    def _add_web_fetch_row(self, url, result_content):
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "server_tool",
+                    "data": {
+                        "type": "server_tool_use",
+                        "id": "s1",
+                        "name": "web_fetch",
+                        "input": {"url": url},
+                    },
+                },
+                {
+                    "type": "server_tool",
+                    "data": {
+                        "type": "web_fetch_tool_result",
+                        "tool_use_id": "s1",
+                        "content": result_content,
+                    },
+                },
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+
+    def test_server_side_web_fetch_reports_the_page_it_read(self):
+        # Arrange
+        self._add_web_fetch_row(
+            "https://example.org/rfa",
+            {
+                "type": "web_fetch_result",
+                "url": "https://example.org/rfa",
+                "content": {
+                    "type": "document",
+                    "title": "Funding opportunity",
+                    "source": {
+                        "type": "text",
+                        "media_type": "text/plain",
+                        "data": "private page body",
+                    },
+                },
+            },
+        )
+
+        # Act
+        event = self._single_event()
+
+        # Assert: the page is cited by url and title; its body stays private.
+        self.assertEqual(event["label"], "Read a web page")
+        self.assertEqual(event["status"], "succeeded")
+        self.assertEqual(event["detail"], "https://example.org/rfa")
+        self.assertEqual(
+            event["sources"],
+            [{"title": "Funding opportunity", "url": "https://example.org/rfa"}],
+        )
+        self.assertNotIn("private page body", json.dumps(event, default=str))
+
+    def test_failed_web_fetch_names_the_url_without_a_source(self):
+        # Arrange
+        self._add_web_fetch_row(
+            "https://example.org/gone",
+            {"type": "web_fetch_tool_result_error", "error_code": "url_not_accessible"},
+        )
+
+        # Act
+        event = self._single_event()
+
+        # Assert
+        self.assertEqual(event["status"], "failed")
+        self.assertEqual(event["detail"], "https://example.org/gone")
+        self.assertNotIn("sources", event)
+
 
 @override_settings(**MODEL_SETTINGS)
 class NotebookChatActivityViewTests(APITestCase):

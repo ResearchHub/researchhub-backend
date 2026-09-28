@@ -311,7 +311,7 @@ class NotebookChatServiceTests(TestCase):
         # today's generator default.
         resolve.assert_called_once_with(
             "claude_platform:claude-sonnet-5",
-            native_tools=frozenset({"web_search"}),
+            native_tools=frozenset({"web_search", "web_fetch"}),
             effort="low",
         )
 
@@ -618,7 +618,7 @@ class NotebookChatServiceTests(TestCase):
         # Assert
         resolver.assert_called_once_with(
             "claude_platform:claude-sonnet-5",
-            native_tools=frozenset({"web_search"}),
+            native_tools=frozenset({"web_search", "web_fetch"}),
             effort="low",
         )
         self.assertEqual(result["final_text"], "Done.")

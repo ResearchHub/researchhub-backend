@@ -103,6 +103,30 @@ class RenderToolsTests(SimpleTestCase):
                 }
             ],
         )
+        self.assertEqual(provider.native_tool_names, frozenset())
+
+    def test_web_fetch_renders_as_an_openrouter_server_tool(self):
+        # Arrange
+        provider = _build_provider(web_fetch=True)
+
+        # Act
+        rendered = provider.render_tools([])
+
+        # Assert: OpenRouter runs it, so no local tool may claim the name.
+        self.assertEqual(
+            rendered,
+            [
+                {
+                    "type": "openrouter:web_fetch",
+                    "parameters": {
+                        "engine": openrouter.WEB_FETCH_ENGINE,
+                        "max_uses": openrouter.WEB_FETCH_MAX_USES,
+                        "max_content_tokens": openrouter.WEB_FETCH_MAX_CONTENT_TOKENS,
+                    },
+                }
+            ],
+        )
+        self.assertEqual(provider.native_tool_names, frozenset({"web_fetch"}))
 
 
 class RenderMessagesTests(SimpleTestCase):

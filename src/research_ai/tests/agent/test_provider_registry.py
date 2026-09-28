@@ -85,6 +85,25 @@ class ResolveProviderTests(SimpleTestCase):
         self.assertEqual(provider.native_tool_names, frozenset({"web_search"}))
         bedrock_cls.assert_not_called()
 
+    def test_native_web_fetch_is_enabled_alongside_search(self, bedrock_cls):
+        # Arrange / Act
+        provider = resolve_provider(native_tools=frozenset({"web_search", "web_fetch"}))
+
+        # Assert
+        self.assertEqual(
+            provider.native_tool_names, frozenset({"web_search", "web_fetch"})
+        )
+
+    def test_openrouter_serves_web_fetch_but_not_web_search(self, bedrock_cls):
+        # Arrange / Act: search stays on the local Brave tool there.
+        provider = resolve_provider(
+            "openrouter:openai/gpt-5.6-sol",
+            native_tools=frozenset({"web_search", "web_fetch"}),
+        )
+
+        # Assert
+        self.assertEqual(provider.native_tool_names, frozenset({"web_fetch"}))
+
     def test_bedrock_prefix_routes_to_bedrock(self, bedrock_cls):
         # Arrange / Act
         provider = resolve_provider("bedrock:us.meta.llama4")

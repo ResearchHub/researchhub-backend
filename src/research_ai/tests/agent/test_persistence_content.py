@@ -4,6 +4,7 @@ from unittest import TestCase
 
 from research_ai.services.agent.types import (
     Message,
+    ServerToolBlock,
     TextBlock,
     ToolUseBlock,
     deserialize_messages,
@@ -19,6 +20,42 @@ from research_ai.services.agent_persistence.content import (
     serialize_final_output,
     serialize_trace_message,
 )
+
+
+def _fetched_pdf_turn(body: str) -> Message:
+    """An assistant turn that fetched a PDF server-side; the API returns it whole."""
+    return Message(
+        role="assistant",
+        content=[
+            ServerToolBlock(
+                data={
+                    "type": "server_tool_use",
+                    "id": "srvtoolu_1",
+                    "name": "web_fetch",
+                    "input": {"url": "https://example.org/paper.pdf"},
+                }
+            ),
+            ServerToolBlock(
+                data={
+                    "type": "web_fetch_tool_result",
+                    "tool_use_id": "srvtoolu_1",
+                    "content": {
+                        "type": "web_fetch_result",
+                        "url": "https://example.org/paper.pdf",
+                        "content": {
+                            "type": "document",
+                            "title": "Paper",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": body,
+                            },
+                        },
+                    },
+                }
+            ),
+        ],
+    )
 
 
 class AgentPersistenceContentTests(TestCase):
@@ -108,6 +145,33 @@ class AgentPersistenceContentTests(TestCase):
         self.assertEqual(original_size, json_size_bytes(blocks))
         self.assertLessEqual(json_size_bytes(content), MAX_TRACE_MESSAGE_BYTES)
         deserialize_messages([{"role": message.role, "content": content}])
+
+    def test_trace_keeps_a_fetched_page_citation_but_not_its_body(self):
+        # Arrange: a PDF body alone is far over the trace row limit.
+        body = "J" * (MAX_TRACE_MESSAGE_BYTES * 2)
+
+        # Act
+        content, is_truncated, _size = serialize_trace_message(_fetched_pdf_turn(body))
+
+        # Assert: the row survives with what the activity feed shows.
+        self.assertFalse(is_truncated)
+        self.assertEqual(content[0]["data"]["name"], "web_fetch")
+        page = content[1]["data"]["content"]
+        self.assertEqual(page["url"], "https://example.org/paper.pdf")
+        self.assertEqual(page["content"]["title"], "Paper")
+        self.assertEqual(page["content"]["source"]["data"], "")
+        self.assertEqual(page["content"]["source"]["omitted_chars"], len(body))
+
+    def test_context_keeps_a_fetched_pdf_whole(self):
+        # Arrange: replay needs the page exactly as the provider returned it.
+        message = _fetched_pdf_turn("J" * (5 * 1024 * 1024))
+
+        # Act
+        content, _state, is_compacted, _size = serialize_context_message(message)
+
+        # Assert
+        self.assertFalse(is_compacted)
+        self.assertEqual(content, serialize_messages([message])[0]["content"])
 
     def test_context_keeps_complete_message_within_limit(self):
         # Arrange

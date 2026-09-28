@@ -105,6 +105,14 @@ WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 WEB_SEARCH_TOOL_NAME = "web_search"
 WEB_SEARCH_MAX_USES = 6
 
+# Anthropic's server-side page fetch; it only fetches URLs already in the
+# conversation. ``max_content_tokens`` bounds a text page but not a PDF.
+WEB_FETCH = True
+WEB_FETCH_TOOL_TYPE = "web_fetch_20260209"
+WEB_FETCH_TOOL_NAME = "web_fetch"
+WEB_FETCH_MAX_USES = 5
+WEB_FETCH_MAX_CONTENT_TOKENS = 25_000
+
 
 # Messages API ``stop_reason`` -> neutral ``StopReason``. ``refusal`` is a
 # successful HTTP 200 whose content is empty or partial (Opus 5 ships elevated
@@ -349,6 +357,7 @@ class ClaudePlatformProvider(LLMProvider):
         client: Any = None,
         model_id: str | None = None,
         web_search: bool = False,
+        web_fetch: bool = False,
         effort: str | None = None,
         thinking: str | None = None,
     ):
@@ -359,13 +368,19 @@ class ClaudePlatformProvider(LLMProvider):
         self.thinking = THINKING if thinking is None else thinking
         self.web_search = web_search and WEB_SEARCH
         self.web_search_max_uses = WEB_SEARCH_MAX_USES
+        self.web_fetch = web_fetch and WEB_FETCH
 
     # -- public surface ---------------------------------------------------
 
     @property
     def native_tool_names(self) -> frozenset[str]:
-        """``web_search`` when server-side search is on; nothing otherwise."""
-        return frozenset({WEB_SEARCH_TOOL_NAME} if self.web_search else ())
+        """The server-side tools switched on: ``web_search``, ``web_fetch``."""
+        names = []
+        if self.web_search:
+            names.append(WEB_SEARCH_TOOL_NAME)
+        if self.web_fetch:
+            names.append(WEB_FETCH_TOOL_NAME)
+        return frozenset(names)
 
     def render_tools(self, tools: list[Tool]) -> list[dict]:
         """Render tools to the Messages API ``tools`` list.
@@ -395,6 +410,15 @@ class ClaudePlatformProvider(LLMProvider):
                     "type": WEB_SEARCH_TOOL_TYPE,
                     "name": WEB_SEARCH_TOOL_NAME,
                     "max_uses": self.web_search_max_uses,
+                }
+            )
+        if self.web_fetch:
+            rendered.append(
+                {
+                    "type": WEB_FETCH_TOOL_TYPE,
+                    "name": WEB_FETCH_TOOL_NAME,
+                    "max_uses": WEB_FETCH_MAX_USES,
+                    "max_content_tokens": WEB_FETCH_MAX_CONTENT_TOKENS,
                 }
             )
         return rendered
@@ -773,12 +797,13 @@ class ClaudePlatformProvider(LLMProvider):
             return
         logger.info(
             "claude platform usage: input=%s cache_read=%s cache_write=%s "
-            "output=%s web_searches=%s container_returned=%s",
+            "output=%s web_searches=%s web_fetches=%s container_returned=%s",
             getattr(usage, "input_tokens", None),
             getattr(usage, "cache_read_input_tokens", None),
             getattr(usage, "cache_creation_input_tokens", None),
             getattr(usage, "output_tokens", None),
             self._server_tool_usage(usage, "web_search_requests"),
+            self._server_tool_usage(usage, "web_fetch_requests"),
             getattr(response, "container", None) is not None,
         )
 

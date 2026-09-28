@@ -9,11 +9,15 @@ import httpx
 from anthropic.types import (
     CodeExecutionToolResultBlock,
     Container,
+    DocumentBlock,
     EncryptedCodeExecutionResultBlock,
+    PlainTextSource,
     RawMessageDeltaEvent,
     RedactedThinkingBlock,
     ServerToolUseBlock,
     Usage,
+    WebFetchBlock,
+    WebFetchToolResultBlock,
     WebSearchResultBlock,
     WebSearchToolResultBlock,
 )
@@ -249,6 +253,30 @@ class RenderToolsTests(SimpleTestCase):
         self.assertIs(rendered[0]["eager_input_streaming"], True)
         self.assertNotIn("eager_input_streaming", rendered[1])
         self.assertNotIn("eager_input_streaming", rendered[2])
+
+    def test_web_fetch_renders_after_search_with_its_bounds(self):
+        # Arrange
+        provider = _build_provider(web_search=True, web_fetch=True)
+
+        # Act
+        rendered = provider.render_tools([])
+
+        # Assert: a fixed order keeps the cached tools prefix byte-identical.
+        self.assertEqual(
+            [tool["name"] for tool in rendered], ["web_search", "web_fetch"]
+        )
+        self.assertEqual(
+            rendered[1],
+            {
+                "type": claude_platform.WEB_FETCH_TOOL_TYPE,
+                "name": "web_fetch",
+                "max_uses": claude_platform.WEB_FETCH_MAX_USES,
+                "max_content_tokens": claude_platform.WEB_FETCH_MAX_CONTENT_TOKENS,
+            },
+        )
+        self.assertEqual(
+            provider.native_tool_names, frozenset({"web_search", "web_fetch"})
+        )
 
     def test_web_search_off_renders_only_the_callers_tools(self):
         # Arrange: native search is opt-in, so unrelated agents do not receive it.
@@ -929,6 +957,53 @@ class ServerSideToolTests(SimpleTestCase):
         self.assertEqual(request["type"], "server_tool_use")
         self.assertEqual(result["type"], "web_search_tool_result")
         self.assertEqual(result["tool_use_id"], request["id"])
+
+    def test_fetched_page_replays_whole_after_its_request(self):
+        # Arrange: a turn that fetched a page server-side, then answered.
+        fetch_result = WebFetchToolResultBlock(
+            type="web_fetch_tool_result",
+            tool_use_id="srvtoolu_3",
+            content=WebFetchBlock(
+                type="web_fetch_result",
+                url="https://example.org/rfa",
+                retrieved_at="2026-09-28T12:00:00Z",
+                content=DocumentBlock(
+                    type="document",
+                    title="Funding opportunity",
+                    source=PlainTextSource(
+                        type="text", media_type="text/plain", data="Deadline: May 1"
+                    ),
+                ),
+            ),
+        )
+        response = _build_response(
+            [
+                ServerToolUseBlock(
+                    id="srvtoolu_3",
+                    name="web_fetch",
+                    input={"url": "https://example.org/rfa"},
+                    type="server_tool_use",
+                ),
+                fetch_result,
+                AnthropicTextBlock(type="text", text="The deadline is May 1."),
+            ]
+        )
+        provider = _build_provider([response], web_fetch=True)
+        turn = _complete(provider)
+
+        # Act
+        rendered = provider._render_messages(
+            [Message(role="assistant", content=turn.replay_content)]
+        )
+
+        # Assert: the page goes back exactly as fetched, still paired, and
+        # nothing is left for the loop to dispatch.
+        request, result, _answer = rendered[0]["content"]
+        self.assertEqual(request["name"], "web_fetch")
+        self.assertEqual(
+            result, fetch_result.model_dump(mode="json", exclude_none=True)
+        )
+        self.assertEqual(turn.tool_calls, [])
 
     def test_code_execution_result_replays_with_encrypted_output(self):
         # Arrange: web search may invoke provider-managed code execution and
