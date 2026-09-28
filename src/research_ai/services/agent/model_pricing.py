@@ -62,15 +62,17 @@ def _price(
     )
 
 
-# Sources reviewed 2026-09-02:
+# Sources reviewed 2026-09-28:
 # - Claude Platform pricing: https://platform.claude.com/docs/en/about-claude/pricing
 # - AWS billing: https://docs.aws.amazon.com/claude-platform/latest/userguide/billing.html
 # - OpenRouter live catalog: https://openrouter.ai/api/v1/models
 # - OpenRouter usage cost: https://openrouter.ai/docs/cookbook/administration/usage-accounting
+# - OpenAI GPT-6 models: https://developers.openai.com/api/docs/models
 # Prices are keyed by the same normalized ids as model capabilities. Historical
 # ledger rows retain the charge applied when their request completed.
 _CLAUDE_PLATFORM_PRICING = {
     "claude-opus-5": _price("5", "25", "0.50", "6.25", "0.01"),
+    "claude-opus-5-5": _price("4", "20", "0.20", "5", "0.01"),
     "claude-sonnet-5": _price("2", "10", "0.20", "2.50", "0.01"),
     "claude-haiku-4-5": _price("1", "5", "0.10", "1.25", "0.01"),
 }
@@ -103,6 +105,24 @@ _OPENROUTER_PRICING = {
         override_after=272_000,
         override=("0.40", "1.80", "0.04", "0.50"),
     ),
+    "openai/gpt-6-sol": _price(
+        "2",
+        "10",
+        "0.20",
+        "2.50",
+        "0.01",
+        override_after=272_000,
+        override=("4", "15", "0.40", "5"),
+    ),
+    "openai/gpt-6-luna": _price(
+        "0.10",
+        "0.50",
+        "0.01",
+        "0.125",
+        "0.01",
+        override_after=272_000,
+        override=("0.20", "0.75", "0.02", "0.25"),
+    ),
     "google/gemini-3.1-pro-preview": _price(
         "2",
         "12",
@@ -130,6 +150,7 @@ _OPENROUTER_PRICING = {
     "deepseek/deepseek-v4-flash-0731": _price("0.05", "0.16", "0.013", "0.05"),
     "deepseek/deepseek-v4-pro-0813": _price("0.66", "1.98", "0.022", "0.66"),
     "moonshotai/kimi-k3": _price("2.55", "12.75", "0.256", "2.55"),
+    "qwen/qwen3.8-max-0902": _price("2", "6", "0.25", "2.50"),
 }
 
 _PROVIDER_PRICING = {

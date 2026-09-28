@@ -92,6 +92,40 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertEqual(capabilities.thinking, ("adaptive", "disabled"))
         self.assertFalse(capabilities.temperature)
 
+    def test_new_models_are_selectable_with_reviewed_controls(self):
+        # Arrange
+        expected = {
+            "claude_platform:claude-opus-5-5": ("adaptive",),
+            "openrouter:openai/gpt-6-sol": (),
+            "openrouter:openai/gpt-6-luna": (),
+            "openrouter:qwen/qwen3.8-max-0902": ("adaptive",),
+        }
+
+        # Act
+        options = {option.ref: option for option in available_models()}
+
+        # Assert
+        for ref, thinking in expected.items():
+            with self.subTest(ref=ref):
+                self.assertEqual(validate_model_ref(ref), ref)
+                self.assertEqual(options[ref].capabilities.thinking, thinking)
+                self.assertIsNotNone(options[ref].capabilities.max_output_tokens)
+
+    def test_gpt6_chat_completions_controls_are_tool_compatible(self):
+        # Arrange / Act / Assert
+        for model_id in ("openai/gpt-6-sol", "openai/gpt-6-luna"):
+            with self.subTest(model_id=model_id):
+                capabilities = model_capabilities("openrouter", model_id)
+                self.assertEqual(capabilities.effort, ("none",))
+                self.assertFalse(capabilities.temperature)
+
+    def test_opus_5_5_requires_adaptive_thinking(self):
+        # Act / Assert
+        with self.assertRaisesRegex(ValueError, "does not support thinking"):
+            validate_generation_options(
+                "claude_platform", "claude-opus-5-5", thinking="disabled"
+            )
+
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
     def test_generator_default_outside_the_catalog_is_still_listed(self):
         # Arrange: no Bedrock ref is catalogued, so the default is not one.

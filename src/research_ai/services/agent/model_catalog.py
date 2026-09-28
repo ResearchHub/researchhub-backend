@@ -57,9 +57,14 @@ class ModelOption:
 
 _CATALOG: tuple[ModelOption, ...] = (
     ModelOption(
+        ref=f"{CLAUDE_PLATFORM}:claude-opus-5-5",
+        label="Claude Opus 5.5",
+        description="Anthropic's newer model for long-running research and drafting.",
+    ),
+    ModelOption(
         ref=f"{CLAUDE_PLATFORM}:claude-opus-5",
         label="Claude Opus 5",
-        description="Anthropic's flagship; strongest on agentic research and drafting.",
+        description="Anthropic's previous Opus model for research and drafting.",
     ),
     ModelOption(
         ref=f"{CLAUDE_PLATFORM}:claude-sonnet-5",
@@ -67,9 +72,19 @@ _CATALOG: tuple[ModelOption, ...] = (
         description="Anthropic's balanced model; near-flagship quality, faster.",
     ),
     ModelOption(
+        ref=f"{OPENROUTER}:openai/gpt-6-sol",
+        label="GPT-6 Sol",
+        description="OpenAI's model for complex agent workflows.",
+    ),
+    ModelOption(
+        ref=f"{OPENROUTER}:openai/gpt-6-luna",
+        label="GPT-6 Luna",
+        description="OpenAI's fast model for focused, high-volume work.",
+    ),
+    ModelOption(
         ref=f"{OPENROUTER}:openai/gpt-5.6-sol",
         label="GPT-5.6 Sol",
-        description="OpenAI's flagship generalist.",
+        description="OpenAI's previous Sol model for complex work.",
     ),
     ModelOption(
         ref=f"{OPENROUTER}:openai/gpt-5.6-terra",
@@ -79,7 +94,7 @@ _CATALOG: tuple[ModelOption, ...] = (
     ModelOption(
         ref=f"{OPENROUTER}:openai/gpt-5.6-luna",
         label="GPT-5.6 Luna",
-        description="OpenAI's fast, cost-efficient model.",
+        description="OpenAI's previous fast, cost-efficient model.",
     ),
     ModelOption(
         ref=f"{OPENROUTER}:google/gemini-3.8-flash",
@@ -110,6 +125,11 @@ _CATALOG: tuple[ModelOption, ...] = (
         ref=f"{OPENROUTER}:moonshotai/kimi-k3",
         label="Kimi K3",
         description="Moonshot's frontier open-weight model.",
+    ),
+    ModelOption(
+        ref=f"{OPENROUTER}:qwen/qwen3.8-max-0902",
+        label="Qwen3.8 Max (0902)",
+        description="Qwen's long-context model for research and multi-tool work.",
     ),
 )
 
