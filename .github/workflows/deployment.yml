@@ -113,9 +113,21 @@ jobs:
           name: "backend-${{ steps.git_sha.outputs.short_git_sha }}"
           path: target/deploy.zip
 
+  build:
+    needs: package
+    if: (github.event.inputs.deploy_env || 'staging') == 'staging'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/build.yml
+    with:
+      git_ref: ${{ needs.package.outputs.git_sha }}
+    secrets: inherit
+
   # Staging migrates with the ECS task before anything is deployed. Prod still
   # migrates in the Beanstalk predeploy hook.
   migrate:
+    needs: [package, build]
     if: |
       (github.event.inputs.deploy_env || 'staging') == 'staging' &&
       (
