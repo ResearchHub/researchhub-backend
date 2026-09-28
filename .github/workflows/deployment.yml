@@ -46,6 +46,7 @@ jobs:
         github.event.workflow_run.conclusion == 'success'
       )
     outputs:
+      git_sha: ${{ steps.git_sha.outputs.git_sha }}
       short_git_sha: ${{ steps.git_sha.outputs.short_git_sha }}
 
     steps:
@@ -68,6 +69,7 @@ jobs:
           GIT_SHA=$(git rev-parse HEAD)
           echo "$GIT_SHA" > src/git_hash.txt
           SHORT_GIT_SHA=${GIT_SHA:0:7}
+          echo "git_sha=$GIT_SHA" >> "$GITHUB_OUTPUT"
           echo "short_git_sha=$SHORT_GIT_SHA" >> "$GITHUB_OUTPUT"
           echo "Git SHA: ${SHORT_GIT_SHA}"
 
@@ -113,9 +115,21 @@ jobs:
           name: "backend-${{ steps.git_sha.outputs.short_git_sha }}"
           path: target/deploy.zip
 
+  build:
+    needs: package
+    if: (github.event.inputs.deploy_env || 'staging') == 'staging'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/build.yml
+    with:
+      git_ref: ${{ needs.package.outputs.git_sha }}
+    secrets: inherit
+
   # Staging migrates with the ECS task before anything is deployed. Prod still
   # migrates in the Beanstalk predeploy hook.
   migrate:
+    needs: [package, build]
     if: |
       (github.event.inputs.deploy_env || 'staging') == 'staging' &&
       (
@@ -131,16 +145,23 @@ jobs:
       id-token: write
     uses: ./.github/workflows/database-migration.yml
     with:
-      git_ref: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
+      git_ref: ${{ needs.package.outputs.git_sha }}
     secrets: inherit
 
   deploy-api:
     needs: [package, migrate]
-    # The migration is skipped for prod, which must not skip the deployment.
+    # Only prod may deploy with a skipped migration.
+    # On staging, a failed build skips migration and must block deployment.
     if: |
       !cancelled() &&
       needs.package.result == 'success' &&
-      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+      (
+        needs.migrate.result == 'success' ||
+        (
+          github.event.inputs.deploy_env == 'prod' &&
+          needs.migrate.result == 'skipped'
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
