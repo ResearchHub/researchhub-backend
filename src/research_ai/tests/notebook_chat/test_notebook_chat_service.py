@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 
+from note.services.note_content_service import NoteContentService
 from note.tests.helpers import create_note
 from research_ai.models import (
     AgentConversation,
@@ -967,6 +968,54 @@ class NotebookChatServiceTests(TestCase):
         self.assertIn("First answer", texts)
         self.assertIn("Second question", texts)
         self.assertEqual(AgentConversation.objects.filter(user=self.user).count(), 1)
+
+    def test_turn_after_a_user_edit_is_told_the_note_changed(self):
+        # Arrange: the agent reads the note in one turn; the user then edits it.
+        first, _delay = self._submit("Read my note")
+        _make_service(
+            provider=FakeProvider(
+                [
+                    tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                    text_turn("Read it."),
+                ]
+            )
+        ).run_turn(first.id)
+        user_version = NoteContentService().create_version(
+            self.note, {"type": "doc", "content": [{"type": "paragraph"}]}
+        )
+        second, _delay = self._submit("Now tighten it")
+        provider = FakeProvider([text_turn("Will do.")])
+
+        # Act
+        _make_service(provider=provider).run_turn(second.id)
+
+        # Assert: the new prompt flags the change ahead of the user's message.
+        prompt = provider.calls[0][-1].content[0].text
+        self.assertIn(
+            f"note {self.note.id} is now at version {user_version.id}", prompt
+        )
+        self.assertIn(f"you last saw version {self.content.id}", prompt)
+        self.assertTrue(prompt.endswith("Now tighten it"))
+
+    def test_turn_without_note_changes_gets_the_message_verbatim(self):
+        # Arrange
+        first, _delay = self._submit("Read my note")
+        _make_service(
+            provider=FakeProvider(
+                [
+                    tool_turn("t1", "read_note", {"note_id": self.note.id}),
+                    text_turn("Read it."),
+                ]
+            )
+        ).run_turn(first.id)
+        second, _delay = self._submit("Thanks")
+        provider = FakeProvider([text_turn("Anytime.")])
+
+        # Act
+        _make_service(provider=provider).run_turn(second.id)
+
+        # Assert
+        self.assertEqual(provider.calls[0][-1].content[0].text, "Thanks")
 
 
 @override_settings(**MODEL_SETTINGS)
