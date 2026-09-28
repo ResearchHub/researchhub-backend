@@ -16,6 +16,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from note.models import Note
+from note.tests.helpers import without_editor_shape
 from purchase.models import Grant
 from research_ai.models import (
     AgentExecution,
@@ -372,7 +373,9 @@ class ProposalDraftServiceTests(TestCase):
         # assembles the doc + plain text from the submitted sections.
         expected_plain, expected_doc = assemble_proposal(_clean_sections())
         self.assertIsInstance(note.latest_version.json, str)
-        self.assertEqual(json.loads(note.latest_version.json), expected_doc)
+        self.assertEqual(
+            without_editor_shape(json.loads(note.latest_version.json)), expected_doc
+        )
         self.assertEqual(note.latest_version.plain_text, expected_plain)
 
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
