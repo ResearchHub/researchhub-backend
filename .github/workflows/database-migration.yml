@@ -3,6 +3,11 @@ name: Database Migration
 on:
   workflow_call:
     inputs:
+      deploy_env:
+        description: "Target environment"
+        required: false
+        default: staging
+        type: string
       git_ref:
         description: "Git hash or branch to run the migrations from"
         required: true
@@ -15,8 +20,8 @@ on:
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
-  DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
-  MIGRATION_TASK_PARAMETER: /researchhub/staging/tasks/database-migration/run-task
+  DEPLOY_ROLE_ARN: ${{ vars[inputs.deploy_env == 'prod' && 'PROD_DEPLOY_ROLE_ARN' || 'STAGING_DEPLOY_ROLE_ARN'] }}
+  MIGRATION_TASK_PARAMETER: /researchhub/${{ inputs.deploy_env }}/tasks/database-migration/run-task
   CONTAINER_NAME: migration
 
 jobs:
@@ -56,7 +61,7 @@ jobs:
             --image-ids "imageTag=$IMAGE_TAG" \
             > /dev/null
 
-      - name: Assume staging deploy role
+      - name: Assume ${{ inputs.deploy_env }} deploy role
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
