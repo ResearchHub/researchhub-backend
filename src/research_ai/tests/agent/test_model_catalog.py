@@ -1,5 +1,7 @@
 """Unit tests for the user-selectable model catalog (no network calls)."""
 
+from unittest.mock import patch
+
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent import model_catalog
@@ -13,6 +15,7 @@ from research_ai.services.agent.model_catalog import (
     validate_model_ref,
 )
 from research_ai.services.agent.model_pricing import model_pricing
+from research_ai.services.agent.providers import bedrock
 from research_ai.services.agent.providers.registry import split_model_ref
 
 # Provider keys live on the workers that run turns, not on the API process
@@ -81,7 +84,7 @@ class AvailableModelsTests(SimpleTestCase):
         option = next(
             option
             for option in available_models()
-            if option.ref == "openrouter:openai/gpt-5.6-sol"
+            if option.ref == "openrouter:openai/gpt-5.6-terra"
         )
 
         # Act
@@ -126,17 +129,48 @@ class AvailableModelsTests(SimpleTestCase):
                 "claude_platform", "claude-opus-5-5", thinking="disabled"
             )
 
-    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
-    def test_generator_default_outside_the_catalog_is_still_listed(self):
-        # Arrange: no Bedrock ref is catalogued, so the default is not one.
-        default = default_model_ref()
+    def test_superseded_models_are_not_selectable(self):
+        # Arrange
+        retired = (
+            "claude_platform:claude-opus-5",
+            "openrouter:openai/gpt-5.6-sol",
+            "openrouter:openai/gpt-5.6-luna",
+        )
 
         # Act
-        options = available_models()
+        refs = {option.ref for option in available_models()}
 
         # Assert
-        self.assertEqual(default, "bedrock:us.anthropic.claude-opus-5")
-        self.assertEqual(options[0].ref, default)
+        self.assertIn("openrouter:openai/gpt-5.6-terra", refs)
+        for ref in retired:
+            with self.subTest(ref=ref):
+                self.assertNotIn(ref, refs)
+                with self.assertRaisesRegex(ValueError, "unknown model"):
+                    validate_model_ref(ref)
+
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
+    def test_retired_bedrock_default_is_not_reinserted(self):
+        # Act / Assert
+        self.assertNotIn(
+            default_model_ref(), {option.ref for option in available_models()}
+        )
+
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="openrouter")
+    def test_retired_openrouter_default_is_not_reinserted(self):
+        # Act / Assert
+        self.assertNotIn(
+            default_model_ref(), {option.ref for option in available_models()}
+        )
+
+    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
+    def test_generator_default_outside_the_catalog_is_still_listed(self):
+        # Arrange: a new, unreviewed Bedrock default remains visible.
+        with patch.object(bedrock, "MODEL_ID", "us.anthropic.claude-sonnet-5"):
+            # Act
+            options = available_models()
+
+        # Assert
+        self.assertEqual(options[0].ref, "bedrock:us.anthropic.claude-sonnet-5")
 
 
 class CapabilityLookupTests(SimpleTestCase):
@@ -199,7 +233,7 @@ class ValidateModelRefTests(SimpleTestCase):
         default = default_model_ref()
 
         # Act / Assert
-        with self.assertRaisesMessage(ValueError, "has no reviewed pricing"):
+        with self.assertRaisesMessage(ValueError, "unknown model"):
             validate_model_ref(default)
 
     def test_no_selection_returns_none(self):
@@ -218,7 +252,7 @@ class ValidateModelRefTests(SimpleTestCase):
     def test_bare_ref_canonicalizes_onto_generator_provider(self):
         # Act / Assert
         self.assertEqual(
-            validate_model_ref("claude-opus-5"), "claude_platform:claude-opus-5"
+            validate_model_ref("claude-opus-5-5"), "claude_platform:claude-opus-5-5"
         )
 
     def test_unknown_model_is_rejected(self):

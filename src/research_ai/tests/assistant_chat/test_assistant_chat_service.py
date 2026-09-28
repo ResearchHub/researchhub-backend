@@ -247,7 +247,7 @@ class AssistantChatServiceTests(TestCase):
 
     def test_run_turn_accounts_usage_to_the_assistant_feature(self):
         # Arrange
-        execution, _delay = self._submit(model_ref="claude_platform:claude-opus-5")
+        execution, _delay = self._submit(model_ref="claude_platform:claude-opus-5-5")
 
         class UsageReportingProvider(FakeProvider):
             def complete(self, **kwargs):

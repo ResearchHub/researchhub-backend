@@ -252,7 +252,7 @@ class NotebookChatViewTests(APITestCase):
         response, _delay = self._post_message(
             chat_id,
             text="Use another model",
-            model="claude_platform:claude-opus-5",
+            model="claude_platform:claude-opus-5-5",
         )
 
         # Assert

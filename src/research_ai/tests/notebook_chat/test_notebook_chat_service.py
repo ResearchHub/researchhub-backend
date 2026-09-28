@@ -152,7 +152,7 @@ class NotebookChatServiceTests(TestCase):
 
         # Assert: no selection runs the configured generator, recorded as a
         # provider-prefixed ref the worker resolves from.
-        self.assertEqual(execution.model, "claude_platform:claude-opus-5")
+        self.assertEqual(execution.model, "claude_platform:claude-opus-5-5")
         self.assertEqual(execution.provider, "claude_platform")
 
     @override_settings(
@@ -218,8 +218,8 @@ class NotebookChatServiceTests(TestCase):
 
     def test_default_effort_is_pinned_across_adapter_default_changes(self):
         for adapter, model_ref in (
-            (claude_platform, "claude_platform:claude-opus-5"),
-            (openrouter, "openrouter:openai/gpt-5.6-sol"),
+            (claude_platform, "claude_platform:claude-opus-5-5"),
+            (openrouter, "openrouter:openai/gpt-5.6-terra"),
         ):
             with self.subTest(model=model_ref):
                 # Arrange
@@ -359,7 +359,7 @@ class NotebookChatServiceTests(TestCase):
                 self.note,
                 self.conversation,
                 "Another request",
-                model_ref="claude_platform:claude-opus-5",
+                model_ref="claude_platform:claude-opus-5-5",
             )
         self.assertEqual(self.conversation.executions.count(), 1)
         self.assertEqual(self.conversation.chat_messages.count(), 1)
@@ -702,7 +702,7 @@ class NotebookChatServiceTests(TestCase):
 
     def test_run_turn_records_credit_usage_once(self):
         # Arrange
-        execution, _delay = self._submit(model_ref="claude_platform:claude-opus-5")
+        execution, _delay = self._submit(model_ref="claude_platform:claude-opus-5-5")
 
         class UsageReportingProvider(FakeProvider):
             def complete(self, **kwargs):
