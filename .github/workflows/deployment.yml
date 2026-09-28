@@ -148,11 +148,18 @@ jobs:
 
   deploy-api:
     needs: [package, migrate]
-    # The migration is skipped for prod, which must not skip the deployment.
+    # Only prod may deploy with a skipped migration.
+    # On staging, a failed build skips migration and must block deployment.
     if: |
       !cancelled() &&
       needs.package.result == 'success' &&
-      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
+      (
+        needs.migrate.result == 'success' ||
+        (
+          github.event.inputs.deploy_env == 'prod' &&
+          needs.migrate.result == 'skipped'
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
