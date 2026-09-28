@@ -117,7 +117,6 @@ jobs:
 
   build:
     needs: package
-    if: (github.event.inputs.deploy_env || 'staging') == 'staging'
     permissions:
       contents: read
       id-token: write
@@ -126,42 +125,19 @@ jobs:
       git_ref: ${{ needs.package.outputs.git_sha }}
     secrets: inherit
 
-  # Staging migrates with the ECS task before anything is deployed. Prod still
-  # migrates in the Beanstalk predeploy hook.
   migrate:
     needs: [package, build]
-    if: |
-      (github.event.inputs.deploy_env || 'staging') == 'staging' &&
-      (
-        github.event_name == 'workflow_dispatch' ||
-        (
-          github.event_name == 'workflow_run' &&
-          github.event.workflow_run.event == 'push' &&
-          github.event.workflow_run.conclusion == 'success'
-        )
-      )
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/database-migration.yml
     with:
+      deploy_env: ${{ github.event.inputs.deploy_env || 'staging' }}
       git_ref: ${{ needs.package.outputs.git_sha }}
     secrets: inherit
 
   deploy-api:
     needs: [package, migrate]
-    # Only prod may deploy with a skipped migration.
-    # On staging, a failed build skips migration and must block deployment.
-    if: |
-      !cancelled() &&
-      needs.package.result == 'success' &&
-      (
-        needs.migrate.result == 'success' ||
-        (
-          github.event.inputs.deploy_env == 'prod' &&
-          needs.migrate.result == 'skipped'
-        )
-      )
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
@@ -218,11 +194,6 @@ jobs:
 
   deploy-workers:
     needs: [package, deploy-api]
-    # Without an explicit condition, the skipped prod migration further up the
-    # dependency chain would skip this job too, even though deploy-api succeeded.
-    if: |
-      !cancelled() &&
-      needs.deploy-api.result == 'success'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
@@ -284,6 +255,7 @@ jobs:
   # The ECS environments only exist in staging.
   deploy-ecs:
     needs: migrate
+    if: (github.event.inputs.deploy_env || 'staging') == 'staging'
     permissions:
       contents: read
       id-token: write
