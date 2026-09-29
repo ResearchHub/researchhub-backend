@@ -41,9 +41,13 @@ def relevant_passages(
     query_tokens = _tokens([query])
     if not query_tokens[0]:
         return []
+    corpus_tokens = _tokens([passage for *_, passage in windows])
+    # bm25s cannot index an empty vocabulary.
+    if not any(corpus_tokens):
+        return []
     # Match OpenSearch/Lucene's BM25 variant for local, transient passages.
     retriever = bm25s.BM25(method="lucene")
-    retriever.index(_tokens([passage for *_, passage in windows]), show_progress=False)
+    retriever.index(corpus_tokens, show_progress=False)
     ranked = retriever.retrieve(
         query_tokens,
         corpus=list(range(len(windows))),
