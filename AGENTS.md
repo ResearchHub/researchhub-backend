@@ -105,3 +105,11 @@ CI runs from `src/` and performs:
 - `uv run python manage.py collectstatic --noinput`
 - `uv run python manage.py opensearch index rebuild --force`
 - `uv run coverage run manage.py test --verbosity=2`
+
+## Cursor Cloud specific instructions
+- PostgreSQL 16, Redis, and OpenSearch 2.19 are already installed. On boot, `start` brings them up and rewrites gitignored `src/config_local/db.py` and `src/config_local/keys.py`. Local database: user `rh_developer`, password `not_secure`, database `researchhub` on `localhost:5432`. That role is a superuser so migrations can create `pg_prewarm`. Redis is `localhost:6379`. OpenSearch is `http://localhost:9200` with the security plugin disabled.
+- Python 3.13 and project dependencies live in the repo `.venv`, managed by `uv` (`/usr/local/bin/uv`). From the repo root, `uv sync --frozen --all-extras` refreshes them. Run Django from `src/` with `uv run python manage.py ...`.
+- API: `cd src && uv run python manage.py runserver 0.0.0.0:8000`. `GET /` returns the welcome payload. `GET /health/` checks the database and Redis cache.
+- Tests: `cd src && uv run python manage.py test --keepdb`. Lint with `uv run ruff check src` and `uv run ruff format --check src` from the repo root.
+- Celery is not started by default. Use `make start-celery` from the repo root when a worker is required.
+- Generated local keys leave AWS, Stripe, OpenAI, and similar credentials blank. The API, migrations, and tests do not need those secrets.
