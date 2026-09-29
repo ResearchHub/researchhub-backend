@@ -3,12 +3,25 @@ name: ECS Deployment
 on:
   workflow_call:
     inputs:
+      deploy_env:
+        description: "Target environment"
+        required: false
+        default: staging
+        type: string
       git_sha:
         description: "Commit to deploy. The caller must have verified that its image exists."
         required: true
         type: string
   workflow_dispatch:
     inputs:
+      deploy_env:
+        description: "Select the target environment"
+        required: false
+        default: staging
+        type: choice
+        options:
+          - staging
+          - prod
       git_ref:
         description: "Git hash or branch to deploy. Its image must have been built."
         required: true
@@ -17,8 +30,8 @@ on:
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
-  DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
-  DEPLOY_PARAMETER: /researchhub/staging/applications/api/deploy
+  DEPLOY_ROLE_ARN: ${{ vars[inputs.deploy_env == 'prod' && 'PROD_DEPLOY_ROLE_ARN' || 'STAGING_DEPLOY_ROLE_ARN'] }}
+  DEPLOY_PARAMETER: /researchhub/${{ inputs.deploy_env }}/applications/api/deploy
 
 jobs:
   deploy-api:
@@ -55,7 +68,7 @@ jobs:
             --image-ids "imageTag=$IMAGE_TAG" \
             > /dev/null
 
-      - name: Assume staging deploy role
+      - name: Assume ${{ inputs.deploy_env }} deploy role
         uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
         with:
           role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
@@ -90,7 +103,7 @@ jobs:
           container-name: ${{ steps.config.outputs.container }}
           image: ${{ env.CONTAINER_REPOSITORY }}:${{ steps.git_sha.outputs.long }}
 
-      - name: Deploy staging Backend - API
+      - name: Deploy ${{ inputs.deploy_env }} Backend - API
         id: deploy
         uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
         with:
