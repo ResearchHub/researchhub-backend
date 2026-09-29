@@ -1,11 +1,10 @@
-"""The user-selectable model catalog for agent workflows.
+"""Model support and the visible picker catalog for agent workflows.
 
-The notebook assistant and the proposal-drafting run let the user pick the
-model a turn/run generates with. This module owns what may be picked: a
-curated allowlist of provider-prefixed model refs (the registry's
-``[<provider>:]<model id>`` grammar), so request input can never route to an
-arbitrary model id. Adding, removing, or re-routing a model is an edit to
-``_CATALOG`` below.
+The notebook assistant and proposal drafting accept a curated allowlist of
+provider-prefixed model refs (the registry's ``[<provider>:]<model id>``
+grammar), so request input can never route to an arbitrary model id. The
+picker lists current models; older supported models remain valid for existing
+conversations and explicit model refs without appearing in that list.
 
 The catalog lists each model once, on the provider that serves it best:
 Anthropic models through Claude Platform (first-party features -- native web
@@ -18,7 +17,7 @@ Celery workers that execute turns, not on the API process that serves this
 listing, so checking them here would hide models that run fine; each provider
 raises on missing credentials where they are actually used. The configured
 generator default is listed too, even when it falls outside the catalog,
-unless it is retired. All selections require reviewed pricing; tier-aware
+unless it is hidden. All selections require reviewed pricing; tier-aware
 default resolution falls back to a priced model.
 """
 
@@ -118,9 +117,9 @@ _CATALOG: tuple[ModelOption, ...] = (
     ),
 )
 
-# Keep retired models' capabilities and pricing for historical usage, while
-# preventing provider defaults from reintroducing them into the picker.
-_RETIRED_REFS = frozenset(
+# Keep older refs supported, while preventing provider defaults from
+# reintroducing them into the picker.
+_HIDDEN_REFS = frozenset(
     {
         f"{CLAUDE_PLATFORM}:claude-opus-5",
         "bedrock:us.anthropic.claude-opus-5",
@@ -135,13 +134,13 @@ def available_models() -> list[ModelOption]:
     """The model listing, including the configured generator default.
 
     The configured generator default is prepended when the catalog does not
-    already carry it, unless the default is retired. An unpriced default
+    already carry it, unless the default is hidden. An unpriced default
     stays visible for diagnostics but cannot be selected; tier default
     resolution chooses a priced alternative.
     """
     options = list(_CATALOG)
     default_ref = default_model_ref()
-    if default_ref not in _RETIRED_REFS and not any(
+    if default_ref not in _HIDDEN_REFS and not any(
         option.ref == default_ref for option in options
     ):
         options.insert(
@@ -156,25 +155,31 @@ def default_model_ref() -> str:
     return generator_model_ref()
 
 
+def supported_model_refs() -> frozenset[str]:
+    """Configured refs, including hidden ones, subject to reviewed pricing."""
+    return (
+        frozenset(option.ref for option in _CATALOG)
+        | _HIDDEN_REFS
+        | {default_model_ref()}
+    )
+
+
 def validate_model_ref(value: str | None) -> str | None:
-    """Normalize a user-supplied model selection against the catalog.
+    """Normalize a user-supplied model ref against the supported allowlist.
 
     ``None``/blank means "no selection" and returns ``None`` (callers fall
-    back to the generator default). A ref matching a selectable model --
-    prefixed or bare, since a bare ref canonicalizes onto the generator
-    provider -- returns that model's canonical prefixed ref. Anything else
-    raises ``ValueError``.
+    back to the tier default). A bare ref canonicalizes onto the generator
+    provider. Hidden older models remain usable with explicit refs.
     """
     if value is None or not value.strip():
         return None
     requested = _canonical(value.strip())
-    for option in available_models():
-        if _canonical(option.ref) == requested:
-            provider, model_id = split_model_ref(option.ref)
-            if model_pricing(provider, model_id or "") is None:
-                raise ValueError(f"model {option.ref!r} has no reviewed pricing")
-            return option.ref
-    raise ValueError(f"unknown model: {value.strip()!r}")
+    if requested not in supported_model_refs():
+        raise ValueError(f"unknown model: {value.strip()!r}")
+    provider, model_id = split_model_ref(requested)
+    if model_pricing(provider, model_id or "") is None:
+        raise ValueError(f"model {requested!r} has no reviewed pricing")
+    return requested
 
 
 def _canonical(ref: str) -> str:

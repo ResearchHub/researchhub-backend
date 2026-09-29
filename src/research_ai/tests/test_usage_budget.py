@@ -197,6 +197,22 @@ class UsageBudgetTests(TestCase):
                 "claude_platform:claude-opus-5-5",
             )
 
+    def test_privileged_tier_admits_supported_older_models(self):
+        # Arrange
+        self.user.moderator = True
+        self.user.save(update_fields=["moderator"])
+
+        # Act / Assert
+        for ref in (
+            "claude_platform:claude-opus-5",
+            "openrouter:openai/gpt-5.6-sol",
+            "openrouter:openai/gpt-5.6-luna",
+        ):
+            with self.subTest(ref=ref):
+                self.assertEqual(
+                    check_turn_admission(self.user, ref).tier, "privileged"
+                )
+
 
 @override_settings(OPENROUTER_API_KEY="or-test")
 class AgentLoopBudgetRecorderTests(TestCase):
