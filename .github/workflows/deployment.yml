@@ -252,14 +252,13 @@ jobs:
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 300
 
-  # The ECS environments only exist in staging.
   deploy-ecs:
     needs: migrate
-    if: (github.event.inputs.deploy_env || 'staging') == 'staging'
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/deployment-ecs.yml
     with:
+      deploy_env: ${{ github.event.inputs.deploy_env || 'staging' }}
       git_sha: ${{ needs.migrate.outputs.git_sha }}
     secrets: inherit
