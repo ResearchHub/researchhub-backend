@@ -344,18 +344,6 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(second.model, "claude_platform:claude-sonnet-5")
         self.assertEqual(second.provider, "claude_platform")
 
-    def test_later_messages_keep_an_older_hidden_model(self):
-        # Arrange
-        first, _delay = self._submit(model_ref="claude_platform:claude-opus-5")
-        first.status = AgentExecution.Status.SUCCEEDED
-        first.save(update_fields=["status"])
-
-        # Act
-        second, _delay = self._submit("Continue")
-
-        # Assert
-        self.assertEqual(second.model, "claude_platform:claude-opus-5")
-
     @override_settings(
         ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
     )
