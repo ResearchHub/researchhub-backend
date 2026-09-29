@@ -31,6 +31,8 @@ def relevant_passages(
     ``Passage.document`` indexes ``documents``; all windows share one index, so
     scores compare across documents.
     """
+    if limit < 1:
+        return []
     windows = [
         (index, start, end, passage)
         for index, text in enumerate(documents)
