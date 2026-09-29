@@ -15,7 +15,7 @@ dependencies = [
     "boto3>=1.43.38,<2",
     "cdp-sdk==1.44.0",
     "celery==5.6.3",
-    "celery-redbeat==2.3.3",
+    "celery-redbeat>=2.4.2,<3",
     "channels>=4.1.0,<5.0.0",
     "channels-redis>=4.2.0,<5.0.0",
     "circle-developer-controlled-wallets>=9.2.0,<10.0.0",
