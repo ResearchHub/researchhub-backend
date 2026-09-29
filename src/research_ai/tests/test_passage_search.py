@@ -37,3 +37,8 @@ class RelevantPassagesTests(TestCase):
         self.assertEqual(relevant_passages([""], "crispr", limit=3), [])
         self.assertEqual(relevant_passages(["!!! ---", "   "], "crispr", limit=3), [])
         self.assertEqual(relevant_passages(["crispr screen"], "  ", limit=3), [])
+
+    def test_nonpositive_limit_returns_no_passages(self):
+        # Act / Assert
+        self.assertEqual(relevant_passages(["crispr screen"], "crispr", limit=0), [])
+        self.assertEqual(relevant_passages(["crispr screen"], "crispr", limit=-1), [])
