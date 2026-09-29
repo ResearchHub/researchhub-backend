@@ -7,21 +7,25 @@ A file moves UPLOADING -> PROCESSING -> READY or FAILED:
   enforces the size cap and content type.
 - ``complete_upload`` confirms the object landed and queues extraction.
 - ``process`` (worker) extracts the text the agent reads.
+- ``attach`` binds READY files to the user message they are sent with.
 
-``purge`` deletes files never sent.
+``purge`` deletes files never sent and files of removed conversations.
 """
 
 import logging
 import os
 import uuid
+from collections import defaultdict
+from collections.abc import Iterable
 from datetime import timedelta
 
 from django.db import transaction
 from django.db.models import Q
+from django.db.models.functions import Length
 from django.utils import timezone
 from django.utils.text import slugify
 
-from research_ai.models import AgentFile
+from research_ai.models import AgentConversation, AgentConversationMessage, AgentFile
 from research_ai.services.agent_files.config import AgentFileConfig
 from research_ai.services.agent_files.extraction import (
     SUPPORTED_EXTENSIONS,
@@ -225,6 +229,82 @@ class AgentFileService:
             expires_in=self.config.download_url_ttl_seconds,
         )
 
+    def attach(
+        self, message: AgentConversationMessage, file_ids: Iterable[int]
+    ) -> list[AgentFile]:
+        """Attach the message author's READY, unsent files to ``message``.
+
+        Must run inside the caller's transaction, holding the conversation's
+        row lock: the locks keep a file from being sent twice and the chat
+        within its file cap. Raises ``AgentFileError``.
+        """
+        file_ids = list(dict.fromkeys(file_ids))
+        if not file_ids:
+            return []
+        config = self.config
+        if len(file_ids) > config.max_files_per_message:
+            raise AgentFileError(
+                f"A message can carry at most {config.max_files_per_message} files.",
+                code="too_many_attachments",
+            )
+        conversation = message.conversation
+        sent = AgentFile.objects.filter(conversation=conversation).count()
+        if sent + len(file_ids) > config.max_files_per_conversation:
+            raise AgentFileError(
+                f"A chat can hold at most {config.max_files_per_conversation} "
+                "files. Start a new chat to attach more.",
+                code="too_many_attachments",
+            )
+        files = {
+            file.id: file
+            for file in AgentFile.objects.select_for_update()
+            .defer("text")
+            .filter(id__in=file_ids, user_id=conversation.user_id)
+        }
+        for file_id in file_ids:
+            file = files.get(file_id)
+            if file is None or file.message_id is not None:
+                raise AgentFileError(
+                    f"File {file_id} cannot be attached.",
+                    code="attachment_unavailable",
+                )
+            if file.status == AgentFile.Status.FAILED:
+                raise AgentFileError(
+                    f'"{file.filename}" could not be read: {file.error}',
+                    code="attachment_failed",
+                )
+            if file.status != AgentFile.Status.READY:
+                raise AgentFileError(
+                    f'"{file.filename}" is still being processed.',
+                    code="attachment_not_ready",
+                )
+        AgentFile.objects.filter(id__in=file_ids).update(
+            message=message, conversation=conversation, updated_date=timezone.now()
+        )
+        return [files[file_id] for file_id in file_ids]
+
+    def attachments_by_message(
+        self, conversation: AgentConversation
+    ) -> dict[int, list[dict]]:
+        """Public views of the conversation's sent files, keyed by message id."""
+        grouped: dict[int, list[dict]] = defaultdict(list)
+        for file in (
+            AgentFile.objects.defer("text")
+            .filter(conversation=conversation, message__isnull=False)
+            .order_by("id")
+        ):
+            grouped[file.message_id].append(public_file(file))
+        return grouped
+
+    def message_attachments(self, message: AgentConversationMessage) -> list[AgentFile]:
+        """The READY files sent with ``message``, annotated with ``text_chars``."""
+        return list(
+            AgentFile.objects.defer("text")
+            .filter(message=message, status=AgentFile.Status.READY)
+            .annotate(text_chars=Length("text"))
+            .order_by("id")
+        )
+
     # -- worker path ------------------------------------------------------
 
     def process(self, file_id: int) -> str | None:
@@ -262,9 +342,11 @@ class AgentFileService:
         return AgentFile.Status.READY
 
     def purge(self) -> int:
-        """Delete unsent files past their TTL."""
+        """Delete unsent files past their TTL and files of removed chats."""
         cutoff = timezone.now() - timedelta(seconds=self.config.unsent_ttl_seconds)
-        expired = Q(message__isnull=True, created_date__lt=cutoff)
+        expired = Q(message__isnull=True, created_date__lt=cutoff) | Q(
+            conversation__is_removed=True
+        )
         purged = 0
         for file_id, key in AgentFile.objects.filter(expired).values_list(
             "id", "storage_key"

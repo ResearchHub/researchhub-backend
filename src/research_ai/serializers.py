@@ -1073,11 +1073,18 @@ class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
     The service enforces the configurable ceiling; the max_length here is a
     request-size backstop matching the config default. ``model`` optionally
     selects the model for the first turn from the selectable catalog; the
-    conversation keeps that model for all later turns.
+    conversation keeps that model for all later turns. ``file_ids`` attach the
+    user's processed uploads; the service enforces the per-message limit.
     """
 
     message = serializers.CharField(max_length=20000)
     model = ModelSelectionField()
+    file_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        default=list,
+        max_length=50,
+    )
 
 
 class AgentFileCreateSerializer(serializers.Serializer):
