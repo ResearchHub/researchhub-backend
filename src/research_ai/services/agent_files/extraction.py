@@ -6,8 +6,13 @@ agent can cite; Word documents from their body XML; text formats by decoding.
 """
 
 import codecs
+import contextlib
 import io
+import json
 import os
+import resource
+import subprocess
+import sys
 import zipfile
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -52,8 +57,14 @@ SUPPORTED_EXTENSIONS = tuple(_KINDS_BY_EXTENSION)
 # Bounds on work an adversarial file can demand, beyond the upload size cap.
 _MAX_PDF_PAGES = 2000
 _MAX_DOCX_XML_BYTES = 64 * 1024 * 1024
+# MuPDF inflates a whole page before any text cap applies, so PDFs are parsed
+# in a child process under these limits.
+_PDF_CPU_SECONDS = 60
+_PDF_MEMORY_BYTES = 2 * 1024 * 1024 * 1024
+_PDF_TIMEOUT_SECONDS = 120
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_W_STRICT = "{http://purl.oclc.org/ooxml/wordprocessingml/main}"
 # Alternate renderings of the same content; reading both would duplicate it.
 _MC_FALLBACK = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
 _DOCX_CONTAINERS = frozenset({f"{_W}sdt", f"{_W}sdtContent", f"{_W}customXml"})
@@ -87,7 +98,7 @@ def kind_for_content_type(content_type: str) -> FileKind | None:
 def extract_text(data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedText:
     """Text of the file, cut at ``max_chars``. Raises ``UnreadableFileError``."""
     extractor = {
-        "pdf": _pdf_text,
+        "pdf": _pdf_text_sandboxed,
         "docx": _docx_text,
         "text": _plain_text,
     }[kind.extractor]
@@ -99,6 +110,47 @@ def extract_text(data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedTex
     if len(text) > max_chars:
         text, truncated = text[:max_chars], True
     return ExtractedText(text=text, page_count=page_count, truncated=truncated)
+
+
+def _pdf_text_sandboxed(data: bytes, max_chars: int) -> tuple[str, int, bool]:
+    too_complex = UnreadableFileError("This PDF is too complex to read.")
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                os.path.abspath(__file__),
+                str(max_chars),
+                str(_PDF_CPU_SECONDS),
+                str(_PDF_MEMORY_BYTES),
+            ],
+            input=data,
+            capture_output=True,
+            timeout=_PDF_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise too_complex from exc
+    if result.returncode != 0:
+        raise too_complex
+    output = json.loads(result.stdout)
+    if "error" in output:
+        raise UnreadableFileError(output["error"])
+    return output["text"], output["page_count"], output["truncated"]
+
+
+def _pdf_worker(max_chars: int, cpu_seconds: int, memory_bytes: int) -> None:
+    """Child-process entry point: PDF on stdin, JSON result on stdout."""
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
+    # macOS rejects address-space limits; Linux workers enforce them.
+    with contextlib.suppress(ValueError, OSError):
+        resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+    data = sys.stdin.buffer.read()
+    try:
+        text, page_count, truncated = _pdf_text(data, max_chars)
+        output = {"text": text, "page_count": page_count, "truncated": truncated}
+    except UnreadableFileError as exc:
+        output = {"error": str(exc)}
+    json.dump(output, sys.stdout)
 
 
 def _pdf_text(data: bytes, max_chars: int) -> tuple[str, int, bool]:
@@ -160,7 +212,10 @@ def _docx_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
         resolve_entities=False, no_network=True, remove_comments=True, remove_pis=True
     )
     try:
-        body = etree.fromstring(xml, parser).find(f"{_W}body")
+        root = etree.fromstring(xml, parser)
+        if root.tag.startswith(_W_STRICT):
+            _to_transitional(root)
+        body = root.find(f"{_W}body")
         if body is None:
             raise unreadable
         lines: list[str] = []
@@ -175,16 +230,32 @@ def _docx_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
     return "\n".join(lines), None, False
 
 
+def _to_transitional(root) -> None:
+    """Rename Strict OOXML elements into the Transitional namespace."""
+    for element in root.iter():
+        if isinstance(element.tag, str) and element.tag.startswith(_W_STRICT):
+            element.tag = _W + element.tag[len(_W_STRICT) :]
+
+
+def _docx_children(element, tag: str) -> Iterator:
+    """Children with ``tag``, looking through content-control wrappers."""
+    for child in element:
+        if child.tag == tag:
+            yield child
+        elif child.tag in _DOCX_CONTAINERS:
+            yield from _docx_children(child, tag)
+
+
 def _docx_blocks(element) -> Iterator[str]:
     """One line per paragraph or table row, in document order."""
     for child in element:
         if child.tag == f"{_W}p":
             yield _docx_paragraph(child)
         elif child.tag == f"{_W}tbl":
-            for row in child.iterfind(f"{_W}tr"):
+            for row in _docx_children(child, f"{_W}tr"):
                 cells = [
                     " ".join(filter(None, _docx_blocks(cell)))
-                    for cell in row.iterfind(f"{_W}tc")
+                    for cell in _docx_children(row, f"{_W}tc")
                 ]
                 yield " | ".join(cells)
         elif child.tag in _DOCX_CONTAINERS:
@@ -219,3 +290,7 @@ def _plain_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
             text = data.decode("cp1252", errors="replace")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     return text, None, len(text) > max_chars
+
+
+if __name__ == "__main__":
+    _pdf_worker(*map(int, sys.argv[1:4]))

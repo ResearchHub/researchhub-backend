@@ -1,8 +1,10 @@
 import codecs
 from unittest import TestCase
+from unittest.mock import patch
 
 import fitz
 
+from research_ai.services.agent_files import extraction
 from research_ai.services.agent_files.extraction import (
     DOCX,
     PDF,
@@ -10,7 +12,12 @@ from research_ai.services.agent_files.extraction import (
     extract_text,
     resolve_kind,
 )
-from research_ai.tests.agent_files.helpers import docx_bytes, paragraph, pdf_bytes
+from research_ai.tests.agent_files.helpers import (
+    W_STRICT_NS,
+    docx_bytes,
+    paragraph,
+    pdf_bytes,
+)
 
 TEXT = resolve_kind("notes.txt")
 MAX_CHARS = 10_000
@@ -88,6 +95,17 @@ class PdfExtractionTests(TestCase):
         with self.assertRaisesRegex(UnreadableFileError, "password-protected"):
             extract_text(data, PDF, max_chars=MAX_CHARS)
 
+    def test_a_pdf_that_exceeds_the_parsing_limits_is_refused(self):
+        # Arrange
+        data = pdf_bytes("Alpha findings")
+
+        # Act / Assert
+        with (
+            patch.object(extraction, "_PDF_TIMEOUT_SECONDS", 0.001),
+            self.assertRaisesRegex(UnreadableFileError, "too complex"),
+        ):
+            extract_text(data, PDF, max_chars=MAX_CHARS)
+
     def test_bytes_that_are_not_a_pdf_are_refused(self):
         # Act / Assert
         with self.assertRaisesRegex(UnreadableFileError, "could not be read as a PDF"):
@@ -117,6 +135,33 @@ class DocxExtractionTests(TestCase):
             "Specific Aims\nAim\tone\ncontinued\nYear | Budget\n1 | $50,000",
         )
         self.assertIsNone(extracted.page_count)
+
+    def test_table_rows_and_cells_inside_content_controls_are_read(self):
+        # Arrange
+        body = (
+            "<w:tbl><w:sdt><w:sdtContent><w:tr>"
+            f"<w:tc>{paragraph('Year')}</w:tc>"
+            f"<w:customXml><w:tc>{paragraph('Budget')}</w:tc></w:customXml>"
+            "</w:tr></w:sdtContent></w:sdt></w:tbl>"
+        )
+
+        # Act
+        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "Year | Budget")
+
+    def test_strict_open_xml_documents_are_read(self):
+        # Arrange
+        body = paragraph("Strict") + "<w:p><w:r><w:t>a</w:t><w:tab/></w:r></w:p>"
+
+        # Act
+        extracted = extract_text(
+            docx_bytes(body, namespace=W_STRICT_NS), DOCX, max_chars=MAX_CHARS
+        )
+
+        # Assert
+        self.assertEqual(extracted.text, "Strict\na\t")
 
     def test_deleted_revisions_and_fallback_renderings_are_skipped(self):
         # Arrange
