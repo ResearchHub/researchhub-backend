@@ -27,6 +27,7 @@ from research_ai.services.outreach.proposal_draft_outreach import (
 from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
+from research_ai.services.outreach.send_pacing import seconds_until_next_send
 from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.proposal_draft.cancel_service import ACTIVE_STATUSES
 from research_ai.services.proposal_draft.liveness_service import (
@@ -601,6 +602,10 @@ def send_queued_emails_task(
 
     Updates each to SENT on success or SEND_FAILED on failure. On Gmail
     invalid_grant / needs_reauth, marks remaining queued rows SEND_FAILED.
+
+    Enforces a minimum gap between successful sends per mailbox. When paced
+    out mid-batch, remaining rows stay SENDING and are re-queued with a
+    Celery countdown (no worker sleep). Large batches therefore drain slowly.
     """
 
     cc_list = list(cc or [])
@@ -608,7 +613,7 @@ def send_queued_emails_task(
     sender = None
     if sender_user_id is not None:
         sender = User.objects.filter(id=sender_user_id).first()
-    qs = (
+    records = list(
         GeneratedEmail.objects.filter(
             id__in=generated_email_ids,
             status=GeneratedEmail.Status.SENDING,
@@ -618,8 +623,9 @@ def send_queued_emails_task(
     )
     sent = 0
     failed = 0
+    deferred = 0
     abort_remaining = False
-    for rec in qs:
+    for idx, rec in enumerate(records):
         if abort_remaining:
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SEND_FAILED,
@@ -633,6 +639,26 @@ def send_queued_emails_task(
             failed += 1
             continue
         send_as = sender or rec.created_by
+        wait = seconds_until_next_send(send_as)
+        if wait > 0:
+            remaining_ids = [r.id for r in records[idx:]]
+            deferred = len(remaining_ids)
+            logger.info(
+                "Pacing Gmail outreach: deferring %s email(s) for %ss (user=%s)",
+                deferred,
+                wait,
+                getattr(send_as, "id", None),
+            )
+            self.apply_async(
+                kwargs={
+                    "generated_email_ids": remaining_ids,
+                    "reply_to": reply_to_list or None,
+                    "cc": cc_list or None,
+                    "sender_user_id": sender_user_id,
+                },
+                countdown=wait,
+            )
+            break
         try:
             tracking_token = new_open_tracking_token()
             result = send_outreach_email(
@@ -678,4 +704,4 @@ def send_queued_emails_task(
                 updated_date=timezone.now(),
             )
             failed += 1
-    return {"sent": sent, "failed": failed}
+    return {"sent": sent, "failed": failed, "deferred": deferred}

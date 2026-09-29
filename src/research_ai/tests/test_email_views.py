@@ -1308,7 +1308,9 @@ class SendEmailViewTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json().get("sent"), 1)
+        self.assertEqual(response.json().get("queued"), 1)
+        self.assertEqual(response.json().get("deferred"), [])
+        self.assertIn("remaining_today", response.json())
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sending")
         mock_task.delay.assert_called_once()
@@ -1319,6 +1321,7 @@ class SendEmailViewTests(APITestCase):
         self.assertNotIn("from_email", call_kw)
 
     @patch("research_ai.tasks.send_outreach_email")
+    @override_settings(OUTREACH_SEND_MIN_INTERVAL_SECONDS=0)
     def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):
         from research_ai.tasks import send_queued_emails_task
 
@@ -1345,6 +1348,7 @@ class SendEmailViewTests(APITestCase):
         ).get()
         self.assertEqual(result["sent"], 1)
         self.assertEqual(result["failed"], 0)
+        self.assertEqual(result["deferred"], 0)
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sent")
         self.assertEqual(email_rec.channels, [GeneratedEmail.Channel.EMAIL])
