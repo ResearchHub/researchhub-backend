@@ -129,7 +129,7 @@ class AvailableModelsTests(SimpleTestCase):
                 "claude_platform", "claude-opus-5-5", thinking="disabled"
             )
 
-    def test_superseded_models_are_not_selectable(self):
+    def test_older_models_are_hidden_but_supported(self):
         # Arrange
         retired = (
             "claude_platform:claude-opus-5",
@@ -145,8 +145,7 @@ class AvailableModelsTests(SimpleTestCase):
         for ref in retired:
             with self.subTest(ref=ref):
                 self.assertNotIn(ref, refs)
-                with self.assertRaisesRegex(ValueError, "unknown model"):
-                    validate_model_ref(ref)
+                self.assertEqual(validate_model_ref(ref), ref)
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
     def test_retired_bedrock_default_is_not_reinserted(self):
@@ -233,7 +232,7 @@ class ValidateModelRefTests(SimpleTestCase):
         default = default_model_ref()
 
         # Act / Assert
-        with self.assertRaisesMessage(ValueError, "unknown model"):
+        with self.assertRaisesMessage(ValueError, "has no reviewed pricing"):
             validate_model_ref(default)
 
     def test_no_selection_returns_none(self):
