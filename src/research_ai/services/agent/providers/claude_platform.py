@@ -8,9 +8,9 @@ the first-party API.
 It is **not** Amazon Bedrock, and the two coexist: Bedrock is AWS-operated,
 speaks the Converse wire format, lags first-party on features, and takes
 ``anthropic.``-prefixed model ids. Here the wire format is the Anthropic
-Messages API and model ids are the bare first-party strings (``claude-opus-5``)
+Messages API and model ids are the bare first-party strings (``claude-opus-5-5``)
 -- prefixing one would 404. That parity is the reason this adapter exists: the
-Opus 5 knobs the proposal-drafting loop wants (adaptive thinking, the effort
+Opus 5.5 knobs the proposal-drafting loop wants (adaptive thinking, the effort
 ladder) are first-party features.
 
 Auth needs no new secret material: ``AnthropicAWS`` resolves AWS credentials
@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 # Default generator model. Bare first-party id -- Claude Platform is
 # Anthropic-operated, so it takes no provider prefix and no date suffix.
 # Callers that want a different model pass ``model_id``.
-MODEL_ID = "claude-opus-5"
+MODEL_ID = "claude-opus-5-5"
 
 # How much the model may deliberate and spend per turn: low | medium | high |
 # xhigh | max. ``low`` keeps routine agent workflows economical; higher levels
@@ -68,10 +68,8 @@ MODEL_ID = "claude-opus-5"
 EFFORT = "low"
 
 # Adaptive thinking lets the model choose its own reasoning depth per turn; it
-# is the only supported on-mode from Opus 4.6 onward and is already the default
-# on Opus 5. Sent explicitly so the loop behaves the same if the model changes.
-# "" omits it; "disabled" turns thinking off (Opus 5 accepts that only at
-# effort ``high`` or below).
+# is the only supported mode on Opus 5.5. Sent explicitly so the loop behaves
+# the same if the model changes. "" omits it for models that do not accept it.
 THINKING = "adaptive"
 
 # Readable reasoning must be asked for: from Opus 4.7 on ``display`` defaults

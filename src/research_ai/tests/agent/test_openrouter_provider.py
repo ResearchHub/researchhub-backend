@@ -350,6 +350,33 @@ class CompleteRequestTests(SimpleTestCase):
         # Assert
         self.assertNotIn("temperature", provider._client.calls[0])
 
+    def test_gpt6_tool_calls_use_no_reasoning_and_no_sampling(self):
+        # Arrange
+        rendered_tools = [{"type": "function", "function": {"name": "search"}}]
+
+        # Act / Assert
+        for model_id in ("openai/gpt-6-sol", "openai/gpt-6-luna"):
+            with self.subTest(model_id=model_id):
+                provider = _build_provider([_response(content="ok")], model_id=model_id)
+                _complete(provider, rendered_tools=rendered_tools)
+                kwargs = provider._client.calls[0]
+                self.assertNotIn("temperature", kwargs)
+                self.assertEqual(kwargs["tools"], rendered_tools)
+                self.assertEqual(
+                    kwargs["extra_body"], {"reasoning": {"effort": "none"}}
+                )
+
+    def test_gpt6_tool_calls_reject_higher_reasoning_effort(self):
+        # Arrange
+        provider = _build_provider(
+            [_response(content="ok")], model_id="openai/gpt-6-sol", effort="high"
+        )
+
+        # Act / Assert
+        with self.assertRaisesRegex(ProviderError, "requires reasoning effort 'none'"):
+            _complete(provider, rendered_tools=[{"type": "function"}])
+        self.assertEqual(provider._client.calls, [])
+
 
 class ParseTurnTests(SimpleTestCase):
     def test_text_turn_parses_to_end_turn(self):

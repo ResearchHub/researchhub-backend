@@ -20,7 +20,7 @@ class GeneratorModelRefTests(SimpleTestCase):
         ref = generator_model_ref()
 
         # Assert
-        self.assertEqual(ref, "claude_platform:claude-opus-5")
+        self.assertEqual(ref, "claude_platform:claude-opus-5-5")
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
     def test_bedrock_ref_carries_provider_prefix(self):
@@ -72,7 +72,7 @@ class ResolveProviderTests(SimpleTestCase):
 
         # Assert
         self.assertIsInstance(provider, ClaudePlatformProvider)
-        self.assertEqual(provider.model_id, "claude-opus-5")
+        self.assertEqual(provider.model_id, "claude-opus-5-5")
         self.assertEqual(provider.native_tool_names, frozenset())
         bedrock_cls.assert_not_called()
 

@@ -540,6 +540,21 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertEqual(call["output_config"], {"effort": "low"})
         self.assertNotIn("temperature", call)
 
+    def test_opus_5_5_uses_mandatory_adaptive_thinking(self):
+        # Arrange
+        provider = _build_provider([_build_response([])], model_id="claude-opus-5-5")
+
+        # Act
+        _complete(provider, temperature=0.7)
+
+        # Assert
+        call = provider._client.messages.calls[0]
+        self.assertEqual(
+            call["thinking"], {"type": "adaptive", "display": "summarized"}
+        )
+        self.assertEqual(call["output_config"], {"effort": "low"})
+        self.assertNotIn("temperature", call)
+
     def test_frontend_generation_options_override_provider_defaults(self):
         # Arrange
         provider = _build_provider(

@@ -18,8 +18,8 @@ Celery workers that execute turns, not on the API process that serves this
 listing, so checking them here would hide models that run fine; each provider
 raises on missing credentials where they are actually used. The configured
 generator default is listed too, even when it falls outside the catalog,
-so a misconfigured default remains visible. All selections require reviewed
-pricing; tier-aware default resolution falls back to a priced model.
+unless it is retired. All selections require reviewed pricing; tier-aware
+default resolution falls back to a priced model.
 """
 
 from dataclasses import dataclass
@@ -57,9 +57,9 @@ class ModelOption:
 
 _CATALOG: tuple[ModelOption, ...] = (
     ModelOption(
-        ref=f"{CLAUDE_PLATFORM}:claude-opus-5",
-        label="Claude Opus 5",
-        description="Anthropic's flagship; strongest on agentic research and drafting.",
+        ref=f"{CLAUDE_PLATFORM}:claude-opus-5-5",
+        label="Claude Opus 5.5",
+        description="Anthropic's newer model for long-running research and drafting.",
     ),
     ModelOption(
         ref=f"{CLAUDE_PLATFORM}:claude-sonnet-5",
@@ -67,19 +67,19 @@ _CATALOG: tuple[ModelOption, ...] = (
         description="Anthropic's balanced model; near-flagship quality, faster.",
     ),
     ModelOption(
-        ref=f"{OPENROUTER}:openai/gpt-5.6-sol",
-        label="GPT-5.6 Sol",
-        description="OpenAI's flagship generalist.",
+        ref=f"{OPENROUTER}:openai/gpt-6-sol",
+        label="GPT-6 Sol",
+        description="OpenAI's model for complex agent workflows.",
+    ),
+    ModelOption(
+        ref=f"{OPENROUTER}:openai/gpt-6-luna",
+        label="GPT-6 Luna",
+        description="OpenAI's fast model for focused, high-volume work.",
     ),
     ModelOption(
         ref=f"{OPENROUTER}:openai/gpt-5.6-terra",
         label="GPT-5.6 Terra",
         description="OpenAI's balanced model for everyday research and drafting.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:openai/gpt-5.6-luna",
-        label="GPT-5.6 Luna",
-        description="OpenAI's fast, cost-efficient model.",
     ),
     ModelOption(
         ref=f"{OPENROUTER}:google/gemini-3.8-flash",
@@ -111,6 +111,23 @@ _CATALOG: tuple[ModelOption, ...] = (
         label="Kimi K3",
         description="Moonshot's frontier open-weight model.",
     ),
+    ModelOption(
+        ref=f"{OPENROUTER}:qwen/qwen3.8-max-0902",
+        label="Qwen3.8 Max (0902)",
+        description="Qwen's long-context model for research and multi-tool work.",
+    ),
+)
+
+# Keep retired models' capabilities and pricing for historical usage, while
+# preventing provider defaults from reintroducing them into the picker.
+_RETIRED_REFS = frozenset(
+    {
+        f"{CLAUDE_PLATFORM}:claude-opus-5",
+        "bedrock:us.anthropic.claude-opus-5",
+        f"{OPENROUTER}:anthropic/claude-opus-5",
+        f"{OPENROUTER}:openai/gpt-5.6-sol",
+        f"{OPENROUTER}:openai/gpt-5.6-luna",
+    }
 )
 
 
@@ -118,12 +135,15 @@ def available_models() -> list[ModelOption]:
     """The model listing, including the configured generator default.
 
     The configured generator default is prepended when the catalog does not
-    already carry it. An unpriced default stays visible for diagnostics but
-    cannot be selected; tier default resolution chooses a priced alternative.
+    already carry it, unless the default is retired. An unpriced default
+    stays visible for diagnostics but cannot be selected; tier default
+    resolution chooses a priced alternative.
     """
     options = list(_CATALOG)
     default_ref = default_model_ref()
-    if not any(option.ref == default_ref for option in options):
+    if default_ref not in _RETIRED_REFS and not any(
+        option.ref == default_ref for option in options
+    ):
         options.insert(
             0,
             ModelOption(ref=default_ref, label=split_model_ref(default_ref)[1] or ""),
