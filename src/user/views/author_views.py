@@ -21,7 +21,11 @@ from researchhub_document.views.researchhub_unified_document_views import (
 )
 from user.models import Author
 from user.permissions import DeleteAuthorPermission, IsVerifiedUser, UpdateAuthor
-from user.serializers import AuthorEditableSerializer, AuthorSerializer
+from user.serializers import (
+    AuthorDetailSerializer,
+    AuthorEditableSerializer,
+    AuthorSerializer,
+)
 from user.services.profile_deletion_service import ProfileDeletionService
 from user.tasks import invalidate_author_profile_caches
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -40,6 +44,11 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         (IsAuthenticatedOrReadOnly & UpdateAuthor & CreateOrUpdateIfAllowed)
         | DeleteAuthorPermission
     ]
+
+    def get_serializer_class(self):
+        if self.action == "retrieve":
+            return AuthorDetailSerializer
+        return super().get_serializer_class()
 
     def perform_destroy(self, instance):
         ProfileDeletionService().delete_author(instance)
@@ -166,7 +175,7 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                 )
             }
         }
-        serializer = AuthorSerializer(
+        serializer = AuthorDetailSerializer(
             author,
             context=context,
         )

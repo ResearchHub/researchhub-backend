@@ -41,6 +41,7 @@ from user.models import (
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.related_models.risk_score_model import RiskScoreEvent
+from user.services.academic_email_service import AcademicEmailService
 from utils.turnstile import TurnstileService
 
 logger = logging.getLogger(__name__)
@@ -273,6 +274,20 @@ class AuthorSerializer(ModelSerializer):
         user = author.user
         if user:
             return user.is_hub_editor()
+
+
+class AuthorDetailSerializer(AuthorSerializer):
+    # AuthorSerializer is nested in list payloads, where this field would cost
+    # extra queries per author, so it only exists on single-author endpoints.
+    verified_academic_email = SerializerMethodField()
+
+    class Meta(AuthorSerializer.Meta):
+        fields = AuthorSerializer.Meta.fields + ["verified_academic_email"]
+
+    def get_verified_academic_email(self, author):
+        if author.user is None:
+            return None
+        return AcademicEmailService().get_verified_academic_email(author.user)
 
 
 class MajorSerializer(ModelSerializer):
