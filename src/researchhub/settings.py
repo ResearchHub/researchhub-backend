@@ -754,6 +754,7 @@ if TESTING:
 
 REDBEAT_REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/2"
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
+CELERY_BEAT_MAX_LOOP_INTERVAL = 30
 
 # Django Channels
 ASGI_APPLICATION = "researchhub.asgi.application"
