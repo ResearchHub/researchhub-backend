@@ -35,6 +35,7 @@ class Notification(models.Model):
     ACCOUNT_VERIFIED = "ACCOUNT_VERIFIED"
     FUNDRAISE_PAYOUT = "FUNDRAISE_PAYOUT"
     FUNDRAISE_CONTRIBUTION = "FUNDRAISE_CONTRIBUTION"
+    FUNDING_POOL_CONTRIBUTION = "FUNDING_POOL_CONTRIBUTION"
     PREREGISTRATION_UPDATE = "PREREGISTRATION_UPDATE"
     PUBLICATIONS_ADDED = "PUBLICATIONS_ADDED"
     """
@@ -74,6 +75,7 @@ class Notification(models.Model):
         (PAPER_CLAIMED, PAPER_CLAIMED),
         (FUNDRAISE_PAYOUT, FUNDRAISE_PAYOUT),
         (FUNDRAISE_CONTRIBUTION, FUNDRAISE_CONTRIBUTION),
+        (FUNDING_POOL_CONTRIBUTION, FUNDING_POOL_CONTRIBUTION),
         (PUBLICATIONS_ADDED, PUBLICATIONS_ADDED),
         (IDENTITY_VERIFICATION_UPDATED, IDENTITY_VERIFICATION_UPDATED),
         (PAPER_CLAIM_PAYOUT, PAPER_CLAIM_PAYOUT),
@@ -581,12 +583,25 @@ class Notification(models.Model):
 
     def _format_fundraise_contribution(self) -> tuple[list[dict[str, str]], str]:
         """Format an author alert for a contribution to their proposal."""
-        document = self.unified_document.get_document()
-        doc_title = self._truncate_title(document.title)
-        base_url = self._create_frontend_doc_link()
         amount = Decimal(self.extra["amount"])
         currency = self.extra["currency"]
         action = "submitted a contribution of" if currency == "USD" else "contributed"
+        return self._format_contribution(
+            f"{action} {amount:,.2f} {currency} to your proposal"
+        )
+
+    def _format_funding_pool_contribution(self) -> tuple[list[dict[str, str]], str]:
+        """Format an author alert for a contribution to their grant's funding pool."""
+        amount = Decimal(self.extra["amount"])
+        return self._format_contribution(
+            f"contributed {amount:,.2f} RSC to your funding opportunity"
+        )
+
+    def _format_contribution(self, message: str) -> tuple[list[dict[str, str]], str]:
+        """Format an alert reading '{contributor} {message}: <title>' for the work."""
+        document = self.unified_document.get_document()
+        doc_title = self._truncate_title(document.title)
+        base_url = self._create_frontend_doc_link()
 
         return [
             {
@@ -595,10 +610,7 @@ class Notification(models.Model):
                 "extra": '["bold", "link"]',
                 "link": self.action_user.frontend_view_link(),
             },
-            {
-                "type": "text",
-                "value": f" {action} {amount:,.2f} {currency} to your proposal: ",
-            },
+            {"type": "text", "value": f" {message}: "},
             {
                 "type": "link",
                 "value": doc_title,
