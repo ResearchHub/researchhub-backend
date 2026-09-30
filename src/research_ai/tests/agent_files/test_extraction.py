@@ -171,6 +171,21 @@ class DocxExtractionTests(TestCase):
         )
         self.assertIsNone(extracted.page_count)
 
+    def test_tab_stops_in_paragraph_properties_add_no_text(self):
+        # Arrange
+        body = (
+            "<w:p><w:pPr><w:tabs><w:tab w:val='left' w:pos='720'/>"
+            "<w:tab w:val='right' w:pos='9350'/></w:tabs></w:pPr>"
+            "<w:r><w:rPr><w:b/></w:rPr><w:t>Introduction</w:t><w:tab/><w:t>3</w:t>"
+            "</w:r></w:p>"
+        )
+
+        # Act
+        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "Introduction\t3")
+
     def test_table_rows_and_cells_inside_content_controls_are_read(self):
         # Arrange
         body = (

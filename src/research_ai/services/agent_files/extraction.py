@@ -68,8 +68,9 @@ _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _W_STRICT = "{http://purl.oclc.org/ooxml/wordprocessingml/main}"
 _MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
 _DOCX_CONTAINERS = frozenset({f"{_W}sdt", f"{_W}sdtContent", f"{_W}customXml"})
-# Tracked changes whose content is no longer part of the document.
-_DOCX_REMOVED = frozenset({f"{_W}del", f"{_W}moveFrom"})
+# No visible text: formatting properties (tab stops there are w:tab elements
+# too) and tracked changes that are no longer part of the document.
+_DOCX_SKIPPED = frozenset({f"{_W}pPr", f"{_W}rPr", f"{_W}del", f"{_W}moveFrom"})
 _DOCX_RUN_TEXT = {
     f"{_W}tab": "\t",
     f"{_W}br": "\n",
@@ -297,7 +298,7 @@ def _docx_paragraph(paragraph) -> str:
                     if any(text):
                         parts.extend(text)
                         break
-            elif node.tag not in _DOCX_REMOVED:
+            elif node.tag not in _DOCX_SKIPPED:
                 walk(node, parts)
         return parts
 
