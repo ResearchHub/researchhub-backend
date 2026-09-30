@@ -652,21 +652,24 @@ class GrantCacheInvalidationTests(APITestCase):
         view = GrantFeedViewSet()
         requests = [
             factory.get("/api/grant_feed/"),
-            factory.get("/api/grant_feed/", {"status": "OPEN"}),
             factory.get("/api/grant_feed/", {"page": "2", "ordering": "newest"}),
             factory.get(
                 "/api/grant_feed/",
-                {"page": "3", "ordering": "upvotes", "status": "CLOSED"},
+                {"page": "3", "ordering": "most_applicants"},
             ),
         ]
         cache_keys = [
             view.get_cache_key(Request(req), "grants") + ":public" for req in requests
         ]
+        cache_keys += [
+            view.get_cache_key(Request(req), "grants") + ":admin" for req in requests
+        ]
 
         for key in cache_keys:
             cache.set(key, {"test": key})
 
-        GrantCacheMixin.invalidate_grant_feed_cache()
+        with patch("feed.tasks.warm_grant_feed_cache.delay"):
+            GrantCacheMixin.invalidate_grant_feed_cache()
 
         for key in cache_keys:
             self.assertIsNone(cache.get(key))
@@ -675,7 +678,8 @@ class GrantCacheInvalidationTests(APITestCase):
         other_key = "feed:popular:all:all:none:1-20"
         cache.set(other_key, {"other": "data"})
 
-        GrantCacheMixin.invalidate_grant_feed_cache()
+        with patch("feed.tasks.warm_grant_feed_cache.delay"):
+            GrantCacheMixin.invalidate_grant_feed_cache()
 
         self.assertIsNotNone(cache.get(other_key))
 

@@ -393,9 +393,8 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         cache_key = viewset.get_cache_key(request, "funding")
         self.assertEqual(cache_key, "funding_feed:popular:all:all:none:1-20")
 
-        suffix, should_cache = get_feed_cache_segment(request)
+        suffix = get_feed_cache_segment(request, supports_private=True)
         self.assertEqual(suffix, ":public")
-        self.assertTrue(should_cache)
         self.assertEqual(
             cache_key + suffix,
             "funding_feed:popular:all:all:none:1-20:public",
@@ -1028,14 +1027,13 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertIn(private_post.id, post_ids)
 
     def test_public_discovery_feed_excludes_private(self):
-        """
-        The cacheable discovery feed (no personalization) never leaks private work.
-        """
+        """``:public`` discovery never leaks private work (anonymous / no viewer)."""
         # Arrange
         private_post = self._create_private_preregistration(self.user)
+        anon_client = APIClient()
 
         # Act
-        response = self.client.get(reverse("funding_feed-list"))
+        response = anon_client.get(reverse("funding_feed-list"))
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1094,11 +1092,14 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         mock_cache.set.assert_not_called()
 
     def test_include_private_ignored_for_non_mod(self):
-        # Arrange
+        """Non-mods cannot force private via include_private; outsiders stay on :public."""
+        # Arrange — private owned by self.user; request as unrelated other_user
         private_post = self._create_private_preregistration(self.user)
+        outsider_client = APIClient()
+        outsider_client.force_authenticate(user=self.other_user)
 
         # Act
-        response = self.client.get(
+        response = outsider_client.get(
             reverse("funding_feed-list"),
             {"include_private": "true"},
         )
@@ -1118,11 +1119,13 @@ class FundingFeedViewSetTests(AWSMockTestCase):
     ):
         """list()'s auth decision must be reused so a later privilege flip
         cannot select private rows into a public cache key."""
-        # Arrange
+        # Arrange — outsider has no private visibility (stays on :public)
         private_post = self._create_private_preregistration(self.user)
+        outsider_client = APIClient()
+        outsider_client.force_authenticate(user=self.other_user)
 
         # Act
-        response = self.client.get(
+        response = outsider_client.get(
             reverse("funding_feed-list"),
             {"include_private": "true", "page": 1},
         )
@@ -1133,7 +1136,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertNotIn(private_post.id, post_ids)
         mock_include_private.assert_called_once()
 
-    def test_moderator_discovery_without_include_private_excludes_private(self):
+    def test_moderator_discovery_includes_private_via_admin_segment(self):
         # Arrange
         private_post = self._create_private_preregistration(self.user)
         moderator = User.objects.create_user(
@@ -1150,7 +1153,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-        self.assertNotIn(private_post.id, post_ids)
+        self.assertIn(private_post.id, post_ids)
 
     def test_created_by_filter_disables_caching(self):
         """Test that created_by filter disables caching"""

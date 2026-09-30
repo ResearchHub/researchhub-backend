@@ -57,6 +57,22 @@ app.conf.beat_schedule = {
             "queue": QUEUE_CACHES,
         },
     },
+    "feed-warm-grant-feed-cache": {
+        "task": "feed.tasks.warm_grant_feed_cache",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_CACHES,
+        },
+    },
+    "feed-warm-funding-feed-cache": {
+        "task": "feed.tasks.warm_funding_feed_cache",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_CACHES,
+        },
+    },
     # Hub
     "hub_calculate-and-set-hub-counts": {
         "task": "hub.tasks.calculate_and_set_hub_counts",

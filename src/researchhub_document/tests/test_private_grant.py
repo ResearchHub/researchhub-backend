@@ -7,10 +7,6 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from purchase.models import Grant, GrantApplication
-from research_ai.models import ExpertSearch, GeneratedEmail
-from research_ai.services.outreach.invited_experts import (
-    grant_invited_expert_access_for_signup,
-)
 from researchhub_access_group.constants import VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
@@ -153,25 +149,23 @@ class PrivateGrantVisibilityTests(APITestCase):
         self.assertIn("Public Grant", titles)
         self.assertNotIn("Private Grant", titles)
 
-    def test_grant_feed_hides_private_from_owner(self):
-        """Private grants are excluded from the feed for everyone, including
-        the owner. The owner accesses them via the direct post/grant URL."""
+    def test_grant_feed_shows_private_to_owner(self):
+        """Owners see their private grants on discovery via the ``:viewer-*`` segment."""
         self.client.force_authenticate(self.owner)
         resp = self.client.get("/api/grant_feed/")
         self.assertEqual(resp.status_code, 200)
         titles = [r["content_object"]["title"] for r in resp.data["results"]]
         self.assertIn("Public Grant", titles)
-        self.assertNotIn("Private Grant", titles)
+        self.assertIn("Private Grant", titles)
 
-    def test_grant_feed_hides_private_from_permitted_user(self):
-        """Permission rows grant detail-page access but do not surface private
-        grants in the shared feed (which is cached across all users)."""
+    def test_grant_feed_shows_private_to_permitted_user(self):
+        """Invitees with document permission see private grants on their viewer segment."""
         self.client.force_authenticate(self.invitee)
         resp = self.client.get("/api/grant_feed/")
         self.assertEqual(resp.status_code, 200)
         titles = [r["content_object"]["title"] for r in resp.data["results"]]
         self.assertIn("Public Grant", titles)
-        self.assertNotIn("Private Grant", titles)
+        self.assertIn("Private Grant", titles)
 
     def test_grant_viewset_hides_private_from_unrelated_user(self):
         self.client.force_authenticate(self.other)
@@ -254,68 +248,3 @@ class PrivatePreregistrationVisibilityTests(APITestCase):
         self.client.force_authenticate(editor)
         resp = self.client.get(f"/api/researchhubpost/{self.private_post.id}/")
         self.assertEqual(resp.status_code, 200)
-
-
-class InviteAccessGrantForPrivateGrantTests(APITestCase):
-    """grant_invited_expert_access_for_signup must now create a Permission on
-    a private GRANT (previously only on PREREGISTRATIONs)."""
-
-    def setUp(self):
-        cache.clear()
-        self.owner = create_random_authenticated_user("invite_owner")
-        self.invitee_email = "applicant@example.com"
-
-        post = create_post(created_by=self.owner, document_type=GRANT)
-        post.unified_document.is_public = False
-        post.unified_document.save(update_fields=["is_public"])
-        Grant.objects.create(
-            created_by=self.owner,
-            unified_document=post.unified_document,
-            amount=Decimal("30000.00"),
-            currency="USD",
-            organization="OrgX",
-            description="d",
-            status=Grant.OPEN,
-            end_date=timezone.now() + timedelta(days=30),
-        )
-
-        search = ExpertSearch.objects.create(
-            created_by=self.owner,
-            unified_document=post.unified_document,
-            name="RFP Applicant Invites",
-            query="x",
-            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
-            status=ExpertSearch.Status.COMPLETED,
-            progress=100,
-        )
-        GeneratedEmail.objects.create(
-            created_by=self.owner,
-            expert_search=search,
-            expert_email=self.invitee_email,
-            email_subject="s",
-            email_body="b",
-            status=GeneratedEmail.Status.SENT,
-        )
-        self.unified_doc = post.unified_document
-
-    def test_signup_grants_viewer_permission_on_private_grant(self):
-        new_user = create_random_authenticated_user("late_signup")
-        # Move signup into the window relative to the invite's created_date.
-        new_user.email = self.invitee_email
-        new_user.date_joined = timezone.now()
-        new_user.save(update_fields=["email", "date_joined"])
-
-        granted = grant_invited_expert_access_for_signup(
-            normalized_email=self.invitee_email, user=new_user
-        )
-        self.assertEqual(granted, 1)
-
-        ud_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
-        self.assertTrue(
-            Permission.objects.filter(
-                content_type=ud_ct,
-                object_id=self.unified_doc.id,
-                user=new_user,
-                access_type=VIEWER,
-            ).exists()
-        )

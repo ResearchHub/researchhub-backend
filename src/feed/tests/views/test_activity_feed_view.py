@@ -1987,25 +1987,27 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
     @patch("feed.views.activity_feed_view.cache")
     def test_warm_activity_feed_cache_replaces_pages(self, mock_cache):
         # Arrange / Act
-        from feed.activity_feed_cache import (
-            ACTIVITY_FEED_MAX_CACHED_PAGE,
-            activity_feed_cache_key,
-        )
+        from feed.activity_feed_cache import activity_feed_cache_key
+        from feed.cache_segment import FEED_CACHE_MAX_CACHED_PAGE
         from feed.tasks import warm_activity_feed_cache
 
         warm_activity_feed_cache()
 
-        # Assert
-        self.assertEqual(mock_cache.set.call_count, ACTIVITY_FEED_MAX_CACHED_PAGE)
+        # Assert — warms consecutive pages from 1; may stop early on empty results
+        self.assertGreaterEqual(mock_cache.set.call_count, 1)
+        self.assertLessEqual(mock_cache.set.call_count, FEED_CACHE_MAX_CACHED_PAGE)
         written_keys = [call.args[0] for call in mock_cache.set.call_args_list]
         self.assertEqual(
             written_keys,
             [
                 activity_feed_cache_key(page)
-                for page in range(1, ACTIVITY_FEED_MAX_CACHED_PAGE + 1)
+                for page in range(1, mock_cache.set.call_count + 1)
             ],
         )
         for call in mock_cache.set.call_args_list:
             payload = call.args[1]
             self.assertIn("results", payload)
             self.assertIn("next", payload)
+        # If warm stopped early, the last written page must be empty.
+        if mock_cache.set.call_count < FEED_CACHE_MAX_CACHED_PAGE:
+            self.assertEqual(mock_cache.set.call_args_list[-1].args[1]["results"], [])
