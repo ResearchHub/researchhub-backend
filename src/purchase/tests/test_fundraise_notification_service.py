@@ -220,11 +220,13 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
         self.assertEqual(notification.item, distribution.fundraise_purchase)
         self.channel_layer.group_send.assert_awaited_once()
 
-    def test_notify_grant_author_after_pool_contribution_commits(self) -> None:
-        """Notify the grant author once a funding pool contribution commits."""
+    def test_notify_rfp_creator_and_contacts_after_pool_contribution(self) -> None:
+        """Notify the RFP creator and its contacts once a pool contribution commits."""
         # Arrange
         self._give_contributor_funding_credits()
+        contact = create_random_default_user("rfp_contact")
         pool = self._create_funding_pool(self.creator)
+        pool.grant.unified_document.get_document().authors.add(contact.author_profile)
         service = FundingPoolService(
             fundraise_notification_service=self.notification_service
         )
@@ -238,12 +240,13 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
 
         # Assert
         self.email_service.send_message_email.assert_called_once()
-        self.assertEqual(
+        self.assertCountEqual(
             self.email_service.send_message_email.call_args.args[0],
-            [self.creator.email],
+            [self.creator.email, contact.email],
         )
-        notification = Notification.objects.get(
-            notification_type=Notification.FUNDING_POOL_CONTRIBUTION
+        self.assertCountEqual(
+            Notification.objects.filter(
+                notification_type=Notification.FUNDING_POOL_CONTRIBUTION
+            ).values_list("recipient_id", "object_id"),
+            [(self.creator.id, purchase.id), (contact.id, purchase.id)],
         )
-        self.assertEqual(notification.recipient, self.creator)
-        self.assertEqual(notification.item, purchase)
