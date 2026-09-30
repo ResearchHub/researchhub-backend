@@ -23,7 +23,7 @@ dependencies = [
     "daphne>=4.2.2,<5.0.0",
     "dj-rest-auth[with-mfa,with-social]>=7.0.2,<8.0.0",
     "django==5.2.17",
-    "django-allauth>=65.13.0,<66.0.0",
+    "django-allauth>=65.19.5,<66",
     "django-celery-results==2.6.0",
     "django-cors-headers>=4.9.0,<5",
     "django-dbbackup==4.0.2",
@@ -104,8 +104,14 @@ extend-select = [
     "DJ013", # django-non-leading-receiver-decorator
     "E",     # pycodestyle errors
     "FURB",  # refurb
+    #"G004",  # logging-fstring-interpolation
     "G201",  # logging-exc-info
     "I",     # isort
+    #"LOG001",#
+    #"LOG002",#
+    #"LOG004",#
+    #"LOG014",#
+    #"LOG015",#
     "N",     # pep8-naming
     "PERF",  # flake8-perf
     "PIE",   # flake8-pie
