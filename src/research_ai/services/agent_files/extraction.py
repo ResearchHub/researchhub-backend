@@ -68,6 +68,8 @@ _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _W_STRICT = "{http://purl.oclc.org/ooxml/wordprocessingml/main}"
 _MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
 _DOCX_CONTAINERS = frozenset({f"{_W}sdt", f"{_W}sdtContent", f"{_W}customXml"})
+# Tracked changes whose content is no longer part of the document.
+_DOCX_REMOVED = frozenset({f"{_W}del", f"{_W}moveFrom"})
 _DOCX_RUN_TEXT = {
     f"{_W}tab": "\t",
     f"{_W}br": "\n",
@@ -278,26 +280,27 @@ def _docx_blocks(element) -> Iterator[str]:
 
 
 def _docx_paragraph(paragraph) -> str:
-    parts: list[str] = []
-
-    def walk(element) -> None:
+    def walk(element, parts: list[str]) -> list[str]:
         for node in element:
             if node.tag == f"{_W}t":
                 parts.append(node.text or "")
             elif node.tag in _DOCX_RUN_TEXT:
                 parts.append(_DOCX_RUN_TEXT[node.tag])
             elif node.tag == f"{_MC}AlternateContent":
-                # Renderings of the same content; reading more would duplicate it.
-                rendering = node.find(f"{_MC}Choice")
-                if rendering is None:
-                    rendering = node.find(f"{_MC}Fallback")
-                if rendering is not None:
-                    walk(rendering)
-            else:
-                walk(node)
+                # Renderings of the same content: read the first that has text.
+                for rendering in (
+                    *node.iterfind(f"{_MC}Choice"),
+                    *node.iterfind(f"{_MC}Fallback"),
+                ):
+                    text = walk(rendering, [])
+                    if any(text):
+                        parts.extend(text)
+                        break
+            elif node.tag not in _DOCX_REMOVED:
+                walk(node, parts)
+        return parts
 
-    walk(paragraph)
-    return "".join(parts)
+    return "".join(walk(paragraph, []))
 
 
 def _plain_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
