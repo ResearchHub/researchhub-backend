@@ -1,4 +1,6 @@
 import codecs
+import json
+import subprocess
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -109,13 +111,32 @@ class PdfExtractionTests(TestCase):
         # Assert
         self.assertEqual(extracted.text, "[Page 1]\nAlpha findings")
 
+    def test_no_more_than_max_chars_leaves_the_parsing_process(self):
+        # Arrange
+        data = pdf_bytes("A single page holding more text than the cap")
+        run = subprocess.run
+        payloads = []
+
+        def run_and_capture(*args, **kwargs):
+            result = run(*args, **kwargs)
+            payloads.append(json.loads(result.stdout))
+            return result
+
+        # Act
+        with patch.object(subprocess, "run", side_effect=run_and_capture):
+            extract_text(data, PDF, max_chars=20)
+
+        # Assert
+        self.assertEqual(len(payloads[0]["text"]), 20)
+        self.assertTrue(payloads[0]["truncated"])
+
     def test_a_pdf_that_exceeds_the_parsing_limits_is_refused(self):
         # Arrange
         data = pdf_bytes("Alpha findings")
 
         # Act / Assert
         with (
-            patch.object(extraction, "_PDF_TIMEOUT_SECONDS", 0.001),
+            patch.object(extraction, "_CHILD_TIMEOUT_SECONDS", 0.001),
             self.assertRaisesRegex(UnreadableFileError, "too complex"),
         ):
             extract_text(data, PDF, max_chars=MAX_CHARS)
@@ -206,6 +227,17 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertTrue(extracted.text.startswith("Visible"))
         self.assertNotIn("localhost", extracted.text)
+
+    def test_a_document_that_exceeds_the_parsing_limits_is_refused(self):
+        # Arrange
+        data = docx_bytes(paragraph("Specific Aims"))
+
+        # Act / Assert
+        with (
+            patch.object(extraction, "_CHILD_TIMEOUT_SECONDS", 0.001),
+            self.assertRaisesRegex(UnreadableFileError, "Word document is too complex"),
+        ):
+            extract_text(data, DOCX, max_chars=MAX_CHARS)
 
     def test_a_file_that_is_not_a_docx_is_refused(self):
         # Act / Assert

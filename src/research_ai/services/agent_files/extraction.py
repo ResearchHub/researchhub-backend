@@ -57,11 +57,12 @@ SUPPORTED_EXTENSIONS = tuple(_KINDS_BY_EXTENSION)
 # Bounds on work an adversarial file can demand, beyond the upload size cap.
 _MAX_PDF_PAGES = 2000
 _MAX_DOCX_XML_BYTES = 64 * 1024 * 1024
-# MuPDF inflates a whole page before any text cap applies, so PDFs are parsed
-# in a child process under these limits.
-_PDF_CPU_SECONDS = 60
-_PDF_MEMORY_BYTES = 1024 * 1024 * 1024
-_PDF_TIMEOUT_SECONDS = 120
+# A compressed PDF page or a tree of millions of tiny XML elements costs far
+# more than the file's size before any text cap applies, so PDF and Word files
+# are parsed in a child process under these limits.
+_CHILD_CPU_SECONDS = 60
+_CHILD_MEMORY_BYTES = 1024 * 1024 * 1024
+_CHILD_TIMEOUT_SECONDS = 120
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _W_STRICT = "{http://purl.oclc.org/ooxml/wordprocessingml/main}"
@@ -97,12 +98,10 @@ def kind_for_content_type(content_type: str) -> FileKind | None:
 
 def extract_text(data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedText:
     """Text of the file, cut at ``max_chars``. Raises ``UnreadableFileError``."""
-    extractor = {
-        "pdf": _pdf_text_sandboxed,
-        "docx": _docx_text,
-        "text": _plain_text,
-    }[kind.extractor]
-    text, page_count, truncated = extractor(data, max_chars)
+    if kind.extractor == "text":
+        text, page_count, truncated = _plain_text(data, max_chars)
+    else:
+        text, page_count, truncated = _extract_in_child(kind, data, max_chars)
     # Postgres text columns cannot hold NUL.
     text = text.replace("\x00", "")
     if not text.strip():
@@ -112,21 +111,25 @@ def extract_text(data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedTex
     return ExtractedText(text=text, page_count=page_count, truncated=truncated)
 
 
-def _pdf_text_sandboxed(data: bytes, max_chars: int) -> tuple[str, int, bool]:
-    too_complex = UnreadableFileError("This PDF is too complex to read.")
+def _extract_in_child(
+    kind: FileKind, data: bytes, max_chars: int
+) -> tuple[str, int | None, bool]:
+    too_complex = UnreadableFileError(f"This {kind.label} is too complex to read.")
     try:
         result = subprocess.run(
             [
                 sys.executable,
                 "-I",
                 os.path.abspath(__file__),
+                kind.extractor,
                 str(max_chars),
-                str(_PDF_CPU_SECONDS),
-                str(_PDF_MEMORY_BYTES),
+                str(_CHILD_CPU_SECONDS),
+                str(_CHILD_MEMORY_BYTES),
             ],
             input=data,
-            capture_output=True,
-            timeout=_PDF_TIMEOUT_SECONDS,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=_CHILD_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
         raise too_complex from exc
@@ -138,8 +141,10 @@ def _pdf_text_sandboxed(data: bytes, max_chars: int) -> tuple[str, int, bool]:
     return output["text"], output["page_count"], output["truncated"]
 
 
-def _pdf_worker(max_chars: int, cpu_seconds: int, memory_bytes: int) -> None:
-    """Child-process entry point: PDF on stdin, JSON result on stdout."""
+def _child_main(
+    extractor: str, max_chars: int, cpu_seconds: int, memory_bytes: int
+) -> None:
+    """Child-process entry point: file on stdin, JSON result on stdout."""
     # MuPDF prints its errors to stdout; route them to stderr, off the result.
     result = os.fdopen(os.dup(sys.stdout.fileno()), "w")
     os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
@@ -147,10 +152,16 @@ def _pdf_worker(max_chars: int, cpu_seconds: int, memory_bytes: int) -> None:
     # macOS rejects address-space limits; Linux workers enforce them.
     with contextlib.suppress(ValueError, OSError):
         resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+    parse = {"pdf": _pdf_text, "docx": _docx_text}[extractor]
     data = sys.stdin.buffer.read()
     try:
-        text, page_count, truncated = _pdf_text(data, max_chars)
-        output = {"text": text, "page_count": page_count, "truncated": truncated}
+        text, page_count, truncated = parse(data, max_chars)
+        # Cut here so no more than max_chars reaches the unlimited parent.
+        output = {
+            "text": text[:max_chars],
+            "page_count": page_count,
+            "truncated": truncated or len(text) > max_chars,
+        }
     except UnreadableFileError as exc:
         output = {"error": str(exc)}
     with result:
@@ -297,4 +308,4 @@ def _plain_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
 
 
 if __name__ == "__main__":
-    _pdf_worker(*map(int, sys.argv[1:4]))
+    _child_main(sys.argv[1], *map(int, sys.argv[2:5]))
