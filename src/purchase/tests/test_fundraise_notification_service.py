@@ -28,6 +28,7 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC,
 )
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from user.models import User
 from user.tests.helpers import create_random_default_user, create_user
 from utils.test_helpers import AWSMockTransactionTestCase
 
@@ -65,21 +66,43 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
             notification_type=Notification.FUNDRAISE_CONTRIBUTION
         )
 
-    def test_notify_authors_only_after_rsc_contribution_commits(self) -> None:
-        """Notify each author once after commit and discard rolled-back alerts."""
-        # Arrange
+    def _give_contributor_funding_credits(self) -> None:
+        """Give the contributor funding credits and configure contribution fees."""
         create_user(email="bank@researchhub.com")
         create_user(email="revenue@researchhub.com")
         BountyFee.objects.create(rh_pct=Decimal("0.07"), dao_pct=Decimal("0.02"))
-        self.proposal.authors.add(
-            self.creator.author_profile, self.contributor.author_profile
-        )
         Balance.objects.create(
             amount=200,
             user=self.contributor,
             content_type=ContentType.objects.get(model="distribution"),
             is_locked=True,
             lock_type=Balance.LockType.FUNDING_CREDIT,
+        )
+
+    def _create_funding_pool(
+        self, owner: User, amount_holding: Decimal = Decimal(0)
+    ) -> FundingPool:
+        """Create an open grant owned by the user with its funding pool."""
+        grant_post = create_post(created_by=owner, document_type=GRANT_DOC)
+        grant = Grant.objects.create(
+            created_by=owner,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency=USD,
+            organization="Test Org",
+            description="Test grant",
+            status=Grant.OPEN,
+        )
+        return FundingPool.objects.create(
+            grant=grant, created_by=owner, amount_holding=amount_holding
+        )
+
+    def test_notify_authors_only_after_rsc_contribution_commits(self) -> None:
+        """Notify each author once after commit and discard rolled-back alerts."""
+        # Arrange
+        self._give_contributor_funding_credits()
+        self.proposal.authors.add(
+            self.creator.author_profile, self.contributor.author_profile
         )
 
         # Act
@@ -163,21 +186,9 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
     def test_notify_author_only_after_pool_distribution_commits(self) -> None:
         """Notify the proposal author only after a pool distribution commits."""
         # Arrange
-        grant_post = create_post(created_by=self.contributor, document_type=GRANT_DOC)
-        grant = Grant.objects.create(
-            created_by=self.contributor,
-            unified_document=grant_post.unified_document,
-            amount=Decimal("10000.00"),
-            currency=USD,
-            organization="Test Org",
-            description="Test grant",
-            status=Grant.OPEN,
-        )
-        pool = FundingPool.objects.create(
-            grant=grant, created_by=self.contributor, amount_holding=Decimal(200)
-        )
+        pool = self._create_funding_pool(self.contributor, Decimal(200))
         application = GrantApplication.objects.create(
-            grant=grant, preregistration_post=self.proposal, applicant=self.creator
+            grant=pool.grant, preregistration_post=self.proposal, applicant=self.creator
         )
         service = FundingPoolService(
             fundraise_notification_service=self.notification_service
@@ -208,3 +219,38 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
         self.assertEqual(notification.recipient, self.creator)
         self.assertEqual(notification.item, distribution.fundraise_purchase)
         self.channel_layer.group_send.assert_awaited_once()
+
+    def test_notify_rfp_creator_and_contacts_after_pool_contribution(self) -> None:
+        """Notify the RFP creator and its contacts once a pool contribution commits."""
+        # Arrange
+        self._give_contributor_funding_credits()
+        contact = create_random_default_user("rfp_contact")
+        post_author = create_random_default_user("rfp_post_author")
+        pool = self._create_funding_pool(self.creator)
+        pool.grant.contacts.add(contact)
+        pool.grant.unified_document.get_document().authors.add(
+            post_author.author_profile
+        )
+        service = FundingPoolService(
+            fundraise_notification_service=self.notification_service
+        )
+
+        # Act
+        with transaction.atomic():
+            purchase = service.create_rsc_contribution(
+                self.contributor, pool, Decimal(100)
+            )
+            self.email_service.send_message_email.assert_not_called()
+
+        # Assert
+        self.email_service.send_message_email.assert_called_once()
+        self.assertCountEqual(
+            self.email_service.send_message_email.call_args.args[0],
+            [self.creator.email, contact.email],
+        )
+        self.assertCountEqual(
+            Notification.objects.filter(
+                notification_type=Notification.FUNDING_POOL_CONTRIBUTION
+            ).values_list("recipient_id", "object_id"),
+            [(self.creator.id, purchase.id), (contact.id, purchase.id)],
+        )
