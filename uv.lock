@@ -2674,7 +2674,7 @@ requires-dist = [
     { name = "sentry-sdk", specifier = ">=2.49.0,<3.0.0" },
     { name = "stripe", specifier = ">=11.2.0,<12.0.0" },
     { name = "web3", specifier = ">=7.16.0" },
-    { name = "xdk", specifier = ">=0.4.5" },
+    { name = "xdk", specifier = ">=0.10.6,<1" },
 ]
 
 [package.metadata.requires-dev]
@@ -3282,16 +3282,16 @@ wheels = [
 
 [[package]]
 name = "xdk"
-version = "0.5.0"
+version = "0.10.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "requests" },
     { name = "requests-oauthlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d6/2f/825b349e3ad66153dafeb83148fec436a9fbb6c7f0b5c0513ac3205010f4/xdk-0.5.0.tar.gz", hash = "sha256:50ae91c6c4e608237f164223e223f806b79c7c8b60c5ec834e5a0015d62170e6", size = 335650, upload-time = "2025-12-09T00:39:33.212Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9b/7b/47c5efdb3f6b1e76b101eca028fc68831344762650138534854cc4bd2243/xdk-0.10.6.tar.gz", hash = "sha256:34a5142680f051f65aa1d4b53759ec7cead84ddf49428bcf278c7f8881da6d79", size = 461188, upload-time = "2026-07-25T05:33:43.031Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/b6/85a1a4ca796d7d99d62090c1dd876b2687c443f223eed87b25c730d88fc6/xdk-0.5.0-py3-none-any.whl", hash = "sha256:8c7cbf7735feef9a8be577d9c668310542f12188c63143a71990bcca381e740e", size = 141222, upload-time = "2025-12-09T00:39:31.931Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/98/6bf27d955447ace007b3a55094ef36dc35c3b97f4e2da939247e443f3936/xdk-0.10.6-py3-none-any.whl", hash = "sha256:89859f02e2365a3edceb04340f1902ba5d975a3e22e469bb9bfd8bfdf557e587", size = 212692, upload-time = "2026-07-25T05:33:41.6Z" },
 ]
 
 [[package]]
