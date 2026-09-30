@@ -95,6 +95,20 @@ class PdfExtractionTests(TestCase):
         with self.assertRaisesRegex(UnreadableFileError, "password-protected"):
             extract_text(data, PDF, max_chars=MAX_CHARS)
 
+    def test_a_page_mupdf_complains_about_still_yields_its_text(self):
+        # Arrange
+        document = fitz.open(stream=pdf_bytes("Alpha findings"), filetype="pdf")
+        xref = document[0].get_contents()[0]
+        document.update_stream(xref, document.xref_stream(xref) + b"\nnot-an-operator")
+        data = document.tobytes()
+        document.close()
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "[Page 1]\nAlpha findings")
+
     def test_a_pdf_that_exceeds_the_parsing_limits_is_refused(self):
         # Arrange
         data = pdf_bytes("Alpha findings")

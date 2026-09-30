@@ -60,7 +60,7 @@ _MAX_DOCX_XML_BYTES = 64 * 1024 * 1024
 # MuPDF inflates a whole page before any text cap applies, so PDFs are parsed
 # in a child process under these limits.
 _PDF_CPU_SECONDS = 60
-_PDF_MEMORY_BYTES = 2 * 1024 * 1024 * 1024
+_PDF_MEMORY_BYTES = 1024 * 1024 * 1024
 _PDF_TIMEOUT_SECONDS = 120
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -140,6 +140,9 @@ def _pdf_text_sandboxed(data: bytes, max_chars: int) -> tuple[str, int, bool]:
 
 def _pdf_worker(max_chars: int, cpu_seconds: int, memory_bytes: int) -> None:
     """Child-process entry point: PDF on stdin, JSON result on stdout."""
+    # MuPDF prints its errors to stdout; route them to stderr, off the result.
+    result = os.fdopen(os.dup(sys.stdout.fileno()), "w")
+    os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
     resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
     # macOS rejects address-space limits; Linux workers enforce them.
     with contextlib.suppress(ValueError, OSError):
@@ -150,7 +153,8 @@ def _pdf_worker(max_chars: int, cpu_seconds: int, memory_bytes: int) -> None:
         output = {"text": text, "page_count": page_count, "truncated": truncated}
     except UnreadableFileError as exc:
         output = {"error": str(exc)}
-    json.dump(output, sys.stdout)
+    with result:
+        json.dump(output, result)
 
 
 def _pdf_text(data: bytes, max_chars: int) -> tuple[str, int, bool]:
