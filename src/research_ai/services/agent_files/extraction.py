@@ -66,8 +66,7 @@ _CHILD_TIMEOUT_SECONDS = 120
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _W_STRICT = "{http://purl.oclc.org/ooxml/wordprocessingml/main}"
-# Alternate renderings of the same content; reading both would duplicate it.
-_MC_FALLBACK = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
+_MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
 _DOCX_CONTAINERS = frozenset({f"{_W}sdt", f"{_W}sdtContent", f"{_W}customXml"})
 _DOCX_RUN_TEXT = {
     f"{_W}tab": "\t",
@@ -272,7 +271,8 @@ def _docx_blocks(element) -> Iterator[str]:
                     " ".join(filter(None, _docx_blocks(cell)))
                     for cell in _docx_children(row, f"{_W}tc")
                 ]
-                yield " | ".join(cells)
+                if any(cell.strip() for cell in cells):
+                    yield " | ".join(cells)
         elif child.tag in _DOCX_CONTAINERS:
             yield from _docx_blocks(child)
 
@@ -286,7 +286,14 @@ def _docx_paragraph(paragraph) -> str:
                 parts.append(node.text or "")
             elif node.tag in _DOCX_RUN_TEXT:
                 parts.append(_DOCX_RUN_TEXT[node.tag])
-            elif node.tag != _MC_FALLBACK:
+            elif node.tag == f"{_MC}AlternateContent":
+                # Renderings of the same content; reading more would duplicate it.
+                rendering = node.find(f"{_MC}Choice")
+                if rendering is None:
+                    rendering = node.find(f"{_MC}Fallback")
+                if rendering is not None:
+                    walk(rendering)
+            else:
                 walk(node)
 
     walk(paragraph)

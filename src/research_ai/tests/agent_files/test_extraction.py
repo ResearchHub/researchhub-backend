@@ -198,12 +198,35 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertEqual(extracted.text, "Strict\na\t")
 
-    def test_deleted_revisions_and_fallback_renderings_are_skipped(self):
+    def test_empty_table_rows_are_skipped(self):
+        # Arrange
+        body = (
+            f"<w:tbl><w:tr><w:tc>{paragraph('')}</w:tc><w:tc><w:p/></w:tc></w:tr>"
+            f"<w:tr><w:tc>{paragraph('1')}</w:tc><w:tc>{paragraph('$50,000')}</w:tc>"
+            "</w:tr></w:tbl>"
+        )
+
+        # Act
+        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "1 | $50,000")
+
+    def test_a_document_of_empty_tables_is_refused(self):
+        # Arrange
+        body = "<w:tbl><w:tr><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc></w:tr></w:tbl>"
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
+            extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+
+    def test_deleted_revisions_and_unchosen_renderings_are_skipped(self):
         # Arrange
         body = (
             "<w:p><w:r><w:t>Kept</w:t></w:r>"
             "<w:del><w:r><w:delText>Removed</w:delText></w:r></w:del>"
             "<mc:AlternateContent><mc:Choice><w:r><w:t> once</w:t></w:r></mc:Choice>"
+            "<mc:Choice><w:r><w:t> again</w:t></w:r></mc:Choice>"
             "<mc:Fallback><w:r><w:t> twice</w:t></w:r></mc:Fallback>"
             "</mc:AlternateContent></w:p>"
         )
@@ -213,6 +236,20 @@ class DocxExtractionTests(TestCase):
 
         # Assert
         self.assertEqual(extracted.text, "Kept once")
+
+    def test_the_fallback_rendering_is_read_when_no_choice_is_offered(self):
+        # Arrange
+        body = (
+            "<w:p><mc:AlternateContent>"
+            "<mc:Fallback><w:r><w:t>Fallback only</w:t></w:r></mc:Fallback>"
+            "</mc:AlternateContent></w:p>"
+        )
+
+        # Act
+        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "Fallback only")
 
     def test_external_entities_are_never_resolved(self):
         # Arrange
