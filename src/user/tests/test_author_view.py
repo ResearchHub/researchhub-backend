@@ -118,16 +118,6 @@ class AuthorApiTests(APITestCase):
         self.assertNotIn("orcid.handle", body)
         self.assertNotIn("private.inbox", body)
 
-    def test_list_omits_verified_academic_email(self):
-        # Act
-        response = self.client.get("/api/author/")
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.data["results"])
-        for author in response.data["results"]:
-            self.assertNotIn("verified_academic_email", author)
-
     def test_delete_soft_deletes_author_and_linked_user(self):
         # Arrange
         user = self.user_with_published_works

@@ -166,6 +166,7 @@ class AuthorSerializer(ModelSerializer):
     wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
     is_verified = SerializerMethodField()
+    verified_academic_email = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -182,6 +183,7 @@ class AuthorSerializer(ModelSerializer):
             "university",
             "wallet",
             "is_verified",
+            "verified_academic_email",
         ]
         read_only_fields = [
             "added_as_editor_date",
@@ -274,15 +276,6 @@ class AuthorSerializer(ModelSerializer):
         user = author.user
         if user:
             return user.is_hub_editor()
-
-
-class AuthorDetailSerializer(AuthorSerializer):
-    # AuthorSerializer is nested in list payloads, where this field would cost
-    # extra queries per author, so it only exists on single-author endpoints.
-    verified_academic_email = SerializerMethodField()
-
-    class Meta(AuthorSerializer.Meta):
-        fields = AuthorSerializer.Meta.fields + ["verified_academic_email"]
 
     def get_verified_academic_email(self, author):
         if author.user is None:
@@ -769,6 +762,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     benefits_expire_on = SerializerMethodField()
     editor_of = SerializerMethodField()
     is_verified = SerializerMethodField()
+    verified_academic_email = SerializerMethodField()
 
     class Meta:
         model = User
@@ -821,6 +815,9 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
 
     def get_is_verified(self, user):
         return user.is_verified
+
+    def get_verified_academic_email(self, user):
+        return AcademicEmailService().get_verified_academic_email(user)
 
 
 class OrganizationSerializer(ModelSerializer):
