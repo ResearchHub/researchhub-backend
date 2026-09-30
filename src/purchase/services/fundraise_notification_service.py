@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 
 from mailing_list.services import EmailService
 from notification.models import Notification
@@ -41,11 +41,17 @@ class FundraiseNotificationService:
             action = "contributed"
 
         proposal = fundraise.unified_document.get_document()
-        self._notify_owner_and_authors(
+        self._notify_recipients(
             Notification.FUNDRAISE_CONTRIBUTION,
             contribution,
             proposal,
-            owner_id=proposal.created_by_id,
+            recipients=User.objects.filter(
+                Q(id=proposal.created_by_id)
+                | Q(
+                    author_profile__authored_posts=proposal,
+                    author_profile__is_removed=False,
+                )
+            ).distinct(),
             extra={"amount": str(amount), "currency": currency},
             subject="New contribution to your proposal",
             message=f"{action} {amount:,.2f} {currency} to your proposal",
@@ -57,32 +63,31 @@ class FundraiseNotificationService:
         grant = purchase.item.grant
         amount = Decimal(purchase.amount)
 
-        self._notify_owner_and_authors(
+        self._notify_recipients(
             Notification.FUNDING_POOL_CONTRIBUTION,
             purchase,
             grant.unified_document.get_document(),
-            owner_id=grant.created_by_id,
+            recipients=User.objects.filter(
+                Q(id=grant.created_by_id) | Q(grant_contacts=grant)
+            ).distinct(),
             extra={"amount": str(amount)},
             subject="New contribution to your RFP",
             message=f"contributed {amount:,.2f} RSC to your RFP",
         )
 
-    def _notify_owner_and_authors(
+    def _notify_recipients(
         self,
         notification_type: str,
         contribution: Purchase | UsdFundraiseContribution,
         post: ResearchhubPost,
-        owner_id: int,
+        recipients: QuerySet[User],
         extra: dict[str, str],
         subject: str,
         message: str,
     ) -> None:
-        """Send in-app and email alerts once to the owner and each post author."""
+        """Send in-app and email alerts once to each recipient."""
         document = post.unified_document
-        recipients = User.objects.filter(
-            Q(id=owner_id)
-            | Q(author_profile__authored_posts=post, author_profile__is_removed=False)
-        ).distinct()
+        recipients = list(recipients)
         for recipient in recipients:
             self._notifications.try_send(
                 notification_type,

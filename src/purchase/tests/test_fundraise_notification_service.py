@@ -225,8 +225,12 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
         # Arrange
         self._give_contributor_funding_credits()
         contact = create_random_default_user("rfp_contact")
+        post_author = create_random_default_user("rfp_post_author")
         pool = self._create_funding_pool(self.creator)
-        pool.grant.unified_document.get_document().authors.add(contact.author_profile)
+        pool.grant.contacts.add(contact)
+        pool.grant.unified_document.get_document().authors.add(
+            post_author.author_profile
+        )
         service = FundingPoolService(
             fundraise_notification_service=self.notification_service
         )
