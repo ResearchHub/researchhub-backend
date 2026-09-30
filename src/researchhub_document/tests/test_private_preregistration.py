@@ -595,7 +595,7 @@ class FundingFeedPrivacyTests(AWSMockTestCase):
         self.assertIn(self.private_post.id, self._ids(response))
 
     def test_viewer_segment_does_not_leak_into_public_cache(self):
-        """Authored private posts use ``:viewer-*``; anonymous ``:public`` stays clean."""
+        """Authored private posts use ``:viewer-*``; anon ``:public`` stays clean."""
         author_client = APIClient()
         author_client.force_authenticate(self.author)
         author_response = author_client.get(reverse("funding_feed-list"))

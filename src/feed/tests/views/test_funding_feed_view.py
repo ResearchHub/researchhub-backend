@@ -1092,7 +1092,7 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         mock_cache.set.assert_not_called()
 
     def test_include_private_ignored_for_non_mod(self):
-        """Non-mods cannot force private via include_private; outsiders stay on :public."""
+        """Non-mods cannot force private via include_private; stay on :public."""
         # Arrange — private owned by self.user; request as unrelated other_user
         private_post = self._create_private_preregistration(self.user)
         outsider_client = APIClient()

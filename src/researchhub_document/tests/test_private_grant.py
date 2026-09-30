@@ -150,7 +150,7 @@ class PrivateGrantVisibilityTests(APITestCase):
         self.assertNotIn("Private Grant", titles)
 
     def test_grant_feed_shows_private_to_owner(self):
-        """Owners see their private grants on discovery via the ``:viewer-*`` segment."""
+        """Owners see private grants on discovery via the ``:viewer-*`` segment."""
         self.client.force_authenticate(self.owner)
         resp = self.client.get("/api/grant_feed/")
         self.assertEqual(resp.status_code, 200)
@@ -159,7 +159,7 @@ class PrivateGrantVisibilityTests(APITestCase):
         self.assertIn("Private Grant", titles)
 
     def test_grant_feed_shows_private_to_permitted_user(self):
-        """Invitees with document permission see private grants on their viewer segment."""
+        """Invitees with permission see private grants on their viewer segment."""
         self.client.force_authenticate(self.invitee)
         resp = self.client.get("/api/grant_feed/")
         self.assertEqual(resp.status_code, 200)
