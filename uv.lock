@@ -923,15 +923,15 @@ wheels = [
 
 [[package]]
 name = "django-allauth"
-version = "65.19.0"
+version = "65.19.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a6/b7/6107ed71b0136a6d2a6647dbfe125dbc6c2fa764fdb19e98bda9bd52b0e6/django_allauth-65.19.0.tar.gz", hash = "sha256:9a615fd7f48f31985e1e3d886f8983e12d09e189f8d00d7a9750b3d300b7b366", size = 2283106, upload-time = "2026-08-06T14:27:15.296Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/0d/ca8cc8244849299160c433b7738a3f318eaad1967761083b44b0b2bee80c/django_allauth-65.19.5.tar.gz", hash = "sha256:03fdb1431e8cecd55071e6c3a3006f2fe1a45b916ee2bf5d14ed0fdadea3b7e5", size = 2294382, upload-time = "2026-09-28T19:45:56.88Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ed/ec/3595bf98e7a2d161cab30c79f6bb2e395ff4f707110ef55ea0d4c04348cf/django_allauth-65.19.0-py3-none-any.whl", hash = "sha256:e37efea604d0bf40a6b16edd5b00e1560414e2c3ed07c2431b6e5bb058e2a771", size = 2073767, upload-time = "2026-08-06T14:27:06.411Z" },
+    { url = "https://files.pythonhosted.org/packages/32/c5/6500f20404c8fe31ef328ffd4f165f0517c7cb8c189cf2f91c7b6f9ae687/django_allauth-65.19.5-py3-none-any.whl", hash = "sha256:eda48d77cd790d2e60862993fe19e59ff2e18c6be8aa490d407e0ee1108dd385", size = 2076097, upload-time = "2026-09-28T19:45:54.025Z" },
 ]
 
 [package.optional-dependencies]
@@ -2263,11 +2263,11 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.13.0"
+version = "2.15.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/ea/5194e52748b0da83d71e082d75496eaec6e58f419f5e184786ded517e6a9/pyjwt-2.15.1.tar.gz", hash = "sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8", size = 121252, upload-time = "2026-09-28T18:40:42.598Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
+    { url = "https://files.pythonhosted.org/packages/50/ca/44de4e75f8aadc457f0634be3b542815078ded46dca30efb960edeecad6e/pyjwt-2.15.1-py3-none-any.whl", hash = "sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193", size = 33860, upload-time = "2026-09-28T18:40:41.429Z" },
 ]
 
 [package.optional-dependencies]
@@ -2639,7 +2639,7 @@ requires-dist = [
     { name = "daphne", specifier = ">=4.2.2,<5.0.0" },
     { name = "dj-rest-auth", extras = ["with-mfa", "with-social"], specifier = ">=7.0.2,<8.0.0" },
     { name = "django", specifier = "==5.2.17" },
-    { name = "django-allauth", specifier = ">=65.13.0,<66.0.0" },
+    { name = "django-allauth", specifier = ">=65.19.5,<66" },
     { name = "django-celery-results", specifier = "==2.6.0" },
     { name = "django-cors-headers", specifier = ">=4.9.0,<5" },
     { name = "django-dbbackup", specifier = "==4.0.2" },
@@ -2665,7 +2665,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=12.3.0" },
     { name = "prosemirror", specifier = ">=0.6.1,<0.7" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.3,<4.0.0" },
-    { name = "pyjwt", specifier = ">=2.12.0" },
+    { name = "pyjwt", specifier = ">=2.15.1,<3" },
     { name = "pymupdf", specifier = ">=1.24.13,<2.0.0" },
     { name = "python-json-logger", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
@@ -2674,7 +2674,7 @@ requires-dist = [
     { name = "sentry-sdk", specifier = ">=2.49.0,<3.0.0" },
     { name = "stripe", specifier = ">=11.2.0,<12.0.0" },
     { name = "web3", specifier = ">=7.16.0" },
-    { name = "xdk", specifier = ">=0.4.5" },
+    { name = "xdk", specifier = ">=0.10.6,<1" },
 ]
 
 [package.metadata.requires-dev]
@@ -3282,16 +3282,16 @@ wheels = [
 
 [[package]]
 name = "xdk"
-version = "0.5.0"
+version = "0.10.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "requests" },
     { name = "requests-oauthlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d6/2f/825b349e3ad66153dafeb83148fec436a9fbb6c7f0b5c0513ac3205010f4/xdk-0.5.0.tar.gz", hash = "sha256:50ae91c6c4e608237f164223e223f806b79c7c8b60c5ec834e5a0015d62170e6", size = 335650, upload-time = "2025-12-09T00:39:33.212Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9b/7b/47c5efdb3f6b1e76b101eca028fc68831344762650138534854cc4bd2243/xdk-0.10.6.tar.gz", hash = "sha256:34a5142680f051f65aa1d4b53759ec7cead84ddf49428bcf278c7f8881da6d79", size = 461188, upload-time = "2026-07-25T05:33:43.031Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/b6/85a1a4ca796d7d99d62090c1dd876b2687c443f223eed87b25c730d88fc6/xdk-0.5.0-py3-none-any.whl", hash = "sha256:8c7cbf7735feef9a8be577d9c668310542f12188c63143a71990bcca381e740e", size = 141222, upload-time = "2025-12-09T00:39:31.931Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/98/6bf27d955447ace007b3a55094ef36dc35c3b97f4e2da939247e443f3936/xdk-0.10.6-py3-none-any.whl", hash = "sha256:89859f02e2365a3edceb04340f1902ba5d975a3e22e469bb9bfd8bfdf557e587", size = 212692, upload-time = "2026-07-25T05:33:41.6Z" },
 ]
 
 [[package]]
