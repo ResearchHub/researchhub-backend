@@ -198,6 +198,28 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertEqual(extracted.text, "Strict\na\t")
 
+    def test_text_that_exactly_fits_is_not_flagged_as_cut(self):
+        # Arrange
+        data = docx_bytes(paragraph("Aims") + paragraph("Plan"))
+
+        # Act
+        extracted = extract_text(data, DOCX, max_chars=9)
+
+        # Assert
+        self.assertEqual(extracted.text, "Aims\nPlan")
+        self.assertFalse(extracted.truncated)
+
+    def test_long_text_is_cut_and_flagged(self):
+        # Arrange
+        data = docx_bytes(paragraph("Aims") + paragraph("Plan") + paragraph("Budget"))
+
+        # Act
+        extracted = extract_text(data, DOCX, max_chars=9)
+
+        # Assert
+        self.assertEqual(extracted.text, "Aims\nPlan")
+        self.assertTrue(extracted.truncated)
+
     def test_empty_table_rows_are_skipped(self):
         # Arrange
         body = (

@@ -235,15 +235,16 @@ def _docx_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
         if body is None:
             raise unreadable
         lines: list[str] = []
-        length = 0
+        length = -1  # the first line has no separator before it
         for line in _docx_blocks(body):
             lines.append(line)
             length += len(line) + 1
             if length > max_chars:
-                return "\n".join(lines), None, True
+                break
     except (etree.XMLSyntaxError, RecursionError) as exc:
         raise unreadable from exc
-    return "\n".join(lines), None, False
+    text = "\n".join(lines)
+    return text, None, len(text) > max_chars
 
 
 def _to_transitional(root) -> None:
