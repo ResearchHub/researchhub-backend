@@ -465,6 +465,13 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 timeout=FEED_CACHE_TIMEOUT,
             )
             if not payload.get("results"):
+                # Feed shrank: overwrite any stale higher-page payloads.
+                for tail_page in range(page + 1, FEED_CACHE_MAX_CACHED_PAGE + 1):
+                    cache.set(
+                        activity_feed_cache_key(tail_page),
+                        payload,
+                        timeout=FEED_CACHE_TIMEOUT,
+                    )
                 break
 
     @staticmethod

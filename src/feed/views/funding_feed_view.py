@@ -316,4 +316,15 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
                     )
                     cache.set(cache_key, payload, timeout=FEED_CACHE_TIMEOUT)
                     if not payload.get("results"):
+                        # Feed shrank: overwrite any stale higher-page payloads.
+                        for tail_page in range(
+                            page + 1, FEED_CACHE_MAX_CACHED_PAGE + 1
+                        ):
+                            params["page"] = str(tail_page)
+                            tail_req = Request(
+                                factory.get("/api/funding_feed/", params)
+                            )
+                            tail_req.user = AnonymousUser()
+                            tail_key = view.get_cache_key(tail_req, "funding") + segment
+                            cache.set(tail_key, payload, timeout=FEED_CACHE_TIMEOUT)
                         break
