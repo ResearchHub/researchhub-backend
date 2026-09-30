@@ -61,8 +61,8 @@ class FundraiseNotificationService:
             purchase,
             purchase.item.grant.unified_document,
             extra={"amount": str(amount)},
-            subject="New contribution to your funding opportunity",
-            message=f"contributed {amount:,.2f} RSC to your funding opportunity",
+            subject="New contribution to your RFP",
+            message=f"contributed {amount:,.2f} RSC to your RFP",
         )
 
     def _notify_document_authors(

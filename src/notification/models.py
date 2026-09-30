@@ -593,9 +593,7 @@ class Notification(models.Model):
     def _format_funding_pool_contribution(self) -> tuple[list[dict[str, str]], str]:
         """Format an author alert for a contribution to their grant's funding pool."""
         amount = Decimal(self.extra["amount"])
-        return self._format_contribution(
-            f"contributed {amount:,.2f} RSC to your funding opportunity"
-        )
+        return self._format_contribution(f"contributed {amount:,.2f} RSC to your RFP")
 
     def _format_contribution(self, message: str) -> tuple[list[dict[str, str]], str]:
         """Format an alert reading '{contributor} {message}: <title>' for the work."""
