@@ -432,7 +432,7 @@ wheels = [
 
 [[package]]
 name = "celery-redbeat"
-version = "2.3.3"
+version = "2.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "celery" },
@@ -440,9 +440,9 @@ dependencies = [
     { name = "redis" },
     { name = "tenacity" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7d/d5/cebf6a03a4716ae33315ce1dad68f2465ea30491a560293ecd2a4ad3148a/celery_redbeat-2.3.3.tar.gz", hash = "sha256:f52664b490b2923a787d9f348f291243601430bf8ec383b6e79870a1731ee92a", size = 34429, upload-time = "2025-07-02T13:08:55.251Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/13/9aefb6cb39266b28ab2b2a8f24382fd7d82399e20578c5ba2238e63c4445/celery_redbeat-2.4.2.tar.gz", hash = "sha256:a590fef7ef39d7e4511174ce8bafe310e07ef6cdf84a240cd311946815bd90bb", size = 36671, upload-time = "2026-07-27T01:28:09.389Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/c1/ea03e5c737b4b0f4054001d8db64bec693b1506cbb68f93ebecd710b2785/celery_redbeat-2.3.3-py2.py3-none-any.whl", hash = "sha256:0d6da101c46c0147b88f3ae2bfaed42548545934263a31d325a8b0e6585c3fb1", size = 14674, upload-time = "2025-07-02T13:08:54.062Z" },
+    { url = "https://files.pythonhosted.org/packages/11/3d/bb4adef34e7691ebd2e80c1e8df1fb3f3bf43b388de714219ac6a580a4d2/celery_redbeat-2.4.2-py2.py3-none-any.whl", hash = "sha256:4124d221a798ad983df0874bfa0d2e9beca41ca9ef91e92d073770bb193da000", size = 16526, upload-time = "2026-07-27T01:28:08.164Z" },
 ]
 
 [[package]]
@@ -2631,7 +2631,7 @@ requires-dist = [
     { name = "braintrust", specifier = "==0.39.0" },
     { name = "cdp-sdk", specifier = "==1.44.0" },
     { name = "celery", specifier = "==5.6.3" },
-    { name = "celery-redbeat", specifier = "==2.3.3" },
+    { name = "celery-redbeat", specifier = ">=2.4.2,<3" },
     { name = "channels", specifier = ">=4.1.0,<5.0.0" },
     { name = "channels-redis", specifier = ">=4.2.0,<5.0.0" },
     { name = "circle-developer-controlled-wallets", specifier = ">=9.2.0,<10.0.0" },
