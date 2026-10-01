@@ -65,7 +65,7 @@ jobs:
           echo "long=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
@@ -81,7 +81,7 @@ jobs:
             > /dev/null
 
       - name: Assume ${{ inputs.deploy_env }} deploy role
-        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
           role-session-name: github-actions-ecs-deployment-session
