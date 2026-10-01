@@ -2,7 +2,7 @@
 
 Agents read attachments as text, so every supported format reduces to one
 string: PDF pages via PyMuPDF, each introduced by a ``[Page N]`` marker the
-agent can cite; Word documents from their body XML; text formats by decoding.
+agent can cite; Word documents as Markdown via mammoth; text formats by decoding.
 """
 
 import codecs
@@ -14,11 +14,11 @@ import resource
 import subprocess
 import sys
 import zipfile
-from collections.abc import Iterator
 from dataclasses import dataclass
 
 import fitz
-from lxml import etree
+import mammoth
+from markdownify import markdownify
 
 
 class UnreadableFileError(ValueError):
@@ -64,20 +64,6 @@ _CHILD_CPU_SECONDS = 60
 _CHILD_MEMORY_BYTES = 1024 * 1024 * 1024
 _CHILD_TIMEOUT_SECONDS = 120
 
-_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-_W_STRICT = "{http://purl.oclc.org/ooxml/wordprocessingml/main}"
-_MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
-_DOCX_CONTAINERS = frozenset({f"{_W}sdt", f"{_W}sdtContent", f"{_W}customXml"})
-# No visible text: formatting properties (tab stops there are w:tab elements
-# too) and tracked changes that are no longer part of the document.
-_DOCX_SKIPPED = frozenset({f"{_W}pPr", f"{_W}rPr", f"{_W}del", f"{_W}moveFrom"})
-_DOCX_RUN_TEXT = {
-    f"{_W}tab": "\t",
-    f"{_W}br": "\n",
-    f"{_W}cr": "\n",
-    f"{_W}noBreakHyphen": "-",
-}
-
 
 @dataclass(frozen=True)
 class ExtractedText:
@@ -108,7 +94,8 @@ def extract_text(data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedTex
     text = text.replace("\x00", "")
     if len(text) > max_chars:
         text, truncated = text[:max_chars], True
-    if not text.strip():
+    # An empty Word table still renders its Markdown frame.
+    if not any(map(str.isalnum, text)):
         raise UnreadableFileError("No readable text was found in this file.")
     return ExtractedText(text=text, page_count=page_count, truncated=truncated)
 
@@ -212,107 +199,36 @@ def _pdf_text(data: bytes, max_chars: int) -> tuple[str, int, bool]:
 
 
 def _docx_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
-    unreadable = UnreadableFileError(
-        "This file could not be read as a Word document (.docx)."
-    )
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            info = archive.getinfo("word/document.xml")
-            if info.file_size > _MAX_DOCX_XML_BYTES:
-                raise UnreadableFileError("This Word document is too large to read.")
-            xml = archive.read(info)
-    except UnreadableFileError:
+            xml_bytes = sum(
+                info.file_size
+                for info in archive.infolist()
+                if info.filename.endswith((".xml", ".rels"))
+            )
+        if xml_bytes > _MAX_DOCX_XML_BYTES:
+            raise UnreadableFileError("This Word document is too large to read.")
+        html = mammoth.convert_to_html(
+            io.BytesIO(data),
+            include_embedded_style_map=False,
+            # Images carry no text; leaving them unopened also skips their bytes.
+            convert_image=lambda image: [],
+        ).value
+        text = markdownify(
+            html,
+            heading_style="ATX",
+            table_infer_header=True,
+            # The agent reads this text rather than rendering it.
+            escape_asterisks=False,
+            escape_underscores=False,
+        ).strip()
+    except (UnreadableFileError, MemoryError):
         raise
-    except Exception as exc:  # noqa: BLE001 - corrupt archives raise many types
-        raise unreadable from exc
-    parser = etree.XMLParser(
-        resolve_entities=False, no_network=True, remove_comments=True, remove_pis=True
-    )
-    try:
-        root = etree.fromstring(xml, parser)
-        if root.tag.startswith(_W_STRICT):
-            _to_transitional(root)
-        body = root.find(f"{_W}body")
-        if body is None:
-            raise unreadable
-        _resolve_alternate_content(body)
-        lines: list[str] = []
-        length = -1  # the first line has no separator before it
-        for line in _docx_blocks(body):
-            lines.append(line)
-            length += len(line) + 1
-            if length > max_chars:
-                break
-    except (etree.XMLSyntaxError, RecursionError) as exc:
-        raise unreadable from exc
-    text = "\n".join(lines)
+    except Exception as exc:  # noqa: BLE001 - corrupt files raise many types
+        raise UnreadableFileError(
+            "This file could not be read as a Word document (.docx)."
+        ) from exc
     return text, None, len(text) > max_chars
-
-
-def _to_transitional(root) -> None:
-    """Rename Strict OOXML elements into the Transitional namespace."""
-    for element in root.iter():
-        if isinstance(element.tag, str) and element.tag.startswith(_W_STRICT):
-            element.tag = _W + element.tag[len(_W_STRICT) :]
-
-
-def _resolve_alternate_content(element) -> None:
-    """Replace each mc:AlternateContent with its first rendering that has text."""
-    # findall returns a list, so the elements this loop moves cannot derail it.
-    for alternate in element.findall(f".//{_MC}AlternateContent"):
-        # Choices in order, then the fallback; a choice may be only a drawing.
-        renderings = (
-            *alternate.iterfind(f"{_MC}Choice"),
-            *alternate.iterfind(f"{_MC}Fallback"),
-        )
-        chosen = next(
-            (r for r in renderings if any(t.text for t in r.iter(f"{_W}t"))), None
-        )
-        parent = alternate.getparent()
-        position = parent.index(alternate)
-        parent[position : position + 1] = [] if chosen is None else list(chosen)
-
-
-def _docx_children(element, tag: str) -> Iterator:
-    """Children with ``tag``, looking through content-control wrappers."""
-    for child in element:
-        if child.tag == tag:
-            yield child
-        elif child.tag in _DOCX_CONTAINERS:
-            yield from _docx_children(child, tag)
-
-
-def _docx_blocks(element) -> Iterator[str]:
-    """One line per paragraph or table row, in document order."""
-    for child in element:
-        if child.tag == f"{_W}p":
-            yield _docx_paragraph(child)
-        elif child.tag == f"{_W}tbl":
-            for row in _docx_children(child, f"{_W}tr"):
-                cells = [
-                    " ".join(filter(None, _docx_blocks(cell)))
-                    for cell in _docx_children(row, f"{_W}tc")
-                ]
-                if any(cell.strip() for cell in cells):
-                    yield " | ".join(cells)
-        elif child.tag in _DOCX_CONTAINERS:
-            yield from _docx_blocks(child)
-
-
-def _docx_paragraph(paragraph) -> str:
-    parts: list[str] = []
-
-    def walk(element) -> None:
-        for node in element:
-            if node.tag == f"{_W}t":
-                parts.append(node.text or "")
-            elif node.tag in _DOCX_RUN_TEXT:
-                parts.append(_DOCX_RUN_TEXT[node.tag])
-            elif node.tag not in _DOCX_SKIPPED:
-                walk(node)
-
-    walk(paragraph)
-    return "".join(parts)
 
 
 def _plain_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:

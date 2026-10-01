@@ -22,8 +22,14 @@ def pdf_bytes(*pages: str, **save_options) -> bytes:
     return data
 
 
-def docx_bytes(body_xml: str, *, doctype: str = "", namespace: str = W_NS) -> bytes:
-    """A minimal .docx whose body is ``body_xml`` (WordprocessingML)."""
+def docx_bytes(
+    body_xml: str,
+    *,
+    doctype: str = "",
+    namespace: str = W_NS,
+    parts: dict[str, str | bytes] | None = None,
+) -> bytes:
+    """A minimal .docx whose body is ``body_xml``; ``parts`` adds archive members."""
     document = (
         f'<?xml version="1.0" encoding="UTF-8"?>{doctype}'
         f'<w:document xmlns:w="{namespace}" xmlns:mc="{MC_NS}">'
@@ -33,6 +39,8 @@ def docx_bytes(body_xml: str, *, doctype: str = "", namespace: str = W_NS) -> by
     with zipfile.ZipFile(buffer, "w") as archive:
         archive.writestr("[Content_Types].xml", "<Types/>")
         archive.writestr("word/document.xml", document)
+        for name, content in (parts or {}).items():
+            archive.writestr(name, content)
     return buffer.getvalue()
 
 

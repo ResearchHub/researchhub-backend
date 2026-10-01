@@ -21,6 +21,10 @@ from research_ai.tests.agent_files.helpers import (
     pdf_bytes,
 )
 
+DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006"
+RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+PACKAGE_NS = "http://schemas.openxmlformats.org/package/2006"
+
 TEXT = resolve_kind("notes.txt")
 MAX_CHARS = 10_000
 
@@ -148,13 +152,13 @@ class PdfExtractionTests(TestCase):
 
 
 class DocxExtractionTests(TestCase):
-    def test_paragraphs_and_table_rows_become_lines(self):
+    def test_headings_paragraphs_and_tables_become_markdown(self):
         # Arrange
         body = (
-            paragraph("Specific Aims")
-            + "<w:p><w:r><w:t>Aim</w:t><w:tab/><w:t>one</w:t><w:br/>"
-            "<w:t>continued</w:t></w:r></w:p>"
-            "<w:tbl><w:tr>"
+            "<w:p><w:pPr><w:pStyle w:val='Heading1'/></w:pPr>"
+            "<w:r><w:t>Specific Aims</w:t></w:r></w:p>"
+            + paragraph("Aim one")
+            + "<w:tbl><w:tr>"
             f"<w:tc>{paragraph('Year')}</w:tc><w:tc>{paragraph('Budget')}</w:tc>"
             "</w:tr><w:tr>"
             f"<w:tc>{paragraph('1')}</w:tc><w:tc>{paragraph('$50,000')}</w:tc>"
@@ -167,24 +171,49 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertEqual(
             extracted.text,
-            "Specific Aims\nAim\tone\ncontinued\nYear | Budget\n1 | $50,000",
+            "# Specific Aims\n\nAim one\n\n"
+            "| Year | Budget |\n| --- | --- |\n| 1 | $50,000 |",
         )
         self.assertIsNone(extracted.page_count)
 
-    def test_tab_stops_in_paragraph_properties_add_no_text(self):
+    def test_markdown_characters_in_the_text_are_left_as_written(self):
         # Arrange
-        body = (
-            "<w:p><w:pPr><w:tabs><w:tab w:val='left' w:pos='720'/>"
-            "<w:tab w:val='right' w:pos='9350'/></w:tabs></w:pPr>"
-            "<w:r><w:rPr><w:b/></w:rPr><w:t>Introduction</w:t><w:tab/><w:t>3</w:t>"
-            "</w:r></w:p>"
-        )
+        data = docx_bytes(paragraph("p_value for 2*3 runs"))
 
         # Act
-        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+        extracted = extract_text(data, DOCX, max_chars=MAX_CHARS)
 
         # Assert
-        self.assertEqual(extracted.text, "Introduction\t3")
+        self.assertEqual(extracted.text, "p_value for 2*3 runs")
+
+    def test_images_are_left_out(self):
+        # Arrange
+        body = (
+            "<w:p><w:r><w:t>Figure 1</w:t></w:r><w:r><w:drawing>"
+            f"<wp:inline xmlns:wp='{DRAWING_NS}/wordprocessingDrawing'>"
+            f"<a:graphic xmlns:a='{DRAWING_NS}/main'><a:graphicData>"
+            f"<pic:pic xmlns:pic='{DRAWING_NS}/picture'><pic:blipFill>"
+            f"<a:blip xmlns:r='{RELATIONSHIPS_NS}' r:embed='rId1'/>"
+            "</pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline>"
+            "</w:drawing></w:r></w:p>"
+        )
+        relationships = (
+            f"<Relationships xmlns='{PACKAGE_NS}/relationships'>"
+            f"<Relationship Id='rId1' Type='{RELATIONSHIPS_NS}/image' "
+            "Target='media/image1.png'/></Relationships>"
+        )
+        parts = {
+            "word/_rels/document.xml.rels": relationships,
+            "word/media/image1.png": b"\x89PNG\r\n\x1a\n" + b"\x00" * 64,
+        }
+
+        # Act
+        extracted = extract_text(
+            docx_bytes(body, parts=parts), DOCX, max_chars=MAX_CHARS
+        )
+
+        # Assert
+        self.assertEqual(extracted.text, "Figure 1")
 
     def test_table_rows_and_cells_inside_content_controls_are_read(self):
         # Arrange
@@ -199,29 +228,27 @@ class DocxExtractionTests(TestCase):
         extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
 
         # Assert
-        self.assertEqual(extracted.text, "Year | Budget")
+        self.assertEqual(extracted.text, "| Year | Budget |\n| --- | --- |")
 
     def test_strict_open_xml_documents_are_read(self):
         # Arrange
-        body = paragraph("Strict") + "<w:p><w:r><w:t>a</w:t><w:tab/></w:r></w:p>"
+        data = docx_bytes(paragraph("Strict"), namespace=W_STRICT_NS)
 
         # Act
-        extracted = extract_text(
-            docx_bytes(body, namespace=W_STRICT_NS), DOCX, max_chars=MAX_CHARS
-        )
+        extracted = extract_text(data, DOCX, max_chars=MAX_CHARS)
 
         # Assert
-        self.assertEqual(extracted.text, "Strict\na\t")
+        self.assertEqual(extracted.text, "Strict")
 
     def test_text_that_exactly_fits_is_not_flagged_as_cut(self):
         # Arrange
         data = docx_bytes(paragraph("Aims") + paragraph("Plan"))
 
         # Act
-        extracted = extract_text(data, DOCX, max_chars=9)
+        extracted = extract_text(data, DOCX, max_chars=10)
 
         # Assert
-        self.assertEqual(extracted.text, "Aims\nPlan")
+        self.assertEqual(extracted.text, "Aims\n\nPlan")
         self.assertFalse(extracted.truncated)
 
     def test_long_text_is_cut_and_flagged(self):
@@ -229,25 +256,11 @@ class DocxExtractionTests(TestCase):
         data = docx_bytes(paragraph("Aims") + paragraph("Plan") + paragraph("Budget"))
 
         # Act
-        extracted = extract_text(data, DOCX, max_chars=9)
+        extracted = extract_text(data, DOCX, max_chars=10)
 
         # Assert
-        self.assertEqual(extracted.text, "Aims\nPlan")
+        self.assertEqual(extracted.text, "Aims\n\nPlan")
         self.assertTrue(extracted.truncated)
-
-    def test_empty_table_rows_are_skipped(self):
-        # Arrange
-        body = (
-            f"<w:tbl><w:tr><w:tc>{paragraph('')}</w:tc><w:tc><w:p/></w:tc></w:tr>"
-            f"<w:tr><w:tc>{paragraph('1')}</w:tc><w:tc>{paragraph('$50,000')}</w:tc>"
-            "</w:tr></w:tbl>"
-        )
-
-        # Act
-        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
-
-        # Assert
-        self.assertEqual(extracted.text, "1 | $50,000")
 
     def test_a_document_of_empty_tables_is_refused(self):
         # Arrange
@@ -274,45 +287,31 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertEqual(extracted.text, "Kept moved")
 
-    def test_one_alternate_rendering_is_read(self):
+    def test_a_table_row_deleted_as_a_tracked_change_is_skipped(self):
         # Arrange
         body = (
-            "<w:p><w:r><w:t>Kept</w:t></w:r>"
-            "<mc:AlternateContent><mc:Choice><w:r><w:t> once</w:t></w:r></mc:Choice>"
-            "<mc:Choice><w:r><w:t> again</w:t></w:r></mc:Choice>"
-            "<mc:Fallback><w:r><w:t> twice</w:t></w:r></mc:Fallback>"
-            "</mc:AlternateContent></w:p>"
+            f"<w:tbl><w:tr><w:tc>{paragraph('Year')}</w:tc>"
+            f"<w:tc>{paragraph('1')}</w:tc></w:tr>"
+            "<w:tr><w:trPr><w:del w:id='1' w:author='a'/></w:trPr>"
+            f"<w:tc>{paragraph('Removed')}</w:tc><w:tc>{paragraph('2')}</w:tc>"
+            "</w:tr></w:tbl>"
         )
 
         # Act
         extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
 
         # Assert
-        self.assertEqual(extracted.text, "Kept once")
+        self.assertEqual(extracted.text, "| Year | 1 |\n| --- | --- |")
 
-    def test_alternate_renderings_of_whole_blocks_and_rows_are_read(self):
+    def test_alternate_content_is_read_once_from_its_fallback(self):
         # Arrange
         body = (
-            f"<mc:AlternateContent><mc:Choice>{paragraph('Aims')}</mc:Choice>"
-            f"<mc:Fallback>{paragraph('Aims, drawn')}</mc:Fallback>"
-            "</mc:AlternateContent>"
-            "<w:tbl><mc:AlternateContent><mc:Choice><w:tr>"
-            f"<w:tc>{paragraph('Year')}</w:tc><w:tc>{paragraph('1')}</w:tc>"
-            "</w:tr></mc:Choice></mc:AlternateContent></w:tbl>"
-        )
-
-        # Act
-        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
-
-        # Assert
-        self.assertEqual(extracted.text, "Aims\nYear | 1")
-
-    def test_the_fallback_is_read_when_no_choice_has_text(self):
-        # Arrange
-        body = (
-            "<w:p><mc:AlternateContent>"
+            "<mc:AlternateContent>"
+            f"<mc:Choice Requires='wps'>{paragraph('Aims, drawn')}</mc:Choice>"
+            f"<mc:Fallback>{paragraph('Aims')}</mc:Fallback></mc:AlternateContent>"
+            "<w:p><w:r><w:t>Kept</w:t></w:r><mc:AlternateContent>"
             "<mc:Choice Requires='wps'><w:r><w:drawing/></w:r></mc:Choice>"
-            "<mc:Fallback><w:r><w:t>Caption text</w:t></w:r></mc:Fallback>"
+            "<mc:Fallback><w:r><w:t> once</w:t></w:r></mc:Fallback>"
             "</mc:AlternateContent></w:p>"
         )
 
@@ -320,7 +319,7 @@ class DocxExtractionTests(TestCase):
         extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
 
         # Assert
-        self.assertEqual(extracted.text, "Caption text")
+        self.assertEqual(extracted.text, "Aims\n\nKept once")
 
     def test_external_entities_are_never_resolved(self):
         # Arrange
@@ -335,6 +334,19 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertTrue(extracted.text.startswith("Visible"))
         self.assertNotIn("localhost", extracted.text)
+
+    def test_an_entity_expansion_bomb_is_refused(self):
+        # Arrange
+        entities = '<!ENTITY e0 "expand">' + "".join(
+            f'<!ENTITY e{level} "{f"&e{level - 1};" * 10}">' for level in range(1, 10)
+        )
+        data = docx_bytes(
+            paragraph("&e9;"), doctype=f"<!DOCTYPE w:document [{entities}]>"
+        )
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "Word document"):
+            extract_text(data, DOCX, max_chars=MAX_CHARS)
 
     def test_a_document_that_exceeds_the_parsing_limits_is_refused(self):
         # Arrange
