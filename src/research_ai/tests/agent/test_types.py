@@ -4,6 +4,7 @@ from django.test import SimpleTestCase
 
 from research_ai.services.agent.types import (
     AssistantTurn,
+    ImageBlock,
     Message,
     ServerToolBlock,
     StopReason,
@@ -158,3 +159,73 @@ class TypesTests(SimpleTestCase):
 
         # Act / Assert
         self.assertEqual(turn.text, "hello")
+
+    def test_images_round_trip_by_reference(self):
+        # Arrange
+        page = ImageBlock(ref="files/1/page-3.jpg", media_type="image/jpeg")
+        chart = ImageBlock(
+            ref="files/1/page-4.png", media_type="image/png", label="grant.pdf, page 4"
+        )
+        messages = [
+            Message(role="user", content=[page, chart, TextBlock(text="compare")]),
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(
+                        tool_use_id="t1", content={"pages": [3]}, images=(page,)
+                    )
+                ],
+            ),
+        ]
+
+        # Act
+        serialized = serialize_messages(messages)
+
+        # Assert
+        self.assertEqual(
+            serialized[0]["content"][:2],
+            [
+                {
+                    "type": "image",
+                    "ref": "files/1/page-3.jpg",
+                    "media_type": "image/jpeg",
+                },
+                {
+                    "type": "image",
+                    "ref": "files/1/page-4.png",
+                    "media_type": "image/png",
+                    "label": "grant.pdf, page 4",
+                },
+            ],
+        )
+        self.assertEqual(
+            serialized[1]["content"][0]["images"],
+            [
+                {
+                    "type": "image",
+                    "ref": "files/1/page-3.jpg",
+                    "media_type": "image/jpeg",
+                }
+            ],
+        )
+        self.assertEqual(deserialize_messages(serialized), messages)
+
+    def test_a_tool_result_without_images_serializes_as_before(self):
+        # Arrange
+        message = Message(
+            role="user", content=[ToolResultBlock(tool_use_id="t1", content={"ok": 1})]
+        )
+
+        # Act
+        (serialized,) = serialize_messages([message])
+
+        # Assert
+        self.assertEqual(
+            serialized["content"][0],
+            {
+                "type": "tool_result",
+                "tool_use_id": "t1",
+                "content": {"ok": 1},
+                "is_error": False,
+            },
+        )
