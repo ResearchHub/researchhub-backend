@@ -407,3 +407,14 @@ class PlainTextExtractionTests(TestCase):
         # Assert
         self.assertEqual(extracted.text, "x" * 20)
         self.assertTrue(extracted.truncated)
+
+    def test_text_that_fits_once_nul_characters_are_removed_is_not_flagged(self):
+        # Arrange
+        data = "Aims\x00\x00\x00 and plan".encode("utf-16")
+
+        # Act
+        extracted = extract_text(data, TEXT, max_chars=13)
+
+        # Assert
+        self.assertEqual(extracted.text, "Aims and plan")
+        self.assertFalse(extracted.truncated)
