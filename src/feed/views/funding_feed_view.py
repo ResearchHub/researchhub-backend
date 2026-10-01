@@ -30,9 +30,8 @@ from feed.feed_list_dto import (
 )
 from feed.filters import FundOrderingFilter
 from feed.funding_feed_cache import (
-    FUNDING_FEED_WARM_COMPLETED_STATUS,
-    FUNDING_FEED_WARM_ORDERINGS,
     FUNDING_FEED_WARM_SEGMENTS,
+    FUNDING_FEED_WARM_SPECS,
     should_cache_funding_feed,
 )
 from feed.views.feed_view_mixin import FeedViewMixin
@@ -190,7 +189,8 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
         )
 
         # Personalized feeds (grant_id / created_by / funded_by) and
-        # include_private bypass are never cached — see should_cache_funding_feed.
+        # include_private bypass are never cached; only warm specs are —
+        # see should_cache_funding_feed.
         include_private = getattr(self, "_include_private", None)
         if include_private is None:
             include_private = self._include_private_for_privileged(self.request)
@@ -286,11 +286,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
     @classmethod
     def warm_homepage_cache(cls) -> None:
         """Replace ``:public`` / ``:admin`` homepage keys."""
-        warm_specs: list[tuple[str | None, str | None]] = [
-            (None, None),
-            *((ordering, None) for ordering in FUNDING_FEED_WARM_ORDERINGS),
-            (None, FUNDING_FEED_WARM_COMPLETED_STATUS),
-        ]
+        warm_specs = FUNDING_FEED_WARM_SPECS
         for segment in FUNDING_FEED_WARM_SEGMENTS:
             for ordering, fundraise_status in warm_specs:
                 for page in range(1, FEED_CACHE_MAX_CACHED_PAGE + 1):

@@ -10,7 +10,11 @@ from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
 from feed.cache_segment import FEED_CACHE_TIMEOUT
-from feed.funding_feed_cache import should_cache_funding_feed
+from feed.funding_feed_cache import (
+    FUNDING_FEED_WARM_COMPLETED_STATUS,
+    FUNDING_FEED_WARM_ORDERINGS,
+    should_cache_funding_feed,
+)
 from feed.grant_feed_cache import should_cache_grant_feed
 from feed.tasks import warm_funding_feed_cache, warm_grant_feed_cache
 from feed.views.funding_feed_view import FundingFeedViewSet
@@ -24,6 +28,63 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import AWSMockTestCase
+
+
+class FundingFeedCacheEligibilityTests(AWSMockTestCase):
+    """Cache only warm/invalidate specs — not OPEN / include_ended / etc."""
+
+    def _request(self, params=None):
+        req = Request(APIRequestFactory().get("/api/funding_feed/", params or {}))
+        req.user = AnonymousUser()
+        return req
+
+    def test_warm_specs_are_cacheable(self):
+        # Arrange / Act / Assert
+        self.assertTrue(
+            should_cache_funding_feed(self._request({"page": "1", "page_size": "20"}))
+        )
+        for ordering in FUNDING_FEED_WARM_ORDERINGS:
+            self.assertTrue(
+                should_cache_funding_feed(
+                    self._request(
+                        {"page": "1", "page_size": "20", "ordering": ordering}
+                    )
+                ),
+                ordering,
+            )
+        self.assertTrue(
+            should_cache_funding_feed(
+                self._request(
+                    {
+                        "page": "1",
+                        "page_size": "20",
+                        "fundraise_status": FUNDING_FEED_WARM_COMPLETED_STATUS,
+                    }
+                )
+            )
+        )
+
+    def test_non_warm_variants_are_not_cacheable(self):
+        # Arrange / Act / Assert
+        cases = [
+            {"page": "1", "page_size": "20", "fundraise_status": "OPEN"},
+            {"page": "1", "page_size": "20", "include_ended": "false"},
+            {"page": "1", "page_size": "20", "source": "researchhub"},
+            {"page": "1", "page_size": "20", "hub_slug": "biology"},
+            {"page": "1", "page_size": "20", "feed_view": "following"},
+            {
+                "page": "1",
+                "page_size": "20",
+                "ordering": "newest",
+                "fundraise_status": "CLOSED",
+            },
+            {"page": "1", "page_size": "20", "ordering": "upvotes"},
+        ]
+        for params in cases:
+            self.assertFalse(
+                should_cache_funding_feed(self._request(params)),
+                params,
+            )
 
 
 class GrantFundingWarmCacheTests(AWSMockTestCase):

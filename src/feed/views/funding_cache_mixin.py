@@ -7,9 +7,8 @@ from rest_framework.test import APIRequestFactory
 
 from feed.cache_segment import FEED_CACHE_MAX_CACHED_PAGE, FEED_CACHE_PAGE_SIZE
 from feed.funding_feed_cache import (
-    FUNDING_FEED_WARM_COMPLETED_STATUS,
-    FUNDING_FEED_WARM_ORDERINGS,
     FUNDING_FEED_WARM_SEGMENTS,
+    FUNDING_FEED_WARM_SPECS,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,11 +35,7 @@ class FundingCacheMixin:
     def _delete_homepage_warm_keys() -> None:
         from feed.views.funding_feed_view import FundingFeedViewSet
 
-        warm_specs: list[tuple[str | None, str | None]] = [
-            (None, None),
-            *((ordering, None) for ordering in FUNDING_FEED_WARM_ORDERINGS),
-            (None, FUNDING_FEED_WARM_COMPLETED_STATUS),
-        ]
+        warm_specs = FUNDING_FEED_WARM_SPECS
         factory = APIRequestFactory()
         view = FundingFeedViewSet()
         keys: list[str] = []

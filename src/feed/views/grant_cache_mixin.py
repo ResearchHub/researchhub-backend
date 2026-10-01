@@ -2,6 +2,7 @@ import logging
 
 from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
+from django.db import transaction
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
@@ -30,16 +31,20 @@ class GrantCacheMixin:
 
     @staticmethod
     def invalidate_grant_feed_cache():
-        """Clear ``created_by`` keys + homepage warm keys; enqueue warm/replace."""
-        GrantCacheMixin._delete_created_by_cache_keys()
-        GrantCacheMixin._delete_homepage_warm_keys()
-        try:
-            from feed.tasks import warm_grant_feed_cache
+        """Clear keys and enqueue warm after the surrounding transaction commits."""
 
-            warm_grant_feed_cache.delay()
-        except Exception:
-            # Beat will refill.
-            logger.exception("Failed to queue grant feed cache warm")
+        def _invalidate():
+            GrantCacheMixin._delete_created_by_cache_keys()
+            GrantCacheMixin._delete_homepage_warm_keys()
+            try:
+                from feed.tasks import warm_grant_feed_cache
+
+                warm_grant_feed_cache.delay()
+            except Exception:
+                # Beat will refill.
+                logger.exception("Failed to queue grant feed cache warm")
+
+        transaction.on_commit(_invalidate)
 
     @staticmethod
     def _delete_created_by_cache_keys() -> None:
@@ -49,7 +54,7 @@ class GrantCacheMixin:
             .values_list("created_by_id", flat=True)
             .distinct()
         )
-        created_by_values = [str(cid) for cid in creator_ids if cid is not None]
+        created_by_values = [""] + [str(cid) for cid in creator_ids if cid is not None]
 
         for ordering in GRANT_FEED_INVALIDATION_ORDERINGS:
             sort_part = f"-{ordering}" if ordering != "latest" else ""

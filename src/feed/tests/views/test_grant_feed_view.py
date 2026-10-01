@@ -716,7 +716,7 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(user2_titles, ["User2 Grant"])
 
     def test_invalidate_grant_feed_cache_clears_created_by_entries(self):
-        """invalidate_grant_feed_cache must clear per-creator cache entries too."""
+        """invalidate clears unfiltered, status, and per-creator cache entries."""
         # Arrange
         from feed.views.grant_cache_mixin import GrantCacheMixin
 
@@ -736,16 +736,25 @@ class GrantFeedViewTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
 
-        # Populate caches: unfiltered + filtered by created_by
+        # Populate caches: unfiltered, status-filtered, and created_by-filtered
         unfiltered_response = self.client.get("/api/grant_feed/")
+        status_response = self.client.get("/api/grant_feed/?status=OPEN")
         filtered_response = self.client.get(f"/api/grant_feed/?created_by={user1.id}")
         self.assertEqual(unfiltered_response.status_code, 200)
+        self.assertEqual(status_response.status_code, 200)
         self.assertEqual(filtered_response.status_code, 200)
 
         view = GrantFeedViewSet()
         factory = APIRequestFactory()
         unfiltered_key = (
             view.get_cache_key(Request(factory.get("/api/grant_feed/")), "grants")
+            + ":public"
+        )
+        status_key = (
+            view.get_cache_key(
+                Request(factory.get("/api/grant_feed/", {"status": "OPEN"})),
+                "grants",
+            )
             + ":public"
         )
         filtered_key = (
@@ -756,14 +765,19 @@ class GrantFeedViewTests(APITestCase):
             + ":public"
         )
         self.assertIsNotNone(cache.get(unfiltered_key))
+        self.assertIsNotNone(cache.get(status_key))
         self.assertIsNotNone(cache.get(filtered_key))
 
         # Act
-        with patch("feed.tasks.warm_grant_feed_cache.delay"):
+        with (
+            patch("feed.tasks.warm_grant_feed_cache.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
             GrantCacheMixin.invalidate_grant_feed_cache()
 
-        # Assert - both cache entries should be cleared
+        # Assert - all cache entries should be cleared
         self.assertIsNone(cache.get(unfiltered_key))
+        self.assertIsNone(cache.get(status_key))
         self.assertIsNone(cache.get(filtered_key))
 
     def test_unapproved_proposals_excluded_from_applications(self):
@@ -876,6 +890,7 @@ class GrantFeedViewTests(APITestCase):
         with (
             patch("feed.tasks.warm_grant_feed_cache.delay"),
             patch("feed.tasks.warm_funding_feed_cache.delay"),
+            self.captureOnCommitCallbacks(execute=True),
         ):
             GrantCacheMixin.invalidate_if_grant_linked(unrelated.unified_document)
         self.assertIsNotNone(cache.get(cache_key))
@@ -884,6 +899,7 @@ class GrantFeedViewTests(APITestCase):
         with (
             patch("feed.tasks.warm_grant_feed_cache.delay"),
             patch("feed.tasks.warm_funding_feed_cache.delay"),
+            self.captureOnCommitCallbacks(execute=True),
         ):
             GrantCacheMixin.invalidate_if_grant_linked(proposal.unified_document)
         self.assertIsNone(cache.get(cache_key))

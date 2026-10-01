@@ -668,7 +668,10 @@ class GrantCacheInvalidationTests(APITestCase):
         for key in cache_keys:
             cache.set(key, {"test": key})
 
-        with patch("feed.tasks.warm_grant_feed_cache.delay"):
+        with (
+            patch("feed.tasks.warm_grant_feed_cache.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
             GrantCacheMixin.invalidate_grant_feed_cache()
 
         for key in cache_keys:
@@ -678,7 +681,10 @@ class GrantCacheInvalidationTests(APITestCase):
         other_key = "feed:popular:all:all:none:1-20"
         cache.set(other_key, {"other": "data"})
 
-        with patch("feed.tasks.warm_grant_feed_cache.delay"):
+        with (
+            patch("feed.tasks.warm_grant_feed_cache.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
             GrantCacheMixin.invalidate_grant_feed_cache()
 
         self.assertIsNotNone(cache.get(other_key))
