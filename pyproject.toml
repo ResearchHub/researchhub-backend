@@ -60,6 +60,8 @@ dependencies = [
     "web3>=7.16.0",
     "xdk>=0.10.6,<1",
     "braintrust==0.39.0",
+    "mammoth>=1.13.0,<2",
+    "markdownify>=1.2.3,<2",
 ]
 
 [dependency-groups]
