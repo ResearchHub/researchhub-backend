@@ -87,7 +87,7 @@ def kind_for_content_type(content_type: str) -> FileKind | None:
 def extract_text(data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedText:
     """Text of the file, cut at ``max_chars``. Raises ``UnreadableFileError``."""
     if kind.extractor == "text":
-        text, page_count, truncated = _plain_text(data, max_chars)
+        text, page_count, truncated = _plain_text(data), None, False
     else:
         text, page_count, truncated = _extract_in_child(kind, data, max_chars)
     # Postgres text columns cannot hold NUL.
@@ -231,7 +231,7 @@ def _docx_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
     return text, None, len(text) > max_chars
 
 
-def _plain_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
+def _plain_text(data: bytes) -> str:
     if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
         text = data.decode("utf-16", errors="replace")
     elif b"\x00" in data:
@@ -241,8 +241,7 @@ def _plain_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
             text = data.decode("utf-8-sig")
         except UnicodeDecodeError:
             text = data.decode("cp1252", errors="replace")
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    return text, None, len(text) > max_chars
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 if __name__ == "__main__":
