@@ -252,7 +252,7 @@ jobs:
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 300
 
-  deploy-ecs:
+  deploy-ecs-api:
     needs: migrate
     permissions:
       contents: read
@@ -261,4 +261,17 @@ jobs:
     with:
       deploy_env: ${{ github.event.inputs.deploy_env || 'staging' }}
       git_sha: ${{ needs.migrate.outputs.git_sha }}
+      service: api
+    secrets: inherit
+
+  deploy-ecs-celery-beat:
+    needs: migrate
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deployment-ecs.yml
+    with:
+      deploy_env: ${{ github.event.inputs.deploy_env || 'staging' }}
+      git_sha: ${{ needs.migrate.outputs.git_sha }}
+      service: celery-beat
     secrets: inherit
