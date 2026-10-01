@@ -266,8 +266,6 @@ jobs:
 
   deploy-ecs-celery-beat:
     needs: migrate
-    # Staging only for now:
-    if: (github.event.inputs.deploy_env || 'staging') == 'staging'
     permissions:
       contents: read
       id-token: write
