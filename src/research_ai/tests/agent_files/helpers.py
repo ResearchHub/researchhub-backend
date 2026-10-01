@@ -6,8 +6,6 @@ import zipfile
 import fitz
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-W_STRICT_NS = "http://purl.oclc.org/ooxml/wordprocessingml/main"
-MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 
 
 def pdf_bytes(*pages: str, **save_options) -> bytes:
@@ -26,13 +24,12 @@ def docx_bytes(
     body_xml: str,
     *,
     doctype: str = "",
-    namespace: str = W_NS,
     parts: dict[str, str | bytes] | None = None,
 ) -> bytes:
     """A minimal .docx whose body is ``body_xml``; ``parts`` adds archive members."""
     document = (
         f'<?xml version="1.0" encoding="UTF-8"?>{doctype}'
-        f'<w:document xmlns:w="{namespace}" xmlns:mc="{MC_NS}">'
+        f'<w:document xmlns:w="{W_NS}">'
         f"<w:body>{body_xml}</w:body></w:document>"
     )
     buffer = io.BytesIO()
