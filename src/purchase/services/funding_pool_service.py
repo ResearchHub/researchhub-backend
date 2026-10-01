@@ -38,7 +38,7 @@ class FundingPoolService:
         self,
         fundraise_notification_service: FundraiseNotificationService | None = None,
     ) -> None:
-        """Configure contribution notification delivery for pool distributions."""
+        """Configure notification delivery for pool contributions and distributions."""
         self.fundraise_notification_service = (
             fundraise_notification_service or FundraiseNotificationService()
         )
@@ -192,6 +192,13 @@ class FundingPoolService:
 
             pool.amount_holding += amount
             pool.save(update_fields=["amount_holding", "updated_date"])
+
+            transaction.on_commit(
+                lambda: self.fundraise_notification_service.notify_grant_authors(
+                    purchase.id
+                ),
+                robust=True,
+            )
 
         return purchase
 
