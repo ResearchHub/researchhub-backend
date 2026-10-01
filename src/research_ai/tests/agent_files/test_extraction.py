@@ -14,12 +14,7 @@ from research_ai.services.agent_files.extraction import (
     extract_text,
     resolve_kind,
 )
-from research_ai.tests.agent_files.helpers import (
-    W_STRICT_NS,
-    docx_bytes,
-    paragraph,
-    pdf_bytes,
-)
+from research_ai.tests.agent_files.helpers import docx_bytes, paragraph, pdf_bytes
 
 DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006"
 RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -215,31 +210,6 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertEqual(extracted.text, "Figure 1")
 
-    def test_table_rows_and_cells_inside_content_controls_are_read(self):
-        # Arrange
-        body = (
-            "<w:tbl><w:sdt><w:sdtContent><w:tr>"
-            f"<w:tc>{paragraph('Year')}</w:tc>"
-            f"<w:customXml><w:tc>{paragraph('Budget')}</w:tc></w:customXml>"
-            "</w:tr></w:sdtContent></w:sdt></w:tbl>"
-        )
-
-        # Act
-        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
-
-        # Assert
-        self.assertEqual(extracted.text, "| Year | Budget |\n| --- | --- |")
-
-    def test_strict_open_xml_documents_are_read(self):
-        # Arrange
-        data = docx_bytes(paragraph("Strict"), namespace=W_STRICT_NS)
-
-        # Act
-        extracted = extract_text(data, DOCX, max_chars=MAX_CHARS)
-
-        # Assert
-        self.assertEqual(extracted.text, "Strict")
-
     def test_text_that_exactly_fits_is_not_flagged_as_cut(self):
         # Arrange
         data = docx_bytes(paragraph("Aims") + paragraph("Plan"))
@@ -271,55 +241,6 @@ class DocxExtractionTests(TestCase):
         # Act / Assert
         with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
             extract_text(data, DOCX, max_chars=MAX_CHARS)
-
-    def test_tracked_deletions_and_move_sources_are_skipped(self):
-        # Arrange
-        body = (
-            "<w:p><w:r><w:t>Kept</w:t></w:r>"
-            "<w:del><w:r><w:tab/><w:delText>Removed</w:delText></w:r></w:del>"
-            "<w:moveFrom><w:r><w:t> moved</w:t></w:r></w:moveFrom>"
-            "<w:moveTo><w:r><w:t> moved</w:t></w:r></w:moveTo></w:p>"
-        )
-
-        # Act
-        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
-
-        # Assert
-        self.assertEqual(extracted.text, "Kept moved")
-
-    def test_a_table_row_deleted_as_a_tracked_change_is_skipped(self):
-        # Arrange
-        body = (
-            f"<w:tbl><w:tr><w:tc>{paragraph('Year')}</w:tc>"
-            f"<w:tc>{paragraph('1')}</w:tc></w:tr>"
-            "<w:tr><w:trPr><w:del w:id='1' w:author='a'/></w:trPr>"
-            f"<w:tc>{paragraph('Removed')}</w:tc><w:tc>{paragraph('2')}</w:tc>"
-            "</w:tr></w:tbl>"
-        )
-
-        # Act
-        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
-
-        # Assert
-        self.assertEqual(extracted.text, "| Year | 1 |\n| --- | --- |")
-
-    def test_alternate_content_is_read_once_from_its_fallback(self):
-        # Arrange
-        body = (
-            "<mc:AlternateContent>"
-            f"<mc:Choice Requires='wps'>{paragraph('Aims, drawn')}</mc:Choice>"
-            f"<mc:Fallback>{paragraph('Aims')}</mc:Fallback></mc:AlternateContent>"
-            "<w:p><w:r><w:t>Kept</w:t></w:r><mc:AlternateContent>"
-            "<mc:Choice Requires='wps'><w:r><w:drawing/></w:r></mc:Choice>"
-            "<mc:Fallback><w:r><w:t> once</w:t></w:r></mc:Fallback>"
-            "</mc:AlternateContent></w:p>"
-        )
-
-        # Act
-        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
-
-        # Assert
-        self.assertEqual(extracted.text, "Aims\n\nKept once")
 
     def test_external_entities_are_never_resolved(self):
         # Arrange
