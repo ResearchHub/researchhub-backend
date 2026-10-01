@@ -380,6 +380,14 @@ class PlainTextExtractionTests(TestCase):
         with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
             extract_text(b"  \n\t ", TEXT, max_chars=MAX_CHARS)
 
+    def test_a_file_blank_up_to_the_cap_is_refused(self):
+        # Arrange
+        data = b" " * 30 + b"text past the cap"
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
+            extract_text(data, TEXT, max_chars=20)
+
     def test_long_text_is_cut_and_flagged(self):
         # Act
         extracted = extract_text(b"x" * 50, TEXT, max_chars=20)

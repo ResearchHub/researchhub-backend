@@ -106,10 +106,10 @@ def extract_text(data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedTex
         text, page_count, truncated = _extract_in_child(kind, data, max_chars)
     # Postgres text columns cannot hold NUL.
     text = text.replace("\x00", "")
-    if not text.strip():
-        raise UnreadableFileError("No readable text was found in this file.")
     if len(text) > max_chars:
         text, truncated = text[:max_chars], True
+    if not text.strip():
+        raise UnreadableFileError("No readable text was found in this file.")
     return ExtractedText(text=text, page_count=page_count, truncated=truncated)
 
 
