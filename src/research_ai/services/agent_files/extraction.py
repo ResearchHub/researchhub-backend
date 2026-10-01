@@ -258,7 +258,8 @@ def _to_transitional(root) -> None:
 
 def _resolve_alternate_content(element) -> None:
     """Replace each mc:AlternateContent with its first rendering that has text."""
-    for alternate in list(element.iter(f"{_MC}AlternateContent")):
+    # findall returns a list, so the elements this loop moves cannot derail it.
+    for alternate in element.findall(f".//{_MC}AlternateContent"):
         # Choices in order, then the fallback; a choice may be only a drawing.
         renderings = (
             *alternate.iterfind(f"{_MC}Choice"),

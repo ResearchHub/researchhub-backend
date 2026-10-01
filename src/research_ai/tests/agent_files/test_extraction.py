@@ -251,11 +251,13 @@ class DocxExtractionTests(TestCase):
 
     def test_a_document_of_empty_tables_is_refused(self):
         # Arrange
-        body = "<w:tbl><w:tr><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc></w:tr></w:tbl>"
+        data = docx_bytes(
+            "<w:tbl><w:tr><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc></w:tr></w:tbl>"
+        )
 
         # Act / Assert
         with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
-            extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+            extract_text(data, DOCX, max_chars=MAX_CHARS)
 
     def test_tracked_deletions_and_move_sources_are_skipped(self):
         # Arrange
