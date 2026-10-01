@@ -235,6 +235,7 @@ def _docx_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
         body = root.find(f"{_W}body")
         if body is None:
             raise unreadable
+        _resolve_alternate_content(body)
         lines: list[str] = []
         length = -1  # the first line has no separator before it
         for line in _docx_blocks(body):
@@ -253,6 +254,22 @@ def _to_transitional(root) -> None:
     for element in root.iter():
         if isinstance(element.tag, str) and element.tag.startswith(_W_STRICT):
             element.tag = _W + element.tag[len(_W_STRICT) :]
+
+
+def _resolve_alternate_content(element) -> None:
+    """Replace each mc:AlternateContent with its first rendering that has text."""
+    for alternate in list(element.iter(f"{_MC}AlternateContent")):
+        # Choices in order, then the fallback; a choice may be only a drawing.
+        renderings = (
+            *alternate.iterfind(f"{_MC}Choice"),
+            *alternate.iterfind(f"{_MC}Fallback"),
+        )
+        chosen = next(
+            (r for r in renderings if any(t.text for t in r.iter(f"{_W}t"))), None
+        )
+        parent = alternate.getparent()
+        position = parent.index(alternate)
+        parent[position : position + 1] = [] if chosen is None else list(chosen)
 
 
 def _docx_children(element, tag: str) -> Iterator:
@@ -282,27 +299,19 @@ def _docx_blocks(element) -> Iterator[str]:
 
 
 def _docx_paragraph(paragraph) -> str:
-    def walk(element, parts: list[str]) -> list[str]:
+    parts: list[str] = []
+
+    def walk(element) -> None:
         for node in element:
             if node.tag == f"{_W}t":
                 parts.append(node.text or "")
             elif node.tag in _DOCX_RUN_TEXT:
                 parts.append(_DOCX_RUN_TEXT[node.tag])
-            elif node.tag == f"{_MC}AlternateContent":
-                # Renderings of the same content: read the first that has text.
-                for rendering in (
-                    *node.iterfind(f"{_MC}Choice"),
-                    *node.iterfind(f"{_MC}Fallback"),
-                ):
-                    text = walk(rendering, [])
-                    if any(text):
-                        parts.extend(text)
-                        break
             elif node.tag not in _DOCX_SKIPPED:
-                walk(node, parts)
-        return parts
+                walk(node)
 
-    return "".join(walk(paragraph, []))
+    walk(paragraph)
+    return "".join(parts)
 
 
 def _plain_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:

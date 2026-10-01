@@ -288,6 +288,23 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertEqual(extracted.text, "Kept once")
 
+    def test_alternate_renderings_of_whole_blocks_and_rows_are_read(self):
+        # Arrange
+        body = (
+            f"<mc:AlternateContent><mc:Choice>{paragraph('Aims')}</mc:Choice>"
+            f"<mc:Fallback>{paragraph('Aims, drawn')}</mc:Fallback>"
+            "</mc:AlternateContent>"
+            "<w:tbl><mc:AlternateContent><mc:Choice><w:tr>"
+            f"<w:tc>{paragraph('Year')}</w:tc><w:tc>{paragraph('1')}</w:tc>"
+            "</w:tr></mc:Choice></mc:AlternateContent></w:tbl>"
+        )
+
+        # Act
+        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "Aims\nYear | 1")
+
     def test_the_fallback_is_read_when_no_choice_has_text(self):
         # Arrange
         body = (
