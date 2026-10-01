@@ -2,18 +2,23 @@
 
 Agents read attachments as text, so every supported format reduces to one
 string: PDF pages via PyMuPDF, each introduced by a ``[Page N]`` marker the
-agent can cite; Word documents from their body XML; text formats by decoding.
+agent can cite; Word documents as Markdown via mammoth; text formats by decoding.
 """
 
 import codecs
+import contextlib
 import io
+import json
 import os
+import resource
+import subprocess
+import sys
 import zipfile
-from collections.abc import Iterator
 from dataclasses import dataclass
 
 import fitz
-from lxml import etree
+import mammoth
+from markdownify import markdownify
 
 
 class UnreadableFileError(ValueError):
@@ -52,17 +57,12 @@ SUPPORTED_EXTENSIONS = tuple(_KINDS_BY_EXTENSION)
 # Bounds on work an adversarial file can demand, beyond the upload size cap.
 _MAX_PDF_PAGES = 2000
 _MAX_DOCX_XML_BYTES = 64 * 1024 * 1024
-
-_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-# Alternate renderings of the same content; reading both would duplicate it.
-_MC_FALLBACK = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
-_DOCX_CONTAINERS = frozenset({f"{_W}sdt", f"{_W}sdtContent", f"{_W}customXml"})
-_DOCX_RUN_TEXT = {
-    f"{_W}tab": "\t",
-    f"{_W}br": "\n",
-    f"{_W}cr": "\n",
-    f"{_W}noBreakHyphen": "-",
-}
+# A compressed PDF page or a tree of millions of tiny XML elements costs far
+# more than the file's size before any text cap applies, so PDF and Word files
+# are parsed in a child process under these limits.
+_CHILD_CPU_SECONDS = 60
+_CHILD_MEMORY_BYTES = 1024 * 1024 * 1024
+_CHILD_TIMEOUT_SECONDS = 120
 
 
 @dataclass(frozen=True)
@@ -86,19 +86,75 @@ def kind_for_content_type(content_type: str) -> FileKind | None:
 
 def extract_text(data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedText:
     """Text of the file, cut at ``max_chars``. Raises ``UnreadableFileError``."""
-    extractor = {
-        "pdf": _pdf_text,
-        "docx": _docx_text,
-        "text": _plain_text,
-    }[kind.extractor]
-    text, page_count, truncated = extractor(data, max_chars)
+    if kind.extractor == "text":
+        text, page_count, truncated = _plain_text(data, max_chars)
+    else:
+        text, page_count, truncated = _extract_in_child(kind, data, max_chars)
     # Postgres text columns cannot hold NUL.
     text = text.replace("\x00", "")
-    if not text.strip():
-        raise UnreadableFileError("No readable text was found in this file.")
     if len(text) > max_chars:
         text, truncated = text[:max_chars], True
+    # An empty Word table still renders its Markdown frame.
+    if not any(map(str.isalnum, text)):
+        raise UnreadableFileError("No readable text was found in this file.")
     return ExtractedText(text=text, page_count=page_count, truncated=truncated)
+
+
+def _extract_in_child(
+    kind: FileKind, data: bytes, max_chars: int
+) -> tuple[str, int | None, bool]:
+    too_complex = UnreadableFileError(f"This {kind.label} is too complex to read.")
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                os.path.abspath(__file__),
+                kind.extractor,
+                str(max_chars),
+                str(_CHILD_CPU_SECONDS),
+                str(_CHILD_MEMORY_BYTES),
+            ],
+            input=data,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=_CHILD_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise too_complex from exc
+    if result.returncode != 0:
+        raise too_complex
+    output = json.loads(result.stdout)
+    if "error" in output:
+        raise UnreadableFileError(output["error"])
+    return output["text"], output["page_count"], output["truncated"]
+
+
+def _child_main(
+    extractor: str, max_chars: int, cpu_seconds: int, memory_bytes: int
+) -> None:
+    """Child-process entry point: file on stdin, JSON result on stdout."""
+    # MuPDF prints its errors to stdout; route them to stderr, off the result.
+    result = os.fdopen(os.dup(sys.stdout.fileno()), "w")
+    os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
+    # macOS rejects address-space limits; Linux workers enforce them.
+    with contextlib.suppress(ValueError, OSError):
+        resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+    parse = {"pdf": _pdf_text, "docx": _docx_text}[extractor]
+    data = sys.stdin.buffer.read()
+    try:
+        text, page_count, truncated = parse(data, max_chars)
+        # Cut here so no more than max_chars reaches the unlimited parent.
+        output = {
+            "text": text[:max_chars],
+            "page_count": page_count,
+            "truncated": truncated or len(text) > max_chars,
+        }
+    except UnreadableFileError as exc:
+        output = {"error": str(exc)}
+    with result:
+        json.dump(output, result)
 
 
 def _pdf_text(data: bytes, max_chars: int) -> tuple[str, int, bool]:
@@ -143,68 +199,36 @@ def _pdf_text(data: bytes, max_chars: int) -> tuple[str, int, bool]:
 
 
 def _docx_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
-    unreadable = UnreadableFileError(
-        "This file could not be read as a Word document (.docx)."
-    )
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            info = archive.getinfo("word/document.xml")
-            if info.file_size > _MAX_DOCX_XML_BYTES:
-                raise UnreadableFileError("This Word document is too large to read.")
-            xml = archive.read(info)
-    except UnreadableFileError:
+            xml_bytes = sum(
+                info.file_size
+                for info in archive.infolist()
+                if info.filename.endswith((".xml", ".rels"))
+            )
+        if xml_bytes > _MAX_DOCX_XML_BYTES:
+            raise UnreadableFileError("This Word document is too large to read.")
+        html = mammoth.convert_to_html(
+            io.BytesIO(data),
+            include_embedded_style_map=False,
+            # Images carry no text; leaving them unopened also skips their bytes.
+            convert_image=lambda image: [],
+        ).value
+        text = markdownify(
+            html,
+            heading_style="ATX",
+            table_infer_header=True,
+            # The agent reads this text rather than rendering it.
+            escape_asterisks=False,
+            escape_underscores=False,
+        ).strip()
+    except (UnreadableFileError, MemoryError):
         raise
-    except Exception as exc:  # noqa: BLE001 - corrupt archives raise many types
-        raise unreadable from exc
-    parser = etree.XMLParser(
-        resolve_entities=False, no_network=True, remove_comments=True, remove_pis=True
-    )
-    try:
-        body = etree.fromstring(xml, parser).find(f"{_W}body")
-        if body is None:
-            raise unreadable
-        lines: list[str] = []
-        length = 0
-        for line in _docx_blocks(body):
-            lines.append(line)
-            length += len(line) + 1
-            if length > max_chars:
-                return "\n".join(lines), None, True
-    except (etree.XMLSyntaxError, RecursionError) as exc:
-        raise unreadable from exc
-    return "\n".join(lines), None, False
-
-
-def _docx_blocks(element) -> Iterator[str]:
-    """One line per paragraph or table row, in document order."""
-    for child in element:
-        if child.tag == f"{_W}p":
-            yield _docx_paragraph(child)
-        elif child.tag == f"{_W}tbl":
-            for row in child.iterfind(f"{_W}tr"):
-                cells = [
-                    " ".join(filter(None, _docx_blocks(cell)))
-                    for cell in row.iterfind(f"{_W}tc")
-                ]
-                yield " | ".join(cells)
-        elif child.tag in _DOCX_CONTAINERS:
-            yield from _docx_blocks(child)
-
-
-def _docx_paragraph(paragraph) -> str:
-    parts: list[str] = []
-
-    def walk(element) -> None:
-        for node in element:
-            if node.tag == f"{_W}t":
-                parts.append(node.text or "")
-            elif node.tag in _DOCX_RUN_TEXT:
-                parts.append(_DOCX_RUN_TEXT[node.tag])
-            elif node.tag != _MC_FALLBACK:
-                walk(node)
-
-    walk(paragraph)
-    return "".join(parts)
+    except Exception as exc:  # noqa: BLE001 - corrupt files raise many types
+        raise UnreadableFileError(
+            "This file could not be read as a Word document (.docx)."
+        ) from exc
+    return text, None, len(text) > max_chars
 
 
 def _plain_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
@@ -219,3 +243,7 @@ def _plain_text(data: bytes, max_chars: int) -> tuple[str, None, bool]:
             text = data.decode("cp1252", errors="replace")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     return text, None, len(text) > max_chars
+
+
+if __name__ == "__main__":
+    _child_main(sys.argv[1], *map(int, sys.argv[2:5]))
