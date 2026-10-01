@@ -1,5 +1,6 @@
 """Unit tests for the OpenRouter Chat Completions provider adapter (no network)."""
 
+import base64
 import json
 from copy import deepcopy
 from types import SimpleNamespace
@@ -13,6 +14,7 @@ from research_ai.services.agent.providers import openrouter
 from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
+    ImageBlock,
     Message,
     StopReason,
     TextBlock,
@@ -190,6 +192,127 @@ class RenderMessagesTests(SimpleTestCase):
         # Assert
         sent = provider._client.calls[0]["messages"]
         self.assertIsNone(sent[1]["content"])
+
+
+JPEG = b"\xff\xd8\xff-jpeg"
+PNG = b"\x89PNG\r\n\x1a\n-png"
+
+
+class RenderImageTests(SimpleTestCase):
+    PAGE = ImageBlock(ref="files/1/p1.jpg", media_type="image/jpeg", label="Page 1")
+    CHART = ImageBlock(ref="files/1/chart.png", media_type="image/png")
+    IMAGES = {"files/1/p1.jpg": JPEG, "files/1/chart.png": PNG}
+    JPEG_URL = "data:image/jpeg;base64," + base64.b64encode(JPEG).decode()
+    PNG_URL = "data:image/png;base64," + base64.b64encode(PNG).decode()
+
+    def _provider(self, **kwargs):
+        return _build_provider(image_loader=self.IMAGES.__getitem__, **kwargs)
+
+    def test_user_images_render_as_data_url_parts_after_their_label(self):
+        # Arrange
+        messages = [
+            Message(
+                role="user",
+                content=[self.PAGE, self.CHART, TextBlock(text="compare these")],
+            )
+        ]
+
+        # Act
+        rendered = self._provider()._render_messages("sys", messages)
+
+        # Assert
+        self.assertEqual(
+            rendered[1],
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Page 1"},
+                    {"type": "image_url", "image_url": {"url": self.JPEG_URL}},
+                    {"type": "image_url", "image_url": {"url": self.PNG_URL}},
+                    {"type": "text", "text": "compare these"},
+                ],
+            },
+        )
+
+    def test_tool_result_images_follow_the_tool_messages_in_a_user_message(self):
+        # Arrange: tool messages are text in this wire format.
+        messages = [
+            Message(
+                role="assistant",
+                content=[
+                    ToolUseBlock(id="call-1", name="view_page", input={"page": 1}),
+                    ToolUseBlock(id="call-2", name="search", input={"q": "x"}),
+                ],
+            ),
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(
+                        tool_use_id="call-1", content={"page": 1}, images=(self.PAGE,)
+                    ),
+                    ToolResultBlock(tool_use_id="call-2", content={"hits": 0}),
+                ],
+            ),
+        ]
+
+        # Act
+        rendered = self._provider()._render_messages("sys", messages)
+
+        # Assert
+        self.assertEqual(
+            rendered[2:],
+            [
+                {"role": "tool", "tool_call_id": "call-1", "content": '{"page": 1}'},
+                {"role": "tool", "tool_call_id": "call-2", "content": '{"hits": 0}'},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "[Images returned by the tool call above.]\n",
+                        },
+                        {"type": "text", "text": "Page 1"},
+                        {"type": "image_url", "image_url": {"url": self.JPEG_URL}},
+                    ],
+                },
+            ],
+        )
+
+    def test_a_text_only_model_gets_placeholders_as_plain_text(self):
+        # Arrange
+        provider = self._provider(model_id="deepseek/deepseek-v4-pro-0813")
+        messages = [
+            Message(
+                role="user",
+                content=[self.PAGE, self.CHART, TextBlock(text="compare these")],
+            )
+        ]
+
+        # Act
+        rendered = provider._render_messages("sys", messages)
+
+        # Assert
+        self.assertEqual(
+            rendered[1],
+            {
+                "role": "user",
+                "content": (
+                    "[Image not shown: Page 1]\n[Image not shown]\ncompare these"
+                ),
+            },
+        )
+
+    def test_a_turn_without_images_still_renders_as_a_string(self):
+        # Arrange
+        messages = [
+            Message(role="user", content=[TextBlock(text="a"), TextBlock(text="b")])
+        ]
+
+        # Act
+        rendered = self._provider()._render_messages("sys", messages)
+
+        # Assert
+        self.assertEqual(rendered[1], {"role": "user", "content": "ab"})
 
 
 class CompleteRequestTests(SimpleTestCase):

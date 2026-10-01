@@ -7,6 +7,7 @@ generator and the judge roster alike. It reuses the already-installed
 agent types to/from the Chat Completions shape.
 """
 
+import base64
 import json
 import logging
 import time
@@ -19,12 +20,18 @@ from django.conf import settings
 from openai import OpenAI
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.images import (
+    ImageLoader,
+    image_placeholder,
+    load_image,
+)
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
     Block,
+    ImageBlock,
     Message,
     StopReason,
     TextBlock,
@@ -55,6 +62,13 @@ MAX_OUTPUT_TOKENS = 32_768
 # default aligned with the Claude Platform adapter so switching providers does
 # not silently change the workflow's reasoning depth. ``""`` omits the option.
 EFFORT = "low"
+
+# Upstream image caps differ and are not all published; this is the tightest
+# known one (5 MB in base64).
+MAX_IMAGE_BYTES = 5 * 1024 * 1024 * 3 // 4
+
+# Shown before a tool result's images, which travel in a user message.
+_TOOL_IMAGES_NOTE = "[Images returned by the tool call above.]\n"
 
 # Opus 4.7+, Fable, and OpenAI reasoning models reject sampling params
 # (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
@@ -146,8 +160,10 @@ class OpenRouterProvider(LLMProvider):
         model_id: str | None = None,
         effort: str | None = None,
         thinking: str | None = None,
+        image_loader: ImageLoader | None = None,
     ):
         self.model_id = model_id or MODEL_ID
+        self.image_loader = image_loader
         capabilities = model_capabilities("openrouter", self.model_id)
         if effort is not None:
             self.effort = effort
@@ -264,7 +280,7 @@ class OpenRouterProvider(LLMProvider):
             # keyed by ``tool_call_id`` (the id-correlation invariant), emitted
             # before any plain text so they directly follow the assistant
             # message that issued the calls, as the wire format requires.
-            texts: list[str] = []
+            parts: list[dict] = []
             for block in message.content:
                 if isinstance(block, ToolResultBlock):
                     # No error flag on tool messages in this wire format; the
@@ -276,13 +292,45 @@ class OpenRouterProvider(LLMProvider):
                             "content": json.dumps(block.content),
                         }
                     )
+                    # Upstreams differ on images in tool messages, so a
+                    # result's images follow in the user message instead.
+                    if block.images:
+                        parts.append({"type": "text", "text": _TOOL_IMAGES_NOTE})
+                    for image in block.images:
+                        parts.extend(self._image_parts(image))
                 elif isinstance(block, TextBlock):
-                    texts.append(block.text)
+                    parts.append({"type": "text", "text": block.text})
+                elif isinstance(block, ImageBlock):
+                    parts.extend(self._image_parts(block))
                 else:
                     raise TypeError(f"unrenderable user block: {block!r}")
-            if texts:
-                rendered.append({"role": "user", "content": "".join(texts)})
+            if not parts:
+                continue
+            content: str | list[dict] = parts
+            if all(part["type"] == "text" for part in parts):
+                # Text-only turns stay a plain string, as before images existed.
+                content = "".join(part["text"] for part in parts)
+            rendered.append({"role": "user", "content": content})
         return rendered
+
+    def _image_parts(self, block: ImageBlock) -> list[dict]:
+        """The image after its label, or its placeholder as text."""
+        data = load_image(
+            block,
+            loader=self.image_loader,
+            vision=model_capabilities("openrouter", self.model_id).vision,
+            max_bytes=MAX_IMAGE_BYTES,
+        )
+        if data is None:
+            return [{"type": "text", "text": f"{image_placeholder(block)}\n"}]
+        encoded = base64.b64encode(data).decode("ascii")
+        image = {
+            "type": "image_url",
+            "image_url": {"url": f"data:{block.media_type};base64,{encoded}"},
+        }
+        if block.label:
+            return [{"type": "text", "text": block.label}, image]
+        return [image]
 
     def _render_assistant(self, message: Message) -> dict:
         texts: list[str] = []

@@ -9,15 +9,17 @@ from research_ai.services.agent.errors import (
 )
 from research_ai.services.agent.loop import Agent, _summarize_server_result
 from research_ai.services.agent.providers.base import LLMProvider
-from research_ai.services.agent.tools import Tool, Toolset
+from research_ai.services.agent.tools import Tool, ToolOutput, Toolset
 from research_ai.services.agent.types import (
     AssistantTurn,
+    ImageBlock,
     Message,
     ServerToolBlock,
     StopReason,
     TextBlock,
     TextStreamDelta,
     ThinkingBlock,
+    ToolResultBlock,
     ToolUseBlock,
     TurnUsage,
 )
@@ -734,3 +736,64 @@ class ServerSideToolTests(SimpleTestCase):
         # Assert: the assistant turn went back exactly as the provider sent it.
         assistant = result.messages[1]
         self.assertEqual(assistant.content, ordered)
+
+
+class AgentImageTests(SimpleTestCase):
+    PAGE = ImageBlock(ref="files/1/page-1.jpg", media_type="image/jpeg", label="p1")
+
+    def test_images_sent_with_a_prompt_come_before_its_text(self):
+        # Arrange
+        provider = FakeProvider([_build_text_turn("a chart"), _build_text_turn("ok")])
+        agent = _build_agent(provider, Toolset())
+
+        # Act
+        first = agent.run("what is this?", images=[self.PAGE])
+        agent.continue_conversation(first.messages, "and this?", images=(self.PAGE,))
+
+        # Assert
+        self.assertEqual(
+            provider.calls[0][0].content,
+            [self.PAGE, TextBlock(text="what is this?")],
+        )
+        self.assertEqual(
+            provider.calls[1][-1].content, [self.PAGE, TextBlock(text="and this?")]
+        )
+
+    def test_a_prompt_without_images_is_text_alone(self):
+        # Arrange
+        provider = FakeProvider([_build_text_turn("hello")])
+
+        # Act
+        _build_agent(provider, Toolset()).run("hi")
+
+        # Assert
+        self.assertEqual(provider.calls[0][0].content, [TextBlock(text="hi")])
+
+    def test_images_a_tool_returns_ride_on_its_result(self):
+        # Arrange
+        toolset = Toolset(
+            [
+                Tool(
+                    "view_page",
+                    "view_page",
+                    {"type": "object"},
+                    lambda input: ToolOutput(content={"page": 1}, images=(self.PAGE,)),
+                )
+            ]
+        )
+        provider = FakeProvider(
+            [_build_tool_turn("t1", "view_page", {"page": 1}), _build_text_turn("done")]
+        )
+
+        # Act
+        result = _build_agent(provider, toolset).run("show me page 1")
+
+        # Assert
+        self.assertEqual(
+            result.messages[2].content,
+            [
+                ToolResultBlock(
+                    tool_use_id="t1", content={"page": 1}, images=(self.PAGE,)
+                )
+            ],
+        )
