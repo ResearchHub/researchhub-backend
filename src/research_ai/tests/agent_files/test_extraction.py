@@ -1,8 +1,12 @@
 import codecs
+import json
+import subprocess
 from unittest import TestCase
+from unittest.mock import patch
 
 import fitz
 
+from research_ai.services.agent_files import extraction
 from research_ai.services.agent_files.extraction import (
     DOCX,
     PDF,
@@ -10,7 +14,16 @@ from research_ai.services.agent_files.extraction import (
     extract_text,
     resolve_kind,
 )
-from research_ai.tests.agent_files.helpers import docx_bytes, paragraph, pdf_bytes
+from research_ai.tests.agent_files.helpers import (
+    W_STRICT_NS,
+    docx_bytes,
+    paragraph,
+    pdf_bytes,
+)
+
+DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006"
+RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+PACKAGE_NS = "http://schemas.openxmlformats.org/package/2006"
 
 TEXT = resolve_kind("notes.txt")
 MAX_CHARS = 10_000
@@ -88,6 +101,50 @@ class PdfExtractionTests(TestCase):
         with self.assertRaisesRegex(UnreadableFileError, "password-protected"):
             extract_text(data, PDF, max_chars=MAX_CHARS)
 
+    def test_a_page_mupdf_complains_about_still_yields_its_text(self):
+        # Arrange
+        document = fitz.open(stream=pdf_bytes("Alpha findings"), filetype="pdf")
+        xref = document[0].get_contents()[0]
+        document.update_stream(xref, document.xref_stream(xref) + b"\nnot-an-operator")
+        data = document.tobytes()
+        document.close()
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "[Page 1]\nAlpha findings")
+
+    def test_no_more_than_max_chars_leaves_the_parsing_process(self):
+        # Arrange
+        data = pdf_bytes("A single page holding more text than the cap")
+        run = subprocess.run
+        payloads = []
+
+        def run_and_capture(*args, **kwargs):
+            result = run(*args, **kwargs)
+            payloads.append(json.loads(result.stdout))
+            return result
+
+        # Act
+        with patch.object(subprocess, "run", side_effect=run_and_capture):
+            extract_text(data, PDF, max_chars=20)
+
+        # Assert
+        self.assertEqual(len(payloads[0]["text"]), 20)
+        self.assertTrue(payloads[0]["truncated"])
+
+    def test_a_pdf_that_exceeds_the_parsing_limits_is_refused(self):
+        # Arrange
+        data = pdf_bytes("Alpha findings")
+
+        # Act / Assert
+        with (
+            patch.object(extraction, "_CHILD_TIMEOUT_SECONDS", 0.001),
+            self.assertRaisesRegex(UnreadableFileError, "too complex"),
+        ):
+            extract_text(data, PDF, max_chars=MAX_CHARS)
+
     def test_bytes_that_are_not_a_pdf_are_refused(self):
         # Act / Assert
         with self.assertRaisesRegex(UnreadableFileError, "could not be read as a PDF"):
@@ -95,13 +152,13 @@ class PdfExtractionTests(TestCase):
 
 
 class DocxExtractionTests(TestCase):
-    def test_paragraphs_and_table_rows_become_lines(self):
+    def test_headings_paragraphs_and_tables_become_markdown(self):
         # Arrange
         body = (
-            paragraph("Specific Aims")
-            + "<w:p><w:r><w:t>Aim</w:t><w:tab/><w:t>one</w:t><w:br/>"
-            "<w:t>continued</w:t></w:r></w:p>"
-            "<w:tbl><w:tr>"
+            "<w:p><w:pPr><w:pStyle w:val='Heading1'/></w:pPr>"
+            "<w:r><w:t>Specific Aims</w:t></w:r></w:p>"
+            + paragraph("Aim one")
+            + "<w:tbl><w:tr>"
             f"<w:tc>{paragraph('Year')}</w:tc><w:tc>{paragraph('Budget')}</w:tc>"
             "</w:tr><w:tr>"
             f"<w:tc>{paragraph('1')}</w:tc><w:tc>{paragraph('$50,000')}</w:tc>"
@@ -114,17 +171,147 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertEqual(
             extracted.text,
-            "Specific Aims\nAim\tone\ncontinued\nYear | Budget\n1 | $50,000",
+            "# Specific Aims\n\nAim one\n\n"
+            "| Year | Budget |\n| --- | --- |\n| 1 | $50,000 |",
         )
         self.assertIsNone(extracted.page_count)
 
-    def test_deleted_revisions_and_fallback_renderings_are_skipped(self):
+    def test_markdown_characters_in_the_text_are_left_as_written(self):
+        # Arrange
+        data = docx_bytes(paragraph("p_value for 2*3 runs"))
+
+        # Act
+        extracted = extract_text(data, DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "p_value for 2*3 runs")
+
+    def test_images_are_left_out(self):
+        # Arrange
+        body = (
+            "<w:p><w:r><w:t>Figure 1</w:t></w:r><w:r><w:drawing>"
+            f"<wp:inline xmlns:wp='{DRAWING_NS}/wordprocessingDrawing'>"
+            f"<a:graphic xmlns:a='{DRAWING_NS}/main'><a:graphicData>"
+            f"<pic:pic xmlns:pic='{DRAWING_NS}/picture'><pic:blipFill>"
+            f"<a:blip xmlns:r='{RELATIONSHIPS_NS}' r:embed='rId1'/>"
+            "</pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline>"
+            "</w:drawing></w:r></w:p>"
+        )
+        relationships = (
+            f"<Relationships xmlns='{PACKAGE_NS}/relationships'>"
+            f"<Relationship Id='rId1' Type='{RELATIONSHIPS_NS}/image' "
+            "Target='media/image1.png'/></Relationships>"
+        )
+        parts = {
+            "word/_rels/document.xml.rels": relationships,
+            "word/media/image1.png": b"\x89PNG\r\n\x1a\n" + b"\x00" * 64,
+        }
+
+        # Act
+        extracted = extract_text(
+            docx_bytes(body, parts=parts), DOCX, max_chars=MAX_CHARS
+        )
+
+        # Assert
+        self.assertEqual(extracted.text, "Figure 1")
+
+    def test_table_rows_and_cells_inside_content_controls_are_read(self):
+        # Arrange
+        body = (
+            "<w:tbl><w:sdt><w:sdtContent><w:tr>"
+            f"<w:tc>{paragraph('Year')}</w:tc>"
+            f"<w:customXml><w:tc>{paragraph('Budget')}</w:tc></w:customXml>"
+            "</w:tr></w:sdtContent></w:sdt></w:tbl>"
+        )
+
+        # Act
+        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "| Year | Budget |\n| --- | --- |")
+
+    def test_strict_open_xml_documents_are_read(self):
+        # Arrange
+        data = docx_bytes(paragraph("Strict"), namespace=W_STRICT_NS)
+
+        # Act
+        extracted = extract_text(data, DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "Strict")
+
+    def test_text_that_exactly_fits_is_not_flagged_as_cut(self):
+        # Arrange
+        data = docx_bytes(paragraph("Aims") + paragraph("Plan"))
+
+        # Act
+        extracted = extract_text(data, DOCX, max_chars=10)
+
+        # Assert
+        self.assertEqual(extracted.text, "Aims\n\nPlan")
+        self.assertFalse(extracted.truncated)
+
+    def test_long_text_is_cut_and_flagged(self):
+        # Arrange
+        data = docx_bytes(paragraph("Aims") + paragraph("Plan") + paragraph("Budget"))
+
+        # Act
+        extracted = extract_text(data, DOCX, max_chars=10)
+
+        # Assert
+        self.assertEqual(extracted.text, "Aims\n\nPlan")
+        self.assertTrue(extracted.truncated)
+
+    def test_a_document_of_empty_tables_is_refused(self):
+        # Arrange
+        data = docx_bytes(
+            "<w:tbl><w:tr><w:tc><w:p/></w:tc><w:tc><w:p/></w:tc></w:tr></w:tbl>"
+        )
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
+            extract_text(data, DOCX, max_chars=MAX_CHARS)
+
+    def test_tracked_deletions_and_move_sources_are_skipped(self):
         # Arrange
         body = (
             "<w:p><w:r><w:t>Kept</w:t></w:r>"
-            "<w:del><w:r><w:delText>Removed</w:delText></w:r></w:del>"
-            "<mc:AlternateContent><mc:Choice><w:r><w:t> once</w:t></w:r></mc:Choice>"
-            "<mc:Fallback><w:r><w:t> twice</w:t></w:r></mc:Fallback>"
+            "<w:del><w:r><w:tab/><w:delText>Removed</w:delText></w:r></w:del>"
+            "<w:moveFrom><w:r><w:t> moved</w:t></w:r></w:moveFrom>"
+            "<w:moveTo><w:r><w:t> moved</w:t></w:r></w:moveTo></w:p>"
+        )
+
+        # Act
+        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "Kept moved")
+
+    def test_a_table_row_deleted_as_a_tracked_change_is_skipped(self):
+        # Arrange
+        body = (
+            f"<w:tbl><w:tr><w:tc>{paragraph('Year')}</w:tc>"
+            f"<w:tc>{paragraph('1')}</w:tc></w:tr>"
+            "<w:tr><w:trPr><w:del w:id='1' w:author='a'/></w:trPr>"
+            f"<w:tc>{paragraph('Removed')}</w:tc><w:tc>{paragraph('2')}</w:tc>"
+            "</w:tr></w:tbl>"
+        )
+
+        # Act
+        extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, "| Year | 1 |\n| --- | --- |")
+
+    def test_alternate_content_is_read_once_from_its_fallback(self):
+        # Arrange
+        body = (
+            "<mc:AlternateContent>"
+            f"<mc:Choice Requires='wps'>{paragraph('Aims, drawn')}</mc:Choice>"
+            f"<mc:Fallback>{paragraph('Aims')}</mc:Fallback></mc:AlternateContent>"
+            "<w:p><w:r><w:t>Kept</w:t></w:r><mc:AlternateContent>"
+            "<mc:Choice Requires='wps'><w:r><w:drawing/></w:r></mc:Choice>"
+            "<mc:Fallback><w:r><w:t> once</w:t></w:r></mc:Fallback>"
             "</mc:AlternateContent></w:p>"
         )
 
@@ -132,7 +319,7 @@ class DocxExtractionTests(TestCase):
         extracted = extract_text(docx_bytes(body), DOCX, max_chars=MAX_CHARS)
 
         # Assert
-        self.assertEqual(extracted.text, "Kept once")
+        self.assertEqual(extracted.text, "Aims\n\nKept once")
 
     def test_external_entities_are_never_resolved(self):
         # Arrange
@@ -147,6 +334,30 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertTrue(extracted.text.startswith("Visible"))
         self.assertNotIn("localhost", extracted.text)
+
+    def test_an_entity_expansion_bomb_is_refused(self):
+        # Arrange
+        entities = '<!ENTITY e0 "expand">' + "".join(
+            f'<!ENTITY e{level} "{f"&e{level - 1};" * 10}">' for level in range(1, 10)
+        )
+        data = docx_bytes(
+            paragraph("&e9;"), doctype=f"<!DOCTYPE w:document [{entities}]>"
+        )
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "Word document"):
+            extract_text(data, DOCX, max_chars=MAX_CHARS)
+
+    def test_a_document_that_exceeds_the_parsing_limits_is_refused(self):
+        # Arrange
+        data = docx_bytes(paragraph("Specific Aims"))
+
+        # Act / Assert
+        with (
+            patch.object(extraction, "_CHILD_TIMEOUT_SECONDS", 0.001),
+            self.assertRaisesRegex(UnreadableFileError, "Word document is too complex"),
+        ):
+            extract_text(data, DOCX, max_chars=MAX_CHARS)
 
     def test_a_file_that_is_not_a_docx_is_refused(self):
         # Act / Assert
@@ -180,6 +391,14 @@ class PlainTextExtractionTests(TestCase):
             extract_text(b"\x89PNG\r\n\x1a\n\x00\x00", TEXT, max_chars=MAX_CHARS)
         with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
             extract_text(b"  \n\t ", TEXT, max_chars=MAX_CHARS)
+
+    def test_a_file_blank_up_to_the_cap_is_refused(self):
+        # Arrange
+        data = b" " * 30 + b"text past the cap"
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
+            extract_text(data, TEXT, max_chars=20)
 
     def test_long_text_is_cut_and_flagged(self):
         # Act
