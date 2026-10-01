@@ -38,6 +38,14 @@ class Migration(migrations.Migration):
                 ("size_bytes", models.PositiveBigIntegerField()),
                 ("storage_key", models.CharField(max_length=512, unique=True)),
                 (
+                    "etag",
+                    models.CharField(
+                        blank=True,
+                        db_comment="ETag of the completed object; overwriting the object changes it.",
+                        max_length=128,
+                    ),
+                ),
+                (
                     "status",
                     models.CharField(
                         choices=[
@@ -48,6 +56,14 @@ class Migration(migrations.Migration):
                         ],
                         default="UPLOADING",
                         max_length=16,
+                    ),
+                ),
+                (
+                    "processing_started_date",
+                    models.DateTimeField(
+                        blank=True,
+                        db_comment="When a worker picked the file up; null while it is queued.",
+                        null=True,
                     ),
                 ),
                 (
@@ -72,7 +88,7 @@ class Migration(migrations.Migration):
                         blank=True,
                         db_comment="Set when the file is attached to a message in this conversation.",
                         null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
+                        on_delete=django.db.models.deletion.SET_NULL,
                         related_name="files",
                         to="research_ai.agentconversation",
                     ),
@@ -91,7 +107,10 @@ class Migration(migrations.Migration):
                 (
                     "user",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
+                        blank=True,
+                        db_comment="The uploader; null once they removed the file or their account, which leaves the row for the purge.",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
                         related_name="research_ai_files",
                         to=settings.AUTH_USER_MODEL,
                     ),

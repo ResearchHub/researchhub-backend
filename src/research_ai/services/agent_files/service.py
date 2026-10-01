@@ -84,6 +84,10 @@ def _display_name(filename: str) -> str:
     return name[:_MAX_FILENAME_CHARS]
 
 
+def _too_large(config: AgentFileConfig) -> str:
+    return f"Files can be at most {config.max_file_bytes // (1024 * 1024)} MB."
+
+
 def _key_name(filename: str) -> str:
     stem, extension = os.path.splitext(filename)
     return f"{slugify(stem)[:100] or 'file'}{extension.lower()}"
@@ -134,20 +138,9 @@ class AgentFileService:
                 code="unsupported_file_type",
             )
         if size_bytes > config.max_file_bytes:
-            raise AgentFileError(
-                f"Files can be at most {config.max_file_bytes // (1024 * 1024)} MB.",
-                code="file_too_large",
-            )
+            raise AgentFileError(_too_large(config), code="file_too_large")
         if not self.storage.configured:
             raise PrivateStorageNotConfiguredError("private storage is not set up")
-        unsent = AgentFile.objects.filter(
-            user=user, message__isnull=True, status__in=_UNSENT_STATUSES
-        ).count()
-        if unsent >= config.max_unsent_files:
-            raise AgentFileError(
-                "Too many files are waiting to be sent. Send or remove some first.",
-                code="too_many_unsent_files",
-            )
         key = (
             f"uploads/research_ai/users/{user.id}/{uuid.uuid4()}/{_key_name(filename)}"
         )
@@ -157,13 +150,24 @@ class AgentFileService:
             max_bytes=config.max_file_bytes,
             expires_in=config.upload_url_ttl_seconds,
         )
-        file = AgentFile.objects.create(
-            user=user,
-            filename=filename,
-            content_type=kind.content_type,
-            size_bytes=size_bytes,
-            storage_key=key,
-        )
+        with transaction.atomic():
+            # The user row lock keeps simultaneous uploads within the cap.
+            type(user)._default_manager.select_for_update().get(pk=user.pk)
+            unsent = AgentFile.objects.filter(
+                user=user, message__isnull=True, status__in=_UNSENT_STATUSES
+            ).count()
+            if unsent >= config.max_unsent_files:
+                raise AgentFileError(
+                    "Too many files are waiting to be sent. Send or remove some first.",
+                    code="too_many_unsent_files",
+                )
+            file = AgentFile.objects.create(
+                user=user,
+                filename=filename,
+                content_type=kind.content_type,
+                size_bytes=size_bytes,
+                storage_key=key,
+            )
         return file, upload
 
     def complete_upload(self, file: AgentFile) -> AgentFile:
@@ -180,13 +184,15 @@ class AgentFileService:
                 "The upload has not reached storage. Upload the file, then retry.",
                 code="upload_incomplete",
             )
-        if stored.size_bytes > self.config.max_file_bytes:
-            self._fail(file, _PROCESSING_FAILED)
+        config = self.config
+        if stored.size_bytes > config.max_file_bytes:
+            self._fail(file, _too_large(config))
         elif AgentFile.objects.filter(
             id=file.id, status=AgentFile.Status.UPLOADING
         ).update(
             status=AgentFile.Status.PROCESSING,
             size_bytes=stored.size_bytes,
+            etag=stored.etag,
             updated_date=timezone.now(),
         ):
             transaction.on_commit(lambda: self._schedule_processing(file.id))
@@ -194,20 +200,36 @@ class AgentFileService:
         return file
 
     def refresh(self, file: AgentFile) -> AgentFile:
-        """Fail a file whose processing outlived the timeout: its task is lost."""
-        timeout = timedelta(seconds=self.config.processing_timeout_seconds)
-        if (
-            file.status == AgentFile.Status.PROCESSING
-            and file.updated_date < timezone.now() - timeout
-            and self._fail(file, _PROCESSING_TIMED_OUT)
+        """Fail a file whose task is lost: never picked up, or stalled mid-run."""
+        if file.status != AgentFile.Status.PROCESSING:
+            return file
+        config = self.config
+        if file.processing_started_date is None:
+            since, allowed = file.updated_date, config.queue_timeout_seconds
+        else:
+            since, allowed = (
+                file.processing_started_date,
+                config.processing_timeout_seconds,
+            )
+        if timezone.now() - since > timedelta(seconds=allowed) and self._fail(
+            file, _PROCESSING_TIMED_OUT
         ):
             file.refresh_from_db()
         return file
 
     def delete(self, file: AgentFile) -> None:
-        """Remove an unsent file and its object; sent files stay with their chat."""
-        deleted, _ = AgentFile.objects.filter(id=file.id, message__isnull=True).delete()
-        if not deleted:
+        """Remove an unsent file and its object; sent files stay with their chat.
+
+        The row stays, ownerless, for ``purge``: the upload form may still be
+        valid, and the row is the only record of its key.
+        """
+        removed = AgentFile.objects.filter(id=file.id, message__isnull=True).update(
+            user=None,
+            status=AgentFile.Status.FAILED,
+            text="",
+            updated_date=timezone.now(),
+        )
+        if not removed:
             raise AgentFileError(
                 "Files already sent in a chat cannot be removed.",
                 code="attachment_sent",
@@ -215,7 +237,16 @@ class AgentFileService:
         self._delete_object(file.storage_key)
 
     def download_url(self, file: AgentFile) -> str:
-        if file.status not in (AgentFile.Status.PROCESSING, AgentFile.Status.READY):
+        """A short-lived URL for the object the file's text was read from."""
+        available = file.status in (
+            AgentFile.Status.PROCESSING,
+            AgentFile.Status.READY,
+        )
+        if available:
+            # The upload form outlives completion, so the object can be replaced.
+            stored = self.storage.head(file.storage_key)
+            available = stored is not None and stored.etag == file.etag
+        if not available:
             raise AgentFileError(
                 "This file is not available for download.", code="file_unavailable"
             )
@@ -233,9 +264,15 @@ class AgentFileService:
         ``None`` when the file is gone or not PROCESSING, so a duplicate or
         late task is a no-op.
         """
-        file = AgentFile.objects.filter(
+        processing = AgentFile.objects.filter(
             id=file_id, status=AgentFile.Status.PROCESSING
-        ).first()
+        )
+        # Claiming the file starts its processing timeout and stops a second run.
+        if not processing.filter(processing_started_date__isnull=True).update(
+            processing_started_date=timezone.now()
+        ):
+            return None
+        file = processing.first()
         if file is None:
             return None
         config = self.config
@@ -243,7 +280,9 @@ class AgentFileService:
         try:
             if kind is None:
                 raise UnreadableFileError(_PROCESSING_FAILED)
-            data = self.storage.read(file.storage_key, max_bytes=config.max_file_bytes)
+            data = self.storage.read(
+                file.storage_key, max_bytes=config.max_file_bytes, if_match=file.etag
+            )
             extracted = extract_text(data, kind, max_chars=config.max_text_chars)
         except UnreadableFileError as exc:
             self._fail(file, str(exc))
@@ -252,27 +291,51 @@ class AgentFileService:
             logger.exception("agent file %s could not be processed", file.id)
             self._fail(file, _PROCESSING_FAILED)
             return AgentFile.Status.FAILED
-        AgentFile.objects.filter(id=file.id, status=AgentFile.Status.PROCESSING).update(
+        # Matches nothing when the file was removed or timed out meanwhile.
+        readied = processing.update(
             status=AgentFile.Status.READY,
             text=extracted.text,
             text_truncated=extracted.truncated,
             page_count=extracted.page_count,
             updated_date=timezone.now(),
         )
-        return AgentFile.Status.READY
+        return AgentFile.Status.READY if readied else None
 
     def purge(self) -> int:
-        """Delete unsent files past their TTL."""
-        cutoff = timezone.now() - timedelta(seconds=self.config.unsent_ttl_seconds)
-        expired = Q(message__isnull=True, created_date__lt=cutoff)
+        """Delete unsent files past their TTL and removed files, object first."""
+        config = self.config
+        now = timezone.now()
+        expired = Q(
+            message__isnull=True,
+            created_date__lt=now - timedelta(seconds=config.unsent_ttl_seconds),
+        ) | Q(
+            # Kept until the upload form expires, so a late upload is deleted too.
+            user__isnull=True,
+            created_date__lt=now - timedelta(seconds=config.upload_url_ttl_seconds),
+        )
         purged = 0
-        for file_id, key in AgentFile.objects.filter(expired).values_list(
-            "id", "storage_key"
-        )[:_PURGE_BATCH]:
-            # Re-checked per row: the file may have been sent since the scan.
-            deleted, _ = AgentFile.objects.filter(expired, id=file_id).delete()
-            if deleted:
-                self._delete_object(key)
+        file_ids = AgentFile.objects.filter(expired).order_by("id")
+        for file_id in file_ids.values_list("id", flat=True)[:_PURGE_BATCH]:
+            with transaction.atomic():
+                # Re-checked under a lock: the file may have been sent since the scan.
+                file = (
+                    AgentFile.objects.select_for_update(of=("self",))
+                    .only("storage_key")
+                    .filter(expired, id=file_id)
+                    .first()
+                )
+                if file is None:
+                    continue
+                try:
+                    self.storage.delete(file.storage_key)
+                except Exception:  # noqa: BLE001 - the row stays for the next run
+                    logger.warning(
+                        "could not delete agent file object %s",
+                        file.storage_key,
+                        exc_info=True,
+                    )
+                    continue
+                file.delete()
                 purged += 1
         return purged
 

@@ -15,6 +15,7 @@ _SETTING_OVERRIDES = {
     "upload_url_ttl_seconds": "RESEARCH_AI_FILE_UPLOAD_URL_TTL_SECONDS",
     "download_url_ttl_seconds": "RESEARCH_AI_FILE_DOWNLOAD_URL_TTL_SECONDS",
     "processing_timeout_seconds": "RESEARCH_AI_FILE_PROCESSING_TIMEOUT_SECONDS",
+    "queue_timeout_seconds": "RESEARCH_AI_FILE_QUEUE_TIMEOUT_SECONDS",
     "unsent_ttl_seconds": "RESEARCH_AI_FILE_UNSENT_TTL_SECONDS",
 }
 
@@ -34,8 +35,11 @@ class AgentFileConfig:
 
     download_url_ttl_seconds: int = 5 * 60
 
-    # A file still processing after this long has lost its task.
+    # A file a worker picked up this long ago has lost its task.
     processing_timeout_seconds: int = 5 * 60
+
+    # Files queue behind long chat turns, so waiting gets a longer allowance.
+    queue_timeout_seconds: int = 30 * 60
 
     # Unsent uploads older than this are purged with their objects.
     unsent_ttl_seconds: int = 24 * 60 * 60

@@ -9,7 +9,8 @@ class AgentFile(DefaultModel):
 
     Created unattached when the upload starts; sending a chat message with it
     attaches it to that message. Rows are hard-deleted along with their object:
-    the extracted text is user content, not audit data.
+    the extracted text is user content, not audit data. Only the purge deletes
+    rows, so no relation cascades here: a row is the one record of its object.
     """
 
     class Status(models.TextChoices):
@@ -20,14 +21,20 @@ class AgentFile(DefaultModel):
 
     user = models.ForeignKey(
         "user.User",
-        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
         related_name="research_ai_files",
+        db_comment=(
+            "The uploader; null once they removed the file or their account, "
+            "which leaves the row for the purge."
+        ),
     )
     conversation = models.ForeignKey(
         AgentConversation,
         null=True,
         blank=True,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name="files",
         db_comment="Set when the file is attached to a message in this conversation.",
     )
@@ -46,8 +53,18 @@ class AgentFile(DefaultModel):
     )
     size_bytes = models.PositiveBigIntegerField()
     storage_key = models.CharField(max_length=512, unique=True)
+    etag = models.CharField(
+        max_length=128,
+        blank=True,
+        db_comment="ETag of the completed object; overwriting the object changes it.",
+    )
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.UPLOADING
+    )
+    processing_started_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment="When a worker picked the file up; null while it is queued.",
     )
     error = models.CharField(
         max_length=255,

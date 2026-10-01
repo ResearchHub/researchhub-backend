@@ -141,7 +141,7 @@ class AgentFileServiceTests(TestCase):
     def test_complete_upload_queues_processing_once(self):
         # Arrange
         file = make_file(self.user, status=AgentFile.Status.UPLOADING, size_bytes=1)
-        self.storage.head.return_value = StoredObject(500, "application/pdf")
+        self.storage.head.return_value = StoredObject(500, "application/pdf", '"v1"')
 
         # Act
         with (
@@ -154,6 +154,7 @@ class AgentFileServiceTests(TestCase):
         # Assert
         self.assertEqual(completed.status, AgentFile.Status.PROCESSING)
         self.assertEqual(completed.size_bytes, 500)
+        self.assertEqual(completed.etag, '"v1"')
         self.assertEqual(repeated.status, AgentFile.Status.PROCESSING)
         delay.assert_called_once_with(file.id)
 
@@ -181,6 +182,7 @@ class AgentFileServiceTests(TestCase):
 
         # Assert
         self.assertEqual(completed.status, AgentFile.Status.FAILED)
+        self.assertIn("Files can be at most", completed.error)
         self.storage.delete.assert_called_once_with(file.storage_key)
 
     def test_a_refused_enqueue_fails_the_file(self):
@@ -204,7 +206,9 @@ class AgentFileServiceTests(TestCase):
 
     def test_process_extracts_the_text_the_agent_reads(self):
         # Arrange
-        file = make_file(self.user, status=AgentFile.Status.PROCESSING, text="")
+        file = make_file(
+            self.user, status=AgentFile.Status.PROCESSING, text="", etag='"v1"'
+        )
         self.storage.read.return_value = pdf_bytes("Specific aims", "Budget")
 
         # Act
@@ -217,8 +221,9 @@ class AgentFileServiceTests(TestCase):
         self.assertEqual(file.text, "[Page 1]\nSpecific aims\n\n[Page 2]\nBudget")
         self.assertEqual(file.page_count, 2)
         self.assertFalse(file.text_truncated)
+        self.assertIsNotNone(file.processing_started_date)
         self.storage.read.assert_called_once_with(
-            file.storage_key, max_bytes=CONFIG.max_file_bytes
+            file.storage_key, max_bytes=CONFIG.max_file_bytes, if_match='"v1"'
         )
 
     def test_process_reports_why_a_file_is_unreadable(self):
@@ -261,15 +266,52 @@ class AgentFileServiceTests(TestCase):
         self.assertIsNone(status)
         self.storage.read.assert_not_called()
 
+    def test_process_runs_a_file_only_once(self):
+        # Arrange
+        file = make_file(
+            self.user,
+            status=AgentFile.Status.PROCESSING,
+            processing_started_date=timezone.now(),
+        )
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        self.assertIsNone(status)
+        self.storage.read.assert_not_called()
+
+    def test_process_keeps_no_text_for_a_file_removed_meanwhile(self):
+        # Arrange
+        file = make_file(self.user, status=AgentFile.Status.PROCESSING, text="")
+
+        def read_after_removal(*_args, **_kwargs):
+            self.service.delete(file)
+            return pdf_bytes("Specific aims")
+
+        self.storage.read.side_effect = read_after_removal
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        file.refresh_from_db()
+        self.assertIsNone(status)
+        self.assertEqual(file.text, "")
+
     def test_refresh_fails_a_file_whose_processing_stalled(self):
         # Arrange
         stalled = make_file(self.user, status=AgentFile.Status.PROCESSING)
         self._age(
             stalled,
-            field="updated_date",
+            field="processing_started_date",
             seconds=CONFIG.processing_timeout_seconds + 1,
         )
-        recent = make_file(self.user, status=AgentFile.Status.PROCESSING)
+        recent = make_file(
+            self.user,
+            status=AgentFile.Status.PROCESSING,
+            processing_started_date=timezone.now(),
+        )
 
         # Act
         stalled = self.service.refresh(stalled)
@@ -280,6 +322,26 @@ class AgentFileServiceTests(TestCase):
         self.assertIn("took too long", stalled.error)
         self.assertEqual(recent.status, AgentFile.Status.PROCESSING)
 
+    def test_refresh_allows_a_queued_file_longer_than_a_running_one(self):
+        # Arrange
+        waiting = make_file(self.user, status=AgentFile.Status.PROCESSING)
+        self._age(
+            waiting,
+            field="updated_date",
+            seconds=CONFIG.processing_timeout_seconds + 1,
+        )
+        lost = make_file(self.user, status=AgentFile.Status.PROCESSING)
+        self._age(lost, field="updated_date", seconds=CONFIG.queue_timeout_seconds + 1)
+
+        # Act
+        waiting = self.service.refresh(waiting)
+        lost = self.service.refresh(lost)
+
+        # Assert
+        self.assertEqual(waiting.status, AgentFile.Status.PROCESSING)
+        self.assertEqual(lost.status, AgentFile.Status.FAILED)
+        self.assertIn("took too long", lost.error)
+
     # -- removal, download, purge -------------------------------------------
 
     def test_delete_removes_an_unsent_file_and_its_object(self):
@@ -289,8 +351,11 @@ class AgentFileServiceTests(TestCase):
         # Act
         self.service.delete(file)
 
-        # Assert
-        self.assertFalse(AgentFile.objects.filter(id=file.id).exists())
+        # Assert: the row stays, ownerless and empty, for the purge.
+        self.assertIsNone(self.service.get_file(self.user, file.id))
+        file.refresh_from_db()
+        self.assertIsNone(file.user_id)
+        self.assertEqual(file.text, "")
         self.storage.delete.assert_called_once_with(file.storage_key)
 
     def test_delete_refuses_a_sent_file(self):
@@ -309,7 +374,8 @@ class AgentFileServiceTests(TestCase):
     def test_download_url_is_only_issued_for_stored_files(self):
         # Arrange
         self.storage.presigned_get.return_value = "https://signed"
-        ready = make_file(self.user)
+        self.storage.head.return_value = StoredObject(100, "application/pdf", '"v1"')
+        ready = make_file(self.user, etag='"v1"')
         uploading = make_file(self.user, status=AgentFile.Status.UPLOADING)
 
         # Act
@@ -325,6 +391,21 @@ class AgentFileServiceTests(TestCase):
             expires_in=CONFIG.download_url_ttl_seconds,
         )
         self.assertEqual(raised.exception.code, "file_unavailable")
+
+    def test_download_url_is_refused_once_the_object_changed(self):
+        # Arrange
+        file = make_file(self.user, etag='"v1"')
+        for stored in (StoredObject(100, "application/pdf", '"v2"'), None):
+            with self.subTest(stored=stored):
+                self.storage.head.return_value = stored
+
+                # Act
+                with self.assertRaises(AgentFileError) as raised:
+                    self.service.download_url(file)
+
+                # Assert
+                self.assertEqual(raised.exception.code, "file_unavailable")
+        self.storage.presigned_get.assert_not_called()
 
     def test_purge_deletes_stale_unsent_files(self):
         # Arrange
@@ -343,3 +424,52 @@ class AgentFileServiceTests(TestCase):
             set(AgentFile.objects.values_list("id", flat=True)), {fresh.id, sent.id}
         )
         self.storage.delete.assert_called_once_with(stale.storage_key)
+
+    def test_purge_deletes_removed_files_once_their_upload_form_expires(self):
+        # Arrange
+        expired = make_file(self.user)
+        self._age(
+            expired, field="created_date", seconds=CONFIG.upload_url_ttl_seconds + 1
+        )
+        uploadable = make_file(self.user)
+        self.service.delete(expired)
+        self.service.delete(uploadable)
+        self.storage.delete.reset_mock()
+
+        # Act
+        purged = self.service.purge()
+
+        # Assert: the object is deleted again, in case it was uploaded since.
+        self.assertEqual(purged, 1)
+        self.assertEqual(
+            list(AgentFile.objects.values_list("id", flat=True)), [uploadable.id]
+        )
+        self.storage.delete.assert_called_once_with(expired.storage_key)
+
+    def test_purge_keeps_a_file_whose_object_could_not_be_deleted(self):
+        # Arrange
+        stale = make_file(self.user)
+        self._age(stale, field="created_date", seconds=CONFIG.unsent_ttl_seconds + 1)
+        self.storage.delete.side_effect = RuntimeError("s3 unavailable")
+
+        # Act
+        purged = self.service.purge()
+
+        # Assert
+        self.assertEqual(purged, 0)
+        self.assertTrue(AgentFile.objects.filter(id=stale.id).exists())
+
+    def test_a_hard_deleted_account_leaves_its_files_for_the_purge(self):
+        # Arrange
+        file = make_file(self.other)
+        self._age(file, field="created_date", seconds=CONFIG.upload_url_ttl_seconds + 1)
+
+        # Act
+        self.other.delete(soft=False)
+        kept = AgentFile.objects.filter(id=file.id, user__isnull=True).exists()
+        purged = self.service.purge()
+
+        # Assert
+        self.assertTrue(kept)
+        self.assertEqual(purged, 1)
+        self.storage.delete.assert_called_once_with(file.storage_key)

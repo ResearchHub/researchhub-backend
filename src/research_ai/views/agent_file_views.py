@@ -27,6 +27,7 @@ from research_ai.services.agent_files import (
     AgentFileService,
     public_file,
 )
+from research_ai.throttles import AgentFileCompleteThrottle, AgentFileCreateThrottle
 from researchhub.services.private_storage_service import (
     PrivateStorageNotConfiguredError,
 )
@@ -49,6 +50,7 @@ class AgentFileCreateView(APIView):
     """Start an upload."""
 
     permission_classes = AGENT_FILE_PERMISSIONS
+    throttle_classes = [AgentFileCreateThrottle]
 
     def post(self, request):
         serializer = AgentFileCreateSerializer(data=request.data)
@@ -100,6 +102,7 @@ class AgentFileCompleteView(APIView):
     """Confirm the upload reached storage; idempotent."""
 
     permission_classes = AGENT_FILE_PERMISSIONS
+    throttle_classes = [AgentFileCompleteThrottle]
 
     def post(self, request, file_id):
         service = AgentFileService()

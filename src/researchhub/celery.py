@@ -210,6 +210,7 @@ app.conf.beat_schedule = {
         "options": {
             "priority": 5,
             "queue": QUEUE_AGENTS,
+            "expires": 55 * 60,
         },
     },
     # Paper ingestion tasks
