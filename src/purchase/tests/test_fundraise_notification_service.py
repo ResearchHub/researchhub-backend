@@ -138,7 +138,7 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
         self.assertEqual(self.channel_layer.group_send.await_count, 2)
 
     def test_notify_author_only_after_usd_contribution_commits(self) -> None:
-        """Send submitted USD wording only after the contribution commits."""
+        """Notify the proposal author only after a USD contribution commits."""
         # Arrange
         nonprofit = NonprofitOrg.objects.create(
             name="Test Nonprofit", endaoment_org_id="endaoment_org_123"
@@ -175,7 +175,7 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
             self.email_service.send_message_email.call_args.args[0],
             [self.creator.email],
         )
-        message = "submitted a contribution of 100.00 USD"
+        message = "submitted a contribution to your proposal"
         self.assertIn(message, self.email_service.send_message_email.call_args.args[2])
         notification = self.notifications.get()
         self.assertEqual(notification.recipient, self.creator)
