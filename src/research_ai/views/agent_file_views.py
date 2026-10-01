@@ -7,7 +7,8 @@ The bytes go from the browser straight to the private bucket:
    ``file``, to its ``url`` as multipart form data.
 2. ``POST files/<id>/complete/`` once S3 accepts it starts text extraction
    (``PROCESSING``).
-3. Poll ``GET files/<id>/`` until ``READY`` (or ``FAILED`` with ``error``).
+3. Poll ``GET files/<id>/`` until ``READY`` (or ``FAILED`` with ``error``),
+   then send the id in a chat message's ``file_ids``.
 
 Files are private to their uploader: another user's file id is a 404. Access
 is gated like the chats themselves.
