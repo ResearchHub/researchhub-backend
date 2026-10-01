@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from django.db.models import Q, QuerySet
 
 from mailing_list.services import EmailService
@@ -30,15 +28,11 @@ class FundraiseNotificationService:
                 "user", "fundraise__unified_document"
             ).get(id=contribution_id)
             fundraise = contribution.fundraise
-            amount = Decimal(contribution.amount_cents) / 100
-            action = "submitted a contribution of"
         else:
             contribution = Purchase.objects.select_related("user").get(
                 id=contribution_id
             )
             fundraise = contribution.item
-            amount = Decimal(contribution.amount)
-            action = "contributed"
 
         proposal = fundraise.unified_document.get_document()
         self._notify_recipients(
@@ -52,16 +46,14 @@ class FundraiseNotificationService:
                     author_profile__is_removed=False,
                 )
             ).distinct(),
-            extra={"amount": str(amount), "currency": currency},
             subject="New contribution to your proposal",
-            message=f"{action} {amount:,.2f} {currency} to your proposal",
+            message="submitted a contribution to your proposal",
         )
 
     def notify_grant_authors(self, purchase_id: int) -> None:
         """Notify the RFP creator and contacts after a pool contribution commits."""
         purchase = Purchase.objects.select_related("user").get(id=purchase_id)
         grant = purchase.item.grant
-        amount = Decimal(purchase.amount)
 
         self._notify_recipients(
             Notification.FUNDING_POOL_CONTRIBUTION,
@@ -70,9 +62,8 @@ class FundraiseNotificationService:
             recipients=User.objects.filter(
                 Q(id=grant.created_by_id) | Q(grant_contacts=grant)
             ).distinct(),
-            extra={"amount": str(amount)},
             subject="New contribution to your RFP",
-            message=f"contributed {amount:,.2f} RSC to your RFP",
+            message="submitted a contribution to your RFP",
         )
 
     def _notify_recipients(
@@ -81,7 +72,6 @@ class FundraiseNotificationService:
         contribution: Purchase | UsdFundraiseContribution,
         post: ResearchhubPost,
         recipients: QuerySet[User],
-        extra: dict[str, str],
         subject: str,
         message: str,
     ) -> None:
@@ -95,7 +85,6 @@ class FundraiseNotificationService:
                 action_user=contribution.user,
                 item=contribution,
                 unified_document=document,
-                extra=extra,
             )
 
         self._emails.send_message_email(
