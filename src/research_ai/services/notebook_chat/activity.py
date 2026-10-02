@@ -51,6 +51,7 @@ from research_ai.services.researcher_profile.openalex_tools import (
 )
 
 WEB_SEARCH = "web_search"
+WEB_FETCH = "web_fetch"
 SEARCH_INSTITUTIONS = "search_institutions"
 SEARCH_AUTHORS = "search_authors"
 GET_AUTHOR = "get_author"
@@ -62,6 +63,7 @@ _LABELS = {
     READ_NOTE: "Read the note",
     EDIT_NOTE: "Edited the note",
     WEB_SEARCH: "Searched the web",
+    WEB_FETCH: "Read a web page",
     SEARCH_GRANTS: "Searched grants",
     GET_GRANT_DETAILS: "Read grant details",
     READ_SELECTED_RFP: "Read the selected RFP",
@@ -83,6 +85,7 @@ _ACTIVE_LABELS = {
     READ_NOTE: "Reading the note",
     EDIT_NOTE: "Editing the note",
     WEB_SEARCH: "Searching the web",
+    WEB_FETCH: "Reading a web page",
     SEARCH_GRANTS: "Searching grants",
     GET_GRANT_DETAILS: "Reading grant details",
     READ_SELECTED_RFP: "Reading the selected RFP",
@@ -108,6 +111,7 @@ _DRAFTING_LABELS = {
 # and meaningful to echo as the event detail.
 _DETAIL_INPUT_FIELDS = {
     WEB_SEARCH: "query",
+    WEB_FETCH: "url",
     SEARCH_GRANTS: "query",
     SEARCH_INSTITUTIONS: "query",
     SEARCH_AUTHORS: "name",
@@ -328,6 +332,9 @@ def _sources(event: ToolCallEvent) -> list[dict]:
     if event.tool == WEB_SEARCH:
         items = result.get("content") if event.server_side else result.get("results")
         url_field = "url"
+    elif event.tool == WEB_FETCH:
+        items = _fetched_page(result)
+        url_field = "url"
     elif event.tool == SEARCH_GRANTS:
         items = result.get("grants")
         url_field = "url"
@@ -346,6 +353,16 @@ def _sources(event: ToolCallEvent) -> list[dict]:
     else:
         return []
     return _citations(items, url_field)
+
+
+def _fetched_page(result: dict) -> list[dict]:
+    """The one page a fetch read, as a citation item: its url and title."""
+    page = result.get("content")
+    if not isinstance(page, dict):
+        return []
+    document = page.get("content")
+    title = document.get("title") if isinstance(document, dict) else None
+    return [{"url": page.get("url"), "title": title}]
 
 
 def _citations(items, url_field: str) -> list[dict]:

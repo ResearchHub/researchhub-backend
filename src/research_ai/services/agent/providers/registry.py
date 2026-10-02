@@ -85,10 +85,12 @@ def resolve_provider(
             model_id=model_id,
             effort=effort,
             thinking=thinking,
+            web_fetch=openrouter.WEB_FETCH_TOOL_NAME in native_tools,
         )
     return ClaudePlatformProvider(
         model_id=model_id,
         web_search=claude_platform.WEB_SEARCH_TOOL_NAME in native_tools,
+        web_fetch=claude_platform.WEB_FETCH_TOOL_NAME in native_tools,
         effort=effort,
         thinking=thinking,
     )

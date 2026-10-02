@@ -800,7 +800,7 @@ class NotebookChatService:
         }
         provider = self._provider or resolve_provider(
             execution.model or None,
-            native_tools=frozenset({"web_search"}),
+            native_tools=frozenset({"web_search", "web_fetch"}),
             **provider_options,
         )
         note_toolset = self._note_toolset(conversation, note)
