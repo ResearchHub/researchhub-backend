@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.core.cache import cache
 from rest_framework.request import Request
@@ -715,7 +716,7 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(user2_titles, ["User2 Grant"])
 
     def test_invalidate_grant_feed_cache_clears_created_by_entries(self):
-        """invalidate_grant_feed_cache must clear per-creator cache entries too."""
+        """invalidate clears unfiltered, status, and per-creator cache entries."""
         # Arrange
         from feed.views.grant_cache_mixin import GrantCacheMixin
 
@@ -735,16 +736,25 @@ class GrantFeedViewTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
 
-        # Populate caches: unfiltered + filtered by created_by
+        # Populate caches: unfiltered, status-filtered, and created_by-filtered
         unfiltered_response = self.client.get("/api/grant_feed/")
+        status_response = self.client.get("/api/grant_feed/?status=OPEN")
         filtered_response = self.client.get(f"/api/grant_feed/?created_by={user1.id}")
         self.assertEqual(unfiltered_response.status_code, 200)
+        self.assertEqual(status_response.status_code, 200)
         self.assertEqual(filtered_response.status_code, 200)
 
         view = GrantFeedViewSet()
         factory = APIRequestFactory()
         unfiltered_key = (
             view.get_cache_key(Request(factory.get("/api/grant_feed/")), "grants")
+            + ":public"
+        )
+        status_key = (
+            view.get_cache_key(
+                Request(factory.get("/api/grant_feed/", {"status": "OPEN"})),
+                "grants",
+            )
             + ":public"
         )
         filtered_key = (
@@ -755,13 +765,19 @@ class GrantFeedViewTests(APITestCase):
             + ":public"
         )
         self.assertIsNotNone(cache.get(unfiltered_key))
+        self.assertIsNotNone(cache.get(status_key))
         self.assertIsNotNone(cache.get(filtered_key))
 
         # Act
-        GrantCacheMixin.invalidate_grant_feed_cache()
+        with (
+            patch("feed.tasks.warm_grant_feed_cache.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            GrantCacheMixin.invalidate_grant_feed_cache()
 
-        # Assert - both cache entries should be cleared
+        # Assert - all cache entries should be cleared
         self.assertIsNone(cache.get(unfiltered_key))
+        self.assertIsNone(cache.get(status_key))
         self.assertIsNone(cache.get(filtered_key))
 
     def test_unapproved_proposals_excluded_from_applications(self):
@@ -871,11 +887,21 @@ class GrantFeedViewTests(APITestCase):
         self.assertIsNotNone(cache.get(cache_key))
 
         # Act + Assert — unrelated doc does not clear cache
-        GrantCacheMixin.invalidate_if_grant_linked(unrelated.unified_document)
+        with (
+            patch("feed.tasks.warm_grant_feed_cache.delay"),
+            patch("feed.tasks.warm_funding_feed_cache.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            GrantCacheMixin.invalidate_if_grant_linked(unrelated.unified_document)
         self.assertIsNotNone(cache.get(cache_key))
 
         # Act + Assert — grant-linked doc clears cache
-        GrantCacheMixin.invalidate_if_grant_linked(proposal.unified_document)
+        with (
+            patch("feed.tasks.warm_grant_feed_cache.delay"),
+            patch("feed.tasks.warm_funding_feed_cache.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            GrantCacheMixin.invalidate_if_grant_linked(proposal.unified_document)
         self.assertIsNone(cache.get(cache_key))
 
     def test_viewer_segment_cache_isolates_private_applications(self):
@@ -938,13 +964,13 @@ class GrantFeedViewTests(APITestCase):
         factory = APIRequestFactory()
         owner_request = Request(factory.get("/api/grant_feed/"))
         owner_request.user = grant_owner
-        owner_suffix, _ = get_feed_cache_segment(owner_request)
+        owner_suffix = get_feed_cache_segment(owner_request, supports_private=True)
         viewer_key = view.get_cache_key(owner_request, "grants") + owner_suffix
         self.assertIsNotNone(cache.get(viewer_key))
 
         anon_request = Request(factory.get("/api/grant_feed/"))
         anon_request.user = AnonymousUser()
-        public_suffix, _ = get_feed_cache_segment(anon_request)
+        public_suffix = get_feed_cache_segment(anon_request, supports_private=True)
         public_key = view.get_cache_key(anon_request, "grants") + public_suffix
         self.assertNotEqual(viewer_key, public_key)
 
