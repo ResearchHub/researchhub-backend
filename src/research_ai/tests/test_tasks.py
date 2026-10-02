@@ -391,7 +391,8 @@ class SendQueuedEmailsTaskTests(TestCase):
 
 @override_settings(
     CELERY_TASK_ALWAYS_EAGER=True,
-    OUTREACH_SEND_MIN_INTERVAL_SECONDS=360,
+    OUTREACH_SEND_MIN_INTERVAL_SECONDS=1200,
+    OUTREACH_SEND_MAX_INTERVAL_SECONDS=1800,
 )
 class SendQueuedEmailsPacingTests(TestCase):
     def setUp(self):
@@ -409,14 +410,11 @@ class SendQueuedEmailsPacingTests(TestCase):
 
     @patch("research_ai.tasks.send_queued_emails_task.apply_async")
     @patch("research_ai.tasks.send_outreach_email")
-    def test_second_send_in_batch_is_requeued_with_countdown(
+    def test_bulk_requeues_remaining_with_random_countdown(
         self, mock_send, mock_apply_async
     ):
         # Arrange
-        mock_send.return_value = OutreachSendResult(
-            message_id="gmail-1",
-            open_tracking_token="tok-1",
-        )
+        mock_send.return_value = OutreachSendResult(message_id="gmail-1")
         first = self._sending("a@example.com")
         second = self._sending("b@example.com")
         third = self._sending("c@example.com")
@@ -429,6 +427,7 @@ class SendQueuedEmailsPacingTests(TestCase):
                     "reply_to": ["reply@example.com"],
                     "cc": ["cc@example.com"],
                     "sender_user_id": self.user.id,
+                    "immediate": False,
                 }
             ).get()
 
@@ -450,13 +449,15 @@ class SendQueuedEmailsPacingTests(TestCase):
         self.assertEqual(call_kwargs["kwargs"]["reply_to"], ["reply@example.com"])
         self.assertEqual(call_kwargs["kwargs"]["cc"], ["cc@example.com"])
         self.assertEqual(call_kwargs["kwargs"]["sender_user_id"], self.user.id)
-        self.assertGreaterEqual(call_kwargs["countdown"], 350)
-        self.assertLessEqual(call_kwargs["countdown"], 360)
+        self.assertFalse(call_kwargs["kwargs"]["immediate"])
+        self.assertGreaterEqual(call_kwargs["countdown"], 1200)
+        self.assertLessEqual(call_kwargs["countdown"], 1800)
 
     @patch("research_ai.tasks.send_queued_emails_task.apply_async")
     @patch("research_ai.tasks.send_outreach_email")
-    def test_recent_prior_send_defers_entire_batch(self, mock_send, mock_apply_async):
-        # Arrange — a successful send within the min interval
+    def test_immediate_sends_without_pacing(self, mock_send, mock_apply_async):
+        # Arrange — prior send exists; single/immediate still sends now
+        mock_send.return_value = OutreachSendResult(message_id="gmail-now")
         prior = GeneratedEmail.objects.create(
             created_by=self.user,
             expert_name="Prior",
@@ -471,24 +472,21 @@ class SendQueuedEmailsPacingTests(TestCase):
         queued = self._sending("next@example.com")
 
         # Act
-        result = send_queued_emails_task.apply(
-            kwargs={
-                "generated_email_ids": [queued.id],
-                "sender_user_id": self.user.id,
-            }
-        ).get()
+        with patch("research_ai.tasks.grant_invited_expert_access_for_send"):
+            result = send_queued_emails_task.apply(
+                kwargs={
+                    "generated_email_ids": [queued.id],
+                    "sender_user_id": self.user.id,
+                    "immediate": True,
+                }
+            ).get()
 
         # Assert
-        self.assertEqual(result["sent"], 0)
-        self.assertEqual(result["failed"], 0)
-        self.assertEqual(result["deferred"], 1)
+        self.assertEqual(result, {"sent": 1, "failed": 0, "deferred": 0})
         queued.refresh_from_db()
-        self.assertEqual(queued.status, GeneratedEmail.Status.SENDING)
-        mock_send.assert_not_called()
-        mock_apply_async.assert_called_once()
-        countdown = mock_apply_async.call_args.kwargs["countdown"]
-        self.assertGreaterEqual(countdown, 290)
-        self.assertLessEqual(countdown, 300)
+        self.assertEqual(queued.status, GeneratedEmail.Status.SENT)
+        mock_send.assert_called_once()
+        mock_apply_async.assert_not_called()
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)

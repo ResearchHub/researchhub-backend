@@ -39,10 +39,10 @@ EXPERT_FINDER_SEEN_WORK_IDS_CAP = 80
 EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY = "seen_openalex_work_ids"
 
 # Per-mailbox Gmail outreach caps + pacing (settings may override).
-# Caps match paced throughput (~1 send / 6 min → ~10/hour, ~80–100/workday).
-OUTREACH_SEND_HOURLY_CAP_DEFAULT = 10
-OUTREACH_SEND_DAILY_CAP_DEFAULT = 100
-OUTREACH_SEND_MIN_INTERVAL_SECONDS_DEFAULT = 360
+# Daily cap is the only hard limit; bulk sends space randomly in [min, max].
+OUTREACH_SEND_DAILY_CAP_DEFAULT = 20
+OUTREACH_SEND_MIN_INTERVAL_SECONDS_DEFAULT = 1200  # 20 min
+OUTREACH_SEND_MAX_INTERVAL_SECONDS_DEFAULT = 1800  # 30 min
 
 
 def expert_finder_web_search_budget(expert_count: int) -> int:

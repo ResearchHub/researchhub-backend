@@ -1196,7 +1196,7 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(args[0], self.moderator)
         self.assertEqual(args[1], self.moderator.email)
         self.assertEqual(call_kw["reply_to"], reply_to_emails)
-        self.assertFalse(call_kw["inject_open_pixel"])
+        self.assertNotIn("inject_open_pixel", call_kw)
 
     @patch("research_ai.views.email_views.send_outreach_email")
     def test_preview_accepts_multiple_reply_to_addresses(self, mock_send):
@@ -1318,6 +1318,7 @@ class SendEmailViewTests(APITestCase):
         self.assertEqual(call_kw["generated_email_ids"], [email_rec.id])
         self.assertEqual(call_kw["reply_to"], reply_to_emails)
         self.assertEqual(call_kw["sender_user_id"], self.moderator.id)
+        self.assertTrue(call_kw["immediate"])
         self.assertNotIn("from_email", call_kw)
 
     @patch("research_ai.tasks.send_outreach_email")
@@ -1328,7 +1329,6 @@ class SendEmailViewTests(APITestCase):
         mock_send.return_value = OutreachSendResult(
             message_id="gmail-msg-id-123",
             thread_id="thread-123",
-            open_tracking_token="pixel-token",
         )
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
@@ -1354,6 +1354,5 @@ class SendEmailViewTests(APITestCase):
         self.assertEqual(email_rec.channels, [GeneratedEmail.Channel.EMAIL])
         self.assertEqual(email_rec.gmail_message_id, "gmail-msg-id-123")
         self.assertEqual(email_rec.gmail_thread_id, "thread-123")
-        self.assertEqual(email_rec.open_tracking_token, "pixel-token")
         mock_send.assert_called_once()
-        self.assertTrue(mock_send.call_args[1]["inject_open_pixel"])
+        self.assertNotIn("inject_open_pixel", mock_send.call_args[1])

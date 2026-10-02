@@ -844,15 +844,21 @@ if STAGING or PRODUCTION:
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
 EXPERT_FINDER_OUTREACH_ENABLED = (
-    os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
+    os.environ.get(
+        "EXPERT_FINDER_OUTREACH_ENABLED",
+        str(keys.EXPERT_FINDER_OUTREACH_ENABLED),
+    ).lower()
+    == "true"
 )
 
 # Per connected Gmail mailbox; see research_ai.services.outreach.send_rate_limits
-# and send_pacing. Defaults match paced sending (~1 / 6 min).
-OUTREACH_SEND_HOURLY_CAP = int(os.environ.get("OUTREACH_SEND_HOURLY_CAP", "10"))
-OUTREACH_SEND_DAILY_CAP = int(os.environ.get("OUTREACH_SEND_DAILY_CAP", "100"))
+# and send_pacing. Daily cap only; bulk sends space randomly in [min, max] seconds.
+OUTREACH_SEND_DAILY_CAP = int(os.environ.get("OUTREACH_SEND_DAILY_CAP", "20"))
 OUTREACH_SEND_MIN_INTERVAL_SECONDS = int(
-    os.environ.get("OUTREACH_SEND_MIN_INTERVAL_SECONDS", "360")
+    os.environ.get("OUTREACH_SEND_MIN_INTERVAL_SECONDS", "1200")
+)
+OUTREACH_SEND_MAX_INTERVAL_SECONDS = int(
+    os.environ.get("OUTREACH_SEND_MAX_INTERVAL_SECONDS", "1800")
 )
 
 # Crossref

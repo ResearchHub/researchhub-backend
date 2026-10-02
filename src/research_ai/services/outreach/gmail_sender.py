@@ -205,8 +205,6 @@ class GmailSender:
         body: str,
         reply_to: list[str] | None = None,
         cc: list[str] | None = None,
-        inject_open_pixel: bool = False,
-        open_tracking_token: str | None = None,
     ) -> OutreachSendResult:
         """
         Send one message from the user's connected personal Gmail
@@ -228,17 +226,11 @@ class GmailSender:
         connection = get_active_outreach_mailbox(user)
         try:
             access_token = self._ensure_access_token(connection)
-            html_body = body or ""
-            token = ""
-            if inject_open_pixel:
-                token = open_tracking_token or new_open_tracking_token()
-                html_body = inject_open_tracking_pixel(html_body, token)
-
             raw = build_raw_gmail_message(
                 from_email=connection.email,
                 to_email=to_email,
                 subject=subject,
-                html_body=html_body,
+                html_body=body or "",
                 reply_to=reply_to,
                 cc=cc,
             )
@@ -255,7 +247,6 @@ class GmailSender:
         return OutreachSendResult(
             message_id=message_id,
             thread_id=payload.get("threadId") or "",
-            open_tracking_token=token if inject_open_pixel else "",
         )
 
     def _ensure_access_token(self, connection: OutreachMailboxConnection) -> str:

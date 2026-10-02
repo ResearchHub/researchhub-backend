@@ -280,12 +280,14 @@ def _generate_with_fixed_template(
         "affiliation": expert_dict["affiliation"],
         "email": expert_dict["email"],
         "expertise": expert_dict["expertise"],
+        "notes": expert_dict.get("notes") or "",
     }
     context = build_replacement_context(
         user=user,
         resolved_expert=expert_for_context,
         rfp_context_dict=doc_ctx.rfp_context_dict,
         proposal_context_dict=doc_ctx.proposal_context_dict,
+        work_context_dict=doc_ctx.generic_work_context_dict,
     )
     subject = replace_template_variables((et.email_subject or "").strip(), context)
     body = replace_template_variables((et.email_body or "").strip(), context)

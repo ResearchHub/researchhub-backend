@@ -210,7 +210,7 @@ class InviteRfpApplicantsViewTests(APITestCase):
                 mock_delay.assert_not_called()
 
     @patch("research_ai.views.email_views.send_queued_emails_task.delay")
-    @override_settings(OUTREACH_SEND_HOURLY_CAP=10, OUTREACH_SEND_DAILY_CAP=1)
+    @override_settings(OUTREACH_SEND_DAILY_CAP=1)
     def test_invite_respects_daily_cap(self, mock_delay):
         from research_ai.services.outreach.send_rate_limits import RATE_LIMIT_CODE
 
@@ -231,7 +231,7 @@ class InviteRfpApplicantsViewTests(APITestCase):
         mock_delay.assert_not_called()
 
     @patch("research_ai.views.email_views.send_queued_emails_task.delay")
-    @override_settings(OUTREACH_SEND_HOURLY_CAP=10, OUTREACH_SEND_DAILY_CAP=1)
+    @override_settings(OUTREACH_SEND_DAILY_CAP=1)
     def test_invite_queues_partial_under_daily_cap(self, mock_delay):
         self.client.force_authenticate(self.creator)
         resp = self._post({"emails": ["a@example.com", "b@example.com"]})

@@ -24,7 +24,8 @@ PROPOSAL_VARIABLES = (
     "deadline",
     "blurb",
 )
-EXPERT_VARIABLES = ("name", "title", "affiliation", "email", "expertise")
+EXPERT_VARIABLES = ("name", "title", "affiliation", "email", "expertise", "notes")
+WORK_VARIABLES = ("title", "blurb", "url", "kind")
 
 
 def format_expert_name_from_raw(raw: str) -> str:
@@ -120,6 +121,19 @@ def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
         "affiliation": (resolved_expert.get("affiliation") or "").strip(),
         "email": (resolved_expert.get("email") or "").strip(),
         "expertise": (resolved_expert.get("expertise") or "").strip(),
+        "notes": (resolved_expert.get("notes") or "").strip(),
+    }
+
+
+def _build_work_context(work_context_dict: dict | None) -> dict[str, str]:
+    """Build work/paper entity from ``generic_work_context_dict``."""
+    if not work_context_dict:
+        return dict.fromkeys(WORK_VARIABLES, "")
+    return {
+        "title": (work_context_dict.get("title") or "").strip(),
+        "blurb": (work_context_dict.get("blurb") or "").strip(),
+        "url": (work_context_dict.get("url") or "").strip(),
+        "kind": (work_context_dict.get("kind") or "").strip(),
     }
 
 
@@ -128,18 +142,19 @@ def build_replacement_context(
     resolved_expert: dict | None = None,
     rfp_context_dict: dict | None = None,
     proposal_context_dict: dict | None = None,
+    work_context_dict: dict | None = None,
 ) -> dict[str, dict[str, str]]:
     """
     Build nested context for {{entity.field}} replacement.
-    Returns {"user": {...}, "rfp": {...}, "proposal": {...}, "expert": {...}}.
+    Returns user/rfp/proposal/expert/work dicts.
     """
-    result = {
+    return {
         "user": _build_user_context(user),
         "rfp": _build_rfp_context(rfp_context_dict),
         "proposal": _build_proposal_context(proposal_context_dict),
         "expert": _build_expert_context(resolved_expert),
+        "work": _build_work_context(work_context_dict),
     }
-    return result
 
 
 def replace_template_variables(text: str, context: dict[str, dict[str, Any]]) -> str:

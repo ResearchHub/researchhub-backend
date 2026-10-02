@@ -41,6 +41,8 @@ from research_ai.services.outreach.rfp_email_context import (
 )
 from research_ai.services.outreach.rfp_invite import invite_applicants
 from research_ai.services.outreach.send_rate_limits import (
+    bulk_in_progress_error_payload,
+    editor_has_sending,
     get_send_quota,
     queue_payload,
     rate_limit_error_payload,
@@ -75,13 +77,23 @@ def _queue_drafts_with_rate_limit(
     """
     Mark up to remaining quota as SENDING and enqueue the Celery send task.
 
-    Returns either a 429 Response, or a dict payload
+    Bulk (2+ ids) is rejected with 409 if this editor already has SENDING rows.
+    Single-id sends are never blocked by an in-flight bulk and run immediately.
+
+    Returns either a Response (409/429), or a dict payload
     ``{queued, deferred, remaining_today}``.
     """
+    is_bulk = len(ordered_draft_ids) >= 2
+    if is_bulk and editor_has_sending(user):
+        return Response(
+            bulk_in_progress_error_payload(),
+            status=status.HTTP_409_CONFLICT,
+        )
+
     quota = get_send_quota(user)
     to_queue, deferred = split_for_quota(ordered_draft_ids, quota.remaining)
     if not to_queue:
-        payload = rate_limit_error_payload(quota)
+        payload = rate_limit_error_payload(quota, requested=len(ordered_draft_ids))
         payload["deferred"] = deferred
         return Response(payload, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
@@ -94,6 +106,7 @@ def _queue_drafts_with_rate_limit(
         reply_to=reply_to,
         cc=cc,
         sender_user_id=user.id,
+        immediate=len(to_queue) == 1,
     )
     remaining_today = max(0, quota.remaining_day - len(to_queue))
     return queue_payload(
@@ -377,7 +390,6 @@ class PreviewEmailView(APIView):
                     rec.email_subject,
                     rec.email_body,
                     reply_to=reply_to,
-                    inject_open_pixel=False,
                 )
                 sent += 1
             except (GmailNotConnectedError, GmailNeedsReauthError) as exc:

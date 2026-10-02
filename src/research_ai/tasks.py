@@ -15,7 +15,6 @@ from research_ai.services.outreach.email_sender import send_outreach_email
 from research_ai.services.outreach.gmail_sender import (
     GmailNeedsReauthError,
     GmailNotConnectedError,
-    new_open_tracking_token,
 )
 from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
@@ -27,7 +26,7 @@ from research_ai.services.outreach.proposal_draft_outreach import (
 from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
-from research_ai.services.outreach.send_pacing import seconds_until_next_send
+from research_ai.services.outreach.send_pacing import next_bulk_interval_seconds
 from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.proposal_draft.cancel_service import ACTIVE_STATUSES
 from research_ai.services.proposal_draft.liveness_service import (
@@ -596,6 +595,7 @@ def send_queued_emails_task(
     reply_to: list[str] | None = None,
     cc: list[str] | None = None,
     sender_user_id: int | None = None,
+    immediate: bool = False,
 ):
     """
     Send generated emails that are in SENDING status via the editor's Gmail.
@@ -603,9 +603,8 @@ def send_queued_emails_task(
     Updates each to SENT on success or SEND_FAILED on failure. On Gmail
     invalid_grant / needs_reauth, marks remaining queued rows SEND_FAILED.
 
-    Enforces a minimum gap between successful sends per mailbox. When paced
-    out mid-batch, remaining rows stay SENDING and are re-queued with a
-    Celery countdown (no worker sleep). Large batches therefore drain slowly.
+    ``immediate=True`` (single-id sends) skips inter-send pacing. Bulk batches
+    send one message then re-queue the rest with a random 20–30 min countdown.
     """
 
     cc_list = list(cc or [])
@@ -639,28 +638,7 @@ def send_queued_emails_task(
             failed += 1
             continue
         send_as = sender or rec.created_by
-        wait = seconds_until_next_send(send_as)
-        if wait > 0:
-            remaining_ids = [r.id for r in records[idx:]]
-            deferred = len(remaining_ids)
-            logger.info(
-                "Pacing Gmail outreach: deferring %s email(s) for %ss (user=%s)",
-                deferred,
-                wait,
-                getattr(send_as, "id", None),
-            )
-            self.apply_async(
-                kwargs={
-                    "generated_email_ids": remaining_ids,
-                    "reply_to": reply_to_list or None,
-                    "cc": cc_list or None,
-                    "sender_user_id": sender_user_id,
-                },
-                countdown=wait,
-            )
-            break
         try:
-            tracking_token = new_open_tracking_token()
             result = send_outreach_email(
                 send_as,
                 rec.expert_email,
@@ -668,15 +646,12 @@ def send_queued_emails_task(
                 rec.email_body,
                 reply_to=reply_to_list or None,
                 cc=cc_list or None,
-                inject_open_pixel=True,
-                open_tracking_token=tracking_token,
             )
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
                 channels=[GeneratedEmail.Channel.EMAIL],
                 gmail_message_id=result.message_id,
                 gmail_thread_id=result.thread_id or "",
-                open_tracking_token=result.open_tracking_token or tracking_token,
                 updated_date=timezone.now(),
             )
             ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
@@ -686,6 +661,27 @@ def send_queued_emails_task(
                 # Don't let an access-grant failure mask a successful send.
                 logger.exception("Grant access on send failed id=%s", rec.id)
             sent += 1
+            if not immediate and idx + 1 < len(records):
+                remaining_ids = [r.id for r in records[idx + 1 :]]
+                wait = next_bulk_interval_seconds()
+                deferred = len(remaining_ids)
+                logger.info(
+                    "Pacing Gmail outreach: deferring %s email(s) for %ss (user=%s)",
+                    deferred,
+                    wait,
+                    getattr(send_as, "id", None),
+                )
+                self.apply_async(
+                    kwargs={
+                        "generated_email_ids": remaining_ids,
+                        "reply_to": reply_to_list or None,
+                        "cc": cc_list or None,
+                        "sender_user_id": sender_user_id,
+                        "immediate": False,
+                    },
+                    countdown=wait,
+                )
+                break
         except (GmailNotConnectedError, GmailNeedsReauthError):
             logger.exception(
                 "Gmail mailbox unavailable for send id=%s; failing remaining",
