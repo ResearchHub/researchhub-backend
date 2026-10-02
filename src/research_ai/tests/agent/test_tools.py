@@ -2,7 +2,14 @@
 
 from django.test import SimpleTestCase
 
-from research_ai.services.agent.tools import MAX_TOOL_RESULT_BYTES, Tool, Toolset
+from research_ai.services.agent.tools import (
+    MAX_TOOL_RESULT_BYTES,
+    MAX_TOOL_RESULT_IMAGES,
+    Tool,
+    ToolOutput,
+    Toolset,
+)
+from research_ai.services.agent.types import ImageBlock
 
 
 def _build_ok_tool(name, *, is_terminal=False):
@@ -190,3 +197,94 @@ class ToolsetDispatchTests(SimpleTestCase):
         self.assertEqual(toolset.names, ["search"])
         self.assertIs(toolset.get("search"), search)
         self.assertIsNone(toolset.get("missing"))
+
+
+def _build_image_tool(output, *, is_terminal=False):
+    return Tool("view", "view", {"type": "object"}, lambda input: output, is_terminal)
+
+
+PAGE = ImageBlock(ref="files/1/page-1.jpg", media_type="image/jpeg", label="page 1")
+
+
+class ToolsetImageTests(SimpleTestCase):
+    def test_a_tool_output_carries_its_images(self):
+        # Arrange
+        toolset = Toolset(
+            [_build_image_tool(ToolOutput(content={"pages": [1]}, images=[PAGE]))]
+        )
+
+        # Act
+        output, stop = toolset.call("view", {})
+
+        # Assert
+        self.assertEqual(output, ToolOutput(content={"pages": [1]}, images=(PAGE,)))
+        self.assertFalse(stop)
+
+    def test_dispatch_returns_the_content_alone(self):
+        # Arrange
+        toolset = Toolset(
+            [_build_image_tool(ToolOutput(content={"pages": [1]}, images=(PAGE,)))]
+        )
+
+        # Act
+        result, stop = toolset.dispatch("view", {})
+
+        # Assert
+        self.assertEqual(result, {"pages": [1]})
+        self.assertFalse(stop)
+
+    def test_a_plain_dict_result_has_no_images(self):
+        # Arrange
+        toolset = Toolset([_build_ok_tool("search")])
+
+        # Act
+        output, _stop = toolset.call("search", {"q": 1})
+
+        # Assert
+        self.assertEqual(output, ToolOutput(content={"echo": {"q": 1}}))
+
+    def test_an_error_result_drops_its_images(self):
+        # Arrange
+        toolset = Toolset(
+            [
+                _build_image_tool(
+                    ToolOutput(content={"error": "no such page"}, images=(PAGE,)),
+                    is_terminal=True,
+                )
+            ]
+        )
+
+        # Act
+        output, stop = toolset.call("view", {})
+
+        # Assert
+        self.assertEqual(output, ToolOutput(content={"error": "no such page"}))
+        self.assertFalse(stop)
+
+    def test_too_many_images_are_reported_to_the_model(self):
+        # Arrange
+        images = (PAGE,) * (MAX_TOOL_RESULT_IMAGES + 1)
+        toolset = Toolset([_build_image_tool(ToolOutput(content={}, images=images))])
+
+        # Act
+        with self.assertLogs("research_ai.services.agent.tools", "WARNING"):
+            output, _stop = toolset.call("view", {})
+
+        # Assert
+        self.assertIn("image limit", output.content["error"])
+        self.assertEqual(output.images, ())
+
+    def test_images_that_are_not_image_blocks_are_refused(self):
+        # Arrange
+        toolset = Toolset(
+            [_build_image_tool(ToolOutput(content={}, images=(b"\x89PNG",)))]
+        )
+
+        # Act
+        with self.assertLogs("research_ai.services.agent.tools", "WARNING"):
+            output, _stop = toolset.call("view", {})
+
+        # Assert
+        self.assertEqual(
+            output, ToolOutput(content={"error": "tool 'view' returned invalid images"})
+        )

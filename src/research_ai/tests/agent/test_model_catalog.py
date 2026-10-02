@@ -279,3 +279,36 @@ class ValidateGenerationOptionsTests(SimpleTestCase):
                 effort="high",
                 thinking="disabled",
             )
+
+
+class VisionCapabilityTests(SimpleTestCase):
+    def test_picker_models_report_whether_they_take_images(self):
+        # Act
+        vision = {
+            option.ref: option.capabilities.vision for option in model_catalog._CATALOG
+        }
+
+        # Assert: only the DeepSeek models are text-only.
+        self.assertEqual(
+            sorted(ref for ref, sees in vision.items() if not sees),
+            [
+                "openrouter:deepseek/deepseek-v4-flash-0731",
+                "openrouter:deepseek/deepseek-v4-pro-0813",
+            ],
+        )
+
+    def test_an_unreviewed_model_is_treated_as_text_only(self):
+        # Act / Assert
+        self.assertFalse(model_capabilities("openrouter", "acme/unknown").vision)
+        self.assertFalse(model_capabilities("bedrock", "us.meta.llama4").vision)
+
+    def test_the_bedrock_default_takes_images(self):
+        # Act / Assert
+        self.assertTrue(model_capabilities("bedrock", bedrock.MODEL_ID).vision)
+
+    def test_vision_stays_out_of_the_generation_controls_payload(self):
+        # Act
+        payload = model_capabilities("claude_platform", "claude-opus-5-5").as_dict()
+
+        # Assert
+        self.assertEqual(sorted(payload), ["effort", "temperature", "thinking"])

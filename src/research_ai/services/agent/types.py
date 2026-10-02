@@ -54,6 +54,20 @@ class TextBlock:
 
 
 @dataclass(frozen=True)
+class ImageBlock:
+    """An image shown to the model, held by reference.
+
+    History stores ``ref`` only; an ``ImageLoader`` supplies the bytes each
+    time a request is built. ``label`` names the image to the model.
+    """
+
+    ref: str
+    media_type: str
+    label: str = ""
+    type: str = "image"
+
+
+@dataclass(frozen=True)
 class ThinkingBlock:
     """A provider's reasoning block, carried through the run verbatim.
 
@@ -104,16 +118,28 @@ class ToolUseBlock:
 
 @dataclass(frozen=True)
 class ToolResultBlock:
-    """The result of a tool call, fed back to the model on the next turn."""
+    """The result of a tool call, fed back to the model on the next turn.
+
+    ``images`` are shown to the model alongside ``content``.
+    """
 
     tool_use_id: str
     content: dict
     is_error: bool = False
+    images: tuple[ImageBlock, ...] = ()
     type: str = "tool_result"
 
 
-# A content block is one of the five block types above.
-Block = TextBlock | ThinkingBlock | ServerToolBlock | ToolUseBlock | ToolResultBlock
+# A content block is one of the six block types above. Images belong to user
+# messages and tool results only.
+Block = (
+    TextBlock
+    | ImageBlock
+    | ThinkingBlock
+    | ServerToolBlock
+    | ToolUseBlock
+    | ToolResultBlock
+)
 
 
 @dataclass(frozen=True)
@@ -269,6 +295,15 @@ def _serialize_block(block: Block) -> dict:
         if block.data is not None:
             serialized["data"] = block.data
         return serialized
+    if isinstance(block, ImageBlock):
+        serialized = {
+            "type": "image",
+            "ref": block.ref,
+            "media_type": block.media_type,
+        }
+        if block.label:
+            serialized["label"] = block.label
+        return serialized
     if isinstance(block, ThinkingBlock):
         return {"type": "thinking", "data": block.data}
     if isinstance(block, ServerToolBlock):
@@ -284,12 +319,15 @@ def _serialize_block(block: Block) -> dict:
             serialized["data"] = block.data
         return serialized
     if isinstance(block, ToolResultBlock):
-        return {
+        serialized = {
             "type": "tool_result",
             "tool_use_id": block.tool_use_id,
             "content": block.content,
             "is_error": block.is_error,
         }
+        if block.images:
+            serialized["images"] = [_serialize_block(image) for image in block.images]
+        return serialized
     raise TypeError(f"unserializable block: {block!r}")
 
 
@@ -297,6 +335,8 @@ def _deserialize_block(data: dict) -> Block:
     block_type = data.get("type")
     if block_type == "text":
         return TextBlock(text=data["text"], data=data.get("data"))
+    if block_type == "image":
+        return _deserialize_image(data)
     if block_type == "thinking":
         return ThinkingBlock(data=data["data"])
     if block_type == "server_tool":
@@ -313,8 +353,17 @@ def _deserialize_block(data: dict) -> Block:
             tool_use_id=data["tool_use_id"],
             content=data["content"],
             is_error=data.get("is_error", False),
+            images=tuple(_deserialize_image(i) for i in data.get("images") or ()),
         )
     raise ValueError(f"unknown block type: {block_type!r}")
+
+
+def _deserialize_image(data: dict) -> ImageBlock:
+    return ImageBlock(
+        ref=data["ref"],
+        media_type=data["media_type"],
+        label=data.get("label", ""),
+    )
 
 
 def serialize_messages(messages: list[Message]) -> list[dict]:
