@@ -219,6 +219,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "first_name",
                     "last_name",
                     "is_verified",
+                    "verified_academic_email",
                     "editor_of",
                 )
             },
@@ -245,6 +246,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "reviews",
                     "thread__permissions",
                     "thread__content_type",
+                    "created_by__socialaccount_set",
+                    "created_by__emailaddress_set",
                     Prefetch(
                         "created_by__permissions",
                         queryset=Permission.objects.filter(
@@ -510,6 +513,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "reviews",
             "thread__permissions",
             "thread__content_type",
+            "created_by__socialaccount_set",
+            "created_by__emailaddress_set",
             Prefetch(
                 "created_by__permissions",
                 queryset=Permission.objects.filter(
