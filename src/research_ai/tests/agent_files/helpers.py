@@ -1,9 +1,12 @@
-"""Builders for the file formats chat uploads accept."""
+"""Builders for chat file rows and the formats uploads accept."""
 
 import io
+import uuid
 import zipfile
 
 import fitz
+
+from research_ai.models import AgentFile
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
@@ -43,3 +46,28 @@ def docx_bytes(
 
 def paragraph(text: str) -> str:
     return f"<w:p><w:r><w:t>{text}</w:t></w:r></w:p>"
+
+
+def make_file(
+    user,
+    *,
+    message=None,
+    status=AgentFile.Status.READY,
+    filename="grant.pdf",
+    content_type="application/pdf",
+    text="[Page 1]\nSpecific aims",
+    **fields,
+) -> AgentFile:
+    """A file row as the upload lifecycle leaves it; sent when ``message``."""
+    return AgentFile.objects.create(
+        user=user,
+        conversation=message.conversation if message is not None else None,
+        message=message,
+        filename=filename,
+        content_type=content_type,
+        size_bytes=fields.pop("size_bytes", 100),
+        storage_key=f"uploads/research_ai/users/{user.id}/{uuid.uuid4()}/{filename}",
+        status=status,
+        text=text,
+        **fields,
+    )

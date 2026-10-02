@@ -220,6 +220,15 @@ app.conf.beat_schedule = {
             "expires": 55,
         },
     },
+    "research-ai-purge-agent-files": {
+        "task": "research_ai.tasks.purge_agent_files",
+        "schedule": crontab(minute=20),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_AGENTS,
+            "expires": 55 * 60,
+        },
+    },
     # Paper ingestion tasks
     "paper-fetch-all": {
         "task": "paper.ingestion.pipeline.fetch_all_papers",

@@ -9,6 +9,7 @@ from django.utils import timezone
 from research_ai.models import (
     AgentConversation,
     AgentExecution,
+    AgentFile,
     Expert,
     ExpertSearch,
     GeneratedEmail,
@@ -18,11 +19,15 @@ from research_ai.models import (
 from research_ai.services.usage_budget import ReservationHeartbeat
 from research_ai.tasks import (
     _update_search_progress,
+    process_agent_file_task,
     process_bulk_generate_emails_task,
+    purge_agent_files,
     reclaim_lost_agent_runs,
     run_proposal_draft_task,
     send_queued_emails_task,
 )
+from research_ai.tests.agent_files.helpers import make_file, pdf_bytes
+from researchhub.services.private_storage_service import PrivateStorageService
 from user.tests.helpers import create_random_authenticated_user
 
 # --- _update_search_progress ---
@@ -562,3 +567,37 @@ class ReclaimLostAgentRunsTaskTests(TestCase):
         self.assertEqual(result, {"executions": [], "proposal_drafts": []})
         execution.refresh_from_db()
         self.assertEqual(execution.status, AgentExecution.Status.RUNNING)
+
+
+class AgentFileTaskTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("file_task_user")
+
+    @patch.object(PrivateStorageService, "read", return_value=pdf_bytes("Aims"))
+    def test_process_task_extracts_the_uploaded_file(self, _mock_read):
+        # Arrange
+        file = make_file(self.user, status=AgentFile.Status.PROCESSING, text="")
+
+        # Act
+        result = process_agent_file_task.apply(args=[file.id]).get()
+
+        # Assert
+        self.assertEqual(result, {"file_id": file.id, "status": "READY"})
+        file.refresh_from_db()
+        self.assertEqual(file.text, "[Page 1]\nAims")
+
+    @patch.object(PrivateStorageService, "delete")
+    def test_purge_task_removes_abandoned_uploads(self, mock_delete):
+        # Arrange
+        file = make_file(self.user)
+        AgentFile.objects.filter(id=file.id).update(
+            created_date=timezone.now() - timedelta(days=2)
+        )
+
+        # Act
+        result = purge_agent_files.apply().get()
+
+        # Assert
+        self.assertEqual(result, {"purged": 1})
+        self.assertFalse(AgentFile.objects.filter(id=file.id).exists())
+        mock_delete.assert_called_once_with(file.storage_key)

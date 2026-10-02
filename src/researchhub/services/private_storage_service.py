@@ -31,6 +31,8 @@ class PresignedPost:
 class StoredObject:
     size_bytes: int
     content_type: str
+    # Changes whenever the object is overwritten.
+    etag: str = ""
 
 
 class PrivateStorageService:
@@ -81,11 +83,19 @@ class PrivateStorageService:
         return StoredObject(
             size_bytes=int(response["ContentLength"]),
             content_type=response.get("ContentType", ""),
+            etag=response.get("ETag", ""),
         )
 
-    def read(self, key: str, *, max_bytes: int) -> bytes:
-        """The object's bytes; raises ``ValueError`` past ``max_bytes``."""
-        body = self._s3().get_object(Bucket=self.bucket, Key=key)["Body"]
+    def read(self, key: str, *, max_bytes: int, if_match: str = "") -> bytes:
+        """The object's bytes; raises ``ValueError`` past ``max_bytes``.
+
+        With ``if_match``, S3 refuses the read unless the object still has
+        that ETag.
+        """
+        params = {"Bucket": self.bucket, "Key": key}
+        if if_match:
+            params["IfMatch"] = if_match
+        body = self._s3().get_object(**params)["Body"]
         try:
             data = body.read(max_bytes + 1)
         finally:

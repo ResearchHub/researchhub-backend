@@ -77,13 +77,14 @@ class PrivateStorageServiceTests(TestCase):
         self.client.head_object.return_value = {
             "ContentLength": 42,
             "ContentType": "application/pdf",
+            "ETag": '"abc"',
         }
 
         # Act
         stored = self.service.head("uploads/a.pdf")
 
         # Assert
-        self.assertEqual(stored, StoredObject(42, "application/pdf"))
+        self.assertEqual(stored, StoredObject(42, "application/pdf", '"abc"'))
 
     def test_read_refuses_an_object_over_the_limit(self):
         # Arrange
@@ -93,6 +94,19 @@ class PrivateStorageServiceTests(TestCase):
         with self.assertRaises(ValueError):
             self.service.read("uploads/big.pdf", max_bytes=10)
         self.assertEqual(self.service.read("uploads/big.pdf", max_bytes=11), b"x" * 11)
+
+    def test_read_can_require_the_object_to_be_unchanged(self):
+        # Arrange
+        self.client.get_object.side_effect = lambda **_: {"Body": io.BytesIO(b"x")}
+
+        # Act
+        self.service.read("uploads/a.pdf", max_bytes=10)
+        self.service.read("uploads/a.pdf", max_bytes=10, if_match='"abc"')
+
+        # Assert
+        unconditional, conditional = self.client.get_object.call_args_list
+        self.assertNotIn("IfMatch", unconditional.kwargs)
+        self.assertEqual(conditional.kwargs["IfMatch"], '"abc"')
 
     def test_presigned_get_names_the_download(self):
         # Arrange
