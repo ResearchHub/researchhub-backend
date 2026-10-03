@@ -31,14 +31,6 @@ class Region(models.TextChoices):
     ALL_REGIONS = "all_regions", "All Regions"
 
 
-class Gender(models.TextChoices):
-    """Gender preference. Value is snake_case (API/DB), label is display."""
-
-    MALE = "male", "Male"
-    FEMALE = "female", "Female"
-    ALL_GENDERS = "all_genders", "All Genders"
-
-
 # Sentinel US state filter: no state narrowing (matches API / frontend default).
 EXPERT_FINDER_DEFAULT_STATE = "All States"
 

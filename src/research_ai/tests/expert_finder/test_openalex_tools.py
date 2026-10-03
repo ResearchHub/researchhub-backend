@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from django.test import SimpleTestCase
 
+from research_ai.constants import Region
 from research_ai.services.expert_finder.openalex_tools import (
     ExpertFinderOpenAlexToolset,
 )
@@ -187,6 +188,95 @@ class AuthorGroundingTests(SimpleTestCase):
         self.assertEqual(result["openalex_author_id"], "https://openalex.org/A777")
         self.assertTrue(provider.has_returned_author("A777"))
         self.assertTrue(provider.returned_authors.get("a777"))
+
+    def test_get_author_annotates_region_match(self):
+        # Arrange
+        client = MagicMock()
+        client.get_author.return_value = create_oa_author_record(
+            id="https://openalex.org/A777",
+            last_known_institutions=[
+                {"display_name": "MIT", "country_code": "US"},
+            ],
+        )
+        provider = ExpertFinderOpenAlexToolset(
+            client=client, region_filter=Region.US, state_filter="Massachusetts"
+        )
+        toolset = provider.as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(
+            "get_author", {"openalex_author_id": "https://openalex.org/A777"}
+        )
+
+        # Assert
+        self.assertEqual(result["country_codes"], ["US"])
+        self.assertTrue(result["matches_region"])
+        self.assertFalse(result["matches_state"])
+        self.assertIn("a777", provider.returned_author_records)
+
+    def test_caches_affiliation_country_codes_when_last_known_empty(self):
+        # Arrange: OpenAlex last_known is empty; geo lives on affiliations.
+        client = MagicMock()
+        client.get_author.return_value = create_oa_author_record(
+            id="https://openalex.org/A777",
+            last_known_institutions=[],
+            affiliations=[
+                {
+                    "institution": {
+                        "display_name": "MIT",
+                        "country_code": "US",
+                    }
+                }
+            ],
+        )
+        provider = ExpertFinderOpenAlexToolset(client=client, region_filter=Region.US)
+        toolset = provider.as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(
+            "get_author", {"openalex_author_id": "https://openalex.org/A777"}
+        )
+        client.get_author.reset_mock()
+        record = provider.resolve_author_record("https://openalex.org/A777")
+
+        # Assert
+        self.assertEqual(result["country_codes"], ["US"])
+        self.assertTrue(result["matches_region"])
+        self.assertEqual(record["affiliations"][0]["institution"]["country_code"], "US")
+        client.get_author.assert_not_called()
+
+    def test_fetches_author_when_compact_view_has_no_country_codes(self):
+        # Arrange: name-only compact view would otherwise poison the cache.
+        client = MagicMock()
+        client.get_author.return_value = create_oa_author_record(
+            id="https://openalex.org/A777",
+            last_known_institutions=[],
+            affiliations=[
+                {
+                    "institution": {
+                        "display_name": "MIT",
+                        "country_code": "US",
+                    }
+                }
+            ],
+        )
+        provider = ExpertFinderOpenAlexToolset(client=client, region_filter=Region.US)
+
+        # Act
+        provider._annotate_and_cache_author_view(
+            {
+                "openalex_author_id": "https://openalex.org/A777",
+                "display_name": "Ada Expert",
+                "institutions": ["MIT"],
+                "last_known_institutions": [],
+            }
+        )
+
+        # Assert
+        client.get_author.assert_called_once()
+        record = provider.resolve_author_record("A777")
+        self.assertEqual(record["affiliations"][0]["institution"]["country_code"], "US")
+        self.assertTrue(record.get("id"))
 
     def test_search_authors_records_candidate_ids(self):
         # Arrange

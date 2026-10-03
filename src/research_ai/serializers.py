@@ -10,7 +10,6 @@ from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
     EmailTemplateType,
     ExpertiseLevel,
-    Gender,
     Region,
 )
 from research_ai.models import (
@@ -79,11 +78,6 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
         default=Region.ALL_REGIONS,
     )
     state = serializers.CharField(default=EXPERT_FINDER_DEFAULT_STATE)
-    gender = serializers.ChoiceField(
-        choices=Gender.choices,
-        default=Gender.ALL_GENDERS,
-        required=False,
-    )
 
     def validate(self, attrs):
         expert_count = attrs.get("expert_count", 10)
@@ -100,7 +94,6 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
             attrs["expertise_level"] = list(expertise_level)
         attrs["region"] = attrs.get("region") or Region.ALL_REGIONS
         attrs["state"] = attrs.get("state", EXPERT_FINDER_DEFAULT_STATE)
-        attrs["gender"] = attrs.get("gender") or Gender.ALL_GENDERS
         return attrs
 
 

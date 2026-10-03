@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, PropertyMock
 
 from django.test import TestCase
 
-from research_ai.constants import ExpertiseLevel, Gender, Region
+from research_ai.constants import ExpertiseLevel, Region
 from research_ai.models import (
     EmailTemplate,
     Expert,
@@ -34,7 +34,7 @@ class ExpertSearchConfigSerializerTests(TestCase):
         self.assertEqual(data["expert_count"], 10)
         self.assertEqual(data["expertise_level"], [ExpertiseLevel.ALL_LEVELS])
         self.assertEqual(data["region"], Region.ALL_REGIONS)
-        self.assertEqual(data["gender"], Gender.ALL_GENDERS)
+        self.assertNotIn("gender", data)
 
     def test_expertise_level_empty_array_defaults_to_all_levels(self):
         ser = ExpertSearchConfigSerializer(data={"expertise_level": []})
@@ -69,12 +69,12 @@ class ExpertSearchConfigSerializerTests(TestCase):
         )
 
     def test_config_snake_case(self):
-        """API uses snake_case only (expert_count, expertise_level, gender)."""
+        """API uses snake_case; unknown keys like gender are ignored."""
         ser = ExpertSearchConfigSerializer(
             data={
                 "expert_count": 15,
                 "expertise_level": [ExpertiseLevel.EARLY_CAREER],
-                "gender": Gender.FEMALE,
+                "gender": "female",
             }
         )
         self.assertTrue(ser.is_valid())
@@ -82,7 +82,8 @@ class ExpertSearchConfigSerializerTests(TestCase):
         self.assertEqual(
             ser.validated_data["expertise_level"], [ExpertiseLevel.EARLY_CAREER]
         )
-        self.assertEqual(ser.validated_data["gender"], Gender.FEMALE)
+        self.assertNotIn("gender", ser.validated_data)
+        self.assertNotIn("gender", ser.fields)
 
     def test_expert_count_bounds(self):
         ser = ExpertSearchConfigSerializer(data={"expert_count": 5})

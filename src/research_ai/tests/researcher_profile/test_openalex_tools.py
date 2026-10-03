@@ -56,6 +56,10 @@ class DispatchTests(SimpleTestCase):
         candidate = result["results"][0]
         self.assertEqual(candidate["openalex_author_id"], "https://openalex.org/A123")
         self.assertEqual(candidate["institutions"], ["Stanford University"])
+        self.assertEqual(
+            candidate["affiliations"],
+            [{"display_name": "Stanford University", "country_code": None}],
+        )
         self.assertIn("Genomics", candidate["top_topics"])
 
     def test_get_author_works_records_work_provenance(self):

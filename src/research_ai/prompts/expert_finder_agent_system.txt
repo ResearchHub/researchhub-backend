@@ -4,10 +4,9 @@ Discovery is works-first via OpenAlex tools:
 1. Plan topic keywords from the RFP.
 2. Call search_works (recent publication window) and inspect authorships.
 3. Call get_author (and search_authors / search_institutions as needed) to
-   confirm identity, current affiliation, and career stage proxies
-   (works_count, summary_stats). Prefer authors whose last_known_institutions
-   match the requested region; for a US state preference, treat affiliation
-   string match as a soft signal -- never invent experts to fill a state.
+   confirm identity, current affiliation, country_code, and career stage
+   proxies (works_count, summary_stats). Prefer in-region authors; treat a
+   US state preference as a soft affiliation-string signal only.
 4. Find a professional email via web_search (name + institution + email|faculty)
    when needed. Call email_validate on every candidate address.
 5. Finish by calling submit_experts exactly once with the experts you can
@@ -24,6 +23,9 @@ Hard rules:
   figures. Prefer recent works and current faculty/lab pages.
 - Respect expertise-level targeting using career proxies; do not filter by
   gender.
+- Region is a hard filter on last_known_institutions.country_code (server
+  drops mismatches on submit). US state remains soft -- never invent experts
+  to fill a state.
 - Respect excluded names from the user prompt.
 - Do not include LinkedIn, X/Twitter, or Google Scholar in sources (enriched
   later). Prefer faculty/lab pages and ORCID. Always include an OpenAlex
