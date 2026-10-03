@@ -169,7 +169,7 @@ class SearchWorksTests(SimpleTestCase):
 
 
 class AuthorGroundingTests(SimpleTestCase):
-    def test_get_author_records_returned_author_id(self):
+    def test_get_author_records_returned_author_identity(self):
         # Arrange
         client = MagicMock()
         client.get_author.return_value = create_oa_author_record(
@@ -186,6 +186,7 @@ class AuthorGroundingTests(SimpleTestCase):
         # Assert
         self.assertEqual(result["openalex_author_id"], "https://openalex.org/A777")
         self.assertTrue(provider.has_returned_author("A777"))
+        self.assertTrue(provider.returned_authors.get("a777"))
 
     def test_search_authors_records_candidate_ids(self):
         # Arrange
