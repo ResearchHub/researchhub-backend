@@ -16,6 +16,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from note.models import Note
+from note.tests.helpers import without_editor_shape
 from purchase.models import Grant
 from research_ai.models import (
     AgentExecution,
@@ -237,7 +238,7 @@ def _clean_payload(citations=None):
 class ProposalDraftServiceTests(TestCase):
     def setUp(self):
         # Fake provider identities need explicit pricing just like real models.
-        pricing = pricing_module.model_pricing("claude_platform", "claude-opus-5")
+        pricing = pricing_module.model_pricing("claude_platform", "claude-opus-5-5")
         self.enterContext(
             patch.dict(
                 pricing_module._PROVIDER_PRICING,
@@ -372,7 +373,9 @@ class ProposalDraftServiceTests(TestCase):
         # assembles the doc + plain text from the submitted sections.
         expected_plain, expected_doc = assemble_proposal(_clean_sections())
         self.assertIsInstance(note.latest_version.json, str)
-        self.assertEqual(json.loads(note.latest_version.json), expected_doc)
+        self.assertEqual(
+            without_editor_shape(json.loads(note.latest_version.json)), expected_doc
+        )
         self.assertEqual(note.latest_version.plain_text, expected_plain)
 
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
@@ -440,7 +443,7 @@ class ProposalDraftServiceTests(TestCase):
         ) as resolve:
             result = run_proposal_draft(
                 self.search_expert.id,
-                model_ref="openrouter:openai/gpt-5.6-sol",
+                model_ref="openrouter:openai/gpt-5.6-terra",
                 effort="high",
                 thinking="adaptive",
                 panel=_FakePanel(overall=5),
@@ -450,16 +453,16 @@ class ProposalDraftServiceTests(TestCase):
         # Assert: the selection is what gets resolved, recorded on the draft,
         # and snapshotted as the run's generator.
         resolve.assert_called_once_with(
-            "openrouter:openai/gpt-5.6-sol",
+            "openrouter:openai/gpt-5.6-terra",
             native_tools=frozenset({"web_search"}),
             effort="high",
             thinking="adaptive",
         )
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
-        self.assertEqual(draft.model_ref, "openrouter:openai/gpt-5.6-sol")
+        self.assertEqual(draft.model_ref, "openrouter:openai/gpt-5.6-terra")
         self.assertEqual(
-            draft.run_config["generator_model_id"], "openrouter:openai/gpt-5.6-sol"
+            draft.run_config["generator_model_id"], "openrouter:openai/gpt-5.6-terra"
         )
         self.assertEqual(draft.run_config["effort"], "high")
         self.assertEqual(draft.run_config["thinking"], "adaptive")
@@ -474,14 +477,14 @@ class ProposalDraftServiceTests(TestCase):
         result = run_proposal_draft(
             self.search_expert.id,
             provider=provider,
-            model_ref="openrouter:openai/gpt-5.6-sol",
+            model_ref="openrouter:openai/gpt-5.6-terra",
             oa_client=_FakeOpenAlex(),
         )
 
         # Assert
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
         self.assertEqual(
-            draft.run_config["judge_roster"], ["openrouter:openai/gpt-5.6-sol"]
+            draft.run_config["judge_roster"], ["openrouter:openai/gpt-5.6-terra"]
         )
 
     def test_note_attachment_failure_does_not_break_proposal(self):

@@ -36,12 +36,7 @@ _INPUT_SCHEMA = {
 
 
 class ExpertFinderWebSearchToolset:
-    """A single ``web_search`` tool over an injected Brave client.
-
-    The backend is injected so tests mock it. When no API key is configured the
-    tool stays registered but returns an explanatory error so the agent can
-    fall back to other contact paths.
-    """
+    """A single ``web_search`` tool over an injected Brave client."""
 
     def __init__(
         self,

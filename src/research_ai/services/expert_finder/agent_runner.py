@@ -248,11 +248,12 @@ def ground_submitted_experts(
     expert_count: int,
     excluded_expert_names: list[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Drop ungrounded / invalid / excluded rows; normalize persist shape.
+    """Drop ungrounded / invalid / excluded / duplicate rows; normalize persist shape.
 
     OpenAlex grounding requires both a previously returned author id and a
     name that binds to that grounded record (not merely id presence). Server
-    never trusts model-side ``email_validate`` alone.
+    never trusts model-side ``email_validate`` alone. After the email gate,
+    keep the first accepted row per canonical OpenAlex author id.
     """
     errors: list[str] = []
     grounded_rows: list[dict] = []
@@ -295,17 +296,24 @@ def ground_submitted_experts(
     errors.extend(email_drops)
 
     kept: list[dict[str, Any]] = []
+    seen_author_ids: set[str] = set()
     limit = max(0, int(expert_count))
-    for row in email_kept:
+    for index, row in enumerate(email_kept):
         if limit and len(kept) >= limit:
             break
         author_id = str(row.get("openalex_author_id") or "").strip()
+        bare = normalize_openalex_id(author_id).lower()
+        if bare in seen_author_ids:
+            errors.append(
+                f"experts[{index}]: dropped duplicate openalex_author_id {author_id!r}"
+            )
+            continue
+        seen_author_ids.add(bare)
         author_url = _openalex_author_url(author_id)
         sources = _ensure_openalex_source(
             ExpertFinderJson.normalize_sources(row.get("sources")),
             author_url,
         )
-        bare = normalize_openalex_id(author_id)
         kept.append(
             {
                 "email": row["email"],

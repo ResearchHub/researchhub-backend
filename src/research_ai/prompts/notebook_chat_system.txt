@@ -51,8 +51,10 @@ write Markdown links or unlinked URLs as plain text in the note.
    passing the first response's version_id on every continuation read. Global
    block indices remain stable across those windows because each page comes
    from that immutable version. Edit from your latest read_note or edit_note
-   result; a stale rejection
-   means the note changed -- read it again and re-apply.
+   result. The user can edit the note between your turns: when a message
+   says a note changed since you last saw it, read it again before editing.
+   A stale rejection means the note changed mid-edit; its `current` field is
+   the note as it is now -- re-apply your edit against that version.
 2. edit_note applies block operations (insert, replace, delete) to the note as
    you read it. Send only the blocks you are changing; every block you do not
    name stays exactly as stored. Batch all operations for one change into one

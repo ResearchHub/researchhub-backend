@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import EmailMultiAlternatives
-from django.template import TemplateDoesNotExist
 from django.template.loader import get_template
 
 from mailing_list.models import EmailOptOut
@@ -174,10 +173,6 @@ class EmailService:
             recipients = [recipients]
 
         html_template = get_template(f"{template}.html")
-        try:
-            text_template = get_template(f"{template}.txt")
-        except TemplateDoesNotExist:
-            text_template = None
 
         opted_out = (
             EmailOptOut.filter_opted_out(recipients) if unsubscribable else set()
@@ -210,11 +205,7 @@ class EmailService:
                     headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
 
             html_body = html_template.render(context)
-            plain_body = (
-                text_template.render(context)
-                if text_template
-                else self._html_to_text(html_body)
-            )
+            plain_body = self._html_to_text(html_body)
 
             try:
                 self._send_message(

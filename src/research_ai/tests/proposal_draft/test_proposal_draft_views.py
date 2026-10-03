@@ -111,7 +111,7 @@ class ProposalDraftCreateViewTests(APITestCase):
         # Arrange
         self.client.force_authenticate(self.moderator)
         mock_create.side_effect = ValueError(
-            "model 'claude_platform:claude-opus-5' does not support temperature"
+            "model 'claude_platform:claude-opus-5-5' does not support temperature"
         )
 
         # Act
@@ -119,7 +119,7 @@ class ProposalDraftCreateViewTests(APITestCase):
             BASE_URL,
             {
                 "search_expert_id": self.search_expert.id,
-                "model": "claude_platform:claude-opus-5",
+                "model": "claude_platform:claude-opus-5-5",
                 "temperature": 0.4,
             },
             format="json",
