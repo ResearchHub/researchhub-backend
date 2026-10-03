@@ -19,7 +19,7 @@ class AvailableModelsViewTests(APITestCase):
         self.user = create_random_authenticated_user("user", moderator=False)
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
-    def test_unpriced_model_is_disabled_even_for_an_unlimited_tier(self):
+    def test_retired_bedrock_default_is_omitted_for_an_unlimited_tier(self):
         # Arrange
         self.client.force_authenticate(self.moderator)
         policy = TierPolicy("privileged", None, None, None, None)
@@ -31,13 +31,10 @@ class AvailableModelsViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
-        unpriced = next(
-            model for model in data["models"] if model["provider"] == "bedrock"
+        self.assertFalse(
+            any(model["provider"] == "bedrock" for model in data["models"])
         )
-        self.assertFalse(unpriced["allowed"])
-        self.assertIsNone(unpriced["credit_rates"])
-        self.assertIsNone(unpriced["multiplier"])
-        self.assertEqual(data["default"], "claude_platform:claude-opus-5")
+        self.assertEqual(data["default"], "claude_platform:claude-opus-5-5")
 
     def test_requires_authentication(self):
         # Act
@@ -70,10 +67,15 @@ class AvailableModelsViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
-        self.assertEqual(data["default"], "claude_platform:claude-opus-5")
+        self.assertEqual(data["default"], "claude_platform:claude-opus-5-5")
         refs = [model["ref"] for model in data["models"]]
-        self.assertIn("claude_platform:claude-opus-5", refs)
-        self.assertIn("openrouter:openai/gpt-5.6-sol", refs)
+        self.assertIn("claude_platform:claude-opus-5-5", refs)
+        self.assertIn("openrouter:openai/gpt-6-sol", refs)
+        self.assertIn("openrouter:openai/gpt-6-luna", refs)
+        self.assertIn("openrouter:openai/gpt-5.6-terra", refs)
+        self.assertNotIn("claude_platform:claude-opus-5", refs)
+        self.assertNotIn("openrouter:openai/gpt-5.6-sol", refs)
+        self.assertNotIn("openrouter:openai/gpt-5.6-luna", refs)
         for model in data["models"]:
             self.assertEqual(
                 sorted(model),
@@ -92,13 +94,13 @@ class AvailableModelsViewTests(APITestCase):
         opus = next(
             model
             for model in data["models"]
-            if model["ref"] == "claude_platform:claude-opus-5"
+            if model["ref"] == "claude_platform:claude-opus-5-5"
         )
         self.assertIn("low", opus["capabilities"]["effort"])
-        self.assertEqual(opus["capabilities"]["thinking"], ["adaptive", "disabled"])
+        self.assertEqual(opus["capabilities"]["thinking"], ["adaptive"])
         self.assertFalse(opus["capabilities"]["temperature"])
-        self.assertEqual(opus["multiplier"], "3.75")
-        self.assertEqual(opus["credit_rates"]["input_per_million_tokens"], "5000")
+        self.assertEqual(opus["multiplier"], "3.00")
+        self.assertEqual(opus["credit_rates"]["input_per_million_tokens"], "4000")
         self.assertEqual(
             data["credit_pricing"],
             {
