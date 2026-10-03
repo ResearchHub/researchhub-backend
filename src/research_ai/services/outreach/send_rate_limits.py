@@ -1,0 +1,141 @@
+"""Per-mailbox daily caps for Expert Finder Gmail outreach sends.
+
+Quota is calendar-day UTC (``TIME_ZONE = "UTC"``). ``SENT`` and ``SENDING``
+both count so queued bulk reservations consume the daily budget. A send
+request that exceeds remaining quota is rejected entirely (nothing queued).
+See ``send_pacing`` for bulk inter-send gaps.
+
+Follow-up (not implemented): sync Gmail bounce / delivery / reply state into
+``GeneratedEmail`` statuses beyond the legacy SES handlers.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import timedelta
+
+from django.conf import settings
+from django.utils import timezone
+
+from research_ai.constants import OUTREACH_SEND_DAILY_CAP_DEFAULT
+from research_ai.models import GeneratedEmail
+
+RATE_LIMIT_CODE = "outreach_rate_limited"
+BULK_IN_PROGRESS_CODE = "outreach_bulk_in_progress"
+
+
+def _cap(name: str, default: int) -> int:
+    return max(0, int(getattr(settings, name, default)))
+
+
+def utc_day_start(now=None):
+    """Start of the current UTC calendar day."""
+    now = now or timezone.now()
+    return now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def utc_next_midnight(now=None):
+    """Next UTC midnight after ``now`` (quota reset instant)."""
+    return utc_day_start(now) + timedelta(days=1)
+
+
+@dataclass(frozen=True)
+class SendQuota:
+    """Remaining send slots for one mailbox owner (UTC calendar day)."""
+
+    used_day: int
+    daily_cap: int
+
+    @property
+    def remaining_day(self) -> int:
+        return max(0, self.daily_cap - self.used_day)
+
+    @property
+    def remaining(self) -> int:
+        return self.remaining_day
+
+
+def get_send_quota(user) -> SendQuota:
+    """
+    Count SENT/SENDING outreach for ``user`` since UTC midnight.
+
+    Mailbox ownership is 1:1 with the editor user, so ``created_by`` matches
+    the connected Gmail account used on send.
+    """
+    daily_cap = _cap("OUTREACH_SEND_DAILY_CAP", OUTREACH_SEND_DAILY_CAP_DEFAULT)
+    day_start = utc_day_start()
+
+    used_day = GeneratedEmail.objects.filter(
+        created_by=user,
+        status__in=(
+            GeneratedEmail.Status.SENT,
+            GeneratedEmail.Status.SENDING,
+        ),
+        updated_date__gte=day_start,
+    ).count()
+    return SendQuota(used_day=used_day, daily_cap=daily_cap)
+
+
+def get_daily_usage(user) -> dict:
+    """On-the-fly UTC-day usage breakdown for mailbox status."""
+    quota = get_send_quota(user)
+    day_start = utc_day_start()
+    base = GeneratedEmail.objects.filter(
+        created_by=user,
+        updated_date__gte=day_start,
+    )
+    sent_today = base.filter(status=GeneratedEmail.Status.SENT).count()
+    queued_today = base.filter(status=GeneratedEmail.Status.SENDING).count()
+    return {
+        "daily_cap": quota.daily_cap,
+        "sent_today": sent_today,
+        "queued_today": queued_today,
+        "remaining_today": quota.remaining_day,
+        "resets_at": utc_next_midnight().isoformat(),
+    }
+
+
+def editor_has_sending(user) -> bool:
+    """True when this editor already has outreach rows in SENDING."""
+    return GeneratedEmail.objects.filter(
+        created_by=user,
+        status=GeneratedEmail.Status.SENDING,
+    ).exists()
+
+
+def rate_limit_error_payload(quota: SendQuota, *, requested: int) -> dict:
+    return {
+        "detail": (
+            f"Daily outreach limit is {quota.daily_cap}; you already used "
+            f"{quota.used_day} today and requested {requested}. "
+            f"Only {quota.remaining_day} remaining today."
+        ),
+        "code": RATE_LIMIT_CODE,
+        "daily_cap": quota.daily_cap,
+        "used_today": quota.used_day,
+        "requested": requested,
+        "remaining_today": quota.remaining_day,
+    }
+
+
+def bulk_in_progress_error_payload() -> dict:
+    return {
+        "detail": (
+            "A bulk outreach send is already in progress for this mailbox. "
+            "Wait for it to finish or send a single email."
+        ),
+        "code": BULK_IN_PROGRESS_CODE,
+    }
+
+
+def queue_payload(
+    *,
+    queued_ids: list[int],
+    deferred_ids: list[int],
+    remaining_today: int,
+) -> dict:
+    return {
+        "queued": len(queued_ids),
+        "deferred": deferred_ids,
+        "remaining_today": remaining_today,
+    }

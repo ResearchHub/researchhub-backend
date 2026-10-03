@@ -129,14 +129,11 @@ class GmailSenderTests(TestCase):
             subject="Subject",
             body="<p>Hello</p>",
             reply_to=["reply@example.com"],
-            inject_open_pixel=True,
-            open_tracking_token="fixed-token",
         )
 
         # Assert
         self.assertEqual(result.message_id, "gmail-msg-1")
         self.assertEqual(result.thread_id, "thread-1")
-        self.assertEqual(result.open_tracking_token, "fixed-token")
         kwargs = self.mock_client.send_message.call_args.kwargs
         self.assertEqual(kwargs["access_token"], "access-token")
         import base64
@@ -149,7 +146,8 @@ class GmailSenderTests(TestCase):
             for part in msg.walk()
             if part.get_content_type() == "text/html"
         )
-        self.assertIn("fixed-token", html_part)
+        self.assertEqual(html_part, "<p>Hello</p>")
+        self.assertNotIn("/emails/t/", html_part)
 
     @patch(
         "research_ai.services.outreach.gmail_sender.get_google_oauth_credentials",

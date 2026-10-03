@@ -423,12 +423,6 @@ GMAIL_OUTREACH_REDIRECT_URI = (
     or getattr(keys, "GMAIL_OUTREACH_REDIRECT_URI", "")
     or _DEFAULT_GMAIL_OUTREACH_REDIRECT
 )
-# Kept for ops/env compatibility; FE owns the return page after connect.
-GMAIL_OUTREACH_FRONTEND_RETURN_URL = (
-    os.environ.get("GMAIL_OUTREACH_FRONTEND_RETURN_URL")
-    or getattr(keys, "GMAIL_OUTREACH_FRONTEND_RETURN_URL", "")
-    or _DEFAULT_GMAIL_OUTREACH_REDIRECT
-)
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
@@ -850,7 +844,21 @@ if STAGING or PRODUCTION:
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
 EXPERT_FINDER_OUTREACH_ENABLED = (
-    os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
+    os.environ.get(
+        "EXPERT_FINDER_OUTREACH_ENABLED",
+        str(keys.EXPERT_FINDER_OUTREACH_ENABLED),
+    ).lower()
+    == "true"
+)
+
+# Per connected Gmail mailbox; see research_ai.services.outreach.send_rate_limits
+# and send_pacing. Daily cap only; bulk sends space randomly in [min, max] seconds.
+OUTREACH_SEND_DAILY_CAP = int(os.environ.get("OUTREACH_SEND_DAILY_CAP", "20"))
+OUTREACH_SEND_MIN_INTERVAL_SECONDS = int(
+    os.environ.get("OUTREACH_SEND_MIN_INTERVAL_SECONDS", "1200")
+)
+OUTREACH_SEND_MAX_INTERVAL_SECONDS = int(
+    os.environ.get("OUTREACH_SEND_MAX_INTERVAL_SECONDS", "1800")
 )
 
 # Crossref

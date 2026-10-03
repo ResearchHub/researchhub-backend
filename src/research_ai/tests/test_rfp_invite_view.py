@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -135,6 +136,8 @@ class InviteRfpApplicantsViewTests(APITestCase):
             sorted(kwargs["generated_email_ids"]),
             sorted(data["generated_email_ids"]),
         )
+        self.assertEqual(data["deferred"], [])
+        self.assertIn("remaining_today", data)
 
     def test_invite_without_gmail_returns_409(self):
         user = create_random_authenticated_user("invite_nogmail", moderator=False)
@@ -205,3 +208,49 @@ class InviteRfpApplicantsViewTests(APITestCase):
                 self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
                 self.assertEqual(GeneratedEmail.objects.count(), 0)
                 mock_delay.assert_not_called()
+
+    @patch("research_ai.views.email_views.send_queued_emails_task.delay")
+    @override_settings(OUTREACH_SEND_DAILY_CAP=1)
+    def test_invite_respects_daily_cap(self, mock_delay):
+        from research_ai.services.outreach.send_rate_limits import RATE_LIMIT_CODE
+
+        GeneratedEmail.objects.create(
+            created_by=self.creator,
+            expert_email="prior@example.com",
+            email_subject="Prior",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENT,
+        )
+        self.client.force_authenticate(self.creator)
+        resp = self._post({"emails": ["a@example.com", "b@example.com"]})
+        self.assertEqual(resp.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        body = resp.json()
+        self.assertEqual(body["code"], RATE_LIMIT_CODE)
+        self.assertEqual(len(body["deferred"]), 2)
+        self.assertEqual(GeneratedEmail.objects.filter(status="draft").count(), 2)
+        mock_delay.assert_not_called()
+
+    @patch("research_ai.views.email_views.send_queued_emails_task.delay")
+    @override_settings(OUTREACH_SEND_DAILY_CAP=1)
+    def test_invite_rejects_when_request_exceeds_daily_cap(self, mock_delay):
+        from research_ai.services.outreach.send_rate_limits import RATE_LIMIT_CODE
+
+        self.client.force_authenticate(self.creator)
+        resp = self._post({"emails": ["a@example.com", "b@example.com"]})
+        self.assertEqual(resp.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        body = resp.json()
+        self.assertEqual(body["code"], RATE_LIMIT_CODE)
+        self.assertEqual(body["requested"], 2)
+        self.assertEqual(body["remaining_today"], 1)
+        self.assertEqual(len(body["deferred"]), 2)
+        self.assertEqual(
+            GeneratedEmail.objects.filter(status=GeneratedEmail.Status.DRAFT).count(),
+            2,
+        )
+        self.assertEqual(
+            GeneratedEmail.objects.filter(status=GeneratedEmail.Status.SENDING).count(),
+            0,
+        )
+        mock_delay.assert_not_called()
+        mock_delay.assert_called_once()
+        self.assertEqual(len(mock_delay.call_args.kwargs["generated_email_ids"]), 1)

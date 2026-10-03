@@ -69,3 +69,7 @@ SCRAPER_URL = os.environ.get("SCRAPER_URL", "")
 CIRCLE_API_KEY = os.environ.get("CIRCLE_API_KEY", "")
 CIRCLE_ENTITY_SECRET = os.environ.get("CIRCLE_ENTITY_SECRET", "")
 CIRCLE_WALLET_SET_ID = os.environ.get("CIRCLE_WALLET_SET_ID", "")
+
+EXPERT_FINDER_OUTREACH_ENABLED = (
+    os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
+)

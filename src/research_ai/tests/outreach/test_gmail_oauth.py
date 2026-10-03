@@ -254,5 +254,12 @@ class GmailOAuthServiceTests(TestCase):
                 "email": None,
                 "status": None,
                 "last_error": None,
+                "daily_cap": payload["daily_cap"],
+                "sent_today": 0,
+                "queued_today": 0,
+                "remaining_today": payload["remaining_today"],
+                "resets_at": payload["resets_at"],
             },
         )
+        self.assertEqual(payload["daily_cap"], payload["remaining_today"])
+        self.assertIn("T", payload["resets_at"])

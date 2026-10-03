@@ -1196,7 +1196,7 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(args[0], self.moderator)
         self.assertEqual(args[1], self.moderator.email)
         self.assertEqual(call_kw["reply_to"], reply_to_emails)
-        self.assertFalse(call_kw["inject_open_pixel"])
+        self.assertNotIn("inject_open_pixel", call_kw)
 
     @patch("research_ai.views.email_views.send_outreach_email")
     def test_preview_accepts_multiple_reply_to_addresses(self, mock_send):
@@ -1308,7 +1308,9 @@ class SendEmailViewTests(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json().get("sent"), 1)
+        self.assertEqual(response.json().get("queued"), 1)
+        self.assertEqual(response.json().get("deferred"), [])
+        self.assertIn("remaining_today", response.json())
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sending")
         mock_task.delay.assert_called_once()
@@ -1316,16 +1318,17 @@ class SendEmailViewTests(APITestCase):
         self.assertEqual(call_kw["generated_email_ids"], [email_rec.id])
         self.assertEqual(call_kw["reply_to"], reply_to_emails)
         self.assertEqual(call_kw["sender_user_id"], self.moderator.id)
+        self.assertTrue(call_kw["immediate"])
         self.assertNotIn("from_email", call_kw)
 
     @patch("research_ai.tasks.send_outreach_email")
+    @override_settings(OUTREACH_SEND_MIN_INTERVAL_SECONDS=0)
     def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):
         from research_ai.tasks import send_queued_emails_task
 
         mock_send.return_value = OutreachSendResult(
             message_id="gmail-msg-id-123",
             thread_id="thread-123",
-            open_tracking_token="pixel-token",
         )
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
@@ -1345,11 +1348,11 @@ class SendEmailViewTests(APITestCase):
         ).get()
         self.assertEqual(result["sent"], 1)
         self.assertEqual(result["failed"], 0)
+        self.assertEqual(result["deferred"], 0)
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sent")
         self.assertEqual(email_rec.channels, [GeneratedEmail.Channel.EMAIL])
         self.assertEqual(email_rec.gmail_message_id, "gmail-msg-id-123")
         self.assertEqual(email_rec.gmail_thread_id, "thread-123")
-        self.assertEqual(email_rec.open_tracking_token, "pixel-token")
         mock_send.assert_called_once()
-        self.assertTrue(mock_send.call_args[1]["inject_open_pixel"])
+        self.assertNotIn("inject_open_pixel", mock_send.call_args[1])

@@ -154,6 +154,9 @@ class GmailOAuthService:
 
     def get_connection_status(self, user) -> dict[str, Any]:
         """Return mailbox status payload for GET mailbox/."""
+        from research_ai.services.outreach.send_rate_limits import get_daily_usage
+
+        usage = get_daily_usage(user)
         try:
             connection = user.outreach_mailbox_connection
         except OutreachMailboxConnection.DoesNotExist:
@@ -162,6 +165,7 @@ class GmailOAuthService:
                 "email": None,
                 "status": None,
                 "last_error": None,
+                **usage,
             }
 
         connected = connection.status in {
@@ -173,6 +177,7 @@ class GmailOAuthService:
             "email": connection.email if connected else None,
             "status": connection.status,
             "last_error": connection.last_error or None,
+            **usage,
         }
 
     def get_connect_params(self) -> dict[str, Any]:
@@ -205,6 +210,9 @@ class GmailOAuthService:
 
     def disconnect(self, user) -> dict[str, Any]:
         """Revoke Google token if possible and mark connection revoked."""
+        from research_ai.services.outreach.send_rate_limits import get_daily_usage
+
+        usage = get_daily_usage(user)
         try:
             connection = user.outreach_mailbox_connection
         except OutreachMailboxConnection.DoesNotExist:
@@ -213,6 +221,7 @@ class GmailOAuthService:
                 "email": None,
                 "status": None,
                 "last_error": None,
+                **usage,
             }
 
         token = connection.refresh_token or connection.access_token
@@ -237,6 +246,7 @@ class GmailOAuthService:
             "email": None,
             "status": connection.status,
             "last_error": None,
+            **usage,
         }
 
     def _exchange_code(self, code: str, *, redirect_uri: str) -> dict[str, Any]:

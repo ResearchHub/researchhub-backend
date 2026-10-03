@@ -21,9 +21,6 @@ def send_outreach_email(
     body: str,
     reply_to: list[str] | None = None,
     cc: list[str] | None = None,
-    *,
-    inject_open_pixel: bool = False,
-    open_tracking_token: str | None = None,
 ) -> OutreachSendResult:
     """
     Send approved outreach via the editor's connected personal Gmail.
@@ -35,8 +32,6 @@ def send_outreach_email(
         body=body,
         reply_to=reply_to,
         cc=cc,
-        inject_open_pixel=inject_open_pixel,
-        open_tracking_token=open_tracking_token,
     )
 
 
