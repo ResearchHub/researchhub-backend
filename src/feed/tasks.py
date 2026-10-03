@@ -463,3 +463,29 @@ def warm_activity_feed_cache():
         "Warmed activity feed cache pages in %.2fs",
         time.time() - start,
     )
+
+
+@app.task
+def warm_grant_feed_cache():
+    """Replace Grant homepage ``:public`` / ``:admin`` keys."""
+    from feed.views.grant_feed_view import GrantFeedViewSet
+
+    start = time.time()
+    GrantFeedViewSet.warm_homepage_cache()
+    logger.info(
+        "Warmed grant feed cache pages in %.2fs",
+        time.time() - start,
+    )
+
+
+@app.task
+def warm_funding_feed_cache():
+    """Replace Funding homepage ``:public`` / ``:admin`` keys."""
+    from feed.views.funding_feed_view import FundingFeedViewSet
+
+    start = time.time()
+    FundingFeedViewSet.warm_homepage_cache()
+    logger.info(
+        "Warmed funding feed cache pages in %.2fs",
+        time.time() - start,
+    )

@@ -56,6 +56,16 @@ _OPENROUTER_REASONING = ModelCapabilities(
     effort=OPENROUTER_EFFORT_LEVELS,
     thinking=THINKING_MODES,
 )
+_OPENROUTER_GPT6_CHAT_TOOLS = ModelCapabilities(
+    # OpenAI permits function calling through Chat Completions only at none.
+    # This adapter always uses that API, including for agent tool calls.
+    effort=("none",),
+)
+_OPENROUTER_QWEN_MANDATORY_REASONING = ModelCapabilities(
+    effort=("minimal", "low", "medium", "high", "xhigh"),
+    thinking=("adaptive",),
+    temperature=True,
+)
 _OPENROUTER_GEMINI = ModelCapabilities(
     effort=("low", "medium", "high"),
     thinking=("adaptive",),
@@ -122,6 +132,7 @@ _CLAUDE_MODELS = {
     "claude-opus-4-7": _model(_CLAUDE_ADAPTIVE, 128_000),
     "claude-opus-4-8": _model(_CLAUDE_ADAPTIVE, 128_000),
     "claude-opus-5": _model(_CLAUDE_ADAPTIVE, 128_000),
+    "claude-opus-5-5": _model(_CLAUDE_MANDATORY_THINKING, 128_000),
     "claude-sonnet-5": _model(_CLAUDE_ADAPTIVE, 128_000),
 }
 
@@ -131,6 +142,8 @@ _OPENROUTER_MODELS = {
     "openai/gpt-5.6-sol": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-5.6-terra": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-5.6-luna": _model(_OPENROUTER_REASONING, 128_000),
+    "openai/gpt-6-sol": _model(_OPENROUTER_GPT6_CHAT_TOOLS, 128_000),
+    "openai/gpt-6-luna": _model(_OPENROUTER_GPT6_CHAT_TOOLS, 128_000),
     # No longer selectable, but retained for conversations pinned before removal.
     "google/gemini-3.1-pro-preview": _model(_OPENROUTER_GEMINI, 65_536),
     "google/gemini-3.7-flash": _model(_OPENROUTER_GEMINI, 65_536),
@@ -140,6 +153,7 @@ _OPENROUTER_MODELS = {
     "deepseek/deepseek-v4-flash-0731": _model(_OPENROUTER_OPEN_WEIGHT, 393_216),
     "deepseek/deepseek-v4-pro-0813": _model(_OPENROUTER_OPEN_WEIGHT, 384_000),
     "moonshotai/kimi-k3": _model(_OPENROUTER_OPEN_WEIGHT, 943_718),
+    "qwen/qwen3.8-max-0902": _model(_OPENROUTER_QWEN_MANDATORY_REASONING, 131_072),
 }
 
 # The Converse adapter currently exposes sampling only; Claude-specific effort

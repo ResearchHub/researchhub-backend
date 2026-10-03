@@ -1,5 +1,4 @@
 import json
-import logging
 
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
@@ -35,6 +34,13 @@ from research_ai.serializers import (
     _get_user_with_author_payload,
     resolve_work_for_unified_document,
 )
+from research_ai.services.expert_finder.find_more_service import (
+    FindMoreAlreadyRunningError,
+    FindMoreEnqueueError,
+    FindMoreInvalidStateError,
+    FindMoreSearchNotFoundError,
+    FindMoreService,
+)
 from research_ai.services.expert_finder.finder import get_document_content
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.expert_finder.progress import ProgressService, TaskType
@@ -48,8 +54,6 @@ from research_ai.services.outreach.invited_experts import (
 from research_ai.tasks import run_expert_finder_search
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.permissions import IsModerator, UserIsEditor
-
-logger = logging.getLogger(__name__)
 
 
 def _get_sse_url(request, search_id):
@@ -303,98 +307,34 @@ class ExpertSearchFindMoreView(APIView):
         ser = ExpertSearchFindMoreSerializer(data=request.data or {})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
-
-        with transaction.atomic():
-            try:
-                expert_search = ExpertSearch.objects.select_for_update().get(
-                    id=search_id
-                )
-            except ExpertSearch.DoesNotExist:
-                return Response(
-                    {"detail": "Expert search not found."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-            if expert_search.status in (
-                ExpertSearch.Status.PENDING,
-                ExpertSearch.Status.PROCESSING,
-            ):
-                return Response(
-                    {"detail": "Expert search is already running."},
-                    status=status.HTTP_409_CONFLICT,
-                )
-            if expert_search.status not in (
-                ExpertSearch.Status.COMPLETED,
-                ExpertSearch.Status.FAILED,
-            ):
-                return Response(
-                    {"detail": "Expert search cannot find more in its current state."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            prior_status = expert_search.status
-            prior_progress = expert_search.progress
-            prior_current_step = expert_search.current_step
-            prior_error_message = expert_search.error_message
-            prior_config = dict(expert_search.config or {})
-            prior_additional_context = expert_search.additional_context
-
-            batch_count = data["expert_count"]
-            config = dict(prior_config)
-            config["expert_count"] = batch_count
-            additional_context = data.get("additional_context")
-            if additional_context is not None:
-                ctx = (additional_context or "").strip()
-                expert_search.additional_context = ctx
-            else:
-                ctx = (expert_search.additional_context or "").strip()
-
-            expert_search.config = config
-            expert_search.status = ExpertSearch.Status.PROCESSING
-            expert_search.progress = 0
-            expert_search.current_step = "Queued to find more experts"
-            expert_search.error_message = ""
-            expert_search.save(
-                update_fields=[
-                    "config",
-                    "additional_context",
-                    "status",
-                    "progress",
-                    "current_step",
-                    "error_message",
-                    "updated_date",
-                ]
-            )
-
-        is_pdf = expert_search.input_type == ExpertSearch.InputType.PDF
         try:
-            run_expert_finder_search.delay(
-                search_id=str(expert_search.id),
-                query=expert_search.query,
-                config=config,
-                is_pdf=is_pdf,
-                additional_context=ctx or None,
-                append=True,
+            queued = FindMoreService().queue(
+                search_id,
+                expert_count=data["expert_count"],
+                additional_context=data.get("additional_context"),
             )
-        except Exception:
-            logger.exception(
-                "could not queue find-more for expert search %s", expert_search.id
+        except FindMoreSearchNotFoundError:
+            return Response(
+                {"detail": "Expert search not found."},
+                status=status.HTTP_404_NOT_FOUND,
             )
-            ExpertSearch.objects.filter(
-                id=expert_search.id,
-                status=ExpertSearch.Status.PROCESSING,
-            ).update(
-                status=prior_status,
-                progress=prior_progress,
-                current_step=prior_current_step,
-                error_message=prior_error_message,
-                config=prior_config,
-                additional_context=prior_additional_context,
+        except FindMoreAlreadyRunningError:
+            return Response(
+                {"detail": "Expert search is already running."},
+                status=status.HTTP_409_CONFLICT,
             )
+        except FindMoreInvalidStateError:
+            return Response(
+                {"detail": "Expert search cannot find more in its current state."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except FindMoreEnqueueError:
             return Response(
                 {"detail": "Could not queue find-more expert search."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
+        expert_search = queued.expert_search
         sse_url = _get_sse_url(request, str(expert_search.id))
         return Response(
             {
@@ -402,7 +342,7 @@ class ExpertSearchFindMoreView(APIView):
                 "status": ExpertSearch.Status.PROCESSING,
                 "message": "Find-more expert search submitted for processing",
                 "sse_url": sse_url,
-                "expert_count": batch_count,
+                "expert_count": queued.expert_count,
                 "append": True,
             },
             status=status.HTTP_202_ACCEPTED,
