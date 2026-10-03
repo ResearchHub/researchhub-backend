@@ -14,7 +14,6 @@ from research_ai.services.outreach.send_rate_limits import (
     RATE_LIMIT_CODE,
     get_daily_usage,
     get_send_quota,
-    split_for_quota,
 )
 from user.tests.helpers import create_random_authenticated_user
 
@@ -97,15 +96,6 @@ class SendQuotaUnitTests(TestCase):
         self.assertEqual(usage["remaining_today"], 18)
         self.assertIn("T", usage["resets_at"])
 
-    def test_split_for_quota_preserves_order(self):
-        to_queue, deferred = split_for_quota([1, 2, 3, 4, 5], 2)
-        self.assertEqual(to_queue, [1, 2])
-        self.assertEqual(deferred, [3, 4, 5])
-
-        empty, all_deferred = split_for_quota([9, 8], 0)
-        self.assertEqual(empty, [])
-        self.assertEqual(all_deferred, [9, 8])
-
 
 @override_settings(OUTREACH_SEND_DAILY_CAP=20)
 class SendEmailRateLimitViewTests(APITestCase):
@@ -124,31 +114,28 @@ class SendEmailRateLimitViewTests(APITestCase):
 
     @patch("research_ai.views.email_views.send_queued_emails_task")
     @override_settings(OUTREACH_SEND_DAILY_CAP=2)
-    def test_daily_cap_defers_extra_ids(self, mock_task):
-        # Arrange — one prior send today leaves room for one more of three drafts
+    def test_over_daily_cap_rejects_entire_request(self, mock_task):
+        # Arrange — one prior send today leaves room for one; request three
         _make_counted(self.user, status_value=GeneratedEmail.Status.SENT)
         drafts = [_make_draft(self.user, email=f"e{i}@ex.com") for i in range(3)]
+        draft_ids = [d.id for d in drafts]
 
         # Act
-        response = self._post([d.id for d in drafts])
+        response = self._post(draft_ids)
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
         body = response.json()
-        self.assertEqual(body["queued"], 1)
-        self.assertEqual(body["deferred"], [drafts[1].id, drafts[2].id])
-        self.assertEqual(body["remaining_today"], 0)
-
-        drafts[0].refresh_from_db()
-        drafts[1].refresh_from_db()
-        drafts[2].refresh_from_db()
-        self.assertEqual(drafts[0].status, GeneratedEmail.Status.SENDING)
-        self.assertEqual(drafts[1].status, GeneratedEmail.Status.DRAFT)
-        self.assertEqual(drafts[2].status, GeneratedEmail.Status.DRAFT)
-        mock_task.delay.assert_called_once()
-        kwargs = mock_task.delay.call_args.kwargs
-        self.assertEqual(kwargs["generated_email_ids"], [drafts[0].id])
-        self.assertTrue(kwargs["immediate"])
+        self.assertEqual(body["code"], RATE_LIMIT_CODE)
+        self.assertEqual(body["requested"], 3)
+        self.assertEqual(body["remaining_today"], 1)
+        self.assertEqual(body["used_today"], 1)
+        self.assertEqual(body["daily_cap"], 2)
+        self.assertEqual(body["deferred"], draft_ids)
+        for d in drafts:
+            d.refresh_from_db()
+            self.assertEqual(d.status, GeneratedEmail.Status.DRAFT)
+        mock_task.delay.assert_not_called()
 
     @patch("research_ai.views.email_views.send_queued_emails_task")
     @override_settings(OUTREACH_SEND_DAILY_CAP=1)

@@ -46,7 +46,6 @@ from research_ai.services.outreach.send_rate_limits import (
     get_send_quota,
     queue_payload,
     rate_limit_error_payload,
-    split_for_quota,
 )
 from research_ai.services.outreach.template_variables import format_expert_name_from_raw
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
@@ -75,7 +74,9 @@ def _queue_drafts_with_rate_limit(
     cc: list[str],
 ):
     """
-    Mark up to remaining quota as SENDING and enqueue the Celery send task.
+    Mark drafts as SENDING and enqueue the Celery send task when the full
+    request fits under the daily quota. If ``requested > remaining``, reject
+    with 429 and send nothing.
 
     Bulk (2+ ids) is rejected with 409 if this editor already has SENDING rows.
     Single-id sends are never blocked by an in-flight bulk and run immediately.
@@ -91,27 +92,27 @@ def _queue_drafts_with_rate_limit(
         )
 
     quota = get_send_quota(user)
-    to_queue, deferred = split_for_quota(ordered_draft_ids, quota.remaining)
-    if not to_queue:
-        payload = rate_limit_error_payload(quota, requested=len(ordered_draft_ids))
-        payload["deferred"] = deferred
+    requested = len(ordered_draft_ids)
+    if requested > quota.remaining:
+        payload = rate_limit_error_payload(quota, requested=requested)
+        payload["deferred"] = list(ordered_draft_ids)
         return Response(payload, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
-    GeneratedEmail.objects.filter(id__in=to_queue).update(
+    GeneratedEmail.objects.filter(id__in=ordered_draft_ids).update(
         status=GeneratedEmail.Status.SENDING,
         updated_date=timezone.now(),
     )
     send_queued_emails_task.delay(
-        generated_email_ids=to_queue,
+        generated_email_ids=ordered_draft_ids,
         reply_to=reply_to,
         cc=cc,
         sender_user_id=user.id,
-        immediate=len(to_queue) == 1,
+        immediate=requested == 1,
     )
-    remaining_today = max(0, quota.remaining_day - len(to_queue))
+    remaining_today = max(0, quota.remaining_day - requested)
     return queue_payload(
-        queued_ids=to_queue,
-        deferred_ids=deferred,
+        queued_ids=ordered_draft_ids,
+        deferred_ids=[],
         remaining_today=remaining_today,
     )
 
@@ -437,7 +438,7 @@ class SendEmailView(APIView):
                 status=GeneratedEmail.Status.DRAFT,
             ).values_list("id", flat=True)
         )
-        # Preserve client order so deferred ids are predictable.
+        # Preserve client order for rate-limit / queue responses.
         ordered_draft_ids = [i for i in ids if i in draft_id_set]
         if not ordered_draft_ids:
             return Response(

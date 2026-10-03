@@ -1,8 +1,9 @@
 """Per-mailbox daily caps for Expert Finder Gmail outreach sends.
 
 Quota is calendar-day UTC (``TIME_ZONE = "UTC"``). ``SENT`` and ``SENDING``
-both count so queued bulk reservations consume the daily budget. See
-``send_pacing`` for bulk inter-send gaps.
+both count so queued bulk reservations consume the daily budget. A send
+request that exceeds remaining quota is rejected entirely (nothing queued).
+See ``send_pacing`` for bulk inter-send gaps.
 
 Follow-up (not implemented): sync Gmail bounce / delivery / reply state into
 ``GeneratedEmail`` statuses beyond the legacy SES handlers.
@@ -100,19 +101,6 @@ def editor_has_sending(user) -> bool:
         created_by=user,
         status=GeneratedEmail.Status.SENDING,
     ).exists()
-
-
-def split_for_quota(
-    generated_email_ids: list[int],
-    remaining: int,
-) -> tuple[list[int], list[int]]:
-    """Return ``(to_queue, deferred)`` preserving input order."""
-    if remaining <= 0:
-        return [], list(generated_email_ids)
-    return (
-        list(generated_email_ids[:remaining]),
-        list(generated_email_ids[remaining:]),
-    )
 
 
 def rate_limit_error_payload(quota: SendQuota, *, requested: int) -> dict:
