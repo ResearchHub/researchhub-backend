@@ -1,6 +1,4 @@
-import datetime
 import decimal
-import logging
 import time
 
 from django.contrib.contenttypes.models import ContentType
@@ -22,17 +20,13 @@ from purchase.related_models.constants.support import (
     MINIMUM_SUPPORT_AMOUNT_RSC,
 )
 from purchase.serializers import PurchaseSerializer
-from purchase.tasks import send_support_email
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
 from reputation.models import Contribution, SupportFee
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
-from researchhub.settings import BASE_FRONTEND_URL
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
-
-logger = logging.getLogger(__name__)
 
 
 class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
@@ -182,7 +176,6 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             self.send_purchase_notification(
                 purchase, unified_doc, recipient, notification_type
             )
-            self.send_purchase_email(purchase, recipient, unified_doc)
 
         create_contribution.apply_async(
             (
@@ -216,63 +209,4 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             action_user=creator,
             item=purchase,
             unified_document=unified_doc,
-        )
-
-    def send_purchase_email(self, purchase, recipient, unified_doc):
-        sender = purchase.user
-        if sender == recipient:
-            return
-
-        # TODO: Add email support for posts
-        paper_id = None
-        try:
-            paper = unified_doc.paper
-            if not paper:
-                return
-            else:
-                paper_id = paper.id
-        except Exception:
-            logger.exception(
-                "Failed to get paper for unified document %s", unified_doc.id
-            )
-
-        sender_balance_date = datetime.datetime.now().strftime("%m/%d/%Y")
-        amount = purchase.amount
-        payment_type = purchase.purchase_method
-        content_type_str = purchase.content_type.model
-        object_id = purchase.object_id
-        send_support_email.apply_async(
-            (
-                f"{BASE_FRONTEND_URL}/user/{sender.author_profile.id}/overview",
-                sender.full_name(),
-                recipient.full_name(),
-                recipient.email,
-                amount,
-                sender_balance_date,
-                payment_type,
-                "recipient",
-                content_type_str,
-                object_id,
-                paper_id,
-            ),
-            priority=6,
-            countdown=2,
-        )
-
-        send_support_email.apply_async(
-            (
-                f"{BASE_FRONTEND_URL}/user/{recipient.author_profile.id}/overview",
-                sender.full_name(),
-                recipient.full_name(),
-                sender.email,
-                amount,
-                sender_balance_date,
-                payment_type,
-                "sender",
-                content_type_str,
-                object_id,
-                paper_id,
-            ),
-            priority=6,
-            countdown=2,
         )

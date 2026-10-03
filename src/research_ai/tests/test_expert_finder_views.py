@@ -302,7 +302,9 @@ class ExpertSearchFindMoreViewTests(APITestCase):
         response = self.client.post(self.url, {"expert_count": 10}, format="json")
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
+    @patch(
+        "research_ai.services.expert_finder.find_more_service.enqueue_find_more_search"
+    )
     def test_post_enqueues_append_run(self, mock_delay):
         # Arrange
         Expert.objects.create(email="keep@u.edu", first_name="Keep")
@@ -329,8 +331,7 @@ class ExpertSearchFindMoreViewTests(APITestCase):
         self.assertEqual(self.search.config["expert_count"], 15)
         self.assertEqual(self.search.additional_context, "Prefer US.")
         mock_delay.assert_called_once()
-        _, kwargs = mock_delay.call_args
-        self.assertTrue(kwargs.get("append"))
+        kwargs = mock_delay.call_args.kwargs
         self.assertEqual(kwargs.get("config", {}).get("expert_count"), 15)
         self.assertEqual(kwargs.get("additional_context"), "Prefer US.")
         # Existing experts remain while re-queued.
@@ -338,7 +339,9 @@ class ExpertSearchFindMoreViewTests(APITestCase):
             SearchExpert.objects.filter(expert_search=self.search).count(), 1
         )
 
-    @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
+    @patch(
+        "research_ai.services.expert_finder.find_more_service.enqueue_find_more_search"
+    )
     def test_post_restores_prior_state_when_enqueue_fails(self, mock_delay):
         # Arrange: completed search; broker refuses the find-more task.
         self.search.config = {"expert_count": 10, "region": "all_regions"}

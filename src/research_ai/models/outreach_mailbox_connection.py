@@ -99,8 +99,7 @@ class OutreachMailboxConnection(DefaultModel):
     def __str__(self):
         return f"OutreachMailboxConnection {self.id} ({self.email})"
 
-    def clean(self):
-        super().clean()
+    def _validate_email_allowlist(self):
         self.email = normalize_outreach_mailbox_email(self.email)
         if self.email and not is_allowed_outreach_mailbox_email(self.email):
             raise ValidationError(
@@ -112,8 +111,12 @@ class OutreachMailboxConnection(DefaultModel):
                 }
             )
 
+    def clean(self):
+        super().clean()
+        self._validate_email_allowlist()
+
     def save(self, *args, **kwargs):
-        self.email = normalize_outreach_mailbox_email(self.email)
+        self._validate_email_allowlist()
         super().save(*args, **kwargs)
 
     def is_access_token_expired(self, buffer_seconds: int = 60) -> bool:

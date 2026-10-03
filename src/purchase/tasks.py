@@ -4,26 +4,17 @@ from datetime import UTC, datetime, timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
-from mailing_list.services import EmailService
 from notification.models import Notification
 from notification.services import NotificationService
-from paper.models import Paper
 from purchase.circle.service import CircleWalletService
-from purchase.models import Balance, Fundraise, Purchase
+from purchase.models import Balance, Fundraise
 from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_application_service import GrantApplicationService
 from reputation.models import Deposit
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
-from researchhub.settings import BASE_FRONTEND_URL
-from researchhub_document.models import ResearchhubPost
 
 logger = logging.getLogger(__name__)
-
-SUPPORT_RECEIPT_SUBJECTS = {
-    "sender": "Receipt From ResearchHub",
-    "recipient": "Someone Sent You RSC on ResearchHub!",
-}
 
 
 @app.task(queue=QUEUE_PURCHASES)
@@ -192,59 +183,6 @@ def send_funding_credits_reminders():
     logger.info("Sent %d funding credits reminders", sent_count)
 
     return {"sent_count": sent_count}
-
-
-@app.task(queue=QUEUE_NOTIFICATION)
-def send_support_email(
-    profile_url,
-    sender_name,
-    recipient_name,
-    email,
-    amount,
-    date,
-    payment_type,
-    email_type,
-    content_type,
-    object_id,
-    paper_id=None,
-):
-    paper_data = {}
-    object_supported = "profile"
-    if content_type == "rhcommentmodel":
-        paper = Paper.objects.get(id=paper_id)
-        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
-        object_supported = "thread"
-    elif content_type == "researchhubpost":
-        post = ResearchhubPost.objects.get(id=object_id)
-        url = f"{BASE_FRONTEND_URL}/post/{post.id}/{post.slug}"
-        object_supported = "post"
-
-    if payment_type == Purchase.OFF_CHAIN:
-        payment_type = "RSC"
-
-    context = {
-        "amount": amount,
-        "date": date,
-        "method": payment_type,
-        "email": email,
-        "recipient": email_type == "recipient",
-        "sender_name": sender_name,
-        "recipient_name": recipient_name,
-        "paper": paper_data,
-        "user_profile": profile_url,
-        "object_supported": object_supported,
-        "url": url,
-    }
-
-    subject = SUPPORT_RECEIPT_SUBJECTS.get(email_type)
-
-    if subject:
-        EmailService().send_transactional_email(
-            email,
-            subject,
-            context,
-            template="support_receipt",
-        )
 
 
 def dispatch_sweep(wallet, amount, network, circle_transaction_id):

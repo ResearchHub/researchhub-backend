@@ -57,6 +57,22 @@ app.conf.beat_schedule = {
             "queue": QUEUE_CACHES,
         },
     },
+    "feed-warm-grant-feed-cache": {
+        "task": "feed.tasks.warm_grant_feed_cache",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_CACHES,
+        },
+    },
+    "feed-warm-funding-feed-cache": {
+        "task": "feed.tasks.warm_funding_feed_cache",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_CACHES,
+        },
+    },
     # Hub
     "hub_calculate-and-set-hub-counts": {
         "task": "hub.tasks.calculate_and_set_hub_counts",
@@ -202,6 +218,15 @@ app.conf.beat_schedule = {
             "queue": QUEUE_AGENTS,
             # A sweep that waited a minute behind a backlog is superseded.
             "expires": 55,
+        },
+    },
+    "research-ai-purge-agent-files": {
+        "task": "research_ai.tasks.purge_agent_files",
+        "schedule": crontab(minute=20),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_AGENTS,
+            "expires": 55 * 60,
         },
     },
     # Paper ingestion tasks
