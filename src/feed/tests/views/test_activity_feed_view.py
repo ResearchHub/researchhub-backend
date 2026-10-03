@@ -1987,25 +1987,30 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
     @patch("feed.views.activity_feed_view.cache")
     def test_warm_activity_feed_cache_replaces_pages(self, mock_cache):
         # Arrange / Act
-        from feed.activity_feed_cache import (
-            ACTIVITY_FEED_MAX_CACHED_PAGE,
-            activity_feed_cache_key,
-        )
+        from feed.activity_feed_cache import activity_feed_cache_key
+        from feed.cache_segment import FEED_CACHE_MAX_CACHED_PAGE
         from feed.tasks import warm_activity_feed_cache
 
         warm_activity_feed_cache()
 
-        # Assert
-        self.assertEqual(mock_cache.set.call_count, ACTIVITY_FEED_MAX_CACHED_PAGE)
+        # Assert — always refresh pages 1–MAX; empty tails reuse the empty payload
+        self.assertEqual(mock_cache.set.call_count, FEED_CACHE_MAX_CACHED_PAGE)
         written_keys = [call.args[0] for call in mock_cache.set.call_args_list]
         self.assertEqual(
             written_keys,
             [
                 activity_feed_cache_key(page)
-                for page in range(1, ACTIVITY_FEED_MAX_CACHED_PAGE + 1)
+                for page in range(1, FEED_CACHE_MAX_CACHED_PAGE + 1)
             ],
         )
         for call in mock_cache.set.call_args_list:
             payload = call.args[1]
             self.assertIn("results", payload)
             self.assertIn("next", payload)
+        # Once an empty page appears, all remaining writes must be empty too.
+        saw_empty = False
+        for call in mock_cache.set.call_args_list:
+            results = call.args[1]["results"]
+            if saw_empty or not results:
+                saw_empty = True
+                self.assertEqual(results, [])

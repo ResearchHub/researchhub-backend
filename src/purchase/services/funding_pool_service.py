@@ -20,6 +20,9 @@ from purchase.related_models.constants import (
     MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
 )
 from purchase.related_models.constants.currency import RSC
+from purchase.services.fundraise_notification_service import (
+    FundraiseNotificationService,
+)
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import BountyFee, Escrow
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
@@ -30,6 +33,15 @@ logger = logging.getLogger(__name__)
 
 class FundingPoolService:
     """Service for FundingPool contributions, distributions, and lifecycle helpers."""
+
+    def __init__(
+        self,
+        fundraise_notification_service: FundraiseNotificationService | None = None,
+    ) -> None:
+        """Configure notification delivery for pool contributions and distributions."""
+        self.fundraise_notification_service = (
+            fundraise_notification_service or FundraiseNotificationService()
+        )
 
     def create_pool_for_grant(self, grant: Grant) -> FundingPool:
         """Create the community contribution pot for a grant (one pool per grant)."""
@@ -181,6 +193,13 @@ class FundingPoolService:
             pool.amount_holding += amount
             pool.save(update_fields=["amount_holding", "updated_date"])
 
+            transaction.on_commit(
+                lambda: self.fundraise_notification_service.notify_grant_authors(
+                    purchase.id
+                ),
+                robust=True,
+            )
+
         return purchase
 
     def _resolve_distribution_target(
@@ -300,6 +319,13 @@ class FundingPoolService:
                 target_fundraise=fundraise,
                 fundraise_purchase=purchase,
                 status=FundingDistribution.APPLIED,
+            )
+
+            transaction.on_commit(
+                lambda: self.fundraise_notification_service.notify_contribution_authors(
+                    purchase.id, RSC
+                ),
+                robust=True,
             )
 
         return distribution

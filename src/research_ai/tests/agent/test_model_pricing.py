@@ -53,6 +53,37 @@ class ModelPricingTests(SimpleTestCase):
         # Assert
         self.assertEqual(cost, 554_000)
 
+    def test_new_model_prices_and_long_context_rates(self):
+        # Arrange
+        cases = (
+            ("claude_platform", "claude-opus-5-5", 2_400_000),
+            ("openrouter", "openai/gpt-6-sol", 1_200_000),
+            ("openrouter", "openai/gpt-6-luna", 60_000),
+            ("openrouter", "qwen/qwen3.8-max-0902", 800_000),
+        )
+
+        # Act / Assert
+        for provider, model_id, expected in cases:
+            with self.subTest(model_id=model_id):
+                usage = TurnUsage(input_tokens=100_000, output_tokens=100_000)
+                self.assertEqual(cost_microusd(provider, model_id, usage), expected)
+
+        # Long-context pricing applies to the full GPT-6 request.
+        usage = TurnUsage(input_tokens=272_001, output_tokens=1_000)
+        self.assertEqual(
+            cost_microusd("openrouter", "openai/gpt-6-luna", usage), 55_150
+        )
+
+    def test_opus_5_5_cache_reads_use_its_model_specific_rate(self):
+        # Arrange
+        usage = TurnUsage(cache_read_tokens=1_000_000)
+
+        # Act
+        cost = cost_microusd("claude_platform", "claude-opus-5-5", usage)
+
+        # Assert: Claude lists $0.20 per million cached input tokens.
+        self.assertEqual(cost, 200_000)
+
     def test_unpriced_model_returns_none(self):
         self.assertIsNone(cost_microusd("openrouter", "unknown/model", TurnUsage(1, 1)))
 

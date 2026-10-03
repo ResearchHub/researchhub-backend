@@ -25,16 +25,29 @@ scoped with ``note_ids``; notes outside the scope get the same not-found
 error as inaccessible ones. A surface that starts without a note can pass a
 ``note_creator`` to expose ``create_note``; a note it creates joins the scope
 for the rest of the turn.
+
+Stored documents carry editor scaffolding (uuid block ids and a trailing
+empty paragraph; see ``utils.prosemirror.editor_shape``) that is hidden from
+the model: reads omit it, edits apply against the note without it, and every
+saved version gets it back. A stale edit returns the note's current version
+so the model can re-apply against it, and ``changed_notes_notice`` tells a new
+turn which notes changed since the model last saw them.
 """
 
 import logging
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Iterable
 
 from django.db import transaction
 
 from note.related_models.note_model import Note, NoteContent, parse_note_json
 from note.services.note_content_service import NoteContentService
-from research_ai.services.agent import Tool, Toolset
+from research_ai.services.agent import (
+    Message,
+    Tool,
+    ToolResultBlock,
+    Toolset,
+    ToolUseBlock,
+)
 from research_ai.services.note_block_edits import (
     apply_block_edits,
     check_block_edits,
@@ -44,7 +57,13 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
 )
-from utils.prosemirror import BLOCK_EDITOR, compact_blocks, parse_blocks
+from utils.prosemirror import (
+    BLOCK_EDITOR,
+    EDITOR_ID_ATTRS,
+    compact_blocks,
+    is_trailing_paragraph,
+    parse_blocks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -192,8 +211,10 @@ class NoteToolset:
                     "available inside code_execution. Pass edits as an actual "
                     "array of operation objects, never a JSON-encoded string. "
                     "Pass the version_id from your latest read_note or "
-                    "edit_note result as expected_version_id; the edit is "
-                    "rejected as stale if the note changed since. "
+                    "edit_note result as expected_version_id; if the note "
+                    "changed since (e.g. the user edited it), the edit is "
+                    "rejected as stale and the result's `current` holds the "
+                    "note's current version to re-apply your edit against. "
                     "Send only the blocks you are changing -- "
                     "untouched blocks stay exactly as stored. "
                     f"{_BLOCK_FORMAT} New blocks are validated against the "
@@ -328,7 +349,9 @@ class NoteToolset:
             blocks = None
         else:
             try:
-                blocks = compact_blocks(BLOCK_EDITOR, doc)
+                blocks = compact_blocks(BLOCK_EDITOR, doc, omit_attrs=EDITOR_ID_ATTRS)
+                if blocks and is_trailing_paragraph(doc["content"][-1]):
+                    blocks.pop()
             except ValueError as exc:
                 # Stored content is expected to parse (pre-schema notes were
                 # cleaned up), so surface the mismatch instead of hiding it.
@@ -422,53 +445,105 @@ class NoteToolset:
 
         expected = input.get("expected_version_id")
         try:
+            stale = False
             with transaction.atomic():
                 # Lock the note row so the version check and the append are
                 # one atomic step; a concurrent edit blocks here and then
                 # sees the new latest_version_id (-> stale error) on entry.
                 locked = Note.objects.select_for_update().get(id=note.id)
                 if locked.latest_version_id != expected:
-                    return {
-                        "error": (
-                            f"stale version: note {locked.id} is at version "
-                            f"{locked.latest_version_id}, expected {expected}; "
-                            "call read_note again and re-apply your edit"
-                        )
-                    }
-                stored = (
-                    parse_note_json(locked.latest_version.json)
-                    if locked.latest_version
-                    else None
-                )
-                base = stored.get("content") if stored else None
-                base = base if isinstance(base, list) else []
-                check_block_edits(edits, len(base))
-                content = apply_block_edits(base, edits)
-                if not content:
-                    return {
-                        "error": (
-                            "these edits would leave the note empty; "
-                            "a note needs at least one block"
-                        )
-                    }
-                document = {"type": "doc", "content": content}
-                version = self._service.create_version(
-                    locked,
-                    document,
-                    created_by=self._user,
-                    created_via=NoteContent.CREATED_VIA_AGENT,
-                    # The verified expected version is the base this edit was
-                    # applied against.
-                    parent_version_id=locked.latest_version_id,
-                )
+                    stale = True
+                else:
+                    version, block_count = self._apply_edits(locked, edits)
         except (ValueError, Note.DoesNotExist) as exc:
             return {"error": str(exc)}
+        if stale:
+            # Read outside the lock; a newer version landing meanwhile is
+            # caught by the next edit's check.
+            current = self._read_note({"note_id": note.id})
+            return {
+                "error": (
+                    f"stale version: note {note.id} changed since version "
+                    f"{expected}; nothing was saved. `current` is the note as "
+                    "it is now: re-apply your edit against its block indices "
+                    "and version_id (continue reading with read_note if you "
+                    "need blocks past this window)"
+                ),
+                "current": current,
+            }
         return {
             "note_id": note.id,
             "version_id": version.id,
             "saved": True,
-            "block_count": len(content),
+            "block_count": block_count,
         }
+
+    def _apply_edits(self, locked: Note, edits) -> tuple[NoteContent, int]:
+        """Save ``edits`` applied to ``locked``'s latest version.
+
+        Runs under the caller's row lock. Returns the new version and its
+        block count as read_note reports it. Raises ``ValueError``.
+        """
+        stored = (
+            parse_note_json(locked.latest_version.json)
+            if locked.latest_version
+            else None
+        )
+        base = stored.get("content") if stored else None
+        base = base if isinstance(base, list) else []
+        # Indices are the model's, which never include the trailing
+        # paragraph; the save puts it back.
+        if base and is_trailing_paragraph(base[-1]):
+            base = base[:-1]
+        check_block_edits(edits, len(base))
+        content = apply_block_edits(base, edits)
+        if not content:
+            raise ValueError(
+                "these edits would leave the note empty; "
+                "a note needs at least one block"
+            )
+        document = {"type": "doc", "content": content}
+        version = self._service.create_version(
+            locked,
+            document,
+            created_by=self._user,
+            created_via=NoteContent.CREATED_VIA_AGENT,
+            # The verified expected version is the base this edit was
+            # applied against.
+            parent_version_id=locked.latest_version_id,
+        )
+        saved = parse_note_json(version.json)["content"]
+        block_count = len(saved) - (1 if is_trailing_paragraph(saved[-1]) else 0)
+        return version, block_count
+
+    # -- turn context -----------------------------------------------------
+
+    def changed_notes_notice(self, messages: Iterable[Message]) -> str | None:
+        """A note for the model naming notes changed since it last saw them.
+
+        Scans ``messages`` (the conversation so far) for the last version of
+        each note a read/edit/create result showed, and compares it to the
+        note's current version. ``None`` when nothing it saw has changed.
+        """
+        changed = []
+        for note_id, seen in _last_seen_versions(messages).items():
+            note = self._get_readable_note(note_id)
+            if note is None or note.latest_version_id == seen:
+                continue
+            changed.append(
+                f"note {note_id} is now at version {note.latest_version_id} "
+                f"(you last saw version {seen})"
+            )
+        if not changed:
+            return None
+        return (
+            "[Notice from the system, not the user: "
+            + "; ".join(changed)
+            + ". It changed since you last read it, most likely because the "
+            "user edited it, so your earlier reads of it are out of date. "
+            "Call read_note before editing it and base the edit on that "
+            "version.]"
+        )
 
     def _get_readable_note(self, note_id) -> Note | None:
         """The note, or None when it does not exist or ``user`` cannot view it."""
@@ -489,3 +564,30 @@ class NoteToolset:
         if not note.permissions.has_user(self._user):
             return None
         return note
+
+
+_VERSIONED_RESULT_TOOLS = frozenset({READ_NOTE, EDIT_NOTE, CREATE_NOTE})
+
+
+def _last_seen_versions(messages: Iterable[Message]) -> dict[int, int | None]:
+    """Note id -> the last version id a note tool result showed the model."""
+    calls: set[str] = set()
+    seen: dict[int, int | None] = {}
+    for message in messages:
+        for block in message.content:
+            if (
+                isinstance(block, ToolUseBlock)
+                and block.name in _VERSIONED_RESULT_TOOLS
+            ):
+                calls.add(block.id)
+            elif isinstance(block, ToolResultBlock) and block.tool_use_id in calls:
+                content = block.content if isinstance(block.content, dict) else {}
+                # A stale edit's error carries the current read.
+                for result in (content, content.get("current")):
+                    if (
+                        isinstance(result, dict)
+                        and isinstance(result.get("note_id"), int)
+                        and "version_id" in result
+                    ):
+                        seen[result["note_id"]] = result["version_id"]
+    return seen

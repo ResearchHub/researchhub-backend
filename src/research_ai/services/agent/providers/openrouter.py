@@ -56,11 +56,12 @@ MAX_OUTPUT_TOKENS = 32_768
 # not silently change the workflow's reasoning depth. ``""`` omits the option.
 EFFORT = "low"
 
-# Same guard as the Bedrock adapter: Opus 4.7+ and Fable reject sampling params
+# Opus 4.7+, Fable, and OpenAI reasoning models reject sampling params
 # (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
-# provider verbatim, so omit them for those models here too.
+# provider verbatim, so omit them for those models.
 _NO_SAMPLING_PARAMS = (
     "openai/gpt-5",
+    "openai/gpt-6-",
     "opus-4-7",
     "opus-4-8",
     "opus-4.7",
@@ -70,6 +71,10 @@ _NO_SAMPLING_PARAMS = (
     "fable",
     "mythos",
 )
+
+# OpenAI supports function calling for these models via Chat Completions only
+# with reasoning effort set to none. This adapter uses Chat Completions.
+_GPT6_CHAT_TOOLS_MODELS = frozenset({"openai/gpt-6-sol", "openai/gpt-6-luna"})
 
 
 def _accepts_sampling_params(model_id: str) -> bool:
@@ -144,9 +149,12 @@ class OpenRouterProvider(LLMProvider):
     ):
         self.model_id = model_id or MODEL_ID
         capabilities = model_capabilities("openrouter", self.model_id)
-        self.effort = (
-            EFFORT if effort is None and EFFORT in capabilities.effort else effort or ""
-        )
+        if effort is not None:
+            self.effort = effort
+        elif self.model_id in _GPT6_CHAT_TOOLS_MODELS:
+            self.effort = "none"
+        else:
+            self.effort = EFFORT if EFFORT in capabilities.effort else ""
         self.thinking = thinking
         if client is not None:
             self._client = client
@@ -207,6 +215,12 @@ class OpenRouterProvider(LLMProvider):
         if _accepts_sampling_params(self.model_id):
             kwargs["temperature"] = temperature
         if rendered_tools:
+            if self.model_id in _GPT6_CHAT_TOOLS_MODELS and self.effort != "none":
+                raise ProviderError(
+                    "GPT-6 function calling through Chat Completions requires "
+                    "reasoning effort 'none'",
+                    retryable=False,
+                )
             kwargs["tools"] = rendered_tools
         reasoning: dict = {}
         if self.thinking is not None:
