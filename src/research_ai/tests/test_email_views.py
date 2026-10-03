@@ -1,7 +1,6 @@
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -13,14 +12,30 @@ from research_ai.models import (
     Expert,
     ExpertSearch,
     GeneratedEmail,
+    OutreachMailboxConnection,
     ProposalDraft,
     SearchExpert,
 )
+from research_ai.services.outreach.gmail_sender import OutreachSendResult
 from research_ai.services.proposal_draft.note_writer import write_proposal_note
 from research_ai.views.email_views import _normalize_template
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import GRANT
 from user.tests.helpers import create_random_authenticated_user
+
+
+def _connect_gmail(user, email: str = "editor@gmail.com"):
+    return OutreachMailboxConnection.objects.create(
+        user=user,
+        email=email,
+        provider=OutreachMailboxConnection.Provider.GMAIL,
+        refresh_token="refresh-token",
+        access_token="access-token",
+        access_token_expires_at=timezone.now() + timedelta(hours=1),
+        scopes=["https://www.googleapis.com/auth/gmail.send"],
+        status=OutreachMailboxConnection.Status.ACTIVE,
+        connected_at=timezone.now(),
+    )
 
 
 class NormalizeTemplateTests(APITestCase):
@@ -1092,11 +1107,13 @@ class BulkGenerateEmailViewTests(APITestCase):
 class PreviewEmailViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
+        _connect_gmail(self.moderator)
         self.url = "/api/research_ai/expert-finder/emails/preview/"
 
     def test_preview_user_no_email_returns_400(self):
         """When request.user has no email, preview returns 400."""
         user = create_random_authenticated_user("noemail", moderator=True)
+        _connect_gmail(user, email="noemail@gmail.com")
         user.email = ""
         user.save(update_fields=["email"])
         email_rec = GeneratedEmail.objects.create(
@@ -1117,6 +1134,26 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("email", response.json().get("detail", "").lower())
 
+    def test_preview_without_gmail_returns_409(self):
+        user = create_random_authenticated_user("nogmail", moderator=True)
+        email_rec = GeneratedEmail.objects.create(
+            created_by=user,
+            expert_name="Dr. X",
+            email_subject="Subj",
+            email_body="Body",
+        )
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            self.url,
+            {
+                "generated_email_ids": [email_rec.id],
+                "reply_to": ["replies@example.com"],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.json().get("code"), "gmail_not_connected")
+
     def test_preview_without_reply_to_returns_400(self):
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
@@ -1136,6 +1173,7 @@ class PreviewEmailViewTests(APITestCase):
     @patch("research_ai.views.email_views.send_outreach_email")
     def test_preview_by_ids_sends_to_current_user(self, mock_send):
         reply_to_emails = ["sender-replies@example.com"]
+        mock_send.return_value = OutreachSendResult(message_id="gmail-1")
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. X",
@@ -1154,41 +1192,16 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json().get("sent"), 1)
         mock_send.assert_called_once()
-        call_kw = mock_send.call_args[1]
+        args, call_kw = mock_send.call_args
+        self.assertEqual(args[0], self.moderator)
+        self.assertEqual(args[1], self.moderator.email)
         self.assertEqual(call_kw["reply_to"], reply_to_emails)
-        self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, call_kw["from_email"])
-
-    @patch("research_ai.views.email_views.send_outreach_email")
-    def test_excludes_suppressed_previews_from_sent_count(
-        self, mock_send: MagicMock
-    ) -> None:
-        """Report a skipped preview without claiming delivery or returning an error."""
-        # Arrange
-        mock_send.return_value = None
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            email_subject="Subject",
-            email_body="Body",
-        )
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.post(
-            self.url,
-            {
-                "generated_email_ids": [email_rec.id],
-                "reply_to": ["reply@example.com"],
-            },
-            format="json",
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json(), {"sent": 0})
+        self.assertFalse(call_kw["inject_open_pixel"])
 
     @patch("research_ai.views.email_views.send_outreach_email")
     def test_preview_accepts_multiple_reply_to_addresses(self, mock_send):
         reply_to_emails = ["reply@example.com", "other@example.com"]
+        mock_send.return_value = OutreachSendResult(message_id="gmail-1")
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. X",
@@ -1228,6 +1241,7 @@ class PreviewEmailViewTests(APITestCase):
 class SendEmailViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
+        _connect_gmail(self.moderator)
         self.url = "/api/research_ai/expert-finder/emails/send/"
 
     def test_send_without_reply_to_returns_400(self):
@@ -1248,6 +1262,30 @@ class SendEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("reply_to", response.json())
+
+    def test_send_without_gmail_returns_409(self):
+        user = create_random_authenticated_user("nogmail_send", moderator=True)
+        email_rec = GeneratedEmail.objects.create(
+            created_by=user,
+            expert_name="Dr. Y",
+            expert_email="expert@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status="draft",
+        )
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            self.url,
+            {
+                "generated_email_ids": [email_rec.id],
+                "reply_to": ["reply@example.com"],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(response.json().get("code"), "gmail_not_connected")
+        email_rec.refresh_from_db()
+        self.assertEqual(email_rec.status, "draft")
 
     @patch("research_ai.views.email_views.send_queued_emails_task")
     def test_send_queues_emails_and_returns_immediately(self, mock_task):
@@ -1277,15 +1315,18 @@ class SendEmailViewTests(APITestCase):
         call_kw = mock_task.delay.call_args[1]
         self.assertEqual(call_kw["generated_email_ids"], [email_rec.id])
         self.assertEqual(call_kw["reply_to"], reply_to_emails)
-        from_email = call_kw["from_email"]
-        self.assertIn("ResearchHub", from_email)
-        self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, from_email)
+        self.assertEqual(call_kw["sender_user_id"], self.moderator.id)
+        self.assertNotIn("from_email", call_kw)
 
     @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):
         from research_ai.tasks import send_queued_emails_task
 
-        mock_send.return_value = "ses-msg-id-123"
+        mock_send.return_value = OutreachSendResult(
+            message_id="gmail-msg-id-123",
+            thread_id="thread-123",
+            open_tracking_token="pixel-token",
+        )
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. Y",
@@ -1299,7 +1340,7 @@ class SendEmailViewTests(APITestCase):
                 "generated_email_ids": [email_rec.id],
                 "reply_to": None,
                 "cc": None,
-                "from_email": None,
+                "sender_user_id": self.moderator.id,
             }
         ).get()
         self.assertEqual(result["sent"], 1)
@@ -1307,5 +1348,8 @@ class SendEmailViewTests(APITestCase):
         email_rec.refresh_from_db()
         self.assertEqual(email_rec.status, "sent")
         self.assertEqual(email_rec.channels, [GeneratedEmail.Channel.EMAIL])
-        self.assertEqual(email_rec.ses_message_id, "ses-msg-id-123")
+        self.assertEqual(email_rec.gmail_message_id, "gmail-msg-id-123")
+        self.assertEqual(email_rec.gmail_thread_id, "thread-123")
+        self.assertEqual(email_rec.open_tracking_token, "pixel-token")
         mock_send.assert_called_once()
+        self.assertTrue(mock_send.call_args[1]["inject_open_pixel"])

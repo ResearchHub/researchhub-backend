@@ -410,13 +410,12 @@ GOOGLE_CLIENT_SECRET = os.environ.get(
     "GOOGLE_CLIENT_SECRET", getattr(keys, "GOOGLE_CLIENT_SECRET", "")
 )
 
-# Expert Finder: personal Gmail outreach OAuth redirect + FE return after connect.
+# Expert Finder: personal Gmail outreach OAuth.
 # Empty env/keys values fall through to these defaults (same pattern as ORCID).
-_DEFAULT_GMAIL_OUTREACH_REDIRECT = (
-    f"{os.environ.get('BASE_BACKEND_URL', 'http://localhost:8000').rstrip('/')}"
-    "/api/research_ai/expert-finder/mailbox/callback/"
+BASE_BACKEND_URL = os.environ.get("BASE_BACKEND_URL", "http://localhost:8000").rstrip(
+    "/"
 )
-_DEFAULT_GMAIL_OUTREACH_FRONTEND_RETURN = (
+_DEFAULT_GMAIL_OUTREACH_REDIRECT = (
     f"{BASE_FRONTEND_URL.rstrip('/')}/expert-finder/settings"
 )
 GMAIL_OUTREACH_REDIRECT_URI = (
@@ -424,10 +423,11 @@ GMAIL_OUTREACH_REDIRECT_URI = (
     or getattr(keys, "GMAIL_OUTREACH_REDIRECT_URI", "")
     or _DEFAULT_GMAIL_OUTREACH_REDIRECT
 )
+# Kept for ops/env compatibility; FE owns the return page after connect.
 GMAIL_OUTREACH_FRONTEND_RETURN_URL = (
     os.environ.get("GMAIL_OUTREACH_FRONTEND_RETURN_URL")
     or getattr(keys, "GMAIL_OUTREACH_FRONTEND_RETURN_URL", "")
-    or _DEFAULT_GMAIL_OUTREACH_FRONTEND_RETURN
+    or _DEFAULT_GMAIL_OUTREACH_REDIRECT
 )
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases

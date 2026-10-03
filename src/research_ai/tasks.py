@@ -13,6 +13,11 @@ from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.outreach.email_generator import generate_expert_email
 from research_ai.services.outreach.email_sender import send_outreach_email
+from research_ai.services.outreach.gmail_sender import (
+    GmailNeedsReauthError,
+    GmailNotConnectedError,
+    new_open_tracking_token,
+)
 from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
@@ -619,47 +624,63 @@ def send_queued_emails_task(
     generated_email_ids: list[int],
     reply_to: list[str] | None = None,
     cc: list[str] | None = None,
-    from_email: str | None = None,
+    sender_user_id: int | None = None,
 ):
     """
-    Send generated emails that are in SENDING status. Updates each to SENT on
-    success or SEND_FAILED on failure.
+    Send generated emails that are in SENDING status via the editor's Gmail.
+
+    Updates each to SENT on success or SEND_FAILED on failure. On Gmail
+    invalid_grant / needs_reauth, marks remaining queued rows SEND_FAILED.
     """
 
     cc_list = list(cc or [])
     reply_to_list = list(reply_to or [])
-    qs = GeneratedEmail.objects.filter(
-        id__in=generated_email_ids,
-        status=GeneratedEmail.Status.SENDING,
-    ).order_by("id")
+    sender = None
+    if sender_user_id is not None:
+        sender = User.objects.filter(id=sender_user_id).first()
+    qs = (
+        GeneratedEmail.objects.filter(
+            id__in=generated_email_ids,
+            status=GeneratedEmail.Status.SENDING,
+        )
+        .select_related("created_by")
+        .order_by("id")
+    )
     sent = 0
     failed = 0
+    abort_remaining = False
     for rec in qs:
+        if abort_remaining:
+            GeneratedEmail.objects.filter(id=rec.id).update(
+                status=GeneratedEmail.Status.SEND_FAILED,
+                updated_date=timezone.now(),
+            )
+            failed += 1
+            continue
         if not (rec.expert_email or "").strip():
             rec.status = GeneratedEmail.Status.SEND_FAILED
             rec.save(update_fields=["status", "updated_date"])
             failed += 1
             continue
+        send_as = sender or rec.created_by
         try:
-            ses_message_id = send_outreach_email(
+            tracking_token = new_open_tracking_token()
+            result = send_outreach_email(
+                send_as,
                 rec.expert_email,
                 rec.email_subject,
                 rec.email_body,
                 reply_to=reply_to_list or None,
                 cc=cc_list or None,
-                from_email=from_email,
+                inject_open_pixel=True,
+                open_tracking_token=tracking_token,
             )
-            if ses_message_id is None:
-                GeneratedEmail.objects.filter(id=rec.id).update(
-                    status=GeneratedEmail.Status.SEND_FAILED,
-                    updated_date=timezone.now(),
-                )
-                failed += 1
-                continue
             GeneratedEmail.objects.filter(id=rec.id).update(
                 status=GeneratedEmail.Status.SENT,
                 channels=[GeneratedEmail.Channel.EMAIL],
-                ses_message_id=ses_message_id,
+                gmail_message_id=result.message_id,
+                gmail_thread_id=result.thread_id or "",
+                open_tracking_token=result.open_tracking_token or tracking_token,
                 updated_date=timezone.now(),
             )
             ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
@@ -669,6 +690,17 @@ def send_queued_emails_task(
                 # Don't let an access-grant failure mask a successful send.
                 logger.exception("Grant access on send failed id=%s", rec.id)
             sent += 1
+        except (GmailNotConnectedError, GmailNeedsReauthError):
+            logger.exception(
+                "Gmail mailbox unavailable for send id=%s; failing remaining",
+                rec.id,
+            )
+            GeneratedEmail.objects.filter(id=rec.id).update(
+                status=GeneratedEmail.Status.SEND_FAILED,
+                updated_date=timezone.now(),
+            )
+            failed += 1
+            abort_remaining = True
         except Exception:
             logger.exception("Send to expert failed id=%s", rec.id)
             GeneratedEmail.objects.filter(id=rec.id).update(

@@ -10,13 +10,11 @@ import logging
 from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlparse
 
 import requests
 from allauth.socialaccount.models import SocialApp
 from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.core import signing
 from django.db import transaction
 from django.utils import timezone
 
@@ -26,10 +24,8 @@ from research_ai.models.outreach_mailbox_connection import (
     normalize_outreach_mailbox_email,
 )
 
-User = get_user_model()
 logger = logging.getLogger(__name__)
 
-GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
@@ -41,7 +37,6 @@ GMAIL_OUTREACH_SCOPES = (
     "https://www.googleapis.com/auth/gmail.readonly",
 )
 
-STATE_MAX_AGE = 600
 REQUEST_TIMEOUT = 30
 
 
@@ -61,11 +56,20 @@ class GmailMailboxNotAllowedError(Exception):
         super().__init__(f"Mailbox not allowed for outreach: {email}")
 
 
-def is_valid_frontend_return_url(url: str | None) -> bool:
-    """Validate optional FE return URL against CORS whitelist."""
+class GmailOAuthRedirectUriError(Exception):
+    """redirect_uri is missing or not on an allowlisted origin."""
+
+
+def is_allowed_oauth_redirect_uri(url: str | None) -> bool:
+    """Validate OAuth redirect_uri against CORS origins."""
     if not url:
         return False
+    configured = getattr(settings, "GMAIL_OUTREACH_REDIRECT_URI", "") or ""
+    if configured and url == configured:
+        return True
     parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return False
     return f"{parsed.scheme}://{parsed.netloc}" in settings.CORS_ALLOWED_ORIGINS
 
 
@@ -143,7 +147,7 @@ class GmailOAuthClient:
 
 
 class GmailOAuthService:
-    """Build auth URLs, handle callback, and disconnect outreach Gmail."""
+    """Provide connect params, exchange FE auth codes, and disconnect Gmail."""
 
     def __init__(self, client: GmailOAuthClient | None = None):
         self.client = client or GmailOAuthClient()
@@ -171,48 +175,33 @@ class GmailOAuthService:
             "last_error": connection.last_error or None,
         }
 
-    def build_auth_url(
-        self, user_id: int, return_url: str | None = None
-    ) -> dict[str, str]:
-        """Return Google OAuth URL + signed state for Connect Gmail."""
+    def get_connect_params(self) -> dict[str, Any]:
+        """
+        Return values FE needs to build the Google auth URL.
+        """
         client_id, _ = get_google_oauth_credentials()
-        state_data: dict[str, Any] = {"user_id": user_id}
-        if is_valid_frontend_return_url(return_url):
-            state_data["return_url"] = return_url
-        state = signing.dumps(state_data)
-        params = {
-            "client_id": client_id,
-            "redirect_uri": settings.GMAIL_OUTREACH_REDIRECT_URI,
-            "response_type": "code",
-            "scope": " ".join(GMAIL_OUTREACH_SCOPES),
-            "access_type": "offline",
-            "include_granted_scopes": "true",
-            "prompt": "consent",
-            "state": state,
-        }
         return {
-            "auth_url": f"{GOOGLE_AUTH_URL}?{urlencode(params)}",
-            "state": state,
+            "client_id": client_id,
+            "scopes": list(GMAIL_OUTREACH_SCOPES),
+            "redirect_uri": settings.GMAIL_OUTREACH_REDIRECT_URI,
         }
 
-    def process_callback(self, code: str, state: str) -> str:
-        """Exchange code, enforce personal Gmail, upsert connection, return FE URL."""
-        return_url = None
-        try:
-            user, return_url = self._validate_state(state)
-            token_data = self._exchange_code(code)
-            email = self._email_from_token_response(token_data)
-            self._save_connection(user, email=email, token_data=token_data)
-            logger.info(
-                "Gmail outreach mailbox connected for user %s: %s", user.id, email
-            )
-            return self.get_redirect_url(return_url=return_url)
-        except GmailMailboxNotAllowedError as exc:
-            logger.warning("Rejected non-Gmail outreach mailbox: %s", exc.email)
-            return self.get_redirect_url(error="error", return_url=return_url)
-        except Exception:
-            logger.exception("Gmail outreach OAuth callback failed")
-            return self.get_redirect_url(error="error", return_url=return_url)
+    def connect_with_code(
+        self, user, *, code: str, redirect_uri: str
+    ) -> dict[str, Any]:
+        """
+        Exchange FE-posted auth code, enforce personal Gmail.
+        """
+        if not code:
+            raise GmailOAuthError("Missing authorization code")
+        if not is_allowed_oauth_redirect_uri(redirect_uri):
+            raise GmailOAuthRedirectUriError("Invalid redirect_uri")
+
+        token_data = self._exchange_code(code, redirect_uri=redirect_uri)
+        email = self._email_from_token_response(token_data)
+        self._save_connection(user, email=email, token_data=token_data)
+        logger.info("Gmail outreach mailbox connected for user %s: %s", user.id, email)
+        return self.get_connection_status(user)
 
     def disconnect(self, user) -> dict[str, Any]:
         """Revoke Google token if possible and mark connection revoked."""
@@ -250,37 +239,14 @@ class GmailOAuthService:
             "last_error": None,
         }
 
-    def get_redirect_url(
-        self, error: str | None = None, return_url: str | None = None
-    ) -> str:
-        """Build FE redirect with ?gmail=connected or ?gmail=error."""
-        base = (
-            return_url
-            if is_valid_frontend_return_url(return_url)
-            else settings.GMAIL_OUTREACH_FRONTEND_RETURN_URL
-        )
-        if not base:
-            base = settings.BASE_FRONTEND_URL
-        sep = "&" if "?" in base else "?"
-        value = error or "connected"
-        return f"{base}{sep}gmail={value}"
-
-    def _validate_state(self, state: str) -> tuple[Any, str | None]:
-        try:
-            state_data = signing.loads(state, max_age=STATE_MAX_AGE)
-        except signing.BadSignature as exc:
-            raise GmailOAuthError("Invalid state") from exc
-        user = User.objects.get(id=state_data.get("user_id"))
-        return user, state_data.get("return_url")
-
-    def _exchange_code(self, code: str) -> dict[str, Any]:
+    def _exchange_code(self, code: str, *, redirect_uri: str) -> dict[str, Any]:
         client_id, client_secret = get_google_oauth_credentials()
         try:
             token_data = self.client.exchange_code_for_token(
                 code=code,
                 client_id=client_id,
                 client_secret=client_secret,
-                redirect_uri=settings.GMAIL_OUTREACH_REDIRECT_URI,
+                redirect_uri=redirect_uri,
             )
         except requests.RequestException as exc:
             raise GmailOAuthError("Token exchange failed") from exc

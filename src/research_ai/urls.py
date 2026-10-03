@@ -34,7 +34,6 @@ from research_ai.views.expert_finder_views import (
     InvitedExpertOverviewView,
 )
 from research_ai.views.mailbox_views import (
-    OutreachMailboxCallbackView,
     OutreachMailboxConnectView,
     OutreachMailboxView,
 )
@@ -96,10 +95,6 @@ urlpatterns = [
     path(
         "expert-finder/mailbox/connect/",
         OutreachMailboxConnectView.as_view(),
-    ),
-    path(
-        "expert-finder/mailbox/callback/",
-        OutreachMailboxCallbackView.as_view(),
     ),
     path("expert-finder/generate-email/", GenerateEmailView.as_view()),
     path(
