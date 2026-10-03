@@ -5,6 +5,9 @@ SALT_KEY = os.environ.get("SALT_KEY", "test-salt-key")
 
 AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", "awsRegionName1")
 AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "awsBucketName1")
+AWS_PRIVATE_STORAGE_BUCKET_NAME = os.environ.get(
+    "AWS_PRIVATE_STORAGE_BUCKET_NAME", "awsPrivateBucketName1"
+)
 AWS_SES_REGION_ENDPOINT = os.environ.get("AWS_SES_REGION_ENDPOINT", "")
 AWS_S3_CUSTOM_DOMAIN = os.environ.get(
     "AWS_S3_CUSTOM_DOMAIN", "storage.dev.researchhub.com"

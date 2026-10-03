@@ -521,14 +521,11 @@ class PostViewSetVisibilityTests(AWSMockTestCase):
 
 
 class FundingFeedPrivacyTests(AWSMockTestCase):
-    """The public funding feed excludes private preregistrations for everyone.
+    """Funding discovery: ``:public`` stays public-only; entitled users get
+    private rows on ``:viewer-*`` / ``:admin`` segments.
 
-    Private posts remain reachable via the direct post endpoint (see
-    PostViewSetVisibilityTests) and via the grant-scoped feed for users who can
-    access them (see GrantScopedFundingFeedTests). The un-scoped feed is a
-    discovery surface and has no business showing private work even to authors
-    or grant owners — keeping it user-agnostic also lets us cache it for
-    everyone.
+    Anonymous and unrelated users never see private posts. Authors and grant
+    owners see them on their viewer segment. Moderators see them on ``:admin``.
     """
 
     def setUp(self):
@@ -583,27 +580,27 @@ class FundingFeedPrivacyTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn(self.private_post.id, self._ids(response))
 
-    def test_author_does_not_see_own_private(self):
+    def test_author_sees_own_private_on_viewer_segment(self):
         client = APIClient()
         client.force_authenticate(self.author)
         response = client.get(reverse("funding_feed-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn(self.private_post.id, self._ids(response))
+        self.assertIn(self.private_post.id, self._ids(response))
 
-    def test_grant_owner_does_not_see_application_private(self):
+    def test_grant_owner_sees_application_private_on_viewer_segment(self):
         client = APIClient()
         client.force_authenticate(self.grant_owner)
         response = client.get(reverse("funding_feed-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn(self.private_post.id, self._ids(response))
+        self.assertIn(self.private_post.id, self._ids(response))
 
-    def test_response_cached_across_viewer_identities(self):
-        """Auth and anonymous viewers share one cached payload."""
+    def test_viewer_segment_does_not_leak_into_public_cache(self):
+        """Authored private posts use ``:viewer-*``; anon ``:public`` stays clean."""
         author_client = APIClient()
         author_client.force_authenticate(self.author)
         author_response = author_client.get(reverse("funding_feed-list"))
         self.assertEqual(author_response.status_code, status.HTTP_200_OK)
-        self.assertNotIn(self.private_post.id, self._ids(author_response))
+        self.assertIn(self.private_post.id, self._ids(author_response))
 
         anonymous_client = APIClient()
         anonymous_response = anonymous_client.get(reverse("funding_feed-list"))

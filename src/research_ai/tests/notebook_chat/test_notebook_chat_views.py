@@ -187,14 +187,14 @@ class NotebookChatViewTests(APITestCase):
         response, _delay = self._post_message(
             chat_id,
             effort="high",
-            thinking="disabled",
+            thinking="adaptive",
         )
 
         # Assert
         self.assertEqual(response.status_code, 202)
         execution = AgentExecution.objects.get(id=response.data["execution_id"])
         self.assertEqual(execution.configuration["effort"], "high")
-        self.assertEqual(execution.configuration["thinking"], "disabled")
+        self.assertEqual(execution.configuration["thinking"], "adaptive")
         chat = self.client.get(self._chat_url(chat_id))
         self.assertEqual(chat.data["executions"][0]["effort"], "high")
 
@@ -252,7 +252,7 @@ class NotebookChatViewTests(APITestCase):
         response, _delay = self._post_message(
             chat_id,
             text="Use another model",
-            model="claude_platform:claude-opus-5",
+            model="claude_platform:claude-opus-5-5",
         )
 
         # Assert

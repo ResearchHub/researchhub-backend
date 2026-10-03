@@ -18,7 +18,10 @@ from research_ai.models import (
 )
 from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.agent.model_capabilities import EFFORT_LEVELS
-from research_ai.services.agent.model_catalog import available_models
+from research_ai.services.agent.model_catalog import (
+    available_models,
+    supported_model_refs,
+)
 from research_ai.services.agent.model_pricing import cost_microusd, model_pricing
 from research_ai.services.agent.providers.registry import (
     generator_model_ref,
@@ -160,7 +163,7 @@ def _validate_model(policy: TierPolicy, model_ref: str) -> None:
     provider, model_id = split_model_ref(model_ref)
     if model_pricing(provider, model_id or "") is None:
         raise ModelNotAllowedError(f"model {model_ref!r} has no reviewed pricing")
-    if model_ref not in {option.ref for option in available_models()}:
+    if model_ref not in supported_model_refs():
         raise ModelNotAllowedError(f"model {model_ref!r} is not configured")
 
 

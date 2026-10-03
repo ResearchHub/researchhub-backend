@@ -1,5 +1,6 @@
 import logging
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count
 from rest_framework.serializers import (
     CharField,
@@ -329,13 +330,44 @@ class ResearchhubPostSerializer(
                     "title": grant_post.title if grant_post else None,
                     "applicant_count": applicant_counts.get(grant.id, 0),
                     "application_visibility": grant.application_visibility,
+                    "application_id": application.id,
+                    "created_by": {"id": grant.created_by_id},
+                    "funding_pool": self._serialize_grant_funding_pool(grant),
                     "proposal": {
                         "unified_document_id": ud_id,
                         "ai_peer_review": ai_peer_review,
+                        "application_id": application.id,
                     },
                 }
             )
         return out
+
+    def _serialize_grant_funding_pool(self, grant):
+        """Expose pool holding/distributed/raised on nested grants[]."""
+        from purchase.serializers.funding_pool_serializer import (
+            DynamicFundingPoolSerializer,
+        )
+
+        try:
+            pool = grant.funding_pool
+        except ObjectDoesNotExist:
+            return None
+
+        # Always use the amount-only shape. Retrieve installs
+        # FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT under pch_dgs_get_funding_pool
+        # for the post's own grant pool; reading that key here would serialize
+        # contributors for every pool in grants[].
+        return DynamicFundingPoolSerializer(
+            pool,
+            context=self.context,
+            _include_fields=(
+                "id",
+                "amount_holding",
+                "amount_distributed",
+                "amount_raised",
+                "status",
+            ),
+        ).data
 
     @staticmethod
     def _get_grant_image(grant_post):
