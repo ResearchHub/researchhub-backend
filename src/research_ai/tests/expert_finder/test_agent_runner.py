@@ -197,6 +197,24 @@ class GroundSubmittedExpertsTests(SimpleTestCase):
         self.assertTrue(any("identity mismatch" in e for e in errors))
         self.ses.get_email_address_insights.assert_not_called()
 
+    def test_drops_duplicate_openalex_id_after_email_gate(self):
+        # Arrange: same grounded author, two accepted emails. First row wins.
+        first = _expert_row(email="ada@mit.edu")
+        second = _expert_row(
+            author_id="A999",
+            email="ada.expert@broadinstitute.org",
+        )
+        # Act
+        kept, errors = ground_submitted_experts(
+            [first, second],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+        )
+        # Assert
+        self.assertEqual([row["email"] for row in kept], ["ada@mit.edu"])
+        self.assertTrue(any("duplicate openalex_author_id" in e for e in errors))
+
     def test_drops_invalid_email(self):
         # Arrange
         self.ses.get_email_address_insights.return_value = _insights(

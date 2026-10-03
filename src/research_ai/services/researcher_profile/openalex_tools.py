@@ -18,9 +18,8 @@ final profile from these records so a hallucinated citation cannot survive.
 import logging
 from collections.abc import Callable
 
-import bm25s
-
 from research_ai.services.agent import Tool, Toolset
+from research_ai.services.passage_search import relevant_passages
 from research_ai.services.pdf_text import (
     extract_text_from_pdf_bytes,
     get_pdf_bytes_from_url,
@@ -46,9 +45,7 @@ _MAX_WORKS_PER_CALL = 50  # ceiling on a single get_author_works fetch
 _MAX_FULLTEXT_FETCHES = 6  # per-run ceiling on full-text reads
 _MAX_FULLTEXT_SOURCE_CHARS = 120000
 _MAX_PASSAGES = 5
-_MAX_PASSAGE_CHARS = 1400
 _MAX_FULLTEXT_QUERY_CHARS = 500
-_BM25_TOKEN_PATTERN = r"(?u)\b\w[\w-]*\b"
 
 
 def _institution_names(record: dict) -> list[str]:
@@ -536,97 +533,17 @@ class OpenAlexToolset:
             raise ValueError(f"numeric bound must be between {minimum} and {maximum}")
         return value
 
-    @classmethod
-    def _relevant_passages(cls, text: str, query: str, *, limit: int) -> list[dict]:
-        """Rank overlapping text windows with Lucene-compatible BM25."""
-        candidates = cls._passage_candidates(text, query)
-        return cls._select_nonoverlapping_passages(candidates, limit=limit)
-
-    @classmethod
-    def _passage_candidates(
-        cls, text: str, query: str
-    ) -> list[tuple[float, int, int, str]]:
-        windows = cls._passage_windows(text)
-        if not windows:
-            return []
-        corpus_tokens = cls._bm25_tokens([passage for *_, passage in windows])
-        query_tokens = cls._bm25_tokens([query])
-        if not query_tokens[0]:
-            return []
-
-        # Match OpenSearch/Lucene's BM25 variant for local, transient passages.
-        retriever = bm25s.BM25(method="lucene")
-        retriever.index(corpus_tokens, show_progress=False)
-        ranked = retriever.retrieve(
-            query_tokens,
-            corpus=list(range(len(windows))),
-            k=len(windows),
-            show_progress=False,
-        )
-        candidates = []
-        for window_index, score in zip(
-            ranked.documents[0], ranked.scores[0], strict=True
-        ):
-            if score <= 0:
-                continue
-            start, end, passage = windows[int(window_index)]
-            candidates.append((float(score), start, end, passage))
-        return candidates
-
     @staticmethod
-    def _bm25_tokens(texts: list[str]) -> list[list[str]]:
-        return bm25s.tokenize(
-            texts,
-            token_pattern=_BM25_TOKEN_PATTERN,
-            # BM25 downweights document-common terms without a global stop list.
-            stopwords=None,
-            return_ids=False,
-            show_progress=False,
-        )
-
-    @staticmethod
-    def _passage_windows(text: str) -> list[tuple[int, int, str]]:
-        window_size = _MAX_PASSAGE_CHARS
-        overlap = 240
-        windows = []
-        start = 0
-        while start < len(text):
-            end = min(start + window_size, len(text))
-            if end < len(text):
-                boundary = text.rfind(" ", start + window_size // 2, end)
-                if boundary > start:
-                    end = boundary
-            passage = " ".join(text[start:end].split())
-            windows.append((start, end, passage))
-            if end >= len(text):
-                break
-            start = max(start + 1, end - overlap)
-        return windows
-
-    @staticmethod
-    def _select_nonoverlapping_passages(
-        candidates: list[tuple[float, int, int, str]], *, limit: int
-    ) -> list[dict]:
-        selected = []
-        selected_ranges: list[tuple[int, int]] = []
-        for score, start, end, passage in candidates:
-            if any(
-                start < kept_end and end > kept_start
-                for kept_start, kept_end in selected_ranges
-            ):
-                continue
-            selected_ranges.append((start, end))
-            selected.append(
-                {
-                    "start_char": start,
-                    "end_char": end,
-                    "score": round(score, 4),
-                    "text": passage,
-                }
-            )
-            if len(selected) >= limit:
-                break
-        return selected
+    def _relevant_passages(text: str, query: str, *, limit: int) -> list[dict]:
+        return [
+            {
+                "start_char": passage.start,
+                "end_char": passage.end,
+                "score": round(passage.score, 4),
+                "text": passage.text,
+            }
+            for passage in relevant_passages([text], query, limit=limit)
+        ]
 
     @staticmethod
     def _fetch_pdf_text(pdf_url: str) -> str:

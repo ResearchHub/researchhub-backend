@@ -53,7 +53,7 @@ class ProposalDraftCreateServiceTests(TestCase):
             search_expert=self.search_expert,
             created_by=self.user,
             effort="high",
-            thinking="disabled",
+            thinking="adaptive",
         )
 
         # Assert
@@ -62,7 +62,7 @@ class ProposalDraftCreateServiceTests(TestCase):
         self.assertTrue(draft.model_ref)
         self.assertEqual(
             draft.run_config,
-            {"effort": "high", "thinking": "disabled"},
+            {"effort": "high", "thinking": "adaptive"},
         )
         self.assertIsNotNone(draft.usage_reservation_expires_at)
         enqueue.assert_called_once_with(draft.id)

@@ -17,11 +17,13 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from discussion.serializers import VoteSerializer
 from feed.activity_feed_cache import (
-    ACTIVITY_FEED_CACHE_PAGE_SIZE,
-    ACTIVITY_FEED_CACHE_TIMEOUT,
-    ACTIVITY_FEED_MAX_CACHED_PAGE,
     activity_feed_cache_key,
     should_cache_activity_feed,
+)
+from feed.cache_segment import (
+    FEED_CACHE_MAX_CACHED_PAGE,
+    FEED_CACHE_PAGE_SIZE,
+    FEED_CACHE_TIMEOUT,
 )
 from feed.feed_visibility import exclude_hidden_feed_entries
 from feed.models import FeedEntry
@@ -181,7 +183,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         response_data = self.get_paginated_response(serializer.data).data
 
         if cache_key:
-            cache.set(cache_key, response_data, timeout=ACTIVITY_FEED_CACHE_TIMEOUT)
+            cache.set(cache_key, response_data, timeout=FEED_CACHE_TIMEOUT)
 
         if request.user.is_authenticated:
             self.add_user_votes_to_response(request.user, response_data)
@@ -428,7 +430,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     def build_page_payload(
         cls,
         page: int,
-        page_size: int = ACTIVITY_FEED_CACHE_PAGE_SIZE,
+        page_size: int = FEED_CACHE_PAGE_SIZE,
     ) -> dict:
         """Serialize one unscoped public discovery page (for cache warm)."""
         factory = APIRequestFactory()
@@ -455,13 +457,22 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     @classmethod
     def warm_public_cache(cls) -> None:
         """Replace cached payloads for pages 1–MAX with fresh public data."""
-        for page in range(1, ACTIVITY_FEED_MAX_CACHED_PAGE + 1):
+        for page in range(1, FEED_CACHE_MAX_CACHED_PAGE + 1):
             payload = cls.build_page_payload(page)
             cache.set(
                 activity_feed_cache_key(page),
                 payload,
-                timeout=ACTIVITY_FEED_CACHE_TIMEOUT,
+                timeout=FEED_CACHE_TIMEOUT,
             )
+            if not payload.get("results"):
+                # Feed shrank: overwrite any stale higher-page payloads.
+                for tail_page in range(page + 1, FEED_CACHE_MAX_CACHED_PAGE + 1):
+                    cache.set(
+                        activity_feed_cache_key(tail_page),
+                        payload,
+                        timeout=FEED_CACHE_TIMEOUT,
+                    )
+                break
 
     @staticmethod
     def _filter_by_author(

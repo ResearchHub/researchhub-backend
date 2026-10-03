@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
+from research_ai.services.agent_files import AgentFileService
 from research_ai.services.expert_finder import finder as expert_finder_mod
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
@@ -39,6 +40,8 @@ logger = logging.getLogger(__name__)
 NOTEBOOK_CHAT_TURN_TIME_LIMIT = 2 * 60 * 60
 PROPOSAL_DRAFT_TIME_LIMIT = 4 * 60 * 60
 HARD_TIME_LIMIT_GRACE = 5 * 60
+# A lost file task is failed by the first status read past its timeout.
+AGENT_FILE_PROCESSING_TIME_LIMIT = 5 * 60
 
 
 def _update_search_progress(
@@ -278,6 +281,26 @@ def reclaim_lost_agent_runs():
         "executions": [execution.id for execution in executions],
         "proposal_drafts": [draft.id for draft in drafts],
     }
+
+
+@app.task(
+    queue=QUEUE_AGENTS,
+    soft_time_limit=AGENT_FILE_PROCESSING_TIME_LIMIT,
+    time_limit=AGENT_FILE_PROCESSING_TIME_LIMIT + HARD_TIME_LIMIT_GRACE,
+)
+def process_agent_file_task(file_id: int):
+    """
+    Extract the text of one uploaded chat file.
+    """
+    return {"file_id": file_id, "status": AgentFileService().process(file_id)}
+
+
+@app.task(queue=QUEUE_AGENTS)
+def purge_agent_files():
+    """
+    Delete chat files never sent and files of removed conversations.
+    """
+    return {"purged": AgentFileService().purge()}
 
 
 @app.task(

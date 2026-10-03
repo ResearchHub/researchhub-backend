@@ -12,6 +12,7 @@ from ai_peer_review.serializers import ProposalReviewSerializer
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
 from purchase.models import Grant, GrantApplication
+from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
@@ -1794,6 +1795,7 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         make_user_verified(self.user)
         self.moderator = create_random_default_user("prereg_grants_mod")
         make_user_verified(self.moderator)
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency="USD")
 
         def make_grant(short_suffix):
             grant_post = create_post(created_by=self.moderator, document_type=GRANT)
@@ -1810,6 +1812,13 @@ class PreregistrationGrantsPayloadTests(APITestCase):
 
         self.grant_a = make_grant("A")
         self.grant_b = make_grant("B")
+        self.funding_pool_a = FundingPool.objects.create(
+            grant=self.grant_a,
+            created_by=self.moderator,
+            amount_holding=100,
+            amount_distributed=50,
+            status=FundingPool.OPEN,
+        )
 
         self.prereg_post = create_post(
             title="Prereg title for grants payload",
@@ -1817,12 +1826,12 @@ class PreregistrationGrantsPayloadTests(APITestCase):
             created_by=self.user,
             document_type=PREREGISTRATION,
         )
-        GrantApplication.objects.create(
+        self.application_a = GrantApplication.objects.create(
             grant=self.grant_a,
             preregistration_post=self.prereg_post,
             applicant=self.user,
         )
-        GrantApplication.objects.create(
+        self.application_b = GrantApplication.objects.create(
             grant=self.grant_b,
             preregistration_post=self.prereg_post,
             applicant=self.user,
@@ -1875,10 +1884,22 @@ class PreregistrationGrantsPayloadTests(APITestCase):
             entry_a["application_visibility"],
             Grant.APPLICATION_VISIBILITY_OPTIONAL,
         )
+        self.assertEqual(entry_a["application_id"], self.application_a.id)
+        self.assertEqual(entry_a["created_by"]["id"], self.moderator.id)
+        funding_pool_a = entry_a["funding_pool"]
+        self.assertEqual(funding_pool_a["id"], self.funding_pool_a.id)
+        self.assertEqual(funding_pool_a["status"], FundingPool.OPEN)
+        self.assertEqual(float(funding_pool_a["amount_holding"]["rsc"]), 100.0)
+        self.assertEqual(float(funding_pool_a["amount_distributed"]["rsc"]), 50.0)
+        self.assertEqual(float(funding_pool_a["amount_raised"]["rsc"]), 150.0)
+        self.assertIn("usd", funding_pool_a["amount_holding"])
+        self.assertIn("usd", funding_pool_a["amount_distributed"])
+        self.assertIn("usd", funding_pool_a["amount_raised"])
         proposal_a = entry_a["proposal"]
         self.assertEqual(
             proposal_a["unified_document_id"], self.prereg_post.unified_document_id
         )
+        self.assertEqual(proposal_a["application_id"], self.application_a.id)
         review_a = proposal_a["ai_peer_review"]
         self.assertIsNotNone(review_a)
         review_obj = ProposalReview.objects.get(
@@ -1895,6 +1916,10 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         self.assertIsNone(entry_b["image_url"])
         self.assertEqual(entry_b["title"], grant_b_post.title)
         self.assertEqual(entry_b["applicant_count"], 1)
+        self.assertEqual(entry_b["application_id"], self.application_b.id)
+        self.assertEqual(entry_b["created_by"]["id"], self.moderator.id)
+        self.assertIsNone(entry_b["funding_pool"])
+        self.assertEqual(entry_b["proposal"]["application_id"], self.application_b.id)
         self.assertIsNone(entry_b["proposal"]["ai_peer_review"])
 
     def test_get_non_preregistration_returns_empty_grants(self):

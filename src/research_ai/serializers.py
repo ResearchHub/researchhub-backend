@@ -1073,6 +1073,16 @@ class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
     model = ModelSelectionField()
 
 
+class AgentFileCreateSerializer(serializers.Serializer):
+    """Request body for starting an upload; the type comes from the extension."""
+
+    filename = serializers.CharField(max_length=1024)
+    size_bytes = serializers.IntegerField(min_value=1)
+    content_type = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, default=""
+    )
+
+
 class NotebookChatCreateSerializer(serializers.Serializer):
     """
     Request body for creating a chat on a note.
