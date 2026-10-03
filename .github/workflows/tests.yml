@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
 
     services:
@@ -92,12 +92,3 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./src/coverage.xml
-
-  build:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    needs: test
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
