@@ -5,7 +5,7 @@
 - ``agent_runner`` -- tool-using agent (OpenAlex + Brave + SES + submit_experts)
   via ``resolve_provider()``; grounds OpenAlex ids and re-validates emails.
 - ``web_search_tools`` -- Brave contact ``web_search`` for the agent path.
-- ``openai_finder`` -- the OpenAI-backed finder variant (legacy path).
+- ``openai_finder`` -- legacy OpenAI Responses path (unused by the live finder).
 - ``openalex_tools`` -- works-first OpenAlex tools (``search_works`` + author
   lookup) with author/work grounding for the agent path.
 - ``email_validation`` -- expert-finder email gate (role-local rejection,

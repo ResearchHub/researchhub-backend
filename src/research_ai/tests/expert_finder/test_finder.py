@@ -268,20 +268,36 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         "research_ai.services.expert_finder.finder.generate_pdf_report",
         return_value=b"p",
     )
-    @patch("research_ai.services.expert_finder.finder.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder.finder.generator_model_ref")
+    @patch("research_ai.services.expert_finder.finder.run_expert_finder_agent")
     def test_run_success_persists_and_returns_completed(
-        self, mock_openai_class, _pdf, _csv, _up
+        self, mock_agent, mock_model_ref, _pdf, _csv, _up
     ):
-        expert_json = (
-            '{"experts": ['
-            '{"email": "u@mit.edu", "first_name": "U", "last_name": "V", '
-            '"academic_title": "Prof", "affiliation": "MIT", "expertise": "X", "notes": "N", "sources": []}'  # noqa: E501
-            "]}"
-        )
-        mock_oa = MagicMock()
-        mock_oa.model_id = "m1"
-        mock_oa.invoke.return_value = expert_json
-        mock_openai_class.return_value = mock_oa
+        # Arrange
+        mock_model_ref.return_value = "bedrock:test-model"
+        mock_agent.return_value = {
+            "experts": [
+                {
+                    "email": "u@mit.edu",
+                    "first_name": "U",
+                    "last_name": "V",
+                    "academic_title": "Prof",
+                    "affiliation": "MIT",
+                    "expertise": "X",
+                    "notes": "N",
+                    "sources": [
+                        {
+                            "text": "OpenAlex",
+                            "url": "https://openalex.org/A123",
+                        }
+                    ],
+                    "openalex_author_id": "https://openalex.org/A123",
+                }
+            ],
+            "errors": [],
+        }
+
+        # Act
         r = run_expert_finder_search(
             str(self.search.id),
             "query",
@@ -291,12 +307,16 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
                 "region": Region.ALL_REGIONS,
             },
         )
+
+        # Assert
         self.assertEqual(r["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(r["expert_count"], 1)
+        self.assertEqual(r["llm_model"], "bedrock:test-model")
         se = SearchExpert.objects.filter(expert_search_id=self.search.id)
         self.assertEqual(se.count(), 1)
         self.assertTrue(Expert.objects.filter(email="u_test@mit.edu").exists())
         self.assertFalse(Expert.objects.filter(email="u@mit.edu").exists())
+        mock_agent.assert_called_once()
 
 
 class PriorDocumentExpertExclusionTests(TestCase):
