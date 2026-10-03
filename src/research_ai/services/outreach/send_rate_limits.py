@@ -1,9 +1,9 @@
 """Per-mailbox daily caps for Expert Finder Gmail outreach sends.
 
-Quota is calendar-day UTC (``TIME_ZONE = "UTC"``). ``SENT`` and ``SENDING``
-both count so queued bulk reservations consume the daily budget. A send
-request that exceeds remaining quota is rejected entirely (nothing queued).
-See ``send_pacing`` for bulk inter-send gaps.
+Quota resets at 00:00. ``SENT`` today and every outstanding ``SENDING`` row
+count so queued bulk reservations consume the budget even across that
+cutoff. A send request that exceeds remaining quota is rejected entirely
+(nothing queued). See ``send_pacing`` for bulk inter-send gaps.
 
 Follow-up (not implemented): sync Gmail bounce / delivery / reply state into
 ``GeneratedEmail`` statuses beyond the legacy SES handlers.
@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 
 from research_ai.constants import OUTREACH_SEND_DAILY_CAP_DEFAULT
@@ -28,20 +29,13 @@ def _cap(name: str, default: int) -> int:
     return max(0, int(getattr(settings, name, default)))
 
 
-def utc_day_start(now=None):
-    """Start of the current UTC calendar day."""
-    now = now or timezone.now()
-    return now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-
-def utc_next_midnight(now=None):
-    """Next UTC midnight after ``now`` (quota reset instant)."""
-    return utc_day_start(now) + timedelta(days=1)
+def _today_start():
+    return timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 @dataclass(frozen=True)
 class SendQuota:
-    """Remaining send slots for one mailbox owner (UTC calendar day)."""
+    """Remaining send slots for one mailbox owner."""
 
     used_day: int
     daily_cap: int
@@ -57,41 +51,41 @@ class SendQuota:
 
 def get_send_quota(user) -> SendQuota:
     """
-    Count SENT/SENDING outreach for ``user`` since UTC midnight.
+    Count today's SENT outreach plus every outstanding SENDING reservation.
 
-    Mailbox ownership is 1:1 with the editor user, so ``created_by`` matches
-    the connected Gmail account used on send.
+    ``SENDING`` still occupies a slot until it sends or fails, including rows
+    reserved before 00:00. Mailbox ownership is 1:1 with the editor user, so
+    ``created_by`` matches the connected Gmail account used on send.
     """
     daily_cap = _cap("OUTREACH_SEND_DAILY_CAP", OUTREACH_SEND_DAILY_CAP_DEFAULT)
-    day_start = utc_day_start()
-
-    used_day = GeneratedEmail.objects.filter(
-        created_by=user,
-        status__in=(
-            GeneratedEmail.Status.SENT,
-            GeneratedEmail.Status.SENDING,
-        ),
-        updated_date__gte=day_start,
-    ).count()
+    start = _today_start()
+    used_day = (
+        GeneratedEmail.objects.filter(created_by=user)
+        .filter(
+            Q(status=GeneratedEmail.Status.SENDING)
+            | Q(status=GeneratedEmail.Status.SENT, updated_date__gte=start)
+        )
+        .count()
+    )
     return SendQuota(used_day=used_day, daily_cap=daily_cap)
 
 
 def get_daily_usage(user) -> dict:
-    """On-the-fly UTC-day usage breakdown for mailbox status."""
+    """Usage breakdown for mailbox status."""
     quota = get_send_quota(user)
-    day_start = utc_day_start()
-    base = GeneratedEmail.objects.filter(
-        created_by=user,
-        updated_date__gte=day_start,
-    )
-    sent_today = base.filter(status=GeneratedEmail.Status.SENT).count()
-    queued_today = base.filter(status=GeneratedEmail.Status.SENDING).count()
+    start = _today_start()
+    owned = GeneratedEmail.objects.filter(created_by=user)
+    sent_today = owned.filter(
+        status=GeneratedEmail.Status.SENT,
+        updated_date__gte=start,
+    ).count()
+    queued_today = owned.filter(status=GeneratedEmail.Status.SENDING).count()
     return {
         "daily_cap": quota.daily_cap,
         "sent_today": sent_today,
         "queued_today": queued_today,
         "remaining_today": quota.remaining_day,
-        "resets_at": utc_next_midnight().isoformat(),
+        "resets_at": (start + timedelta(days=1)).isoformat(),
     }
 
 

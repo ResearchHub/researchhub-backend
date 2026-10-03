@@ -74,15 +74,40 @@ class SendQuotaUnitTests(TestCase):
             status_value=GeneratedEmail.Status.SENT,
             age=timedelta(days=2),
         )
+        _make_counted(
+            self.user,
+            status_value=GeneratedEmail.Status.SENDING,
+            age=timedelta(days=1),
+        )
         _make_draft(self.user)
 
         # Act
         quota = get_send_quota(self.user)
 
+        # Assert — yesterday's SENT is ignored; yesterday's SENDING still counts
+        self.assertEqual(quota.used_day, 3)
+        self.assertEqual(quota.remaining_day, 17)
+        self.assertEqual(quota.remaining, 17)
+
+    @override_settings(OUTREACH_SEND_DAILY_CAP=2)
+    def test_sending_reserved_before_midnight_blocks_new_day_cap(self):
+        # Arrange — paced bulk row still SENDING after 00:00
+        _make_counted(
+            self.user,
+            status_value=GeneratedEmail.Status.SENDING,
+            age=timedelta(days=1),
+        )
+
+        # Act
+        quota = get_send_quota(self.user)
+        usage = get_daily_usage(self.user)
+
         # Assert
-        self.assertEqual(quota.used_day, 2)
-        self.assertEqual(quota.remaining_day, 18)
-        self.assertEqual(quota.remaining, 18)
+        self.assertEqual(quota.used_day, 1)
+        self.assertEqual(quota.remaining_day, 1)
+        self.assertEqual(usage["sent_today"], 0)
+        self.assertEqual(usage["queued_today"], 1)
+        self.assertEqual(usage["remaining_today"], 1)
 
     @override_settings(OUTREACH_SEND_DAILY_CAP=20)
     def test_daily_usage_breakdown(self):
@@ -157,6 +182,29 @@ class SendEmailRateLimitViewTests(APITestCase):
         self.assertEqual(body["requested"], 1)
         self.assertIn("only 0 remaining today", body["detail"].lower())
         self.assertEqual(body["deferred"], [draft.id])
+        draft.refresh_from_db()
+        self.assertEqual(draft.status, GeneratedEmail.Status.DRAFT)
+        mock_task.delay.assert_not_called()
+
+    @patch("research_ai.views.email_views.send_queued_emails_task")
+    @override_settings(OUTREACH_SEND_DAILY_CAP=1)
+    def test_sending_from_yesterday_consumes_todays_cap(self, mock_task):
+        # Arrange — reservation from before 00:00 still occupies the slot
+        _make_counted(
+            self.user,
+            status_value=GeneratedEmail.Status.SENDING,
+            age=timedelta(days=1),
+        )
+        draft = _make_draft(self.user)
+
+        # Act
+        response = self._post([draft.id])
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.json()["code"], RATE_LIMIT_CODE)
+        self.assertEqual(response.json()["used_today"], 1)
+        self.assertEqual(response.json()["remaining_today"], 0)
         draft.refresh_from_db()
         self.assertEqual(draft.status, GeneratedEmail.Status.DRAFT)
         mock_task.delay.assert_not_called()
