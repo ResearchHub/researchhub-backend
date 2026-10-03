@@ -3,6 +3,8 @@
 - ``finder`` -- the ``ExpertFinderService`` pipeline and the
   ``run_expert_finder_search`` entry point.
 - ``openai_finder`` -- the OpenAI-backed finder variant.
+- ``openalex_tools`` -- works-first OpenAlex tools (``search_works`` + author
+  lookup) with author/work grounding for the agent path.
 - ``json_parsing`` -- parsing/repair of the LLM's expert-list JSON output.
 - ``persist`` -- upserts found experts and search memberships.
 - ``source_enrichment`` -- post-persist LinkedIn/X/Google Scholar enrichment
