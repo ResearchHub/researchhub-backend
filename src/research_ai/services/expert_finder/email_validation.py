@@ -258,7 +258,11 @@ class EmailValidationService:
 class EmailValidateToolset:
     """Agent-facing ``email_validate`` tool over ``EmailValidationService``."""
 
-    def __init__(self, *, service: EmailValidationService | None = None):
+    def __init__(
+        self,
+        *,
+        service: EmailValidationService | None = None,
+    ):
         self._service = service or EmailValidationService()
 
     @property
