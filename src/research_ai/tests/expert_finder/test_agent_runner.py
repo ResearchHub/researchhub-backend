@@ -268,6 +268,27 @@ class GroundSubmittedExpertsTests(SimpleTestCase):
         self.assertEqual(errors, [])
         self.assertEqual(len(kept), 1)
 
+    def test_keeps_in_region_author_from_affiliation_country_codes(self):
+        # Arrange: last_known empty; cached synthetic still has affiliation codes.
+        self.oa.returned_author_records["a999"] = {
+            "id": "https://openalex.org/A999",
+            "last_known_institutions": [],
+            "affiliations": [
+                {"institution": {"display_name": "MIT", "country_code": "US"}}
+            ],
+        }
+        # Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+            region_filter=Region.US,
+        )
+        # Assert
+        self.assertEqual(errors, [])
+        self.assertEqual(len(kept), 1)
+
 
 class RunExpertFinderAgentTests(SimpleTestCase):
     def setUp(self):

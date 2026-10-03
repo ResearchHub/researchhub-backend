@@ -407,15 +407,19 @@ class ExpertFinderOpenAlexToolset:
                 "last_known_institutions": list(
                     view.get("last_known_institutions") or []
                 ),
-                "affiliations": [
-                    {"institution": {"display_name": name}}
-                    for name in (view.get("institutions") or [])
-                    if name
-                ],
+                "affiliations": self._affiliations_for_cache(view),
             }
-            self.returned_author_records[bare] = synthetic
+            if (
+                self.region_filter != Region.ALL_REGIONS
+                and not institution_country_codes(synthetic)
+            ):
+                fetched = self._fetch_and_cache_author(author_id)
+                if fetched is None:
+                    self.returned_author_records[bare] = synthetic
+            else:
+                self.returned_author_records[bare] = synthetic
 
-        record = self.returned_author_records[bare]
+        record = self.returned_author_records.get(bare) or {}
         country_codes = sorted(institution_country_codes(record))
         view["country_codes"] = country_codes
         if self.region_filter != Region.ALL_REGIONS:
@@ -437,6 +441,35 @@ class ExpertFinderOpenAlexToolset:
             view["matches_state"] = affiliation_mentions_state(
                 affiliation_text, self.state_filter
             )
+
+    @staticmethod
+    def _affiliations_for_cache(view: dict) -> list[dict]:
+        """OpenAlex-shaped affiliations, keeping compact-view country codes."""
+        rows: list[dict] = []
+        for item in view.get("affiliations") or []:
+            if not isinstance(item, dict):
+                continue
+            inst = item.get("institution") if "institution" in item else item
+            inst = inst or {}
+            name = str(inst.get("display_name") or "").strip()
+            code = str(inst.get("country_code") or "").strip().upper() or None
+            if not name and not code:
+                continue
+            rows.append(
+                {
+                    "institution": {
+                        "display_name": name or None,
+                        "country_code": code,
+                    }
+                }
+            )
+        if rows:
+            return rows
+        return [
+            {"institution": {"display_name": name}}
+            for name in (view.get("institutions") or [])
+            if name
+        ]
 
     def _cache_author_record(self, record: dict) -> str:
         bare = self._record_author(record.get("id"), record.get("display_name"))

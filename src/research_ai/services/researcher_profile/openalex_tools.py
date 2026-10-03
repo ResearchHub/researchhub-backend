@@ -61,6 +61,21 @@ def _institution_names(record: dict) -> list[str]:
     return names
 
 
+def _affiliation_institutions(record: dict) -> list[dict]:
+    """Compact affiliations with ISO country codes for region filters."""
+    out: list[dict] = []
+    for affiliation in record.get("affiliations") or []:
+        institution = (affiliation or {}).get("institution") or {}
+        name = str(institution.get("display_name") or "").strip()
+        code = str(institution.get("country_code") or "").strip().upper() or None
+        if not name and not code:
+            continue
+        out.append({"display_name": name or None, "country_code": code})
+        if len(out) >= _MAX_INSTITUTIONS:
+            break
+    return out
+
+
 def _last_known_institutions(record: dict) -> list[dict]:
     """Compact last-known institutions with ISO country codes for region filters."""
     out: list[dict] = []
@@ -89,6 +104,7 @@ def _author_view(record: dict) -> dict:
         ],
         "orcid": record.get("orcid"),
         "institutions": _institution_names(record),
+        "affiliations": _affiliation_institutions(record),
         "last_known_institutions": _last_known_institutions(record),
         "top_topics": [t for t in topics if t][:_MAX_TOPICS],
         "works_count": record.get("works_count"),
