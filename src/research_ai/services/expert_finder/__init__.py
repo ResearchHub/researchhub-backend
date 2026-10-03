@@ -2,6 +2,8 @@
 
 - ``finder`` -- the ``ExpertFinderService`` pipeline and the
   ``run_expert_finder_search`` entry point.
+- ``find_more_service`` -- lock, validate, enqueue, and roll back find-more
+  (append) runs.
 - ``agent_runner`` -- tool-using agent (OpenAlex + Brave + SES + submit_experts)
   via ``resolve_provider()``; grounds OpenAlex ids, hard-filters region, and
   re-validates emails.
