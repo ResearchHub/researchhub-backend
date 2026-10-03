@@ -10,7 +10,6 @@ from reputation.related_models.staking_global_snapshot import StakingGlobalSnaps
 from reputation.related_models.staking_user_snapshot import StakingUserSnapshot
 from reputation.related_models.staking_yield_record import StakingYieldRecord
 from reputation.related_models.support_fee import SupportFee
-from reputation.related_models.webhook import Webhook
 from reputation.related_models.withdrawal import Withdrawal
 
 __all__ = [
@@ -29,6 +28,5 @@ __all__ = [
     "StakingUserSnapshot",
     "StakingYieldRecord",
     "SupportFee",
-    "Webhook",
     "Withdrawal",
 ]

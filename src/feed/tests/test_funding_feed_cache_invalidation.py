@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
 from django.test import TestCase
@@ -41,7 +41,8 @@ class FundingFeedCacheInvalidationTests(TestCase):
         explicit = view.get_cache_key(drf2, "funding")
         self.assertEqual(explicit, expected)
 
-    def test_invalidate_clears_matching_cache_entry(self):
+    @patch("feed.tasks.warm_funding_feed_cache.delay")
+    def test_invalidate_clears_matching_cache_entry(self, mock_warm):
         view = FundingFeedViewSet()
         view.pagination_class = FeedPagination
         factory = APIRequestFactory()
@@ -59,3 +60,4 @@ class FundingFeedCacheInvalidationTests(TestCase):
         self.assertIsNotNone(cache.get(k))
         FundingCacheMixin.invalidate_funding_feed_cache()
         self.assertIsNone(cache.get(k))
+        mock_warm.assert_called_once()

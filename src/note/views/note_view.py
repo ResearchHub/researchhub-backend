@@ -18,7 +18,6 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet, ModelViewSet
 
-from invite.models import NoteInvitation
 from invite.serializers import DynamicNoteInvitationSerializer
 from invite.services import NoteInvitationExpiredError, NoteInvitationService
 from note.models import Note, NoteContent, parse_note_json
@@ -42,7 +41,6 @@ from researchhub_access_group.permissions import (
     HasAdminPermission,
     HasEditingPermission,
     HasOrgEditingPermission,
-    IsOrganizationUser,
 )
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -50,7 +48,7 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE,
     REGISTERED_REPORT,
 )
-from user.models import Organization, User
+from user.models import Organization
 from utils.prosemirror import BLOCK_EDITOR, parse_document
 
 logger = logging.getLogger(__name__)
@@ -301,66 +299,6 @@ class NoteViewSet(ModelViewSet):
 
     def destroy(self, request, pk=None):
         return self.delete(request, pk)
-
-    @action(detail=True, methods=["post"], permission_classes=[IsOrganizationUser])
-    def invite_user(self, request, pk=None):
-        inviter = request.user
-        data = request.data
-        note = self.get_object()
-        access_type = data.get("access_type")
-        recipient_email = data.get("email")
-        time_to_expire = int(data.get("expire", 1440))
-
-        recipient = User.objects.filter(email=recipient_email).first()
-
-        invite = NoteInvitation.create(
-            inviter=inviter,
-            recipient=recipient,
-            recipient_email=recipient_email,
-            note=note,
-            invite_type=access_type,
-            expiration_time=time_to_expire,
-        )
-        invite.send_invitation()
-        return Response({"data": "Invite sent"}, status=200)
-
-    @action(detail=True, methods=["get"])
-    def get_invited_users(self, request, pk=None):
-        note = self.get_object()
-        invited_users = (
-            note.invited_users.filter(accepted=False)
-            .exclude(expiration_date__lt=datetime.now(UTC))
-            .distinct("recipient_email")
-        )
-        serializer = DynamicNoteInvitationSerializer(
-            invited_users,
-            many=True,
-            _include_fields=[
-                "accepted",
-                "created_date",
-                "expiration_date",
-                "invite_type",
-                "recipient_email",
-            ],
-        )
-        return Response(serializer.data, status=200)
-
-    @action(
-        detail=True,
-        methods=["patch"],
-        permission_classes=[IsAuthenticated, IsOrganizationUser],
-    )
-    def remove_invited_user(self, request, pk=None):
-        data = request.data
-        note = self.get_object()
-        recipient_email = data.get("email")
-
-        invites = NoteInvitation.objects.filter(
-            recipient_email=recipient_email,
-            note=note,
-        )
-        invites.update(expiration_date=datetime.now(UTC))
-        return Response({"data": f"Invite removed for {recipient_email}"}, status=200)
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def get_note_by_key(self, request, pk=None):

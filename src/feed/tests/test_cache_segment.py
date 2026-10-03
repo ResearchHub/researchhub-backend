@@ -1,10 +1,17 @@
 from decimal import Decimal
 
+from django.contrib.auth.models import AnonymousUser
 from django.utils import timezone
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
-from feed.cache_segment import get_feed_cache_segment
+from feed.cache_segment import (
+    FEED_CACHE_SEGMENT_ADMIN,
+    FEED_CACHE_SEGMENT_PUBLIC,
+    get_feed_cache_segment,
+    is_cache_disabled,
+    is_cacheable_page,
+)
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from researchhub_document.helpers import create_post
@@ -27,11 +34,10 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         super().setUp()
         self.factory = APIRequestFactory()
 
-    def _request(self, user=None):
-        drf_request = Request(self.factory.get("/api/funding_feed/"))
+    def _request(self, user=None, query=""):
+        path = f"/api/funding_feed/{query}"
+        drf_request = Request(self.factory.get(path))
         if user is None:
-            from django.contrib.auth.models import AnonymousUser
-
             drf_request.user = AnonymousUser()
         else:
             drf_request.user = user
@@ -39,22 +45,36 @@ class FeedCacheSegmentTests(AWSMockTestCase):
 
     def test_anonymous_returns_public_segment(self):
         # Act
-        suffix, should_cache = get_feed_cache_segment(self._request())
+        suffix = get_feed_cache_segment(self._request(), supports_private=True)
 
         # Assert
-        self.assertEqual(suffix, ":public")
-        self.assertTrue(should_cache)
+        self.assertEqual(suffix, FEED_CACHE_SEGMENT_PUBLIC)
+
+    def test_activity_supports_private_false_always_public(self):
+        # Arrange
+        moderator = create_random_authenticated_user(
+            "cache_seg_act_mod", moderator=True
+        )
+
+        # Act / Assert
+        self.assertEqual(
+            get_feed_cache_segment(self._request(moderator), supports_private=False),
+            FEED_CACHE_SEGMENT_PUBLIC,
+        )
+        self.assertEqual(
+            get_feed_cache_segment(self._request(), supports_private=False),
+            FEED_CACHE_SEGMENT_PUBLIC,
+        )
 
     def test_user_without_private_access_returns_public_segment(self):
         # Arrange
         user = create_random_authenticated_user("cache_seg_plain")
 
         # Act
-        suffix, should_cache = get_feed_cache_segment(self._request(user))
+        suffix = get_feed_cache_segment(self._request(user), supports_private=True)
 
         # Assert
-        self.assertEqual(suffix, ":public")
-        self.assertTrue(should_cache)
+        self.assertEqual(suffix, FEED_CACHE_SEGMENT_PUBLIC)
 
     def test_applicant_with_private_prereg_returns_viewer_segment(self):
         # Arrange
@@ -73,11 +93,10 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         )
 
         # Act
-        suffix, should_cache = get_feed_cache_segment(self._request(applicant))
+        suffix = get_feed_cache_segment(self._request(applicant), supports_private=True)
 
         # Assert
         self.assertEqual(suffix, f":viewer-{applicant.id}")
-        self.assertTrue(should_cache)
 
     def test_grant_owner_with_private_application_returns_viewer_segment(self):
         # Arrange
@@ -104,11 +123,10 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         )
 
         # Act
-        suffix, should_cache = get_feed_cache_segment(self._request(owner))
+        suffix = get_feed_cache_segment(self._request(owner), supports_private=True)
 
         # Assert
         self.assertEqual(suffix, f":viewer-{owner.id}")
-        self.assertTrue(should_cache)
 
     def test_moderator_with_private_posts_uses_admin_segment(self):
         # Arrange
@@ -127,11 +145,10 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         )
 
         # Act
-        suffix, should_cache = get_feed_cache_segment(self._request(moderator))
+        suffix = get_feed_cache_segment(self._request(moderator), supports_private=True)
 
         # Assert
-        self.assertEqual(suffix, ":admin")
-        self.assertTrue(should_cache)
+        self.assertEqual(suffix, FEED_CACHE_SEGMENT_ADMIN)
 
     def test_hub_editor_uses_admin_segment(self):
         # Arrange
@@ -140,11 +157,10 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         editor, _ = create_hub_editor("cache_seg_editor", "Cache Seg Hub")
 
         # Act
-        suffix, should_cache = get_feed_cache_segment(self._request(editor))
+        suffix = get_feed_cache_segment(self._request(editor), supports_private=True)
 
         # Assert
-        self.assertEqual(suffix, ":admin")
-        self.assertTrue(should_cache)
+        self.assertEqual(suffix, FEED_CACHE_SEGMENT_ADMIN)
 
     def test_moderator_grant_owner_uses_admin_segment(self):
         # Arrange
@@ -173,8 +189,51 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         )
 
         # Act
-        suffix, should_cache = get_feed_cache_segment(self._request(moderator))
+        suffix = get_feed_cache_segment(self._request(moderator), supports_private=True)
 
         # Assert
-        self.assertEqual(suffix, ":admin")
-        self.assertTrue(should_cache)
+        self.assertEqual(suffix, FEED_CACHE_SEGMENT_ADMIN)
+
+
+class FeedCachePolicyHelpersTests(AWSMockTestCase):
+    def setUp(self):
+        super().setUp()
+        self.factory = APIRequestFactory()
+
+    def _request(self, path="/api/funding_feed/", user=None, params=None):
+        drf_request = Request(self.factory.get(path, params or {}))
+        drf_request.user = user if user is not None else AnonymousUser()
+        return drf_request
+
+    def test_is_cache_disabled_requires_mod_and_param(self):
+        # Arrange
+        mod = create_random_authenticated_user("dis_cache_mod", moderator=True)
+        plain = create_random_authenticated_user("dis_cache_plain")
+
+        # Act / Assert
+        self.assertFalse(is_cache_disabled(self._request()))
+        self.assertFalse(
+            is_cache_disabled(self._request(params={"disable_cache": "true"}))
+        )
+        self.assertFalse(
+            is_cache_disabled(
+                self._request(user=plain, params={"disable_cache": "true"})
+            )
+        )
+        self.assertTrue(
+            is_cache_disabled(self._request(user=mod, params={"disable_cache": "true"}))
+        )
+        self.assertTrue(
+            is_cache_disabled(self._request(user=mod, params={"disable_cache": "1"}))
+        )
+
+    def test_is_cacheable_page_window(self):
+        # Act / Assert
+        self.assertTrue(is_cacheable_page(self._request(params={"page": "1"})))
+        self.assertTrue(is_cacheable_page(self._request(params={"page": "20"})))
+        self.assertFalse(is_cacheable_page(self._request(params={"page": "21"})))
+        self.assertFalse(
+            is_cacheable_page(
+                self._request(params={"page": "1", "page_size": "40"}),
+            )
+        )

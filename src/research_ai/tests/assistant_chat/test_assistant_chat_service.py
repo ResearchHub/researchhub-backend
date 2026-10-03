@@ -247,7 +247,7 @@ class AssistantChatServiceTests(TestCase):
 
     def test_run_turn_accounts_usage_to_the_assistant_feature(self):
         # Arrange
-        execution, _delay = self._submit(model_ref="claude_platform:claude-opus-5")
+        execution, _delay = self._submit(model_ref="claude_platform:claude-opus-5-5")
 
         class UsageReportingProvider(FakeProvider):
             def complete(self, **kwargs):
@@ -265,7 +265,7 @@ class AssistantChatServiceTests(TestCase):
         # Assert
         event = execution.usage_events.get()
         self.assertEqual(event.feature, WORKFLOW)
-        self.assertEqual(budget_status(self.user).as_dict()["credits"]["used"], "7.5")
+        self.assertEqual(budget_status(self.user).as_dict()["credits"]["used"], "6")
 
     def test_get_conversation_is_scoped_to_owner_and_workflow(self):
         # Arrange

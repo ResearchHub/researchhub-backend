@@ -194,7 +194,7 @@ class UsageBudgetTests(TestCase):
         with self.assertRaisesRegex(ValueError, "not allowed"):
             check_turn_admission(
                 self.user,
-                "claude_platform:claude-opus-5",
+                "claude_platform:claude-opus-5-5",
             )
 
 
@@ -571,7 +571,7 @@ class RequiredModelPricingTests(SimpleTestCase):
         default = usage_budget_service.resolve_default_model(self.policy)
 
         # Assert
-        self.assertEqual(default, "claude_platform:claude-opus-5")
+        self.assertEqual(default, "claude_platform:claude-opus-5-5")
 
     def test_no_priced_model_prevents_default_selection(self):
         # Arrange / Act / Assert

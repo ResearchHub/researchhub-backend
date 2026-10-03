@@ -34,8 +34,8 @@ env:
   DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  package:
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
     if: |
@@ -46,6 +46,7 @@ jobs:
         github.event.workflow_run.conclusion == 'success'
       )
     outputs:
+      git_sha: ${{ steps.git_sha.outputs.git_sha }}
       short_git_sha: ${{ steps.git_sha.outputs.short_git_sha }}
 
     steps:
@@ -68,6 +69,7 @@ jobs:
           GIT_SHA=$(git rev-parse HEAD)
           echo "$GIT_SHA" > src/git_hash.txt
           SHORT_GIT_SHA=${GIT_SHA:0:7}
+          echo "git_sha=$GIT_SHA" >> "$GITHUB_OUTPUT"
           echo "short_git_sha=$SHORT_GIT_SHA" >> "$GITHUB_OUTPUT"
           echo "Git SHA: ${SHORT_GIT_SHA}"
 
@@ -113,40 +115,35 @@ jobs:
           name: "backend-${{ steps.git_sha.outputs.short_git_sha }}"
           path: target/deploy.zip
 
-  # Staging migrates with the ECS task before anything is deployed. Prod still
-  # migrates in the Beanstalk predeploy hook.
+  build:
+    needs: package
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/build.yml
+    with:
+      git_ref: ${{ needs.package.outputs.git_sha }}
+    secrets: inherit
+
   migrate:
-    if: |
-      (github.event.inputs.deploy_env || 'staging') == 'staging' &&
-      (
-        github.event_name == 'workflow_dispatch' ||
-        (
-          github.event_name == 'workflow_run' &&
-          github.event.workflow_run.event == 'push' &&
-          github.event.workflow_run.conclusion == 'success'
-        )
-      )
+    needs: [package, build]
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/database-migration.yml
     with:
-      git_ref: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
+      deploy_env: ${{ github.event.inputs.deploy_env || 'staging' }}
+      git_ref: ${{ needs.package.outputs.git_sha }}
     secrets: inherit
 
   deploy-api:
-    needs: [build, migrate]
-    # The migration is skipped for prod, which must not skip the deployment.
-    if: |
-      !cancelled() &&
-      needs.build.result == 'success' &&
-      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped')
-    runs-on: ubuntu-latest
+    needs: [package, migrate]
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       id-token: write # required for requesting JWT token from AWS
     env:
-      SHORT_GIT_SHA: ${{ needs.build.outputs.short_git_sha }}
+      SHORT_GIT_SHA: ${{ needs.package.outputs.short_git_sha }}
 
     steps:
       - name: Download deployment package
@@ -196,13 +193,8 @@ jobs:
           wait_for_environment_recovery: 300
 
   deploy-workers:
-    needs: [build, deploy-api]
-    # Without an explicit condition, the skipped prod migration further up the
-    # dependency chain would skip this job too, even though deploy-api succeeded.
-    if: |
-      !cancelled() &&
-      needs.deploy-api.result == 'success'
-    runs-on: ubuntu-latest
+    needs: [package, deploy-api]
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       id-token: write # required for requesting JWT token from AWS
@@ -211,7 +203,7 @@ jobs:
       matrix:
         worker: [main, cermine, lite]
     env:
-      SHORT_GIT_SHA: ${{ needs.build.outputs.short_git_sha }}
+      SHORT_GIT_SHA: ${{ needs.package.outputs.short_git_sha }}
 
     steps:
       - name: Download deployment package
@@ -260,24 +252,26 @@ jobs:
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 300
 
-  # The Docker environments only exist in staging, where the migration runs.
-  deploy-docker:
-    needs: migrate
-    permissions:
-      contents: read
-      id-token: write
-    uses: ./.github/workflows/deployment-docker.yml
-    with:
-      git_sha: ${{ needs.migrate.outputs.git_sha }}
-    secrets: inherit
-
-  # The ECS environments only exist in staging.
-  deploy-ecs:
+  deploy-ecs-api:
     needs: migrate
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/deployment-ecs.yml
     with:
+      deploy_env: ${{ github.event.inputs.deploy_env || 'staging' }}
       git_sha: ${{ needs.migrate.outputs.git_sha }}
+      service: api
+    secrets: inherit
+
+  deploy-ecs-celery-beat:
+    needs: migrate
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deployment-ecs.yml
+    with:
+      deploy_env: ${{ github.event.inputs.deploy_env || 'staging' }}
+      git_sha: ${{ needs.migrate.outputs.git_sha }}
+      service: celery-beat
     secrets: inherit

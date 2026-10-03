@@ -32,6 +32,8 @@ class Notification(models.Model):
     PAPER_CLAIMED = "PAPER_CLAIMED"
     ACCOUNT_VERIFIED = "ACCOUNT_VERIFIED"
     FUNDRAISE_PAYOUT = "FUNDRAISE_PAYOUT"
+    FUNDRAISE_CONTRIBUTION = "FUNDRAISE_CONTRIBUTION"
+    FUNDING_POOL_CONTRIBUTION = "FUNDING_POOL_CONTRIBUTION"
     PREREGISTRATION_UPDATE = "PREREGISTRATION_UPDATE"
     PUBLICATIONS_ADDED = "PUBLICATIONS_ADDED"
     """
@@ -70,6 +72,8 @@ class Notification(models.Model):
         (ACCOUNT_VERIFIED, ACCOUNT_VERIFIED),
         (PAPER_CLAIMED, PAPER_CLAIMED),
         (FUNDRAISE_PAYOUT, FUNDRAISE_PAYOUT),
+        (FUNDRAISE_CONTRIBUTION, FUNDRAISE_CONTRIBUTION),
+        (FUNDING_POOL_CONTRIBUTION, FUNDING_POOL_CONTRIBUTION),
         (PUBLICATIONS_ADDED, PUBLICATIONS_ADDED),
         (IDENTITY_VERIFICATION_UPDATED, IDENTITY_VERIFICATION_UPDATED),
         (PAPER_CLAIM_PAYOUT, PAPER_CLAIM_PAYOUT),
@@ -572,6 +576,36 @@ class Notification(models.Model):
             {
                 "type": "text",
                 "value": f" has been fulfilled and you have received {amount} RSC",
+            },
+        ], base_url
+
+    def _format_fundraise_contribution(self) -> tuple[list[dict[str, str]], str]:
+        """Format an author alert for a contribution to their proposal."""
+        return self._format_contribution("submitted a contribution to your proposal")
+
+    def _format_funding_pool_contribution(self) -> tuple[list[dict[str, str]], str]:
+        """Format an author alert for a contribution to their grant's funding pool."""
+        return self._format_contribution("submitted a contribution to your RFP")
+
+    def _format_contribution(self, message: str) -> tuple[list[dict[str, str]], str]:
+        """Format an alert reading '{contributor} {message}: <title>' for the work."""
+        document = self.unified_document.get_document()
+        doc_title = self._truncate_title(document.title)
+        base_url = self._create_frontend_doc_link()
+
+        return [
+            {
+                "type": "link",
+                "value": self.action_user.first_name,
+                "extra": '["bold", "link"]',
+                "link": self.action_user.frontend_view_link(),
+            },
+            {"type": "text", "value": f" {message}: "},
+            {
+                "type": "link",
+                "value": doc_title,
+                "link": base_url,
+                "extra": '["link"]',
             },
         ], base_url
 

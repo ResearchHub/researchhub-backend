@@ -5,14 +5,12 @@ from urllib.parse import unquote
 from django.conf import settings
 from django.core import mail
 from django.core.mail import EmailMultiAlternatives
-from django.template.loader import render_to_string
 from django.test import SimpleTestCase, TestCase, override_settings
 
 from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailService, EmailSubscriptionService
 
 TEMPLATE = "general_branded_email"
-TEMPLATE_WITH_TEXT = "support_receipt"
 BASE_CONTEXT = {"body": "hello", "subject": "Test"}
 
 
@@ -117,7 +115,7 @@ class SendEmailTests(TestCase):
         first, second = (msg.extra_headers["List-Unsubscribe"] for msg in mail.outbox)
         self.assertNotEqual(first, second)
 
-    def test_derives_the_text_body_from_the_html_when_no_text_template(self):
+    def test_derives_the_text_body_from_the_html(self):
         # Act
         self._send(["good@example.com"])
 
@@ -125,7 +123,7 @@ class SendEmailTests(TestCase):
         self.assertIn("hello", mail.outbox[0].body)
 
     def test_derived_text_body_excludes_embedded_css(self):
-        # Arrange: this template carries a <style> block and has no text template
+        # Arrange: this template carries a <style> block
         context = {"user_name": "user1", "subject": "subject1"}
 
         # Act
@@ -315,19 +313,6 @@ class SendTransactionalEmailTests(TestCase):
         headers = mail.outbox[0].extra_headers
         self.assertNotIn("List-Unsubscribe", headers)
         self.assertNotIn("List-Unsubscribe-Post", headers)
-
-    def test_renders_text_template_when_one_exists(self):
-        # Arrange
-        context = {"amount": 10, "date": "2026-01-01", "method": "RSC"}
-
-        # Act
-        self._send(
-            ["good@example.com"], template=TEMPLATE_WITH_TEXT, email_context=context
-        )
-
-        # Assert
-        expected = render_to_string(f"{TEMPLATE_WITH_TEXT}.txt", context)
-        self.assertEqual(mail.outbox[0].body, expected)
 
     def test_does_not_mark_mail_as_bulk(self):
         # Act
