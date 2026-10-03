@@ -141,18 +141,25 @@ def _finalize_expert_search_in_db(
         )
         return True
 
+    report_urls = result.get("report_urls") or {}
+    if not isinstance(report_urls, dict):
+        report_urls = {}
+    pdf_url = str(report_urls.get("pdf") or "").strip()
+    csv_url = str(report_urls.get("csv") or "").strip()
     update_fields = {
         "status": ExpertSearch.Status.COMPLETED,
         "progress": 100,
         "current_step": "Expert search completed!",
         "expert_count": result.get("expert_count", 0),
-        "report_pdf_url": result.get("report_urls", {}).get("pdf", ""),
-        "report_csv_url": result.get("report_urls", {}).get("csv", ""),
         "processing_time": processing_time,
         "completed_at": end_time,
         "llm_model": result.get("llm_model", ""),
         "error_message": (result.get("error_message") or "")[:10000],
     }
+    if pdf_url:
+        update_fields["report_pdf_url"] = pdf_url
+    if csv_url:
+        update_fields["report_csv_url"] = csv_url
     if isinstance(result.get("config"), dict):
         update_fields["config"] = result["config"]
     ExpertSearch.objects.filter(id=sid).update(**update_fields)
