@@ -37,6 +37,11 @@ GMAIL_OUTREACH_SCOPES = (
     "https://www.googleapis.com/auth/gmail.readonly",
 )
 
+# Google only issues a refresh_token for offline grants. prompt=consent is
+# required when reissuing a grant; otherwise Google omits the refresh token.
+GMAIL_OAUTH_ACCESS_TYPE = "offline"
+GMAIL_OAUTH_PROMPT = "consent"
+
 REQUEST_TIMEOUT = 30
 
 
@@ -184,6 +189,8 @@ class GmailOAuthService:
             "client_id": client_id,
             "scopes": list(GMAIL_OUTREACH_SCOPES),
             "redirect_uri": settings.GMAIL_OUTREACH_REDIRECT_URI,
+            "access_type": GMAIL_OAUTH_ACCESS_TYPE,
+            "prompt": GMAIL_OAUTH_PROMPT,
         }
 
     def connect_with_code(

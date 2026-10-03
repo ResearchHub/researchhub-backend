@@ -64,13 +64,15 @@ class GmailOAuthServiceTests(TestCase):
         self.assertEqual(client_id, "settings-client")
         self.assertEqual(secret, "settings-secret")
 
-    def test_get_connect_params_returns_client_id_scopes_and_redirect(self):
+    def test_get_connect_params_returns_offline_access_and_consent_prompt(self):
         # Act
         payload = self.service.get_connect_params()
 
         # Assert
         self.assertEqual(payload["client_id"], "google-client-id")
         self.assertEqual(payload["redirect_uri"], _FE_REDIRECT)
+        self.assertEqual(payload["access_type"], "offline")
+        self.assertEqual(payload["prompt"], "consent")
         self.assertIn("https://www.googleapis.com/auth/gmail.send", payload["scopes"])
         self.assertIn(
             "https://www.googleapis.com/auth/gmail.readonly", payload["scopes"]

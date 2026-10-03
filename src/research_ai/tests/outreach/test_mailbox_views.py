@@ -109,6 +109,8 @@ class OutreachMailboxViewTests(APITestCase):
                 "https://www.googleapis.com/auth/gmail.readonly",
             ],
             "redirect_uri": _FE_REDIRECT,
+            "access_type": "offline",
+            "prompt": "consent",
         }
         request = self.factory.get("/api/research_ai/expert-finder/mailbox/connect/")
         force_authenticate(request, user=self.editor)
@@ -122,6 +124,8 @@ class OutreachMailboxViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["client_id"], "google-client-id")
         self.assertEqual(response.data["redirect_uri"], _FE_REDIRECT)
+        self.assertEqual(response.data["access_type"], "offline")
+        self.assertEqual(response.data["prompt"], "consent")
         self.assertIn(
             "https://www.googleapis.com/auth/gmail.send", response.data["scopes"]
         )

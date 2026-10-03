@@ -50,7 +50,8 @@ class OutreachMailboxView(APIView):
 
 class OutreachMailboxConnectView(APIView):
     """
-    GET ``/expert-finder/mailbox/connect/`` — FE helper: client_id, scopes, redirect_uri.
+    GET ``/expert-finder/mailbox/connect/`` — FE helper: client_id, scopes,
+    redirect_uri, access_type, prompt.
     POST ``/expert-finder/mailbox/connect/`` — exchange Google auth code for mailbox.
     """
 
