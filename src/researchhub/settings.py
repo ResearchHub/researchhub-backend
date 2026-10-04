@@ -415,16 +415,6 @@ GOOGLE_CLIENT_SECRET = os.environ.get(
     "GOOGLE_CLIENT_SECRET", getattr(keys, "GOOGLE_CLIENT_SECRET", "")
 )
 
-# Expert Finder: personal Gmail outreach OAuth.
-# Empty env/keys values fall through to these defaults (same pattern as ORCID).
-_DEFAULT_GMAIL_OUTREACH_REDIRECT = (
-    f"{BASE_FRONTEND_URL.rstrip('/')}/expert-finder/settings"
-)
-GMAIL_OUTREACH_REDIRECT_URI = (
-    os.environ.get("GMAIL_OUTREACH_REDIRECT_URI")
-    or getattr(keys, "GMAIL_OUTREACH_REDIRECT_URI", "")
-    or _DEFAULT_GMAIL_OUTREACH_REDIRECT
-)
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 

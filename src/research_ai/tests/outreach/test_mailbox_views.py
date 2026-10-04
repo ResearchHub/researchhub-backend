@@ -22,7 +22,7 @@ _FE_REDIRECT = "http://localhost:3000/expert-finder/settings"
 
 
 @override_settings(
-    GMAIL_OUTREACH_REDIRECT_URI=_FE_REDIRECT,
+    BASE_FRONTEND_URL="http://localhost:3000",
 )
 class OutreachMailboxViewTests(APITestCase):
     def setUp(self):

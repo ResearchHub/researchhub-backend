@@ -65,12 +65,15 @@ class GmailOAuthRedirectUriError(Exception):
     """redirect_uri is missing or not on an allowlisted origin."""
 
 
+def gmail_outreach_redirect_uri() -> str:
+    return f"{settings.BASE_FRONTEND_URL.rstrip('/')}/expert-finder/settings"
+
+
 def is_allowed_oauth_redirect_uri(url: str | None) -> bool:
     """Validate OAuth redirect_uri against CORS origins."""
     if not url:
         return False
-    configured = getattr(settings, "GMAIL_OUTREACH_REDIRECT_URI", "") or ""
-    if configured and url == configured:
+    if url == gmail_outreach_redirect_uri():
         return True
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -193,7 +196,7 @@ class GmailOAuthService:
         return {
             "client_id": client_id,
             "scopes": list(GMAIL_OUTREACH_SCOPES),
-            "redirect_uri": settings.GMAIL_OUTREACH_REDIRECT_URI,
+            "redirect_uri": gmail_outreach_redirect_uri(),
             "access_type": GMAIL_OAUTH_ACCESS_TYPE,
             "prompt": GMAIL_OAUTH_PROMPT,
         }

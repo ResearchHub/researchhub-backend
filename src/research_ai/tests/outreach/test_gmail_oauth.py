@@ -32,7 +32,7 @@ def _create_google_social_app(
 
 
 @override_settings(
-    GMAIL_OUTREACH_REDIRECT_URI=_FE_REDIRECT,
+    BASE_FRONTEND_URL="http://localhost:3000",
     CORS_ALLOWED_ORIGINS=["http://localhost:3000", "https://researchhub.com"],
 )
 class GmailOAuthServiceTests(TestCase):

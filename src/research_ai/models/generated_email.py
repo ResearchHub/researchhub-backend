@@ -103,13 +103,6 @@ class GeneratedEmail(DefaultModel):
         blank=True,
         db_comment="Gmail thread ID for the sent outreach message.",
     )
-    open_tracking_token = models.CharField(
-        max_length=64,
-        blank=True,
-        null=True,
-        unique=True,
-        db_comment="Opaque token for the open-tracking pixel; set at send time.",
-    )
     opened_at = models.DateTimeField(
         null=True,
         blank=True,
