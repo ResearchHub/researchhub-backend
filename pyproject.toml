@@ -106,14 +106,8 @@ extend-select = [
     "DJ013", # django-non-leading-receiver-decorator
     "E",     # pycodestyle errors
     "FURB",  # refurb
-    #"G004",  # logging-fstring-interpolation
     "G201",  # logging-exc-info
     "I",     # isort
-    #"LOG001",#
-    #"LOG002",#
-    #"LOG004",#
-    #"LOG014",#
-    #"LOG015",#
     "N",     # pep8-naming
     "PERF",  # flake8-perf
     "PIE",   # flake8-pie
