@@ -33,7 +33,7 @@ case "${1:-api}" in
       worker \
       --concurrency "$concurrency" \
       --events \
-      --hostname "${CELERY_WORKER_NAME:-worker}" \
+      --hostname "${CELERY_WORKER_NAME:-worker}@%h" \
       --loglevel INFO \
       --pool "${CELERY_POOL:-prefork}" \
       --prefetch-multiplier 1 \
