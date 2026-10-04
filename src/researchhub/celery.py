@@ -229,13 +229,4 @@ app.conf.beat_schedule = {
             "expires": 55 * 60,
         },
     },
-    # Paper ingestion tasks
-    "paper-fetch-all": {
-        "task": "paper.ingestion.pipeline.fetch_all_papers",
-        "schedule": crontab(hour=1, minute=0),
-        "options": {
-            "priority": 1,
-            "queue": QUEUE_PULL_PAPERS,
-        },
-    },
 }
