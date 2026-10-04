@@ -38,6 +38,8 @@ on:
         options:
           - api
           - celery-beat
+          - celery-worker
+          - celery-worker-lite
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
