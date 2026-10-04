@@ -820,8 +820,6 @@ TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", keys.TURNSTILE_SEC
 # Amplitude
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
 
-# Killswitch Variables
-SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
 EXPERT_FINDER_OUTREACH_ENABLED = (
     os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
 )
