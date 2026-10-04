@@ -26,7 +26,7 @@ dependencies = [
     "django-allauth>=65.19.5,<66",
     "django-celery-results==2.6.0",
     "django-cors-headers>=4.9.0,<5",
-    "django-debug-toolbar==4.2",
+    "django-debug-toolbar>=8.0.0,<9",
     "django-extensions==3.0.9",
     "django-fernet-encrypted-fields>=0.3.1",
     "django-filter>=26.2,<27",
