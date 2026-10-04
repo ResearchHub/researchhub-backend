@@ -55,7 +55,7 @@ dependencies = [
     "reportlab>=4.0.0",
     "pyyaml>=6.0.2",
     "q5-django-inlinecss==0.0.2",
-    "sentry-sdk>=2.49.0,<3.0.0",
+    "sentry-sdk>=2.71.0,<3.0.0",
     "stripe>=11.2.0,<12.0.0",
     "web3>=7.16.0",
     "xdk>=0.10.6,<1",
