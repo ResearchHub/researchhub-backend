@@ -268,14 +268,12 @@ if USE_DEBUG_TOOLBAR:
     ]
 
 if USE_SILK:
-    INSTALLED_APPS += ["silk", "dbbackup"]
+    INSTALLED_APPS += ["silk"]
 
     MIDDLEWARE += [
         "silk.middleware.SilkyMiddleware",
     ]
 
-    DBBACKUP_STORAGE = "django.core.files.storage.FileSystemStorage"
-    DBBACKUP_STORAGE_OPTIONS = {"location": "backups"}
     SILKY_META = True
     SILKY_ANALYZE_QUERIES = True
     SILKY_EXPLAIN_FLAGS = {"format": "JSON", "costs": True}
