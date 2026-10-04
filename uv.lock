@@ -977,19 +977,6 @@ wheels = [
 ]
 
 [[package]]
-name = "django-dbbackup"
-version = "4.0.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "pytz" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7c/e2/bee243c077ad2e5f8c83b0fcdd3eff729cf337d90315040ade69d457e17f/django-dbbackup-4.0.2.tar.gz", hash = "sha256:1874d684abc22260972a67668a6db3331b24d7e1e8af89eaffdcd61eb27dbc2a", size = 42220, upload-time = "2022-09-27T23:29:24.722Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/fd/24/1d635364f42dad1d5213a97ada58eccbff8c0a1da906111aca90c0e0c370/django_dbbackup-4.0.2-py3-none-any.whl", hash = "sha256:3ccde831f1a8268fb031b37a8e7e2de3abb556623023af1e859cd7104c09ea2a", size = 56166, upload-time = "2022-09-27T23:29:22.357Z" },
-]
-
-[[package]]
 name = "django-debug-toolbar"
 version = "4.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2618,7 +2605,6 @@ dependencies = [
     { name = "django-allauth" },
     { name = "django-celery-results" },
     { name = "django-cors-headers" },
-    { name = "django-dbbackup" },
     { name = "django-debug-toolbar" },
     { name = "django-extensions" },
     { name = "django-fernet-encrypted-fields" },
@@ -2690,11 +2676,10 @@ requires-dist = [
     { name = "django-allauth", specifier = ">=65.19.5,<66" },
     { name = "django-celery-results", specifier = "==2.6.0" },
     { name = "django-cors-headers", specifier = ">=4.9.0,<5" },
-    { name = "django-dbbackup", specifier = "==4.0.2" },
     { name = "django-debug-toolbar", specifier = "==4.2" },
     { name = "django-extensions", specifier = "==3.0.9" },
     { name = "django-fernet-encrypted-fields", specifier = ">=0.3.1" },
-    { name = "django-filter", specifier = ">=26.2,<27.0" },
+    { name = "django-filter", specifier = ">=26.2,<27" },
     { name = "django-health-check", specifier = ">=3.18.3,<4.0.0" },
     { name = "django-opensearch-dsl", specifier = "==0.8.0" },
     { name = "django-ses", extras = ["events"], specifier = ">=4.7.2,<5" },
