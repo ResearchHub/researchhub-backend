@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 import logging
-import secrets
 from dataclasses import dataclass
 from datetime import timedelta
 from email.mime.multipart import MIMEMultipart
@@ -26,11 +25,6 @@ from research_ai.services.outreach.gmail_oauth import (
 logger = logging.getLogger(__name__)
 
 GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
-OPEN_TRACKING_PATH = "/api/research_ai/expert-finder/emails/t/{token}/"
-PIXEL_IMG = (
-    '<img src="{url}" width="1" height="1" alt="" '
-    'style="display:none;border:0;width:1px;height:1px;" />'
-)
 
 
 class GmailNotConnectedError(Exception):
@@ -57,7 +51,6 @@ class OutreachSendResult:
 
     message_id: str
     thread_id: str = ""
-    open_tracking_token: str = ""
 
 
 def get_active_outreach_mailbox(user) -> OutreachMailboxConnection:
@@ -72,28 +65,6 @@ def get_active_outreach_mailbox(user) -> OutreachMailboxConnection:
     if connection.status != OutreachMailboxConnection.Status.ACTIVE:
         raise GmailNotConnectedError
     return connection
-
-
-def new_open_tracking_token() -> str:
-    """Generate an opaque token for the open-tracking pixel."""
-    return secrets.token_urlsafe(32)
-
-
-def open_tracking_pixel_url(token: str) -> str:
-    """Absolute URL for the open-tracking pixel endpoint."""
-    base = getattr(settings, "BASE_BACKEND_URL", "http://localhost:8000").rstrip("/")
-    return f"{base}{OPEN_TRACKING_PATH.format(token=token)}"
-
-
-def inject_open_tracking_pixel(html_body: str, token: str) -> str:
-    """Append a 1x1 tracking pixel; does not mutate stored drafts."""
-    pixel = PIXEL_IMG.format(url=open_tracking_pixel_url(token))
-    body = html_body or ""
-    lower = body.lower()
-    idx = lower.rfind("</body>")
-    if idx != -1:
-        return f"{body[:idx]}{pixel}{body[idx:]}"
-    return f"{body}{pixel}"
 
 
 def _html_to_plain_text(html: str) -> str:

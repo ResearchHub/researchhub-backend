@@ -12,7 +12,10 @@ from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.outreach.email_generator import generate_expert_email
-from research_ai.services.outreach.email_sender import send_outreach_email
+from research_ai.services.outreach.email_sender import (
+    ExpertFinderOutreachDisabledError,
+    send_outreach_email,
+)
 from research_ai.services.outreach.gmail_sender import (
     GmailNeedsReauthError,
     GmailNotConnectedError,
@@ -632,6 +635,7 @@ def send_queued_emails_task(
 
     Updates each to SENT on success or SEND_FAILED on failure. On Gmail
     invalid_grant / needs_reauth, marks remaining queued rows SEND_FAILED.
+    When outreach is disabled, unsent rows in this batch revert to DRAFT.
 
     ``immediate=True`` (single-id sends) skips inter-send pacing. Bulk batches
     send one message then re-queue the rest with a random 20–30 min countdown.
@@ -723,6 +727,17 @@ def send_queued_emails_task(
             )
             failed += 1
             abort_remaining = True
+        except ExpertFinderOutreachDisabledError:
+            remaining_ids = [r.id for r in records[idx:]]
+            logger.warning(
+                "Outreach disabled; reverting %s unsent email(s) to draft",
+                len(remaining_ids),
+            )
+            GeneratedEmail.objects.filter(id__in=remaining_ids).update(
+                status=GeneratedEmail.Status.DRAFT,
+                updated_date=timezone.now(),
+            )
+            break
         except Exception:
             logger.exception("Send to expert failed id=%s", rec.id)
             GeneratedEmail.objects.filter(id=rec.id).update(

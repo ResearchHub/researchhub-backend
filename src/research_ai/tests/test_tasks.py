@@ -16,6 +16,9 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
+from research_ai.services.outreach.email_sender import (
+    ExpertFinderOutreachDisabledError,
+)
 from research_ai.services.outreach.gmail_sender import (
     GmailNeedsReauthError,
     OutreachSendResult,
@@ -310,10 +313,10 @@ class SendQueuedEmailsTaskTests(TestCase):
     def test_needs_reauth_fails_remaining_queued_rows(
         self, mock_send: MagicMock
     ) -> None:
-        """On Gmail needs_reauth, fail the current row and abort the rest of the batch."""
+        """On Gmail needs_reauth, fail the current row and abort the rest."""
         # Arrange
         mock_send.side_effect = [
-            OutreachSendResult(message_id="ok-1", open_tracking_token="t1"),
+            OutreachSendResult(message_id="ok-1"),
             GmailNeedsReauthError(),
             OutreachSendResult(message_id="should-not-send"),
         ]
@@ -357,11 +360,51 @@ class SendQueuedEmailsTaskTests(TestCase):
         grant.assert_called_once_with(generated_email=records[0])
 
     @patch("research_ai.tasks.send_outreach_email")
+    def test_outreach_disabled_reverts_unsent_rows_to_draft(
+        self, mock_send: MagicMock
+    ) -> None:
+        mock_send.side_effect = [
+            OutreachSendResult(message_id="ok-1"),
+            ExpertFinderOutreachDisabledError(
+                "Expert finder outreach is temporarily disabled."
+            ),
+            OutreachSendResult(message_id="should-not-send"),
+        ]
+        records = [
+            GeneratedEmail.objects.create(
+                created_by=self.user,
+                expert_email=email,
+                email_subject="Subject",
+                email_body="Body",
+                status=GeneratedEmail.Status.SENDING,
+            )
+            for email in (
+                "first@example.com",
+                "second@example.com",
+                "third@example.com",
+            )
+        ]
+
+        result = send_queued_emails_task.apply(
+            kwargs={
+                "generated_email_ids": [record.id for record in records],
+                "sender_user_id": self.user.id,
+            }
+        ).get()
+        for record in records:
+            record.refresh_from_db()
+
+        self.assertEqual(result, {"sent": 1, "failed": 0, "deferred": 0})
+        self.assertEqual(records[0].status, GeneratedEmail.Status.SENT)
+        self.assertEqual(records[1].status, GeneratedEmail.Status.DRAFT)
+        self.assertEqual(records[2].status, GeneratedEmail.Status.DRAFT)
+        self.assertEqual(mock_send.call_count, 2)
+
+    @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_success_sets_expert_last_email_sent_at(self, mock_send):
         mock_send.return_value = OutreachSendResult(
             message_id="gmail-1",
             thread_id="thr-1",
-            open_tracking_token="tok-1",
         )
         Expert.objects.create(
             email="sentmark@edu",

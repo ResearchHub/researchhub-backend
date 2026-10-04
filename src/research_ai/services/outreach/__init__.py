@@ -13,6 +13,6 @@
   outreach emails (invite links and prompt context).
 - ``invited_experts`` -- invited-expert listings, stats, and access grants.
 - ``outreach_history`` -- per-expert outreach history rollups.
-- ``send_rate_limits`` -- per-mailbox hourly/daily Gmail send caps.
-- ``send_pacing`` -- minimum gap between successful Gmail sends per mailbox.
+- ``send_rate_limits`` -- per-mailbox daily Gmail send cap (resets at 00:00).
+- ``send_pacing`` -- random 20–30 minute re-queue between bulk messages.
 """

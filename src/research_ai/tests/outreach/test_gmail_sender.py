@@ -5,6 +5,9 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from research_ai.models import OutreachMailboxConnection
+from research_ai.services.outreach.email_sender import (
+    ExpertFinderOutreachDisabledError,
+)
 from research_ai.services.outreach.gmail_sender import (
     GmailApiClient,
     GmailNeedsReauthError,
@@ -13,8 +16,6 @@ from research_ai.services.outreach.gmail_sender import (
     GmailSendError,
     build_raw_gmail_message,
     get_active_outreach_mailbox,
-    inject_open_tracking_pixel,
-    open_tracking_pixel_url,
 )
 from user.tests.helpers import create_random_default_user
 
@@ -56,34 +57,6 @@ class GetActiveOutreachMailboxTests(TestCase):
         user = create_random_default_user("active")
         conn = _connect_gmail(user)
         self.assertEqual(get_active_outreach_mailbox(user), conn)
-
-
-class OpenTrackingPixelTests(TestCase):
-    @override_settings(BASE_BACKEND_URL="https://api.example.com")
-    def test_injects_pixel_before_closing_body(self):
-        # Arrange
-        html = "<html><body><p>Hi</p></body></html>"
-
-        # Act
-        out = inject_open_tracking_pixel(html, "tok123")
-
-        # Assert
-        self.assertIn('src="https://api.example.com/api/research_ai/', out)
-        self.assertIn("/emails/t/tok123/", out)
-        self.assertTrue(out.endswith("</html>") or "</body>" in out)
-        self.assertLess(out.index("tok123"), out.lower().index("</body>"))
-
-    def test_appends_pixel_when_no_body_tag(self):
-        out = inject_open_tracking_pixel("<p>Hi</p>", "abc")
-        self.assertTrue(out.startswith("<p>Hi</p>"))
-        self.assertIn("/emails/t/abc/", out)
-
-    def test_open_tracking_pixel_url(self):
-        with override_settings(BASE_BACKEND_URL="http://localhost:8000"):
-            self.assertEqual(
-                open_tracking_pixel_url("x"),
-                "http://localhost:8000/api/research_ai/expert-finder/emails/t/x/",
-            )
 
 
 class BuildRawGmailMessageTests(TestCase):
@@ -228,6 +201,17 @@ class GmailSenderTests(TestCase):
                 subject="S",
                 body="B",
             )
+
+    @override_settings(EXPERT_FINDER_OUTREACH_ENABLED=False)
+    def test_send_raises_when_outreach_disabled(self):
+        with self.assertRaises(ExpertFinderOutreachDisabledError):
+            self.sender.send(
+                user=self.user,
+                to_email="expert@edu",
+                subject="S",
+                body="B",
+            )
+        self.mock_client.send_message.assert_not_called()
 
 
 class GmailApiClientTests(TestCase):

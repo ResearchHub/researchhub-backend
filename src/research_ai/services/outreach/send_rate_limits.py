@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from django.conf import settings
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from research_ai.constants import OUTREACH_SEND_DAILY_CAP_DEFAULT
@@ -44,10 +44,6 @@ class SendQuota:
     def remaining_day(self) -> int:
         return max(0, self.daily_cap - self.used_day)
 
-    @property
-    def remaining(self) -> int:
-        return self.remaining_day
-
 
 def get_send_quota(user) -> SendQuota:
     """
@@ -72,19 +68,28 @@ def get_send_quota(user) -> SendQuota:
 
 def get_daily_usage(user) -> dict:
     """Usage breakdown for mailbox status."""
-    quota = get_send_quota(user)
+    daily_cap = _cap("OUTREACH_SEND_DAILY_CAP", OUTREACH_SEND_DAILY_CAP_DEFAULT)
     start = _today_start()
-    owned = GeneratedEmail.objects.filter(created_by=user)
-    sent_today = owned.filter(
-        status=GeneratedEmail.Status.SENT,
-        updated_date__gte=start,
-    ).count()
-    queued_today = owned.filter(status=GeneratedEmail.Status.SENDING).count()
+    counts = GeneratedEmail.objects.filter(created_by=user).aggregate(
+        sent_today=Count(
+            "id",
+            filter=Q(
+                status=GeneratedEmail.Status.SENT,
+                updated_date__gte=start,
+            ),
+        ),
+        queued_today=Count(
+            "id",
+            filter=Q(status=GeneratedEmail.Status.SENDING),
+        ),
+    )
+    sent_today = counts["sent_today"]
+    queued_today = counts["queued_today"]
     return {
-        "daily_cap": quota.daily_cap,
+        "daily_cap": daily_cap,
         "sent_today": sent_today,
         "queued_today": queued_today,
-        "remaining_today": quota.remaining_day,
+        "remaining_today": max(0, daily_cap - sent_today - queued_today),
         "resets_at": (start + timedelta(days=1)).isoformat(),
     }
 

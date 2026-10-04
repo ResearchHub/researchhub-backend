@@ -16,6 +16,9 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
+from research_ai.services.outreach.email_sender import (
+    ExpertFinderOutreachDisabledError,
+)
 from research_ai.services.outreach.gmail_sender import OutreachSendResult
 from research_ai.services.proposal_draft.note_writer import write_proposal_note
 from research_ai.views.email_views import _normalize_template
@@ -1197,6 +1200,31 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(args[1], self.moderator.email)
         self.assertEqual(call_kw["reply_to"], reply_to_emails)
         self.assertNotIn("inject_open_pixel", call_kw)
+
+    @patch("research_ai.views.email_views.send_outreach_email")
+    def test_preview_outreach_disabled_returns_503(self, mock_send):
+        mock_send.side_effect = ExpertFinderOutreachDisabledError(
+            "Expert finder outreach is temporarily disabled."
+        )
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. X",
+            email_subject="Subj",
+            email_body="Body text",
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.post(
+            self.url,
+            {
+                "generated_email_ids": [email_rec.id],
+                "reply_to": ["replies@example.com"],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertEqual(response.json().get("code"), "outreach_disabled")
+        email_rec.refresh_from_db()
+        self.assertEqual(email_rec.status, GeneratedEmail.Status.DRAFT)
 
     @patch("research_ai.views.email_views.send_outreach_email")
     def test_preview_accepts_multiple_reply_to_addresses(self, mock_send):

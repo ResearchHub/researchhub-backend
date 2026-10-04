@@ -2,21 +2,16 @@
 
 from django.test import TestCase, override_settings
 
-from research_ai.services.outreach.send_pacing import (
-    max_interval_seconds,
-    min_interval_seconds,
-    next_bulk_interval_seconds,
-)
+from research_ai.services.outreach.send_pacing import next_bulk_interval_seconds
 
 
 class SendPacingUnitTests(TestCase):
     @override_settings(
-        OUTREACH_SEND_MIN_INTERVAL_SECONDS=1200,
-        OUTREACH_SEND_MAX_INTERVAL_SECONDS=1800,
+        OUTREACH_SEND_MIN_INTERVAL_SECONDS=1500,
+        OUTREACH_SEND_MAX_INTERVAL_SECONDS=1500,
     )
     def test_interval_reads_settings(self):
-        self.assertEqual(min_interval_seconds(), 1200)
-        self.assertEqual(max_interval_seconds(), 1800)
+        self.assertEqual(next_bulk_interval_seconds(), 1500)
 
     @override_settings(
         OUTREACH_SEND_MIN_INTERVAL_SECONDS=1200,

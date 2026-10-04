@@ -25,6 +25,7 @@ from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.outreach.email_generator import create_expert_email_draft
 from research_ai.services.outreach.email_sender import (
+    ExpertFinderOutreachDisabledError,
     mailbox_connection_error_payload,
     send_outreach_email,
 )
@@ -93,9 +94,15 @@ def _queue_drafts_with_rate_limit(
 
     quota = get_send_quota(user)
     requested = len(ordered_draft_ids)
-    if requested > quota.remaining:
-        payload = rate_limit_error_payload(quota, requested=requested)
-        payload["deferred"] = list(ordered_draft_ids)
+    if requested > quota.remaining_day:
+        payload = {
+            **rate_limit_error_payload(quota, requested=requested),
+            **queue_payload(
+                queued_ids=[],
+                deferred_ids=ordered_draft_ids,
+                remaining_today=quota.remaining_day,
+            ),
+        }
         return Response(payload, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
     GeneratedEmail.objects.filter(id__in=ordered_draft_ids).update(
@@ -397,6 +404,11 @@ class PreviewEmailView(APIView):
                 return Response(
                     mailbox_connection_error_payload(exc),
                     status=status.HTTP_409_CONFLICT,
+                )
+            except ExpertFinderOutreachDisabledError as exc:
+                return Response(
+                    {"detail": str(exc), "code": "outreach_disabled"},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
                 )
             except Exception as e:
                 logger.exception("Preview send failed for email id=%s", rec.id)

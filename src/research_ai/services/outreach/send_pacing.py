@@ -21,8 +21,9 @@ from research_ai.constants import (
 )
 
 
-def min_interval_seconds() -> int:
-    return max(
+def next_bulk_interval_seconds() -> int:
+    """Random seconds to wait before the next message in a bulk batch."""
+    lo = max(
         0,
         int(
             getattr(
@@ -32,10 +33,7 @@ def min_interval_seconds() -> int:
             )
         ),
     )
-
-
-def max_interval_seconds() -> int:
-    return max(
+    hi = max(
         0,
         int(
             getattr(
@@ -45,12 +43,6 @@ def max_interval_seconds() -> int:
             )
         ),
     )
-
-
-def next_bulk_interval_seconds() -> int:
-    """Random seconds to wait before the next message in a bulk batch."""
-    lo = min_interval_seconds()
-    hi = max_interval_seconds()
     if hi < lo:
         hi = lo
     if hi <= 0:

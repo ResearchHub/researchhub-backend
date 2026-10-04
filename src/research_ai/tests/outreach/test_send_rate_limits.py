@@ -87,7 +87,6 @@ class SendQuotaUnitTests(TestCase):
         # Assert — yesterday's SENT is ignored; yesterday's SENDING still counts
         self.assertEqual(quota.used_day, 3)
         self.assertEqual(quota.remaining_day, 17)
-        self.assertEqual(quota.remaining, 17)
 
     @override_settings(OUTREACH_SEND_DAILY_CAP=2)
     def test_sending_reserved_before_midnight_blocks_new_day_cap(self):
