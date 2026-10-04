@@ -3,6 +3,7 @@
 from datetime import timedelta
 from unittest.mock import ANY, MagicMock, patch
 
+from celery.exceptions import Retry
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -25,6 +26,8 @@ from research_ai.services.outreach.gmail_sender import (
 )
 from research_ai.services.usage_budget import ReservationHeartbeat
 from research_ai.tasks import (
+    _REQUEUE_MAX_RETRIES,
+    _REQUEUE_RETRY_COUNTDOWN_SECONDS,
     _update_search_progress,
     process_agent_file_task,
     process_bulk_generate_emails_task,
@@ -576,6 +579,53 @@ class SendQueuedEmailsPacingTests(TestCase):
         self.assertFalse(call_kwargs["kwargs"]["immediate"])
         self.assertGreaterEqual(call_kwargs["countdown"], 1200)
         self.assertLessEqual(call_kwargs["countdown"], 1800)
+
+    @patch.object(send_queued_emails_task, "retry")
+    @patch("research_ai.tasks.send_queued_emails_task.apply_async")
+    @patch("research_ai.tasks.send_outreach_email")
+    def test_requeue_failure_keeps_sent_status_and_retries(
+        self, mock_send, mock_apply_async, mock_retry
+    ):
+        # Arrange
+        mock_send.return_value = OutreachSendResult(message_id="gmail-1")
+        mock_apply_async.side_effect = ConnectionError("broker down")
+        mock_retry.side_effect = Retry()
+        first = self._sending("a@example.com")
+        second = self._sending("b@example.com")
+        third = self._sending("c@example.com")
+
+        # Act
+        with (
+            patch("research_ai.tasks.grant_invited_expert_access_for_send"),
+            self.assertRaises(Retry),
+        ):
+            send_queued_emails_task.apply(
+                kwargs={
+                    "generated_email_ids": [first.id, second.id, third.id],
+                    "reply_to": ["reply@example.com"],
+                    "cc": ["cc@example.com"],
+                    "sender_user_id": self.user.id,
+                    "immediate": False,
+                }
+            ).get()
+
+        # Assert — delivered mail stays SENT; remaining stay SENDING
+        first.refresh_from_db()
+        second.refresh_from_db()
+        third.refresh_from_db()
+        self.assertEqual(first.status, GeneratedEmail.Status.SENT)
+        self.assertEqual(first.gmail_message_id, "gmail-1")
+        self.assertEqual(second.status, GeneratedEmail.Status.SENDING)
+        self.assertEqual(third.status, GeneratedEmail.Status.SENDING)
+        mock_send.assert_called_once()
+        mock_retry.assert_called_once()
+        retry_kwargs = mock_retry.call_args.kwargs
+        self.assertEqual(
+            retry_kwargs["kwargs"]["generated_email_ids"],
+            [second.id, third.id],
+        )
+        self.assertEqual(retry_kwargs["countdown"], _REQUEUE_RETRY_COUNTDOWN_SECONDS)
+        self.assertEqual(retry_kwargs["max_retries"], _REQUEUE_MAX_RETRIES)
 
     @patch("research_ai.tasks.send_queued_emails_task.apply_async")
     @patch("research_ai.tasks.send_outreach_email")
