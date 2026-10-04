@@ -18,19 +18,19 @@ app.autodiscover_tasks()
 
 # Queues
 QUEUE_AGENTS = "agents"
+QUEUE_BOUNTIES = "bounties"
 QUEUE_CACHES = "caches"
+QUEUE_CONTRIBUTIONS = "contributions"
 QUEUE_ELASTIC_SEARCH = "elastic_search"
 QUEUE_EXTERNAL_REPORTING = "external_reporting"
+QUEUE_HUBS = "hubs"
 QUEUE_NOTIFICATION = "notifications"
+QUEUE_PAPER_METADATA = "paper_metadata"
 QUEUE_PAPER_METRICS = "paper_metrics"
 QUEUE_PAPER_MISC = "paper_misc"
 QUEUE_PULL_PAPERS = "pull_papers"
 QUEUE_PURCHASES = "purchases"
 QUEUE_REPUTATION = "reputation"
-QUEUE_CONTRIBUTIONS = "contributions"
-QUEUE_PAPER_METADATA = "paper_metadata"
-QUEUE_BOUNTIES = "bounties"
-QUEUE_HUBS = "hubs"
 
 
 # Scheduled tasks
