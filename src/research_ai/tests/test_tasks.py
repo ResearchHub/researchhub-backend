@@ -284,6 +284,82 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
         mock_send.assert_not_called()
 
+    @patch("research_ai.tasks.send_queued_emails_task.apply_async")
+    @patch("research_ai.tasks.send_outreach_email")
+    def test_skips_row_no_longer_sending_before_gmail_send(
+        self, mock_send, mock_apply_async
+    ):
+        # Arrange
+        mock_send.return_value = OutreachSendResult(message_id="gmail-2")
+        first = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_email="skip@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        second = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_email="keep@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        first.status = GeneratedEmail.Status.DRAFT
+        first.save(update_fields=["status", "updated_date"])
+
+        # Act
+        with patch("research_ai.tasks.grant_invited_expert_access_for_send"):
+            result = send_queued_emails_task.apply(
+                kwargs={
+                    "generated_email_ids": [first.id, second.id],
+                    "sender_user_id": self.user.id,
+                    "immediate": False,
+                }
+            ).get()
+
+        # Assert
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, GeneratedEmail.Status.DRAFT)
+        self.assertEqual(second.status, GeneratedEmail.Status.SENT)
+        self.assertEqual(result["sent"], 1)
+        self.assertEqual(result["failed"], 0)
+        mock_send.assert_called_once()
+        mock_apply_async.assert_not_called()
+
+    @patch("research_ai.tasks.send_outreach_email")
+    def test_skips_current_row_if_status_changes_after_load(self, mock_send):
+        rec = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_email="race@example.com",
+            email_subject="Subj",
+            email_body="Body",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        real_refresh = GeneratedEmail.refresh_from_db
+
+        def revert_to_draft(instance, *args, **kwargs):
+            real_refresh(instance, *args, **kwargs)
+            GeneratedEmail.objects.filter(id=instance.id).update(
+                status=GeneratedEmail.Status.DRAFT
+            )
+            instance.status = GeneratedEmail.Status.DRAFT
+
+        with patch.object(GeneratedEmail, "refresh_from_db", revert_to_draft):
+            result = send_queued_emails_task.apply(
+                kwargs={
+                    "generated_email_ids": [rec.id],
+                    "sender_user_id": self.user.id,
+                }
+            ).get()
+
+        rec.refresh_from_db()
+        self.assertEqual(rec.status, GeneratedEmail.Status.DRAFT)
+        self.assertEqual(result["sent"], 0)
+        self.assertEqual(result["failed"], 0)
+        mock_send.assert_not_called()
+
     @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_send_raises_marks_send_failed(self, mock_send):
         mock_send.side_effect = Exception("Gmail API error")

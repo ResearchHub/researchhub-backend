@@ -659,8 +659,17 @@ def send_queued_emails_task(
     deferred = 0
     abort_remaining = False
     for idx, rec in enumerate(records):
+        try:
+            rec.refresh_from_db()
+        except GeneratedEmail.DoesNotExist:
+            continue
+        if rec.status != GeneratedEmail.Status.SENDING:
+            continue
         if abort_remaining:
-            GeneratedEmail.objects.filter(id=rec.id).update(
+            GeneratedEmail.objects.filter(
+                id=rec.id,
+                status=GeneratedEmail.Status.SENDING,
+            ).update(
                 status=GeneratedEmail.Status.SEND_FAILED,
                 updated_date=timezone.now(),
             )
