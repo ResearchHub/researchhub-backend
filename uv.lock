@@ -1160,7 +1160,7 @@ wheels = [
 
 [[package]]
 name = "elastic-apm"
-version = "6.24.0"
+version = "6.26.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -1168,9 +1168,9 @@ dependencies = [
     { name = "urllib3" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/88/e53713207ac16cd8814d0ee912ca0969348daa26036d402bda7b2782ce2e/elastic_apm-6.24.0.tar.gz", hash = "sha256:9572e4b456d85474374cd137e6a1503d449f2cd363cd89220c50d03d386c36cd", size = 170168, upload-time = "2025-08-12T07:40:52.728Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/77/2e/0ea4c298530c8bf966a79d2a90ef8b2796b304084c6eeb7cf17060439ad4/elastic_apm-6.26.2.tar.gz", hash = "sha256:2301de319a85353bd7810dc5d715df8e7e6fd829cf0148a5fb9f0811a2fed7bb", size = 171176, upload-time = "2026-06-22T11:44:47.226Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/c9/f05b8bd83025b0578ec5a5b52a5f5366290e36a2c104fc9046c00bcbbef7/elastic_apm-6.24.0-py2.py3-none-any.whl", hash = "sha256:db6bc5bb15b592bc14810aacf0eba11ace9d908d8c132fc760457686b34a033b", size = 352469, upload-time = "2025-08-12T07:40:50.498Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/b9/1007136c37b055e6520dc75c0a4c56c059e41a42a127884ea1c04ac7c929/elastic_apm-6.26.2-py2.py3-none-any.whl", hash = "sha256:bb102ccb5f81bf978722e3d396eab61d6b3c4400c4337c52ffdf18e4e513bf81", size = 353397, upload-time = "2026-06-22T11:44:45.481Z" },
 ]
 
 [[package]]
@@ -2702,7 +2702,7 @@ requires-dist = [
     { name = "django-simple-history", specifier = "==3.7.0" },
     { name = "django-storages", specifier = "==1.10.1" },
     { name = "djangorestframework", specifier = "==3.18.0" },
-    { name = "elastic-apm", specifier = "==6.24.0" },
+    { name = "elastic-apm", specifier = ">=6.26.2,<7" },
     { name = "flower", specifier = ">=2.2.0,<3" },
     { name = "humanize", specifier = ">=4.12.2,<5.0.0" },
     { name = "jiter", specifier = "==0.13.0" },
