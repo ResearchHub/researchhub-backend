@@ -58,7 +58,13 @@ SUPPORTED_EXTENSIONS = tuple(_KINDS_BY_EXTENSION)
 
 # Written under the ``[Page N]`` marker of a page with content but no text.
 NO_TEXT_LAYER = "[This page has no text layer; it may be a scan or a figure.]"
+# Written after the little text a page has when an image covers most of it.
+IMAGE_UNREAD = "[Most of this page is an image; any text in it was not read.]"
 OCR_NOTE = "[Text on this page was read by OCR and may contain errors.]"
+
+# A scan under a download stamp or page number: little text over a large image.
+_SCAN_MAX_TEXT_CHARS = 500
+_SCAN_MIN_IMAGE_COVERAGE = 0.5
 
 # Bounds on work an adversarial file can demand, beyond the upload size cap.
 _MAX_PDF_PAGES = 2000
@@ -87,7 +93,7 @@ class ExtractedText:
     text: str
     page_count: int | None
     truncated: bool
-    # 1-based PDF pages left with ``NO_TEXT_LAYER``: no text layer, no OCR text.
+    # 1-based PDF pages left unread: marked ``NO_TEXT_LAYER`` or ``IMAGE_UNREAD``.
     pages_without_text: tuple[int, ...] = ()
     # 1-based PDF pages whose text came from ``recover_pages``.
     ocr_pages: tuple[int, ...] = ()
@@ -123,7 +129,8 @@ def extract_text(
 ) -> ExtractedText:
     """Text of the file, cut at ``max_chars``. Raises ``UnreadableFileError``.
 
-    ``recover_pages`` supplies text for PDF pages that have no text layer.
+    ``recover_pages`` supplies text for PDF pages that have no text layer or
+    are mostly an image.
     """
     pages_without_text: tuple[int, ...] = ()
     ocr_pages: tuple[int, ...] = ()
@@ -133,7 +140,7 @@ def extract_text(
         output = _run_child("pdf", data, label=kind.label, max_chars=max_chars)
         page_count, truncated = output["page_count"], output["truncated"]
         text, pages_without_text, ocr_pages = _assemble_pdf(
-            output["pages"], recover_pages
+            output["pages"], output["mostly_image"], recover_pages
         )
     else:
         output = _run_child(kind.extractor, data, label=kind.label, max_chars=max_chars)
@@ -192,14 +199,23 @@ def render_pdf_page(
 
 
 def _assemble_pdf(
-    pages: list[str | None], recover_pages: PageRecovery | None
+    pages: list[str | None],
+    mostly_image: list[int],
+    recover_pages: PageRecovery | None,
 ) -> tuple[str, tuple[int, ...], tuple[int, ...]]:
-    """Join page texts under their markers; ``None`` is a page with no text layer."""
-    missing = [number for number, text in enumerate(pages, start=1) if text is None]
+    """Join page texts under their markers.
+
+    ``None`` is a page with no text layer; ``mostly_image`` lists the 1-based
+    pages whose little text sits on a large image.
+    """
+    unread = sorted(
+        {number for number, text in enumerate(pages, start=1) if text is None}
+        | set(mostly_image)
+    )
     recovered: dict[int, str] = {}
-    if missing and recover_pages is not None:
-        for number, text in recover_pages(missing).items():
-            if number in missing and text and text.strip():
+    if unread and recover_pages is not None:
+        for number, text in recover_pages(unread).items():
+            if number in unread and text and text.strip():
                 recovered[number] = text.strip()
     if not any(pages) and not recovered:
         raise UnreadableFileError(
@@ -212,10 +228,12 @@ def _assemble_pdf(
             text = f"{OCR_NOTE}\n{recovered[number]}"
         elif text is None:
             text = NO_TEXT_LAYER
+        elif number in unread:
+            text = f"{text}\n{IMAGE_UNREAD}"
         parts.append(f"[Page {number}]\n{text}")
     return (
         "\n\n".join(parts),
-        tuple(number for number in missing if number not in recovered),
+        tuple(number for number in unread if number not in recovered),
         tuple(sorted(recovered)),
     )
 
@@ -289,10 +307,15 @@ def _open_pdf(data: bytes) -> fitz.Document:
 
 
 def _pdf_pages(data: bytes, max_chars: int) -> dict:
-    """Each page's text; ``None`` for a page with content but no text layer."""
+    """Each page's text; ``None`` for a page with content but no text layer.
+
+    ``mostly_image`` lists the 1-based pages that have a little text over a
+    large image, as a scan under a stamp does.
+    """
     with _open_pdf(data) as document:
         page_count = document.page_count
         pages: list[str | None] = []
+        mostly_image: list[int] = []
         # No more than max_chars reaches the unlimited parent.
         remaining = max_chars
         cut = False
@@ -301,6 +324,7 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
                 if remaining <= 0 or number > _MAX_PDF_PAGES:
                     break
                 page_text = page.get_text().strip()
+                sparse = 0 < len(page_text) <= _SCAN_MAX_TEXT_CHARS
                 if len(page_text) > remaining:
                     page_text, cut = page_text[:remaining], True
                 remaining -= len(page_text)
@@ -309,13 +333,29 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
                     pages.append(None)
                 else:
                     pages.append(page_text)
+                    if sparse and _mostly_image(page):
+                        mostly_image.append(number)
         except Exception as exc:  # noqa: BLE001 - a damaged page stream
             raise UnreadableFileError("This PDF could not be read.") from exc
     return {
         "pages": pages,
+        "mostly_image": mostly_image,
         "page_count": page_count,
         "truncated": cut or len(pages) < page_count,
     }
+
+
+def _mostly_image(page: fitz.Page) -> bool:
+    page_area = page.rect.get_area()
+    try:
+        images = page.get_image_info()
+    except Exception:  # noqa: BLE001 - a damaged image does not cost the page its text
+        return False
+    # Strips of one scan add up; overlapping layers only overstate a full page.
+    covered = sum(
+        min(fitz.Rect(image["bbox"]).get_area(), page_area) for image in images
+    )
+    return page_area > 0 and covered >= _SCAN_MIN_IMAGE_COVERAGE * page_area
 
 
 def _pdf_page_image(
