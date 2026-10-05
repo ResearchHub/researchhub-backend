@@ -39,11 +39,13 @@ def update_grant_settings(*, note: Note, values: dict) -> GrantSettings:
 
     Mirrors the note API, which refuses non-grant and published notes itself.
     """
-    if hasattr(note, "post"):
-        raise DraftDetailsError(NOTE_PUBLISHED)
-    if note.document_type != GRANT:
-        raise DraftDetailsError(NOT_RFP_NOTE)
     with transaction.atomic():
+        # Publishing inserts a post that references this row, so it waits here.
+        locked = Note.objects.select_for_update().get(id=note.id)
+        if hasattr(locked, "post"):
+            raise DraftDetailsError(NOTE_PUBLISHED)
+        if locked.document_type != GRANT:
+            raise DraftDetailsError(NOT_RFP_NOTE)
         _save_grant_settings(note, dict(values))
         note.save(update_fields=["updated_date"])
     return note.grant_settings
