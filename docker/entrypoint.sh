@@ -21,8 +21,8 @@ case "${1:-api}" in
   flower)
     set -- celery \
       --app researchhub flower \
-      --port 5555 \
-      --url_prefix flower
+      --port=5555 \
+      --url_prefix=flower
     ;;
 
   worker)
