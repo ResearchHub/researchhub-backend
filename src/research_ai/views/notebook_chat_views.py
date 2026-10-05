@@ -158,6 +158,7 @@ class NotebookChatMessageView(APIView):
                 effort=serializer.validated_data.get("effort"),
                 thinking=serializer.validated_data.get("thinking"),
                 temperature=serializer.validated_data.get("temperature"),
+                file_ids=serializer.validated_data["file_ids"],
             )
         except AgentConversationBusyError:
             return Response(

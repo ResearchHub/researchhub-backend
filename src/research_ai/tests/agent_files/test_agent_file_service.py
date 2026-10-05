@@ -31,6 +31,8 @@ from researchhub.services.private_storage_service import (
 CONFIG = AgentFileConfig(
     max_file_bytes=1000,
     max_text_chars=10_000,
+    max_files_per_message=2,
+    max_files_per_conversation=3,
     max_unsent_files=3,
 )
 UPLOAD = PresignedPost("https://bucket.s3.amazonaws.com/", {"key": "k"})
@@ -389,6 +391,94 @@ class AgentFileServiceTests(TestCase):
         self.assertEqual(lost.status, AgentFile.Status.FAILED)
         self.assertIn("took too long", lost.error)
 
+    # -- attaching ------------------------------------------------------------
+
+    def test_attach_binds_ready_files_to_the_message(self):
+        # Arrange
+        first = make_file(self.user)
+        second = make_file(self.user, filename="cv.txt", content_type="text/plain")
+
+        # Act
+        attached = self.service.attach(self.message, [second.id, first.id, second.id])
+
+        # Assert
+        self.assertEqual([file.id for file in attached], [second.id, first.id])
+        for file in (first, second):
+            file.refresh_from_db()
+            self.assertEqual(file.message_id, self.message.id)
+            self.assertEqual(file.conversation_id, self.conversation.id)
+
+    def test_attach_refuses_files_it_cannot_send(self):
+        # Arrange
+        ready = make_file(self.user)
+        cases = [
+            (make_file(self.other).id, "attachment_unavailable"),
+            (make_file(self.user, message=self.message).id, "attachment_unavailable"),
+            (
+                make_file(self.user, status=AgentFile.Status.PROCESSING).id,
+                "attachment_not_ready",
+            ),
+            (
+                make_file(
+                    self.user, status=AgentFile.Status.FAILED, error="Unreadable."
+                ).id,
+                "attachment_failed",
+            ),
+            (999_999, "attachment_unavailable"),
+        ]
+        for file_id, code in cases:
+            with self.subTest(code=code, file_id=file_id):
+                # Act
+                with self.assertRaises(AgentFileError) as raised:
+                    self.service.attach(self.message, [ready.id, file_id])
+
+                # Assert
+                self.assertEqual(raised.exception.code, code)
+                ready.refresh_from_db()
+                self.assertIsNone(ready.message_id)
+
+    def test_attach_enforces_the_per_message_limit(self):
+        # Arrange
+        files = [make_file(self.user) for _ in range(CONFIG.max_files_per_message + 1)]
+
+        # Act
+        with self.assertRaises(AgentFileError) as raised:
+            self.service.attach(self.message, [file.id for file in files])
+
+        # Assert
+        self.assertEqual(raised.exception.code, "too_many_attachments")
+
+    def test_attach_enforces_the_per_chat_limit(self):
+        # Arrange
+        make_file(self.user, message=self.message)
+        make_file(self.user, message=self.message)
+        files = [make_file(self.user), make_file(self.user)]
+
+        # Act
+        with self.assertRaises(AgentFileError) as raised:
+            self.service.attach(self.message, [file.id for file in files])
+        self.service.attach(self.message, [files[0].id])
+
+        # Assert
+        self.assertEqual(raised.exception.code, "too_many_attachments")
+        self.assertIn("at most 3 files", str(raised.exception))
+
+    def test_attachments_by_message_groups_public_views(self):
+        # Arrange
+        sent = make_file(self.user, message=self.message)
+        make_file(self.user)
+
+        # Act
+        attachments = self.service.attachments_by_message(self.conversation)
+
+        # Assert
+        (view,) = attachments[self.message.id]
+        self.assertEqual(view["id"], sent.id)
+        self.assertEqual(view["filename"], "grant.pdf")
+        self.assertEqual(view["status"], AgentFile.Status.READY)
+        self.assertNotIn("text", view)
+        self.assertEqual(list(attachments), [self.message.id])
+
     # -- removal, download, purge -------------------------------------------
 
     def test_delete_removes_an_unsent_file_and_its_object(self):
@@ -471,6 +561,28 @@ class AgentFileServiceTests(TestCase):
             set(AgentFile.objects.values_list("id", flat=True)), {fresh.id, sent.id}
         )
         self.storage.delete.assert_called_once_with(stale.storage_key)
+
+    def test_purge_deletes_the_files_of_removed_chats(self):
+        # Arrange
+        kept = make_file(self.user, message=self.message)
+        conversations = AgentConversationService()
+        removed_chat = conversations.create(user=self.user, workflow="assistant_chat")
+        removed_chat_file = make_file(
+            self.user,
+            message=conversations.add_human_message(removed_chat, "Summarize"),
+        )
+        removed_chat.is_removed = True
+        removed_chat.save(update_fields=["is_removed"])
+
+        # Act
+        purged = self.service.purge()
+
+        # Assert
+        self.assertEqual(purged, 1)
+        self.assertEqual(
+            list(AgentFile.objects.values_list("id", flat=True)), [kept.id]
+        )
+        self.storage.delete.assert_called_once_with(removed_chat_file.storage_key)
 
     def test_purge_deletes_removed_files_once_their_upload_form_expires(self):
         # Arrange
