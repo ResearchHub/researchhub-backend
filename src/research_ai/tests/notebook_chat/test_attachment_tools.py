@@ -97,6 +97,27 @@ class AttachmentToolsetTests(TestCase):
         self.assertTrue(all(chunk.endswith("\n") for chunk in chunks))
         self.assertEqual("".join(chunks), text)
 
+    def test_read_breaks_a_window_on_a_word_when_it_has_no_line_break(self):
+        # Arrange
+        text = "enhancer " * 400
+        one_line = make_file(
+            self.user, message=self.proposal.message, filename="o.txt", text=text
+        )
+
+        # Act
+        chunks, start = [], 0
+        while start is not None:
+            result = self._call(
+                READ_ATTACHMENT,
+                {"attachment_id": one_line.id, "start_char": start, "max_chars": 1000},
+            )
+            chunks.append(result["text"])
+            start = result["next_start_char"]
+
+        # Assert: whole words per window, and nothing lost or repeated.
+        self.assertTrue(all(chunk.endswith(" ") for chunk in chunks))
+        self.assertEqual("".join(chunks), text)
+
     def test_read_bounds_a_window_by_its_encoded_size(self):
         # Arrange: CJK text JSON-escapes to six bytes per character.
         text = "研究" * 20_000
@@ -137,6 +158,15 @@ class AttachmentToolsetTests(TestCase):
 
         # Assert
         self.assertEqual(result["text"], CV_TEXT)
+
+    def test_an_id_that_is_not_a_number_names_no_file(self):
+        for attachment_id in (True, "first", None, [self.cv.id]):
+            with self.subTest(attachment_id=attachment_id):
+                # Act
+                result = self._call(READ_ATTACHMENT, {"attachment_id": attachment_id})
+
+                # Assert
+                self.assertIn("is not attached to this conversation", result["error"])
 
     def test_files_outside_the_conversation_are_unreachable(self):
         # Arrange
@@ -198,6 +228,23 @@ class AttachmentToolsetTests(TestCase):
         )
         self.assertIsNone(cv_passage["pages"])
 
+    def test_search_gives_no_page_for_pdf_text_before_any_page_marker(self):
+        # Arrange
+        unmarked = make_file(
+            self.user,
+            message=self.proposal.message,
+            text="Zebrafish husbandry notes, kept without page markers.",
+        )
+
+        # Act
+        result = self._call(
+            SEARCH_ATTACHMENT, {"attachment_id": unmarked.id, "query": "zebrafish"}
+        )
+
+        # Assert
+        (passage,) = result["passages"]
+        self.assertIsNone(passage["pages"])
+
     def test_search_validates_its_input(self):
         # Arrange
         empty_toolset = AttachmentToolset(
@@ -207,6 +254,8 @@ class AttachmentToolsetTests(TestCase):
         # Act
         blank = self._call(SEARCH_ATTACHMENT, {"query": "  "})
         too_long = self._call(SEARCH_ATTACHMENT, {"query": "x" * 501})
+        too_many = self._call(SEARCH_ATTACHMENT, {"query": "aims", "max_passages": 6})
+        unknown = self._call(SEARCH_ATTACHMENT, {"query": "aims", "attachment_id": 0})
         no_files, _ = empty_toolset.as_toolset().dispatch(
             SEARCH_ATTACHMENT, {"query": "aims"}
         )
@@ -214,6 +263,8 @@ class AttachmentToolsetTests(TestCase):
         # Assert
         self.assertEqual(blank["error"], "query is required")
         self.assertIn("500", too_long["error"])
+        self.assertIn("max_passages must be between 1 and 5", too_many["error"])
+        self.assertIn("is not attached to this conversation", unknown["error"])
         self.assertIn("No files are attached", no_files["error"])
 
     # -- prompt preamble ----------------------------------------------------
