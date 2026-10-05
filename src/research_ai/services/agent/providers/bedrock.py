@@ -8,6 +8,7 @@ split into the provider-agnostic ``LLMProvider`` shape.
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from research_ai.services.agent.errors import ProviderError
@@ -54,6 +55,8 @@ PROMPT_CACHING = True
 
 # Bedrock caps an image at 5 MB in base64, which is 3.75 MB of bytes.
 MAX_IMAGE_BYTES = 5 * 1024 * 1024 * 3 // 4
+# Converse rejects a message that carries more than 20 images.
+MAX_MESSAGE_IMAGES = 20
 _IMAGE_FORMATS = {
     "image/jpeg": "jpeg",
     "image/png": "png",
@@ -91,6 +94,13 @@ _STOP_REASONS = {
     "content_filtered": StopReason.CONTENT_FILTERED,
     "guardrail_intervened": StopReason.CONTENT_FILTERED,
 }
+
+
+@dataclass
+class _ImageQuota:
+    """The images the message being rendered may still carry."""
+
+    left: int = MAX_MESSAGE_IMAGES
 
 
 class BedrockProvider(LLMProvider):
@@ -199,24 +209,31 @@ class BedrockProvider(LLMProvider):
         )
 
     def _render_content(self, blocks: list[Block]) -> list[dict]:
+        # One quota for the message: images inside tool results count too.
+        quota = _ImageQuota()
         rendered: list[dict] = []
         for block in blocks:
             if isinstance(block, ImageBlock):
-                rendered.extend(self._render_image(block))
+                rendered.extend(self._render_image(block, quota))
             else:
-                rendered.append(self._render_block(block))
+                rendered.append(self._render_block(block, quota))
         return rendered
 
-    def _render_image(self, block: ImageBlock) -> list[dict]:
+    def _render_image(self, block: ImageBlock, quota: _ImageQuota) -> list[dict]:
         """The image after its label, or its placeholder as text."""
-        data = load_image(
-            block,
-            loader=self.image_loader,
-            vision=model_capabilities("bedrock", self.model_id).vision,
-            max_bytes=MAX_IMAGE_BYTES,
-        )
+        data = None
+        if quota.left:
+            data = load_image(
+                block,
+                loader=self.image_loader,
+                vision=model_capabilities("bedrock", self.model_id).vision,
+                max_bytes=MAX_IMAGE_BYTES,
+            )
+        else:
+            logger.warning("image %r is past the message's image limit", block.ref)
         if data is None:
             return [{"text": image_placeholder(block)}]
+        quota.left -= 1
         image = {
             "image": {
                 "format": _IMAGE_FORMATS[block.media_type],
@@ -226,7 +243,7 @@ class BedrockProvider(LLMProvider):
         }
         return [{"text": block.label}, image] if block.label else [image]
 
-    def _render_block(self, block: Any) -> dict:
+    def _render_block(self, block: Any, quota: _ImageQuota) -> dict:
         if isinstance(block, TextBlock):
             return {"text": block.text}
         if isinstance(block, ThinkingBlock):
@@ -246,7 +263,11 @@ class BedrockProvider(LLMProvider):
                 "toolUseId": block.tool_use_id,
                 "content": [
                     {"json": block.content},
-                    *(part for i in block.images for part in self._render_image(i)),
+                    *(
+                        part
+                        for image in block.images
+                        for part in self._render_image(image, quota)
+                    ),
                 ],
             }
             if block.is_error:

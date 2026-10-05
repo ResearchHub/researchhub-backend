@@ -5,6 +5,7 @@ from copy import deepcopy
 from django.test import SimpleTestCase
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.images import ImageUnavailableError
 from research_ai.services.agent.providers import bedrock
 from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.tools import Tool
@@ -219,6 +220,94 @@ class RenderImageTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(rendered[0]["content"], [{"text": "[Image not shown]"}])
+
+    def test_a_message_sends_no_more_images_than_bedrock_allows(self):
+        # Arrange
+        pages = [self.CHART] * (bedrock.MAX_MESSAGE_IMAGES + 1)
+        messages = [Message(role="user", content=[*pages, TextBlock(text="compare")])]
+
+        # Act
+        with self.assertLogs("research_ai.services.agent.providers.bedrock", "WARNING"):
+            rendered = self._provider()._render_messages(messages)
+
+        # Assert
+        content = rendered[0]["content"]
+        self.assertEqual(
+            sum("image" in part for part in content), bedrock.MAX_MESSAGE_IMAGES
+        )
+        self.assertEqual(
+            content[-2:], [{"text": "[Image not shown]"}, {"text": "compare"}]
+        )
+
+    def test_tool_results_in_one_message_share_its_image_limit(self):
+        # Arrange
+        per_result = bedrock.MAX_MESSAGE_IMAGES - 1
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(
+                        tool_use_id=tool_use_id,
+                        content={},
+                        images=(self.CHART,) * per_result,
+                    )
+                    for tool_use_id in ("t1", "t2")
+                ],
+            )
+        ]
+
+        # Act
+        with self.assertLogs("research_ai.services.agent.providers.bedrock", "WARNING"):
+            rendered = self._provider()._render_messages(messages)
+
+        # Assert
+        first, second = (
+            part["toolResult"]["content"] for part in rendered[0]["content"]
+        )
+        self.assertEqual(sum("image" in part for part in first), per_result)
+        self.assertEqual(sum("image" in part for part in second), 1)
+        self.assertEqual(second[2:], [{"text": "[Image not shown]"}] * (per_result - 1))
+
+    def test_the_image_limit_applies_to_each_message_separately(self):
+        # Arrange
+        full = Message(role="user", content=[self.CHART] * bedrock.MAX_MESSAGE_IMAGES)
+        reply = Message(role="assistant", content=[TextBlock(text="ok")])
+
+        # Act
+        rendered = self._provider()._render_messages([full, reply, full])
+
+        # Assert
+        for message in (rendered[0], rendered[2]):
+            self.assertEqual(
+                sum("image" in part for part in message["content"]),
+                bedrock.MAX_MESSAGE_IMAGES,
+            )
+
+    def test_an_image_that_is_not_sent_leaves_its_place_to_the_next(self):
+        # Arrange
+        gone = ImageBlock(ref="files/9/gone.png", media_type="image/png")
+        images = dict(self.IMAGES)
+
+        def loader(ref):
+            if ref not in images:
+                raise ImageUnavailableError(ref)
+            return images[ref]
+
+        provider = _build_provider(
+            model_id="us.anthropic.claude-opus-5", image_loader=loader
+        )
+        pages = [gone, *[self.CHART] * bedrock.MAX_MESSAGE_IMAGES]
+
+        # Act
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
+            rendered = provider._render_messages([Message(role="user", content=pages)])
+
+        # Assert
+        content = rendered[0]["content"]
+        self.assertEqual(content[0], {"text": "[Image not shown]"})
+        self.assertEqual(
+            sum("image" in part for part in content), bedrock.MAX_MESSAGE_IMAGES
+        )
 
 
 class CompleteAndParseTests(SimpleTestCase):
