@@ -247,7 +247,8 @@ class AttachmentToolsetTests(TestCase):
             f'- attachment {self.proposal.id}: "Aims \\"final\\".pdf" (PDF, 3 pages, '
             f"{len(PDF_TEXT):,} characters, the rest of the file was too long "
             "to keep): read it with read_attachment or find passages with "
-            "search_attachment",
+            "search_attachment; its pages are also shown as images with this "
+            "message",
             lines,
         )
         self.assertIn(

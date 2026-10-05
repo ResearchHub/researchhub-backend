@@ -38,11 +38,12 @@ exactly those notes and nothing else.
 Files the user uploads (``services.agent_files``) are attached to the message
 they are sent with. The turn's prompt lists them and carries the short ones in
 full, and the attachment tools read or search them for the rest of the
-conversation.
+conversation. A model that takes images is also sent a short PDF's pages with
+the message and can look at any PDF's pages through a tool.
 """
 
 import logging
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from datetime import timedelta
 
 from django.db import transaction
@@ -65,6 +66,8 @@ from research_ai.prompts.notebook_chat_prompts import build_notebook_chat_system
 from research_ai.services.agent import (
     AgentRunError,
     AgentService,
+    ImageBlock,
+    generator_model_ref,
     resolve_provider,
     split_model_ref,
     validate_model_ref,
@@ -74,7 +77,13 @@ from research_ai.services.agent.model_capabilities import (
     validate_generation_options,
 )
 from research_ai.services.agent.providers.registry import default_effort
-from research_ai.services.agent_files import AgentFileService
+from research_ai.services.agent_files import AgentFileService, Attachment
+from research_ai.services.agent_files.delivery import PageImages
+from research_ai.services.agent_files.image_loader import PrivateStorageImageLoader
+from research_ai.services.agent_files.page_images import (
+    PageImageService,
+    page_image_count,
+)
 from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentContextService,
@@ -173,6 +182,16 @@ def _derive_title(text: str) -> str:
     return " ".join(text.split())[:TITLE_MAX_CHARS].rstrip()
 
 
+def _takes_images(model_ref: str) -> bool:
+    """Whether the model a turn runs on accepts images.
+
+    Falls back as ``resolve_provider`` does, so the adapter built from the same
+    ref judges its model the same way.
+    """
+    provider_name, model_id = split_model_ref(model_ref or generator_model_ref())
+    return model_capabilities(provider_name, model_id or "").vision
+
+
 def _stream_phase(stream: dict | None) -> dict | None:
     """Return the live phase implied by the newest transient stream item."""
     if not stream or not stream.get("items"):
@@ -229,6 +248,7 @@ class NotebookChatService:
         stream_store: ExecutionStreamStore | None = None,
         note_creation_service: NoteCreationService | None = None,
         file_service: AgentFileService | None = None,
+        page_image_service: PageImageService | None = None,
         workflow: str = WORKFLOW,
     ):
         self.workflow = workflow
@@ -277,6 +297,9 @@ class NotebookChatService:
             else note_creation_service
         )
         self.files = AgentFileService() if file_service is None else file_service
+        self.page_images = (
+            PageImageService() if page_image_service is None else page_image_service
+        )
         self._config = config
 
     @property
@@ -829,8 +852,12 @@ class NotebookChatService:
         provider = self._provider or resolve_provider(
             execution.model or None,
             native_tools=frozenset({"web_search"}),
+            # One per turn: it keeps the images the turn's requests re-send.
+            image_loader=PrivateStorageImageLoader(),
             **provider_options,
         )
+        # Decides the delivery plan and the page tool; the adapter agrees.
+        vision = _takes_images(execution.model)
         note_toolset = self._note_toolset(conversation, note)
         toolset = compose_notebook_toolset(
             note_toolset=note_toolset,
@@ -854,7 +881,10 @@ class NotebookChatService:
             ),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
-            attachment_toolset=AttachmentToolset(conversation=conversation),
+            attachment_toolset=AttachmentToolset(
+                conversation=conversation,
+                page_images=self.page_images if vision else None,
+            ),
             native_tool_names=provider.native_tool_names,
         )
         config = self._turn_config(execution)
@@ -885,15 +915,11 @@ class NotebookChatService:
             if execution.context_parent_id
             else []
         )
-        # Planned once per turn; the prompt uses each file's text delivery.
-        attachments = self.files.message_attachments(
-            trigger,
-            vision=model_capabilities(
-                accounting_provider, accounting_model or ""
-            ).vision,
-        )
+        # Planned once per turn, for the prompt's text and the pages sent as images.
+        attachments = self.files.message_attachments(trigger, vision=vision)
+        images, unshown_pages = self._attached_page_images(attachments)
         prompt = trigger.content
-        preamble = attachment_preamble(attachments)
+        preamble = attachment_preamble(attachments, unshown_pages=unshown_pages)
         if preamble:
             prompt = f"{preamble}\n\n{prompt}"
         # The user may have edited a note between turns; the model's earlier
@@ -902,7 +928,7 @@ class NotebookChatService:
         if notice:
             prompt = f"{notice}\n\n{prompt}"
         try:
-            result = agent.continue_conversation(context, prompt)
+            result = agent.continue_conversation(context, prompt, images=images)
         except AgentRunError as exc:
             # The loop already recorded the failure (status, error fields,
             # partial trace) through the recorder; report, don't re-raise.
@@ -914,6 +940,31 @@ class NotebookChatService:
             "iterations": result.iterations,
             "final_text": result.final_text,
         }
+
+    def _attached_page_images(
+        self, attachments: Sequence[Attachment]
+    ) -> tuple[list[ImageBlock], dict[int, tuple[int, ...]]]:
+        """Images of the pages sent with the message, in file then page order.
+
+        Also, by file id, the pages that could not be rendered.
+        """
+        images: list[ImageBlock] = []
+        unshown: dict[int, tuple[int, ...]] = {}
+        for attachment in attachments:
+            if attachment.delivery.page_images != PageImages.ATTACHED:
+                continue
+            file = attachment.file
+            pages = range(1, page_image_count(file) + 1)
+            try:
+                rendered = self.page_images.images(file, pages)
+            except Exception:  # the turn goes on with the file's text
+                logger.exception("no page images for agent file %s", file.id)
+                unshown[file.id] = tuple(pages)
+                continue
+            images.extend(rendered.images)
+            if rendered.failed:
+                unshown[file.id] = rendered.failed
+        return images, unshown
 
     def _publishing_recorder(
         self, recorder, execution: AgentExecution

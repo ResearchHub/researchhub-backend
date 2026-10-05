@@ -35,6 +35,7 @@ from research_ai.services.note_tools import CREATE_NOTE, EDIT_NOTE, READ_NOTE
 from research_ai.services.notebook_chat.attachment_tools import (
     READ_ATTACHMENT,
     SEARCH_ATTACHMENT,
+    VIEW_ATTACHMENT_PAGES,
 )
 from research_ai.services.notebook_chat.code_execution import (
     CODE_EXECUTION_TOOLS,
@@ -87,6 +88,7 @@ _LABELS = {
     GET_RESEARCHER_PROFILE: "Read your researcher profile",
     READ_ATTACHMENT: "Read an attached file",
     SEARCH_ATTACHMENT: "Searched attached files",
+    VIEW_ATTACHMENT_PAGES: "Looked at pages of an attached file",
 }
 # What each tool is doing while the call is still open, for the live phase.
 # Distinct from _LABELS, which reads as a completed step.
@@ -112,6 +114,7 @@ _ACTIVE_LABELS = {
     GET_RESEARCHER_PROFILE: "Reading your researcher profile",
     READ_ATTACHMENT: "Reading an attached file",
     SEARCH_ATTACHMENT: "Searching attached files",
+    VIEW_ATTACHMENT_PAGES: "Looking at pages of an attached file",
 }
 # What the model is doing while it is still writing a tool call's arguments.
 # Only tools whose arguments are substantial work in themselves need copy
@@ -135,6 +138,7 @@ _DETAIL_INPUT_FIELDS = {
 _DETAIL_RESULT_FIELDS = {
     GET_AUTHOR: "display_name",
     READ_ATTACHMENT: "filename",
+    VIEW_ATTACHMENT_PAGES: "filename",
 }
 _MAX_DETAIL_CHARS = 200
 _MAX_SOURCES = 5
