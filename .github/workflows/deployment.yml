@@ -278,8 +278,6 @@ jobs:
 
   deploy-ecs-celery-worker:
     needs: migrate
-    # FIXME: staging only for now
-    if: (github.event.inputs.deploy_env || 'staging') == 'staging'
     permissions:
       contents: read
       id-token: write
@@ -292,8 +290,6 @@ jobs:
 
   deploy-ecs-celery-worker-lite:
     needs: migrate
-    # FIXME: staging only for now
-    if: (github.event.inputs.deploy_env || 'staging') == 'staging'
     permissions:
       contents: read
       id-token: write
@@ -306,8 +302,6 @@ jobs:
 
   deploy-ecs-celery-flower:
     needs: migrate
-    # FIXME: staging only for now
-    if: (github.event.inputs.deploy_env || 'staging') == 'staging'
     permissions:
       contents: read
       id-token: write
