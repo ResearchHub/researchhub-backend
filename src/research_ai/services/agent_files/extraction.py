@@ -24,7 +24,7 @@ from markdownify import markdownify
 
 
 class UnreadableFileError(ValueError):
-    """The file yields no text; the message is written for the user."""
+    """The file cannot be read; the message is written for the user."""
 
 
 @dataclass(frozen=True)
@@ -90,6 +90,7 @@ PageRecovery = Callable[[Sequence[int]], Mapping[int, str]]
 
 @dataclass(frozen=True)
 class ExtractedText:
+    # For a PDF of scans that nothing read, only the page markers and their notes.
     text: str
     page_count: int | None
     truncated: bool
@@ -149,7 +150,8 @@ def extract_text(
     text = text.replace("\x00", "")
     if len(text) > max_chars:
         text, truncated = text[:max_chars], True
-    # An empty Word table still renders its Markdown frame.
+    # An empty Word table still renders its Markdown frame; a PDF of unread
+    # scans passes on its page markers.
     if not any(map(str.isalnum, text)):
         raise UnreadableFileError("No readable text was found in this file.")
     return ExtractedText(
@@ -214,16 +216,16 @@ def _assemble_pdf(
         {number for number, text in enumerate(pages, start=1) if text is None}
         | set(mostly_image)
     )
+    # A scan or figure can still be looked at as a page image; blank pages cannot.
+    if not unread and not any(pages):
+        raise UnreadableFileError(
+            "This PDF has no content; all of its pages are blank."
+        )
     recovered: dict[int, str] = {}
     if unread and recover_pages is not None:
         for number, text in recover_pages(unread).items():
             if number in unread and text and text.strip():
                 recovered[number] = text.strip()
-    if not any(pages) and not recovered:
-        raise UnreadableFileError(
-            "This PDF has no selectable text; it may be a scanned image. Upload "
-            "a version with a text layer."
-        )
     parts = []
     for number, text in enumerate(pages, start=1):
         if number in recovered:

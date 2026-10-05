@@ -87,13 +87,17 @@ class PdfExtractionTests(TestCase):
         self.assertTrue(extracted.truncated)
         self.assertEqual(extracted.page_count, 3)
 
-    def test_a_pdf_without_a_text_layer_is_reported_as_a_scan(self):
+    def test_a_pdf_of_blank_pages_is_refused(self):
         # Arrange
         data = pdf_bytes("", "")
+        asked = []
 
         # Act / Assert
-        with self.assertRaisesRegex(UnreadableFileError, "no selectable text"):
+        with self.assertRaisesRegex(UnreadableFileError, "pages are blank"):
             extract_text(data, PDF, max_chars=MAX_CHARS)
+        with self.assertRaisesRegex(UnreadableFileError, "pages are blank"):
+            extract_text(data, PDF, max_chars=MAX_CHARS, recover_pages=asked.append)
+        self.assertEqual(asked, [])
 
     def test_a_password_protected_pdf_is_refused(self):
         # Arrange
@@ -186,15 +190,37 @@ class PdfPagesWithoutTextTests(TestCase):
         self.assertEqual(extracted.text, "[Page 1]\nAlpha findings\n\n[Page 2]\n")
         self.assertEqual(extracted.pages_without_text, ())
 
-    def test_a_fully_scanned_pdf_is_still_refused_without_recovered_text(self):
+    def test_a_fully_scanned_pdf_keeps_only_its_page_markers(self):
         # Arrange
         data = pdf_with_scans(SCAN, SCAN)
 
-        # Act / Assert
-        with self.assertRaisesRegex(UnreadableFileError, "no selectable text"):
-            extract_text(data, PDF, max_chars=MAX_CHARS)
-        with self.assertRaisesRegex(UnreadableFileError, "no selectable text"):
-            extract_text(data, PDF, max_chars=MAX_CHARS, recover_pages=lambda pages: {})
+        # Act
+        unaided = extract_text(data, PDF, max_chars=MAX_CHARS)
+        unrecovered = extract_text(
+            data, PDF, max_chars=MAX_CHARS, recover_pages=lambda pages: {}
+        )
+
+        # Assert
+        for extracted in (unaided, unrecovered):
+            self.assertEqual(
+                extracted.text,
+                f"[Page 1]\n{NO_TEXT_LAYER}\n\n[Page 2]\n{NO_TEXT_LAYER}",
+            )
+            self.assertEqual(extracted.page_count, 2)
+            self.assertEqual(extracted.pages_without_text, (1, 2))
+            self.assertEqual(extracted.ocr_pages, ())
+            self.assertFalse(extracted.truncated)
+
+    def test_one_scanned_page_among_blank_ones_is_enough_to_keep_a_pdf(self):
+        # Arrange
+        data = pdf_with_scans("", SCAN)
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, f"[Page 1]\n\n\n[Page 2]\n{NO_TEXT_LAYER}")
+        self.assertEqual(extracted.pages_without_text, (2,))
 
     def test_recovered_text_fills_only_the_pages_without_a_text_layer(self):
         # Arrange

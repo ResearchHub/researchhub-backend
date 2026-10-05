@@ -245,7 +245,7 @@ class AgentFileServiceTests(TestCase):
         # Assert
         file.refresh_from_db()
         self.assertEqual(status, AgentFile.Status.FAILED)
-        self.assertIn("no selectable text", file.error)
+        self.assertIn("pages are blank", file.error)
         self.storage.delete.assert_called_once_with(file.storage_key)
 
     @override_settings(MISTRAL_API_KEY="test-key")
@@ -286,6 +286,47 @@ class AgentFileServiceTests(TestCase):
             file.text, f"[Page 1]\nSpecific aims\n\n[Page 2]\n{NO_TEXT_LAYER}"
         )
         self.assertEqual(len(responses.calls), 0)
+
+    @override_settings(MISTRAL_API_KEY="")
+    def test_process_keeps_a_fully_scanned_pdf_for_its_pages(self):
+        # Arrange
+        file = make_file(self.user, status=AgentFile.Status.PROCESSING, text="")
+        self.storage.read.return_value = pdf_with_scans(SCAN, SCAN)
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        file.refresh_from_db()
+        self.assertEqual(status, AgentFile.Status.READY)
+        self.assertEqual(
+            file.text, f"[Page 1]\n{NO_TEXT_LAYER}\n\n[Page 2]\n{NO_TEXT_LAYER}"
+        )
+        self.assertEqual(file.page_count, 2)
+        self.assertEqual(file.error, "")
+        self.storage.delete.assert_not_called()
+
+    @override_settings(MISTRAL_API_KEY="test-key")
+    @responses.activate
+    def test_process_keeps_a_fully_scanned_pdf_when_ocr_is_down(self):
+        # Arrange
+        file = make_file(self.user, status=AgentFile.Status.PROCESSING, text="")
+        self.storage.read.return_value = pdf_with_scans(SCAN, SCAN)
+        responses.post(MISTRAL_OCR_URL, status=503)
+
+        # Act
+        with self.assertLogs(
+            "research_ai.services.agent_files.extraction_service", "WARNING"
+        ):
+            status = self.service.process(file.id)
+
+        # Assert
+        file.refresh_from_db()
+        self.assertEqual(status, AgentFile.Status.READY)
+        self.assertEqual(
+            file.text, f"[Page 1]\n{NO_TEXT_LAYER}\n\n[Page 2]\n{NO_TEXT_LAYER}"
+        )
+        self.assertEqual(len(responses.calls), 2)
 
     def test_process_fails_generically_when_storage_breaks(self):
         # Arrange
