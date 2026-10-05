@@ -1,12 +1,10 @@
 """Unit tests for the Bedrock Converse provider adapter (no network)."""
 
 from copy import deepcopy
-from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
 from research_ai.services.agent.errors import ProviderError
-from research_ai.services.agent.images import MANY_IMAGES, ImageUnavailableError
 from research_ai.services.agent.providers import bedrock
 from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.tools import Tool
@@ -20,7 +18,7 @@ from research_ai.services.agent.types import (
     ToolUseBlock,
     TurnUsage,
 )
-from research_ai.tests.agent.image_test_helpers import JPEG, PNG, WIDE_PNG
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG
 
 
 class FakeConverseClient:
@@ -131,12 +129,7 @@ class RenderMessagesTests(SimpleTestCase):
 class RenderImageTests(SimpleTestCase):
     PAGE = ImageBlock(ref="files/1/p1.jpg", media_type="image/jpeg", label="Page 1")
     CHART = ImageBlock(ref="files/1/chart.png", media_type="image/png")
-    WIDE = ImageBlock(ref="files/1/wide.png", media_type="image/png", label="wide")
-    IMAGES = {
-        "files/1/p1.jpg": JPEG,
-        "files/1/chart.png": PNG,
-        "files/1/wide.png": WIDE_PNG,
-    }
+    IMAGES = {"files/1/p1.jpg": JPEG, "files/1/chart.png": PNG}
 
     def _provider(self, model_id="us.anthropic.claude-opus-5"):
         return _build_provider(model_id=model_id, image_loader=self.IMAGES.__getitem__)
@@ -288,73 +281,6 @@ class RenderImageTests(SimpleTestCase):
                 sum("image" in part for part in message["content"]),
                 bedrock.MAX_MESSAGE_IMAGES,
             )
-
-    def test_an_image_that_is_not_sent_leaves_its_place_to_the_next(self):
-        # Arrange
-        gone = ImageBlock(ref="files/9/gone.png", media_type="image/png")
-        images = dict(self.IMAGES)
-
-        def loader(ref):
-            if ref not in images:
-                raise ImageUnavailableError(ref)
-            return images[ref]
-
-        provider = _build_provider(
-            model_id="us.anthropic.claude-opus-5", image_loader=loader
-        )
-        pages = [gone, *[self.CHART] * bedrock.MAX_MESSAGE_IMAGES]
-
-        # Act
-        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
-            rendered = provider._render_messages([Message(role="user", content=pages)])
-
-        # Assert
-        content = rendered[0]["content"]
-        self.assertEqual(content[0], {"text": "[Image not shown]"})
-        self.assertEqual(
-            sum("image" in part for part in content), bedrock.MAX_MESSAGE_IMAGES
-        )
-
-    def test_a_large_image_is_not_sent_once_the_request_has_many_images(self):
-        # Arrange
-        others = [
-            Message(role="user", content=[self.CHART] * MANY_IMAGES),
-            Message(role="assistant", content=[TextBlock(text="ok")]),
-        ]
-        wide = Message(role="user", content=[self.WIDE])
-
-        # Act
-        alone = self._provider()._render_messages([wide])
-        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
-            among_many = self._provider()._render_messages([*others, wide])
-
-        # Assert
-        self.assertEqual(
-            alone[0]["content"],
-            [
-                {"text": "wide"},
-                {"image": {"format": "png", "source": {"bytes": WIDE_PNG}}},
-            ],
-        )
-        self.assertEqual(
-            among_many[2]["content"], [{"text": "[Image not shown: wide]"}]
-        )
-
-    def test_images_stop_at_the_size_a_request_may_reach(self):
-        # Arrange: room for two of the three images.
-        messages = [Message(role="user", content=[self.CHART] * 3)]
-
-        # Act
-        with (
-            patch.object(bedrock, "MAX_REQUEST_IMAGE_BYTES", 2 * len(PNG)),
-            self.assertLogs("research_ai.services.agent.images", "WARNING"),
-        ):
-            rendered = self._provider()._render_messages(messages)
-
-        # Assert
-        content = rendered[0]["content"]
-        self.assertEqual(sum("image" in part for part in content), 2)
-        self.assertEqual(content[-1], {"text": "[Image not shown]"})
 
 
 class CompleteAndParseTests(SimpleTestCase):

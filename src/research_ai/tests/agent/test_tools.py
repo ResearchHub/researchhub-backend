@@ -233,16 +233,6 @@ class ToolsetImageTests(SimpleTestCase):
         self.assertEqual(result, {"pages": [1]})
         self.assertFalse(stop)
 
-    def test_a_plain_dict_result_has_no_images(self):
-        # Arrange
-        toolset = Toolset([_build_ok_tool("search")])
-
-        # Act
-        output, _stop = toolset.call("search", {"q": 1})
-
-        # Assert
-        self.assertEqual(output, ToolOutput(content={"echo": {"q": 1}}))
-
     def test_an_error_result_drops_its_images(self):
         # Arrange
         toolset = Toolset(

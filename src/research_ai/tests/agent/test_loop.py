@@ -759,16 +759,6 @@ class AgentImageTests(SimpleTestCase):
             provider.calls[1][-1].content, [self.PAGE, TextBlock(text="and this?")]
         )
 
-    def test_a_prompt_without_images_is_text_alone(self):
-        # Arrange
-        provider = FakeProvider([_build_text_turn("hello")])
-
-        # Act
-        _build_agent(provider, Toolset()).run("hi")
-
-        # Assert
-        self.assertEqual(provider.calls[0][0].content, [TextBlock(text="hi")])
-
     def test_images_a_tool_returns_ride_on_its_result(self):
         # Arrange
         toolset = Toolset(

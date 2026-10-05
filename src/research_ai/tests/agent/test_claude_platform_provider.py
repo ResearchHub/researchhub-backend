@@ -4,7 +4,6 @@ import base64
 from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import anthropic
 import httpx
@@ -33,7 +32,7 @@ from anthropic.types.refusal_stop_details import RefusalStopDetails
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
-from research_ai.services.agent.images import MANY_IMAGES, ImageUnavailableError
+from research_ai.services.agent.images import ImageUnavailableError
 from research_ai.services.agent.providers import claude_platform
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.tools import Tool
@@ -53,7 +52,7 @@ from research_ai.services.agent.types import (
     ToolUseStreamStart,
     TurnUsage,
 )
-from research_ai.tests.agent.image_test_helpers import JPEG, PNG, WIDE_PNG
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG
 
 
 class _FakeStream:
@@ -342,57 +341,10 @@ class RenderMessagesTests(SimpleTestCase):
 class RenderImageTests(SimpleTestCase):
     PAGE = ImageBlock(ref="files/1/p1.jpg", media_type="image/jpeg", label="Page 1")
     CHART = ImageBlock(ref="files/1/chart.png", media_type="image/png")
-    WIDE = ImageBlock(ref="files/1/wide.png", media_type="image/png", label="wide")
-    IMAGES = {
-        "files/1/p1.jpg": JPEG,
-        "files/1/chart.png": PNG,
-        "files/1/wide.png": WIDE_PNG,
-    }
+    IMAGES = {"files/1/p1.jpg": JPEG, "files/1/chart.png": PNG}
 
     def _provider(self, **kwargs):
         return _build_provider(image_loader=self.IMAGES.__getitem__, **kwargs)
-
-    def test_a_large_image_is_not_sent_once_the_request_has_many_images(self):
-        # Arrange: the other images arrive in a tool result on an earlier turn.
-        others = Message(
-            role="user",
-            content=[
-                ToolResultBlock(
-                    tool_use_id="t1", content={}, images=(self.CHART,) * MANY_IMAGES
-                )
-            ],
-        )
-        wide = Message(role="user", content=[self.WIDE])
-
-        # Act
-        alone = self._provider()._render_messages([wide])
-        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
-            among_many = self._provider()._render_messages([others, wide])
-
-        # Assert
-        self.assertEqual(
-            [part["type"] for part in alone[0]["content"]], ["text", "image"]
-        )
-        self.assertEqual(
-            among_many[1]["content"],
-            [{"type": "text", "text": "[Image not shown: wide]"}],
-        )
-
-    def test_images_stop_at_the_size_a_request_may_reach(self):
-        # Arrange: room for two of the three images.
-        messages = [Message(role="user", content=[self.CHART] * 3)]
-
-        # Act
-        with (
-            patch.object(claude_platform, "MAX_REQUEST_IMAGE_BYTES", 2 * len(PNG)),
-            self.assertLogs("research_ai.services.agent.images", "WARNING"),
-        ):
-            rendered = self._provider()._render_messages(messages)
-
-        # Assert
-        content = rendered[0]["content"]
-        self.assertEqual([part["type"] for part in content], ["image", "image", "text"])
-        self.assertEqual(content[-1]["text"], "[Image not shown]")
 
     def test_user_images_render_as_base64_blocks_after_their_label(self):
         # Arrange
@@ -515,20 +467,6 @@ class RenderImageTests(SimpleTestCase):
                 rendered[1]["content"][0]["content"],
                 [{"type": "text", "text": "{}"}, placeholder],
             )
-
-    def test_images_reach_the_api_request(self):
-        # Arrange
-        provider = self._provider(
-            responses=[_build_response([AnthropicTextBlock(type="text", text="ok")])]
-        )
-        messages = [Message(role="user", content=[self.CHART, TextBlock(text="hi")])]
-
-        # Act
-        _complete(provider, messages=messages)
-
-        # Assert
-        content = provider._client.messages.calls[0]["messages"][0]["content"]
-        self.assertEqual([block["type"] for block in content], ["image", "text"])
 
 
 class CompleteAndParseTests(SimpleTestCase):

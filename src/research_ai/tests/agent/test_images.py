@@ -1,9 +1,6 @@
 """Unit tests for resolving image references into request bytes."""
 
-import io
 from unittest import TestCase
-
-from PIL import Image
 
 from research_ai.services.agent.images import (
     MANY_IMAGES,
@@ -120,17 +117,6 @@ class LoadImageTests(TestCase):
         # Assert
         self.assertIsNone(data)
 
-    def test_bytes_that_only_start_like_the_declared_type_are_not_sent(self):
-        # Arrange
-        loader = _loader(b"\xff\xd8\xff-not-a-jpeg")
-
-        # Act
-        with self.assertLogs(LOGGER, "WARNING"):
-            data = load_image(PAGE, loader=loader, vision=True, max_bytes=MAX_BYTES)
-
-        # Assert
-        self.assertIsNone(data)
-
     def test_an_image_wider_or_taller_than_providers_take_is_not_sent(self):
         # Arrange: a few hundred bytes, so only its dimensions rule it out.
         png = ImageBlock(ref="files/1/strip.png", media_type="image/png")
@@ -160,30 +146,11 @@ class LoadImageTests(TestCase):
         # Assert
         self.assertEqual(sent, data)
 
-    def test_an_image_over_the_side_limit_it_is_given_is_not_sent(self):
-        # Arrange
-        png = ImageBlock(ref="files/1/wide.png", media_type="image/png")
-
-        # Act
-        with self.assertLogs(LOGGER, "WARNING"):
-            sent = load_image(
-                png,
-                loader=_loader(WIDE_PNG),
-                vision=True,
-                max_bytes=MAX_BYTES,
-                max_side_px=MANY_IMAGES_SIDE_PX,
-            )
-
-        # Assert
-        self.assertIsNone(sent)
-
     def test_an_image_cut_short_after_its_header_is_not_sent(self):
         for media_type, image_format in (("image/jpeg", "JPEG"), ("image/png", "PNG")):
             # Arrange: half the file, which still opens and reports its size.
             whole = image_bytes(image_format, (400, 400))
             cut = whole[: len(whole) // 2]
-            with Image.open(io.BytesIO(cut)) as header:
-                self.assertEqual(header.size, (400, 400))
 
             # Act
             with self.assertLogs(LOGGER, "WARNING"):

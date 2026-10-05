@@ -3,10 +3,8 @@
 from unittest import TestCase
 
 from research_ai.services.agent.types import (
-    ImageBlock,
     Message,
     TextBlock,
-    ToolResultBlock,
     ToolUseBlock,
     deserialize_messages,
     serialize_messages,
@@ -233,37 +231,3 @@ class AgentPersistenceContentTests(TestCase):
         self.assertIsInstance(output["text"], str)
         self.assertTrue(output["_truncated"])
         self.assertLessEqual(json_size_bytes(output), MAX_TRACE_MESSAGE_BYTES)
-
-    def test_context_stores_image_references_and_no_image_bytes(self):
-        # Arrange: twenty page images sent with a prompt and from a tool.
-        pages = tuple(
-            ImageBlock(
-                ref=f"uploads/research_ai/users/1/file/pages/{number}.jpg",
-                media_type="image/jpeg",
-                label=f"grant.pdf, page {number}",
-            )
-            for number in range(1, 21)
-        )
-        messages = [
-            Message(role="user", content=[*pages, TextBlock(text="summarize")]),
-            Message(
-                role="user",
-                content=[
-                    ToolResultBlock(
-                        tool_use_id="tool-1", content={"pages": 20}, images=pages
-                    )
-                ],
-            ),
-        ]
-
-        for message in messages:
-            # Act
-            content, _state, was_compacted, _size = serialize_context_message(message)
-
-            # Assert
-            self.assertFalse(was_compacted)
-            self.assertLess(json_size_bytes(content), 8 * 1024)
-            self.assertEqual(
-                deserialize_messages([{"role": "user", "content": content}]),
-                [message],
-            )

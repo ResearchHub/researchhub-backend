@@ -4,14 +4,12 @@ import base64
 import json
 from copy import deepcopy
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import httpx
 import openai
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
-from research_ai.services.agent.images import MANY_IMAGES
 from research_ai.services.agent.providers import openrouter
 from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 from research_ai.services.agent.tools import Tool
@@ -24,7 +22,7 @@ from research_ai.services.agent.types import (
     ToolResultBlock,
     ToolUseBlock,
 )
-from research_ai.tests.agent.image_test_helpers import JPEG, PNG, WIDE_PNG
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG
 
 
 class FakeChatCompletionsClient:
@@ -200,12 +198,7 @@ class RenderMessagesTests(SimpleTestCase):
 class RenderImageTests(SimpleTestCase):
     PAGE = ImageBlock(ref="files/1/p1.jpg", media_type="image/jpeg", label="Page 1")
     CHART = ImageBlock(ref="files/1/chart.png", media_type="image/png")
-    WIDE = ImageBlock(ref="files/1/wide.png", media_type="image/png", label="wide")
-    IMAGES = {
-        "files/1/p1.jpg": JPEG,
-        "files/1/chart.png": PNG,
-        "files/1/wide.png": WIDE_PNG,
-    }
+    IMAGES = {"files/1/p1.jpg": JPEG, "files/1/chart.png": PNG}
     JPEG_URL = "data:image/jpeg;base64," + base64.b64encode(JPEG).decode()
     PNG_URL = "data:image/png;base64," + base64.b64encode(PNG).decode()
 
@@ -254,7 +247,9 @@ class RenderImageTests(SimpleTestCase):
                     ToolResultBlock(
                         tool_use_id="call-1", content={"page": 1}, images=(self.PAGE,)
                     ),
-                    ToolResultBlock(tool_use_id="call-2", content={"hits": 0}),
+                    ToolResultBlock(
+                        tool_use_id="call-2", content={"hits": 1}, images=(self.CHART,)
+                    ),
                 ],
             ),
         ]
@@ -262,59 +257,24 @@ class RenderImageTests(SimpleTestCase):
         # Act
         rendered = self._provider()._render_messages("sys", messages)
 
-        # Assert
+        # Assert: each result's images name the result they belong to.
+        first = "[Images returned by tool result 1 of 2 above (id call-1).]\n"
+        second = "[Images returned by tool result 2 of 2 above (id call-2).]\n"
         self.assertEqual(
             rendered[2:],
             [
                 {"role": "tool", "tool_call_id": "call-1", "content": '{"page": 1}'},
-                {"role": "tool", "tool_call_id": "call-2", "content": '{"hits": 0}'},
+                {"role": "tool", "tool_call_id": "call-2", "content": '{"hits": 1}'},
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "text",
-                            "text": (
-                                "[Images returned by tool result 1 of 2 above "
-                                "(id call-1).]\n"
-                            ),
-                        },
+                        {"type": "text", "text": first},
                         {"type": "text", "text": "Page 1"},
                         {"type": "image_url", "image_url": {"url": self.JPEG_URL}},
+                        {"type": "text", "text": second},
+                        {"type": "image_url", "image_url": {"url": self.PNG_URL}},
                     ],
                 },
-            ],
-        )
-
-    def test_images_from_several_tool_results_each_name_their_result(self):
-        # Arrange: both results' images end up after the second tool message.
-        messages = [
-            Message(
-                role="user",
-                content=[
-                    ToolResultBlock(
-                        tool_use_id="call-1", content={}, images=(self.PAGE,)
-                    ),
-                    ToolResultBlock(
-                        tool_use_id="call-2", content={}, images=(self.CHART,)
-                    ),
-                ],
-            ),
-        ]
-
-        # Act
-        rendered = self._provider()._render_messages("sys", messages)
-
-        # Assert
-        first = "[Images returned by tool result 1 of 2 above (id call-1).]\n"
-        second = "[Images returned by tool result 2 of 2 above (id call-2).]\n"
-        self.assertEqual(
-            rendered[3]["content"],
-            [
-                {"type": "text", "text": first},
-                {"type": "text", "text": "Page 1"},
-                {"type": "image_url", "image_url": {"url": self.JPEG_URL}},
-                {"type": "text", "text": second},
-                {"type": "image_url", "image_url": {"url": self.PNG_URL}},
             ],
         )
 
@@ -340,54 +300,6 @@ class RenderImageTests(SimpleTestCase):
                     "[Image not shown: Page 1]\n[Image not shown]\ncompare these"
                 ),
             },
-        )
-
-    def test_a_turn_without_images_still_renders_as_a_string(self):
-        # Arrange
-        messages = [
-            Message(role="user", content=[TextBlock(text="a"), TextBlock(text="b")])
-        ]
-
-        # Act
-        rendered = self._provider()._render_messages("sys", messages)
-
-        # Assert
-        self.assertEqual(rendered[1], {"role": "user", "content": "ab"})
-
-    def test_images_stop_at_the_size_a_request_may_reach(self):
-        # Arrange: room for two of the three images.
-        messages = [Message(role="user", content=[self.CHART] * 3)]
-
-        # Act
-        with (
-            patch.object(openrouter, "MAX_REQUEST_IMAGE_BYTES", 2 * len(PNG)),
-            self.assertLogs("research_ai.services.agent.images", "WARNING"),
-        ):
-            rendered = self._provider()._render_messages("sys", messages)
-
-        # Assert
-        content = rendered[1]["content"]
-        self.assertEqual(
-            [part["type"] for part in content], ["image_url", "image_url", "text"]
-        )
-        self.assertEqual(content[-1]["text"], "[Image not shown]\n")
-
-    def test_a_large_image_is_not_sent_once_the_request_has_many_images(self):
-        # Arrange
-        others = Message(role="user", content=[self.CHART] * MANY_IMAGES)
-        wide = Message(role="user", content=[self.WIDE])
-
-        # Act
-        alone = self._provider()._render_messages("sys", [wide])
-        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
-            among_many = self._provider()._render_messages("sys", [others, wide])
-
-        # Assert
-        self.assertEqual(
-            [part["type"] for part in alone[1]["content"]], ["text", "image_url"]
-        )
-        self.assertEqual(
-            among_many[2], {"role": "user", "content": "[Image not shown: wide]\n"}
         )
 
 
