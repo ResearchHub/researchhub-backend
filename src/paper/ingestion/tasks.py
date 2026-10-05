@@ -12,10 +12,8 @@ from paper.ingestion.mappers import OpenAlexMapper
 from paper.ingestion.services.metrics_enrichment import PaperMetricsEnrichmentService
 from paper.ingestion.services.openalex_enrichment import PaperOpenAlexEnrichmentService
 from researchhub.celery import (
-    QUEUE_BLUESKY_METRICS,
-    QUEUE_GITHUB_METRICS,
+    QUEUE_PAPER_METRICS,
     QUEUE_PAPER_MISC,
-    QUEUE_X_METRICS,
     app,
 )
 
@@ -73,7 +71,7 @@ def enrich_papers_with_openalex(self, days: int = 30, retry: int = 0):
             raise
 
 
-@app.task(queue=QUEUE_GITHUB_METRICS)
+@app.task(queue=QUEUE_PAPER_METRICS)
 def update_recent_papers_with_github_metrics(days: int = 7):
     """
     Dispatch individual tasks to fetch and update GitHub metrics
@@ -110,7 +108,7 @@ def update_recent_papers_with_github_metrics(days: int = 7):
     }
 
 
-@app.task(queue=QUEUE_GITHUB_METRICS, bind=True, max_retries=3, rate_limit="10/m")
+@app.task(queue=QUEUE_PAPER_METRICS, bind=True, max_retries=3, rate_limit="10/m")
 def enrich_paper_with_github_metrics(self, paper_id: int, retry: int = 0):
     """
     Fetch and update GitHub metrics for a single paper.
@@ -197,7 +195,7 @@ def _create_github_metrics_client() -> GithubMetricsClient:
     return GithubMetricsClient(github_client=client)
 
 
-@app.task(queue=QUEUE_BLUESKY_METRICS)
+@app.task(queue=QUEUE_PAPER_METRICS)
 def update_recent_papers_with_bluesky_metrics(days: int = 7):
     """
     Dispatch individual tasks to fetch and update Bluesky metrics
@@ -234,7 +232,7 @@ def update_recent_papers_with_bluesky_metrics(days: int = 7):
     }
 
 
-@app.task(queue=QUEUE_BLUESKY_METRICS, bind=True, max_retries=3, rate_limit="600/m")
+@app.task(queue=QUEUE_PAPER_METRICS, bind=True, max_retries=3, rate_limit="600/m")
 def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
     """
     Fetch and update Bluesky metrics for a single paper.
@@ -321,7 +319,7 @@ def enrich_paper_with_bluesky_metrics(self, paper_id: int, retry: int = 0):
             }
 
 
-@app.task(queue=QUEUE_X_METRICS)
+@app.task(queue=QUEUE_PAPER_METRICS)
 def update_recent_papers_with_x_metrics(days: int = 7):
     """
     Dispatch individual tasks to fetch and update X metrics
@@ -362,7 +360,7 @@ def update_recent_papers_with_x_metrics(days: int = 7):
 
 
 @app.task(
-    queue=QUEUE_X_METRICS,
+    queue=QUEUE_PAPER_METRICS,
     bind=True,
     max_retries=5,
     rate_limit="0.5/s",
