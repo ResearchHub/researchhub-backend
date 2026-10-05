@@ -15,11 +15,11 @@ from research_ai.services.outreach.send_rate_limits import (
     get_daily_usage,
     get_send_quota,
 )
+from user.tests.helpers import create_random_authenticated_user
 
 _PATCH_DAILY_CAP = (
     "research_ai.services.outreach.send_rate_limits.OUTREACH_SEND_DAILY_CAP"
 )
-from user.tests.helpers import create_random_authenticated_user
 
 
 def _connect_gmail(user, email: str = "editor@gmail.com"):
