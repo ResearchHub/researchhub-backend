@@ -14,19 +14,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
-from django.conf import settings
 from django.db.models import Count, Q
 from django.utils import timezone
 
-from research_ai.constants import OUTREACH_SEND_DAILY_CAP_DEFAULT
+from research_ai.constants import OUTREACH_SEND_DAILY_CAP
 from research_ai.models import GeneratedEmail
 
 RATE_LIMIT_CODE = "outreach_rate_limited"
 BULK_IN_PROGRESS_CODE = "outreach_bulk_in_progress"
 
 
-def _cap(name: str, default: int) -> int:
-    return max(0, int(getattr(settings, name, default)))
+def _daily_cap() -> int:
+    return max(0, int(OUTREACH_SEND_DAILY_CAP))
 
 
 def _today_start():
@@ -53,7 +52,7 @@ def get_send_quota(user) -> SendQuota:
     reserved before 00:00. Mailbox ownership is 1:1 with the editor user, so
     ``created_by`` matches the connected Gmail account used on send.
     """
-    daily_cap = _cap("OUTREACH_SEND_DAILY_CAP", OUTREACH_SEND_DAILY_CAP_DEFAULT)
+    daily_cap = _daily_cap()
     start = _today_start()
     used_day = (
         GeneratedEmail.objects.filter(created_by=user)
@@ -68,7 +67,7 @@ def get_send_quota(user) -> SendQuota:
 
 def get_daily_usage(user) -> dict:
     """Usage breakdown for mailbox status."""
-    daily_cap = _cap("OUTREACH_SEND_DAILY_CAP", OUTREACH_SEND_DAILY_CAP_DEFAULT)
+    daily_cap = _daily_cap()
     start = _today_start()
     counts = GeneratedEmail.objects.filter(created_by=user).aggregate(
         sent_today=Count(

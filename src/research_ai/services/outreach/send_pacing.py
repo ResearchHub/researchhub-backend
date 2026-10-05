@@ -13,36 +13,16 @@ from __future__ import annotations
 
 import random
 
-from django.conf import settings
-
 from research_ai.constants import (
-    OUTREACH_SEND_MAX_INTERVAL_SECONDS_DEFAULT,
-    OUTREACH_SEND_MIN_INTERVAL_SECONDS_DEFAULT,
+    OUTREACH_SEND_MAX_INTERVAL_SECONDS,
+    OUTREACH_SEND_MIN_INTERVAL_SECONDS,
 )
 
 
 def next_bulk_interval_seconds() -> int:
     """Random seconds to wait before the next message in a bulk batch."""
-    lo = max(
-        0,
-        int(
-            getattr(
-                settings,
-                "OUTREACH_SEND_MIN_INTERVAL_SECONDS",
-                OUTREACH_SEND_MIN_INTERVAL_SECONDS_DEFAULT,
-            )
-        ),
-    )
-    hi = max(
-        0,
-        int(
-            getattr(
-                settings,
-                "OUTREACH_SEND_MAX_INTERVAL_SECONDS",
-                OUTREACH_SEND_MAX_INTERVAL_SECONDS_DEFAULT,
-            )
-        ),
-    )
+    lo = max(0, int(OUTREACH_SEND_MIN_INTERVAL_SECONDS))
+    hi = max(0, int(OUTREACH_SEND_MAX_INTERVAL_SECONDS))
     if hi < lo:
         hi = lo
     if hi <= 0:

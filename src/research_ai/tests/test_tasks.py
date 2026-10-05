@@ -254,9 +254,14 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
 # --- send_queued_emails_task ---
 
 
-@override_settings(
-    CELERY_TASK_ALWAYS_EAGER=True,
-    OUTREACH_SEND_MIN_INTERVAL_SECONDS=0,
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+@patch(
+    "research_ai.services.outreach.send_pacing.OUTREACH_SEND_MIN_INTERVAL_SECONDS",
+    0,
+)
+@patch(
+    "research_ai.services.outreach.send_pacing.OUTREACH_SEND_MAX_INTERVAL_SECONDS",
+    0,
 )
 class SendQueuedEmailsTaskTests(TestCase):
     def setUp(self):
@@ -516,11 +521,7 @@ class SendQueuedEmailsTaskTests(TestCase):
             self.assertGreaterEqual(ex.last_email_sent_at, before)
 
 
-@override_settings(
-    CELERY_TASK_ALWAYS_EAGER=True,
-    OUTREACH_SEND_MIN_INTERVAL_SECONDS=1200,
-    OUTREACH_SEND_MAX_INTERVAL_SECONDS=1800,
-)
+@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class SendQueuedEmailsPacingTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("pace_user")

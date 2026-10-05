@@ -2,7 +2,6 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -210,7 +209,10 @@ class InviteRfpApplicantsViewTests(APITestCase):
                 mock_delay.assert_not_called()
 
     @patch("research_ai.views.email_views.send_queued_emails_task.delay")
-    @override_settings(OUTREACH_SEND_DAILY_CAP=1)
+    @patch(
+        "research_ai.services.outreach.send_rate_limits.OUTREACH_SEND_DAILY_CAP",
+        1,
+    )
     def test_invite_respects_daily_cap(self, mock_delay):
         from research_ai.services.outreach.send_rate_limits import RATE_LIMIT_CODE
 
@@ -231,7 +233,10 @@ class InviteRfpApplicantsViewTests(APITestCase):
         mock_delay.assert_not_called()
 
     @patch("research_ai.views.email_views.send_queued_emails_task.delay")
-    @override_settings(OUTREACH_SEND_DAILY_CAP=1)
+    @patch(
+        "research_ai.services.outreach.send_rate_limits.OUTREACH_SEND_DAILY_CAP",
+        1,
+    )
     def test_invite_rejects_when_request_exceeds_daily_cap(self, mock_delay):
         from research_ai.services.outreach.send_rate_limits import RATE_LIMIT_CODE
 

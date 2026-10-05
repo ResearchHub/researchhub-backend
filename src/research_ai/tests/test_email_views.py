@@ -1350,7 +1350,14 @@ class SendEmailViewTests(APITestCase):
         self.assertNotIn("from_email", call_kw)
 
     @patch("research_ai.tasks.send_outreach_email")
-    @override_settings(OUTREACH_SEND_MIN_INTERVAL_SECONDS=0)
+    @patch(
+        "research_ai.services.outreach.send_pacing.OUTREACH_SEND_MIN_INTERVAL_SECONDS",
+        0,
+    )
+    @patch(
+        "research_ai.services.outreach.send_pacing.OUTREACH_SEND_MAX_INTERVAL_SECONDS",
+        0,
+    )
     def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):
         from research_ai.tasks import send_queued_emails_task
 

@@ -19,11 +19,6 @@ import sentry_sdk
 import stripe
 from sentry_sdk.integrations.django import DjangoIntegration
 
-from research_ai.constants import (
-    OUTREACH_SEND_DAILY_CAP_DEFAULT,
-    OUTREACH_SEND_MAX_INTERVAL_SECONDS_DEFAULT,
-    OUTREACH_SEND_MIN_INTERVAL_SECONDS_DEFAULT,
-)
 from utils.aws_metadata import private_ip
 
 logger = logging.getLogger(__name__)
@@ -846,25 +841,6 @@ EXPERT_FINDER_OUTREACH_ENABLED = (
         str(keys.EXPERT_FINDER_OUTREACH_ENABLED),
     ).lower()
     == "true"
-)
-
-# Per connected Gmail mailbox; see research_ai.services.outreach.send_rate_limits
-# and send_pacing. Daily cap resets at 00:00. Bulk sends re-queue randomly
-# 20–30 minutes between messages.
-OUTREACH_SEND_DAILY_CAP = int(
-    os.environ.get("OUTREACH_SEND_DAILY_CAP", str(OUTREACH_SEND_DAILY_CAP_DEFAULT))
-)
-OUTREACH_SEND_MIN_INTERVAL_SECONDS = int(
-    os.environ.get(
-        "OUTREACH_SEND_MIN_INTERVAL_SECONDS",
-        str(OUTREACH_SEND_MIN_INTERVAL_SECONDS_DEFAULT),
-    )
-)
-OUTREACH_SEND_MAX_INTERVAL_SECONDS = int(
-    os.environ.get(
-        "OUTREACH_SEND_MAX_INTERVAL_SECONDS",
-        str(OUTREACH_SEND_MAX_INTERVAL_SECONDS_DEFAULT),
-    )
 )
 
 # Crossref

@@ -3,7 +3,7 @@
 from datetime import timedelta
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -14,6 +14,10 @@ from research_ai.services.outreach.send_rate_limits import (
     RATE_LIMIT_CODE,
     get_daily_usage,
     get_send_quota,
+)
+
+_PATCH_DAILY_CAP = (
+    "research_ai.services.outreach.send_rate_limits.OUTREACH_SEND_DAILY_CAP"
 )
 from user.tests.helpers import create_random_authenticated_user
 
@@ -64,7 +68,6 @@ class SendQuotaUnitTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("quota_user")
 
-    @override_settings(OUTREACH_SEND_DAILY_CAP=20)
     def test_counts_sent_and_sending_today(self):
         # Arrange
         _make_counted(self.user, status_value=GeneratedEmail.Status.SENT)
@@ -88,7 +91,7 @@ class SendQuotaUnitTests(TestCase):
         self.assertEqual(quota.used_day, 3)
         self.assertEqual(quota.remaining_day, 17)
 
-    @override_settings(OUTREACH_SEND_DAILY_CAP=2)
+    @patch(_PATCH_DAILY_CAP, 2)
     def test_sending_reserved_before_midnight_blocks_new_day_cap(self):
         # Arrange — paced bulk row still SENDING after 00:00
         _make_counted(
@@ -108,7 +111,6 @@ class SendQuotaUnitTests(TestCase):
         self.assertEqual(usage["queued_today"], 1)
         self.assertEqual(usage["remaining_today"], 1)
 
-    @override_settings(OUTREACH_SEND_DAILY_CAP=20)
     def test_daily_usage_breakdown(self):
         _make_counted(self.user, status_value=GeneratedEmail.Status.SENT)
         _make_counted(self.user, status_value=GeneratedEmail.Status.SENDING)
@@ -121,7 +123,6 @@ class SendQuotaUnitTests(TestCase):
         self.assertIn("T", usage["resets_at"])
 
 
-@override_settings(OUTREACH_SEND_DAILY_CAP=20)
 class SendEmailRateLimitViewTests(APITestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("rate_send", moderator=True)
@@ -137,7 +138,7 @@ class SendEmailRateLimitViewTests(APITestCase):
         )
 
     @patch("research_ai.views.email_views.send_queued_emails_task")
-    @override_settings(OUTREACH_SEND_DAILY_CAP=2)
+    @patch(_PATCH_DAILY_CAP, 2)
     def test_over_daily_cap_rejects_entire_request(self, mock_task):
         # Arrange — one prior send today leaves room for one; request three
         _make_counted(self.user, status_value=GeneratedEmail.Status.SENT)
@@ -162,7 +163,7 @@ class SendEmailRateLimitViewTests(APITestCase):
         mock_task.delay.assert_not_called()
 
     @patch("research_ai.views.email_views.send_queued_emails_task")
-    @override_settings(OUTREACH_SEND_DAILY_CAP=1)
+    @patch(_PATCH_DAILY_CAP, 1)
     def test_zero_remaining_returns_429_with_detail(self, mock_task):
         # Arrange
         _make_counted(self.user, status_value=GeneratedEmail.Status.SENT)
@@ -186,7 +187,7 @@ class SendEmailRateLimitViewTests(APITestCase):
         mock_task.delay.assert_not_called()
 
     @patch("research_ai.views.email_views.send_queued_emails_task")
-    @override_settings(OUTREACH_SEND_DAILY_CAP=1)
+    @patch(_PATCH_DAILY_CAP, 1)
     def test_sending_from_yesterday_consumes_todays_cap(self, mock_task):
         # Arrange — reservation from before 00:00 still occupies the slot
         _make_counted(
