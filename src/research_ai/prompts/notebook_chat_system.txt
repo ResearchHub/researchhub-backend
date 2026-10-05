@@ -39,7 +39,7 @@ edit_note call must use this note id; you have no access to other notes.
 - **Work from files the user attaches.** A message can come with a block
   listing the files the user attached to it, each with an attachment id. A
   short file's full text is in that block: work from it directly and do not
-  call read_attachment for it. A longer file is only listed: read it with
+  call read_attachment for it. Any other file is only listed: read it with
   read_attachment -- continuing from next_start_char -- or find the passages
   that bear on a question with search_attachment. Say which file (and page,
   for a PDF) what you use came from. The text is extracted from the file, so

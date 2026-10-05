@@ -3,7 +3,9 @@ from unittest.mock import Mock, patch
 
 import responses
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from research_ai.models import AgentFile
@@ -450,6 +452,24 @@ class AgentFileServiceTests(TestCase):
                 ready.refresh_from_db()
                 self.assertIsNone(ready.message_id)
 
+    def test_attach_never_takes_a_removed_file(self):
+        # Arrange: a removed file has no owner, like a chat whose user is gone.
+        removed = make_file(self.user)
+        self.service.delete(removed)
+        conversations = AgentConversationService()
+        ownerless = conversations.add_human_message(
+            conversations.create(workflow="assistant_chat"), "Read it"
+        )
+
+        for message in (self.message, ownerless):
+            with self.subTest(conversation_user=message.conversation.user_id):
+                # Act
+                with self.assertRaises(AgentFileError) as raised:
+                    self.service.attach(message, [removed.id])
+
+                # Assert
+                self.assertEqual(raised.exception.code, "attachment_unavailable")
+
     def test_attach_enforces_the_per_message_limit(self):
         # Arrange
         files = [make_file(self.user) for _ in range(CONFIG.max_files_per_message + 1)]
@@ -503,11 +523,14 @@ class AgentFileServiceTests(TestCase):
         long = self._send(chars=DELIVERY.inline_max_chars + 1)
 
         # Act
-        inline, behind_tools = self.service.message_attachments(
-            self.message, vision=True
-        )
+        with CaptureQueriesContext(connection) as queries:
+            inline, behind_tools = self.service.message_attachments(
+                self.message, vision=True
+            )
 
-        # Assert
+        # Assert: the second query reads text, and only the short file's.
+        self.assertEqual(len(queries), 2)
+        self.assertTrue(queries[1]["sql"].endswith(f'"id" IN ({short.id})'))
         self.assertEqual(inline.file.id, short.id)
         self.assertEqual(inline.delivery.text, TextDelivery.INLINE)
         self.assertEqual(inline.inline_text, short.text)

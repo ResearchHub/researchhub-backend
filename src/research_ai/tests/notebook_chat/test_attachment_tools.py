@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from research_ai.models import AgentFile
 from research_ai.services.agent.tools import MAX_TOOL_RESULT_BYTES
@@ -279,13 +279,18 @@ class AttachmentToolsetTests(TestCase):
         self.assertNotIn("<attachment_", preamble)
         self.assertTrue(preamble.endswith(f"\n</attached_files_{boundary}>"))
 
-    def test_preamble_is_the_same_each_time_it_is_built(self):
+    def test_preamble_is_the_same_each_time_under_one_secret_key(self):
         # Act
         first = attachment_preamble(self._attachments(inline_max_chars=len(CV_TEXT)))
         again = attachment_preamble(self._attachments(inline_max_chars=len(CV_TEXT)))
+        with override_settings(SECRET_KEY="another-key"):
+            rekeyed = attachment_preamble(
+                self._attachments(inline_max_chars=len(CV_TEXT))
+            )
 
-        # Assert
+        # Assert: without the key, the suffix cannot be worked out from the files.
         self.assertEqual(first, again)
+        self.assertNotEqual(self._boundary(rekeyed), self._boundary(first))
 
     def test_file_text_cannot_close_its_block_or_pass_for_the_user(self):
         # Arrange: the file imitates the tags its harmless version was given.
@@ -314,18 +319,24 @@ class AttachmentToolsetTests(TestCase):
         self.assertEqual(preamble.split(opening)[1].removesuffix(closing), hostile)
 
     def test_boundary_occurs_in_no_file_name_or_text_in_either_case(self):
-        # Arrange: of the sixteen one-character suffixes, only "f" is unused.
+        # Arrange: of the sixteen one-character suffixes, only "f" is unused;
+        # "e" is taken by a file name and "a" to "d" by upper-case text.
         AgentFile.objects.filter(id=self.proposal.id).update(filename="tools.txt")
-        AgentFile.objects.filter(id=self.cv.id).update(
-            filename="notes.txt", text="0123456789 ABCD"
-        )
+        AgentFile.objects.filter(id=self.cv.id).update(filename="notes.txt")
+        texts = ["0123456789 ABCD" + "!" * padding for padding in range(20)]
 
-        # Act
+        # Act: every text hashes differently, so chance cannot pick "f" each time.
+        boundaries = set()
         with patch.object(attachment_tools, "_BOUNDARY_CHARS", 1):
-            preamble = attachment_preamble(self._attachments(inline_max_chars=15))
+            for text in texts:
+                AgentFile.objects.filter(id=self.cv.id).update(text=text)
+                preamble = attachment_preamble(
+                    self._attachments(inline_max_chars=len(text))
+                )
+                boundaries.add(self._boundary(preamble))
 
         # Assert
-        self.assertEqual(self._boundary(preamble), "f")
+        self.assertEqual(boundaries, {"f"})
 
     # -- activity -----------------------------------------------------------
 

@@ -52,6 +52,10 @@ _INLINE_NOTE = (
 )
 
 
+def _quoted(filename: str) -> str:
+    return json.dumps(filename, ensure_ascii=False)
+
+
 def _boundary(attachments: Sequence[Attachment]) -> str:
     """A tag suffix that occurs in none of the files' names or inline text.
 
@@ -61,7 +65,8 @@ def _boundary(attachments: Sequence[Attachment]) -> str:
     untrusted = []
     for attachment in attachments:
         content.update(f"{attachment.file.id}\0".encode())
-        for part in (attachment.file.filename, attachment.inline_text or ""):
+        # The name as it is rendered, the text as it is.
+        for part in (_quoted(attachment.file.filename), attachment.inline_text or ""):
             content.update(part.encode() + b"\0")
             untrusted.append(part.lower())
     attempt = 0
@@ -83,8 +88,8 @@ def _manifest_line(attachment: Attachment) -> str:
     details.append(f"{file.text_chars:,} characters")
     if file.text_truncated:
         details.append("the rest of the file was too long to keep")
-    name = json.dumps(file.filename, ensure_ascii=False)
     how = _TOOLS if attachment.inline_text is None else _INLINE
+    name = _quoted(file.filename)
     return f"- attachment {file.id}: {name} ({', '.join(details)}): {how}"
 
 
@@ -225,7 +230,8 @@ class AttachmentToolset:
                     "omitted, every file attached to this conversation. "
                     "Returns ranked excerpts with their offsets (and pages, "
                     "for PDFs), never whole files; read around an excerpt "
-                    "with read_attachment."
+                    "with read_attachment, unless the file's full text came "
+                    "with the user's message."
                 ),
                 input_schema={
                     "type": "object",

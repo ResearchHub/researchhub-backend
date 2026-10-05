@@ -296,12 +296,12 @@ class NotebookChatAttachmentTests(TestCase):
         self.assertEqual(self._prompt(provider), self._prompt(failing))
 
     def test_the_attachment_tools_are_offered_whatever_the_delivery(self):
-        # Arrange
+        # Arrange: the chat has no file at all on its first turn.
         long = make_file(self.user, filename="plan.pdf", text=LONG_TEXT)
         turns = [
+            ("Hello", {}),
             ("Summarize this", {"file_ids": [self.file.id]}),
             ("And this", {"file_ids": [long.id]}),
-            ("Thanks", {}),
         ]
 
         # Act

@@ -320,7 +320,8 @@ class AgentFileService:
             file.id: file
             for file in AgentFile.objects.select_for_update()
             .defer("text")
-            .filter(id__in=file_ids, user_id=conversation.user_id)
+            # A removed file has no owner; a chat without one must not match it.
+            .filter(id__in=file_ids, user_id=conversation.user_id, user__isnull=False)
         }
         for file_id in file_ids:
             file = files.get(file_id)
