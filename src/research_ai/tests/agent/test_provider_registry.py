@@ -91,7 +91,9 @@ class ResolveProviderTests(SimpleTestCase):
 
         # Assert
         self.assertIs(provider, bedrock_cls.return_value)
-        bedrock_cls.assert_called_once_with(model_id="us.meta.llama4")
+        bedrock_cls.assert_called_once_with(
+            model_id="us.meta.llama4", image_loader=None
+        )
 
     def test_claude_platform_prefix_is_stripped(self, bedrock_cls):
         # Arrange / Act
@@ -127,7 +129,30 @@ class ResolveProviderTests(SimpleTestCase):
         resolve_provider("us.anthropic.claude-opus-4-8")
 
         # Assert
-        bedrock_cls.assert_called_once_with(model_id="us.anthropic.claude-opus-4-8")
+        bedrock_cls.assert_called_once_with(
+            model_id="us.anthropic.claude-opus-4-8", image_loader=None
+        )
+
+    def test_the_image_loader_reaches_every_provider(self, bedrock_cls):
+        # Arrange
+        def loader(ref):
+            return b""
+
+        # Act
+        claude = resolve_provider(
+            "claude_platform:claude-sonnet-5", image_loader=loader
+        )
+        openrouter = resolve_provider(
+            "openrouter:google/gemini-3.8-flash", image_loader=loader
+        )
+        resolve_provider("bedrock:us.anthropic.claude-opus-5", image_loader=loader)
+
+        # Assert
+        self.assertIs(claude.image_loader, loader)
+        self.assertIs(openrouter.image_loader, loader)
+        bedrock_cls.assert_called_once_with(
+            model_id="us.anthropic.claude-opus-5", image_loader=loader
+        )
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="openrouter")
     def test_unprefixed_ref_follows_openrouter_generator(self, bedrock_cls):

@@ -12,7 +12,7 @@ from django.conf import settings
 
 from utils import aws as aws_utils
 
-_MISSING_OBJECT_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
+MISSING_OBJECT_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
 
 
 class PrivateStorageNotConfiguredError(RuntimeError):
@@ -77,7 +77,7 @@ class PrivateStorageService:
         try:
             response = self._s3().head_object(Bucket=self.bucket, Key=key)
         except ClientError as error:
-            if error.response.get("Error", {}).get("Code") in _MISSING_OBJECT_CODES:
+            if error.response.get("Error", {}).get("Code") in MISSING_OBJECT_CODES:
                 return None
             raise
         return StoredObject(

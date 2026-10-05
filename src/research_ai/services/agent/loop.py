@@ -11,6 +11,7 @@ multi-turn chat needs.
 """
 
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from research_ai.services.agent.errors import (
@@ -24,6 +25,7 @@ from research_ai.services.agent.recorder import AgentRecorder
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
     AssistantTurn,
+    ImageBlock,
     Message,
     ServerToolBlock,
     StopReason,
@@ -119,6 +121,11 @@ def _summarize_server_result(content) -> str:
     return _truncate(repr(content))
 
 
+def _user_message(text: str, images: Sequence[ImageBlock]) -> Message:
+    # Models read an image best when it comes before the text about it.
+    return Message(role="user", content=[*images, TextBlock(text=text)])
+
+
 @dataclass
 class AgentResult:
     """The outcome of an agent run.
@@ -161,15 +168,19 @@ class Agent:
         self.temperature = temperature
         self.recorder = recorder
 
-    def run(self, user_prompt: str) -> AgentResult:
+    def run(
+        self, user_prompt: str, *, images: Sequence[ImageBlock] = ()
+    ) -> AgentResult:
         """Drive a fresh conversation from ``user_prompt`` to completion."""
-        seed = Message(role="user", content=[TextBlock(text=user_prompt)])
+        seed = _user_message(user_prompt, images)
         return self._drive([seed], new_message=seed)
 
     def continue_conversation(
         self,
         messages: list[Message],
         user_message: str,
+        *,
+        images: Sequence[ImageBlock] = (),
     ) -> AgentResult:
         """Append a user turn to ``messages`` and drive (resumable multi-turn).
 
@@ -177,7 +188,7 @@ class Agent:
         ``AgentResult``. Only the appended turn is recorded -- the history was
         recorded by the runs that produced it.
         """
-        appended = Message(role="user", content=[TextBlock(text=user_message)])
+        appended = _user_message(user_message, images)
         return self._drive(list(messages) + [appended], new_message=appended)
 
     def _record_message(
@@ -355,7 +366,8 @@ class Agent:
                 input=call.input,
                 metadata={"tool_call_id": call.id, "iteration": iteration},
             ) as span:
-                result, tool_stop = self.toolset.dispatch(call.name, call.input)
+                output, tool_stop = self.toolset.call(call.name, call.input)
+                result = output.content
                 log_trace(span, output=result)
                 if isinstance(result, dict) and "error" in result:
                     log_trace(span, error=str(result["error"]))
@@ -372,6 +384,7 @@ class Agent:
                     tool_use_id=call.id,
                     content=result,
                     is_error=isinstance(result, dict) and "error" in result,
+                    images=output.images,
                 )
             )
         return result_blocks, stop

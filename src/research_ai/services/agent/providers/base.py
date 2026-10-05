@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
+from research_ai.services.agent.images import ImageLoader
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
@@ -30,6 +31,9 @@ from research_ai.services.agent.types import (
 
 class LLMProvider(ABC):
     """Renders neutral agent types to/from a single provider's wire format."""
+
+    # Supplies the bytes of ``ImageBlock``s; without one they render as text.
+    image_loader: ImageLoader | None = None
 
     @property
     def native_tool_names(self) -> frozenset[str]:
