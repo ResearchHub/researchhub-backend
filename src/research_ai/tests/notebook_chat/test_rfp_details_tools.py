@@ -1,5 +1,5 @@
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
@@ -206,6 +206,16 @@ class RFPDetailsToolsetTests(TestCase):
                 self.assertIn("contact_user_ids", result["error"])
                 self.assertFalse(GrantSettings.objects.filter(note=self.note).exists())
 
+    def test_accepts_a_contact_id_sent_as_a_digit_string(self):
+        # Act
+        result = self._update(contact_user_ids=[f" {self.colleague.id} "])
+
+        # Assert
+        self.assertEqual(
+            [contact["user_id"] for contact in result["contacts"]],
+            [self.colleague.id],
+        )
+
     def test_accepts_visibility_in_any_case_and_rejects_unknown_values(self):
         # Act
         accepted = self._update(application_visibility="public")
@@ -310,3 +320,36 @@ class RFPDetailsToolsetTests(TestCase):
         # Assert
         self.assertTrue(result["saved"])
         notify.assert_called_once_with()
+
+    def test_keeps_the_write_when_the_notebook_push_fails(self):
+        # Arrange
+        self.note.organization = self.user.organization
+        self.note.save(update_fields=["organization"])
+
+        # Act
+        with patch.object(
+            Note, "notify_note_updated_title", side_effect=RuntimeError("down")
+        ):
+            result = self._update(amount=50000)
+
+        # Assert
+        self.assertTrue(result["saved"])
+        self.assertEqual(self._settings().amount, 50000)
+
+    def test_reports_an_unexpected_failure_without_raising(self):
+        # Arrange
+        toolset = RFPDetailsToolset(
+            user=self.user, get_note=Mock(side_effect=RuntimeError("database down"))
+        ).as_toolset()
+
+        # Act
+        read, _stop = toolset.dispatch(READ_RFP_DETAILS, {"note_id": self.note.id})
+        updated, _stop = toolset.dispatch(
+            UPDATE_RFP_DETAILS, {"note_id": self.note.id, "amount": 50000}
+        )
+
+        # Assert
+        self.assertEqual(
+            updated, {"error": "updating RFP details is temporarily unavailable"}
+        )
+        self.assertEqual(read, {"error": "RFP details are temporarily unavailable"})
