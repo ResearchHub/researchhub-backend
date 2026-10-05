@@ -10,6 +10,7 @@ import codecs
 import contextlib
 import io
 import json
+import math
 import os
 import resource
 import subprocess
@@ -82,6 +83,11 @@ MAX_IMAGE_EDGE_PX = 2000
 _MAX_RENDER_EDGE_PX = 4000
 _MIN_RENDER_EDGE_PX = 256
 _JPEG_QUALITY = 85
+# A render over its byte limit is redone smaller. Bytes go roughly with pixel
+# count, so a side shrinks by the square root of the excess, less this margin.
+_FIT_MARGIN = 0.95
+# One step at most halves a side, however far over the limit the render is.
+_FIT_MIN_STEP = 0.5
 _IMAGE_MEDIA_TYPES = {"jpeg": "image/jpeg", "png": "image/png"}
 
 # Text for the PDF pages it is called with (1-based); pages it omits stay marked.
@@ -399,7 +405,8 @@ def _pdf_page_image(
                 small = max(pixmap.width, pixmap.height) <= _MIN_RENDER_EDGE_PX
                 if len(image) <= max_bytes or small:
                     break
-                scale *= 0.7
+                fit = math.sqrt(max_bytes / len(image)) * _FIT_MARGIN
+                scale *= max(fit, _FIT_MIN_STEP)
         except Exception as exc:  # noqa: BLE001 - a damaged page stream
             raise UnreadableFileError("This PDF page could not be rendered.") from exc
     if len(image) > max_bytes:

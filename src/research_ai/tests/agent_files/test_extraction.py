@@ -1,3 +1,4 @@
+import base64
 import codecs
 import json
 import subprocess
@@ -34,6 +35,16 @@ PACKAGE_NS = "http://schemas.openxmlformats.org/package/2006"
 TEXT = resolve_kind("notes.txt")
 MAX_CHARS = 10_000
 STAMP = "Downloaded from an archive on 5 March 2019"
+
+
+def page_of_text() -> bytes:
+    """A PDF page full of text, whose render is far larger than a blank page's."""
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_textbox(fitz.Rect(54, 54, 541, 788), "finding " * 600, fontsize=9)
+    data = document.tobytes()
+    document.close()
+    return data
 
 
 class ResolveKindTests(TestCase):
@@ -408,17 +419,54 @@ class PdfPageRenderingTests(TestCase):
         self.assertEqual(max(image.width, image.height), 1000)
         self.assertLessEqual(max(unbounded.width, unbounded.height), 4000)
 
-    def test_a_page_is_scaled_down_until_it_fits_the_byte_limit(self):
+    def test_a_page_within_the_byte_limit_is_left_at_full_size(self):
         # Arrange
-        data = pdf_bytes("Alpha findings " * 5)
+        data = page_of_text()
         full = render_pdf_page(data, 1)
 
         # Act
-        image = render_pdf_page(data, 1, max_bytes=len(full.data) // 3)
+        image = render_pdf_page(data, 1, max_bytes=len(full.data))
 
         # Assert
-        self.assertLessEqual(len(image.data), len(full.data) // 3)
+        self.assertEqual(image, full)
+
+    def test_a_page_just_over_the_byte_limit_keeps_most_of_its_resolution(self):
+        # Arrange
+        data = page_of_text()
+        full = render_pdf_page(data, 1)
+        limit = len(full.data) * 95 // 100
+
+        # Act
+        image = render_pdf_page(data, 1, max_bytes=limit)
+
+        # Assert
+        self.assertLessEqual(len(image.data), limit)
         self.assertLess(image.width, full.width)
+        self.assertGreater(image.width, 0.85 * full.width)
+
+    def test_a_page_far_over_the_byte_limit_fits_within_a_few_renders(self):
+        # Arrange
+        data = page_of_text()
+        limit = len(render_pdf_page(data, 1).data) // 10
+
+        # Act
+        # Run in this process: a patch does not reach the rendering child.
+        with patch.object(
+            fitz.Page, "get_pixmap", autospec=True, side_effect=fitz.Page.get_pixmap
+        ) as render:
+            output = extraction._pdf_page_image(data, 1, 150, 2000, "jpeg", limit)
+
+        # Assert
+        self.assertLessEqual(len(base64.b64decode(output["image"])), limit)
+        self.assertLessEqual(render.call_count, 4)
+
+    def test_a_page_that_cannot_fit_the_byte_limit_is_refused(self):
+        # Arrange
+        data = page_of_text()
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "too detailed"):
+            render_pdf_page(data, 1, max_bytes=500)
 
     def test_a_page_the_pdf_does_not_have_is_refused(self):
         # Arrange
