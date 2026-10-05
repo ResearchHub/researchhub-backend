@@ -222,9 +222,7 @@ class AuditViewTests(APITestCase):
                 {
                     "flag": [
                         {
-                            "content_type": get_content_type_for_model(
-                                target_paper
-                            ).id,
+                            "content_type": get_content_type_for_model(target_paper).id,
                             "object_id": target_paper.id,
                             "reason_choice": SPAM,
                         },
