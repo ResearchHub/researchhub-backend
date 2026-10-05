@@ -324,7 +324,9 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
                 if remaining <= 0 or number > _MAX_PDF_PAGES:
                     break
                 page_text = page.get_text().strip()
-                sparse = 0 < len(page_text) <= _SCAN_MAX_TEXT_CHARS
+                # Judged on the page's whole text, before any cut.
+                if _text_over_a_scan(page, page_text):
+                    mostly_image.append(number)
                 if len(page_text) > remaining:
                     page_text, cut = page_text[:remaining], True
                 remaining -= len(page_text)
@@ -333,8 +335,6 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
                     pages.append(None)
                 else:
                     pages.append(page_text)
-                    if sparse and _mostly_image(page):
-                        mostly_image.append(number)
         except Exception as exc:  # noqa: BLE001 - a damaged page stream
             raise UnreadableFileError("This PDF could not be read.") from exc
     return {
@@ -345,7 +345,10 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
     }
 
 
-def _mostly_image(page: fitz.Page) -> bool:
+def _text_over_a_scan(page: fitz.Page, text: str) -> bool:
+    """Whether the page has a little text and images cover most of it."""
+    if not 0 < len(text) <= _SCAN_MAX_TEXT_CHARS:
+        return False
     page_area = page.rect.get_area()
     try:
         images = page.get_image_info()
