@@ -57,7 +57,8 @@ class RFPDetailsToolset:
                     "are the values the RFP is published with, separate from "
                     "the note body. Use it to tell the user what is filled in "
                     "or still missing, and before replacing a value they may "
-                    "have entered themselves."
+                    "have entered themselves. Once the RFP is published it "
+                    "returns the live terms, with `published` true."
                 ),
                 input_schema={
                     "type": "object",
@@ -209,15 +210,22 @@ class RFPDetailsToolset:
         return note, None
 
     def _details(self, note: Note) -> dict:
-        """The form as stored, plus the id that names the user as a contact."""
-        # An unsaved row stands in for a form nobody has filled in yet.
-        settings = getattr(note, "grant_settings", None) or GrantSettings()
+        """The RFP's terms, plus the id that names the user as a contact."""
+        post = getattr(note, "post", None)
+        if post is not None:
+            # Publishing does not sync the draft form, so it is stale from here on.
+            settings = post.unified_document.grants.first()
+        else:
+            settings = getattr(note, "grant_settings", None)
+        # An unsaved row stands in for terms nobody has filled in.
+        settings = settings or GrantSettings()
         contacts = settings.contacts.all() if settings.pk else []
         details = {
             "note_id": note.id,
+            "published": post is not None,
             "amount": None if settings.amount is None else str(settings.amount),
             "currency": settings.currency or USD,
-            "organization": settings.organization,
+            "organization": settings.organization or "",
             "description": settings.description[:_MAX_DESCRIPTION_CHARS],
             "application_visibility": settings.application_visibility or None,
             "contacts": [_user_ref(contact) for contact in contacts],

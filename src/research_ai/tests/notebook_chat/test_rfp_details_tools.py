@@ -72,6 +72,7 @@ class RFPDetailsToolsetTests(TestCase):
             result,
             {
                 "note_id": self.note.id,
+                "published": False,
                 "amount": None,
                 "currency": "USD",
                 "organization": "",
@@ -80,6 +81,35 @@ class RFPDetailsToolsetTests(TestCase):
                 "contacts": [],
                 "current_user": {"user_id": self.user.id, "name": "Ada Lovelace"},
             },
+        )
+
+    def test_reads_a_published_rfp_from_its_live_grant(self):
+        # Arrange: publishing takes the terms from the request, not the draft.
+        GrantSettings.objects.create(note=self.note, amount=1000, organization="Old")
+        post = create_post(created_by=self.user, document_type=GRANT)
+        post.note = self.note
+        post.save(update_fields=["note"])
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=post.unified_document,
+            amount=75000,
+            description="Funding for reproducible research.",
+            application_visibility=Grant.APPLICATION_VISIBILITY_PRIVATE,
+        )
+        grant.contacts.set([self.colleague])
+
+        # Act
+        result = self._read()
+
+        # Assert
+        self.assertTrue(result["published"])
+        self.assertEqual(result["amount"], "75000.00")
+        self.assertEqual(result["organization"], "")
+        self.assertEqual(result["description"], "Funding for reproducible research.")
+        self.assertEqual(result["application_visibility"], "PRIVATE")
+        self.assertEqual(
+            [contact["user_id"] for contact in result["contacts"]],
+            [self.colleague.id],
         )
 
     def test_bounds_a_long_description_entered_in_the_form(self):
