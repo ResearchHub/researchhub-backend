@@ -9,6 +9,7 @@ import fitz
 from research_ai.services.agent_files import extraction
 from research_ai.services.agent_files.extraction import (
     DOCX,
+    IMAGE_UNREAD,
     NO_TEXT_LAYER,
     OCR_NOTE,
     PDF,
@@ -17,7 +18,14 @@ from research_ai.services.agent_files.extraction import (
     render_pdf_page,
     resolve_kind,
 )
-from research_ai.tests.agent_files.helpers import docx_bytes, paragraph, pdf_bytes
+from research_ai.tests.agent_files.helpers import (
+    SCAN,
+    docx_bytes,
+    paragraph,
+    pdf_bytes,
+    pdf_with_scans,
+    stamped_scan,
+)
 
 DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006"
 RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -25,23 +33,7 @@ PACKAGE_NS = "http://schemas.openxmlformats.org/package/2006"
 
 TEXT = resolve_kind("notes.txt")
 MAX_CHARS = 10_000
-SCAN = object()
-
-
-def pdf_with_scans(*pages) -> bytes:
-    """Like ``pdf_bytes``, but a ``SCAN`` page holds only an image."""
-    document = fitz.open()
-    for content in pages:
-        page = document.new_page()
-        if content is SCAN:
-            pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40), False)
-            pixmap.clear_with(180)
-            page.insert_image(page.rect, pixmap=pixmap)
-        elif content:
-            page.insert_text((72, 72), content)
-    data = document.tobytes()
-    document.close()
-    return data
+STAMP = "Downloaded from an archive on 5 March 2019"
 
 
 class ResolveKindTests(TestCase):
@@ -273,6 +265,84 @@ class PdfPagesWithoutTextTests(TestCase):
         # Assert
         self.assertEqual(asked, [])
 
+    def test_a_scan_under_a_stamp_keeps_the_stamp_and_is_marked(self):
+        # Arrange
+        data = pdf_with_scans("Alpha findings", stamped_scan(STAMP))
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(
+            extracted.text,
+            f"[Page 1]\nAlpha findings\n\n[Page 2]\n{STAMP}\n{IMAGE_UNREAD}",
+        )
+        self.assertEqual(extracted.pages_without_text, (2,))
+
+    def test_recovered_text_replaces_the_stamp_on_a_scan(self):
+        # Arrange
+        data = pdf_with_scans("Alpha findings", stamped_scan(STAMP), SCAN)
+        asked = []
+
+        def recover(pages):
+            asked.append(list(pages))
+            return {2: f"Scanned methods\n{STAMP}", 3: "Scanned results"}
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS, recover_pages=recover)
+
+        # Assert
+        self.assertEqual(asked, [[2, 3]])
+        self.assertEqual(
+            extracted.text,
+            "[Page 1]\nAlpha findings"
+            f"\n\n[Page 2]\n{OCR_NOTE}\nScanned methods\n{STAMP}"
+            f"\n\n[Page 3]\n{OCR_NOTE}\nScanned results",
+        )
+        self.assertEqual(extracted.ocr_pages, (2, 3))
+        self.assertEqual(extracted.pages_without_text, ())
+
+    def test_a_page_of_text_with_an_image_is_not_taken_for_a_scan(self):
+        # Arrange
+        pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40), False)
+        document = fitz.open()
+        # A full page of text over a background image.
+        background = document.new_page()
+        background.insert_image(background.rect, pixmap=pixmap)
+        background.insert_textbox(fitz.Rect(72, 72, 540, 720), "finding " * 100)
+        # A caption beside a small figure.
+        figure = document.new_page()
+        figure.insert_image(fitz.Rect(72, 100, 272, 300), pixmap=pixmap)
+        figure.insert_text((72, 72), "Figure 1: Yield by year")
+        data = document.tobytes()
+        document.close()
+        asked = []
+
+        # Act
+        extracted = extract_text(
+            data, PDF, max_chars=MAX_CHARS, recover_pages=asked.append
+        )
+
+        # Assert
+        self.assertEqual(asked, [])
+        self.assertNotIn(IMAGE_UNREAD, extracted.text)
+        self.assertEqual(extracted.pages_without_text, ())
+
+    def test_a_page_whose_images_cannot_be_listed_keeps_its_text(self):
+        # Arrange
+        data = pdf_with_scans(stamped_scan(STAMP))
+
+        # Act
+        # Run in this process: a patch does not reach the parsing child.
+        with patch.object(
+            fitz.Page, "get_image_info", side_effect=RuntimeError("damaged image")
+        ):
+            output = extraction._pdf_pages(data, MAX_CHARS)
+
+        # Assert
+        self.assertEqual(output["pages"], [STAMP])
+        self.assertEqual(output["mostly_image"], [])
+
 
 class PdfPageRenderingTests(TestCase):
     def test_a_page_renders_as_a_jpeg_at_the_requested_resolution(self):
@@ -357,6 +427,25 @@ class PdfPageRenderingTests(TestCase):
             self.assertRaisesRegex(UnreadableFileError, "too complex"),
         ):
             render_pdf_page(data, 1)
+
+    def test_rendering_stops_at_a_shorter_time_limit_when_given_one(self):
+        # Arrange
+        data = pdf_bytes("Alpha findings")
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "too complex"):
+            render_pdf_page(data, 1, timeout_seconds=0.001)
+
+    def test_a_time_limit_cannot_extend_the_parsing_limits(self):
+        # Arrange
+        data = pdf_bytes("Alpha findings")
+
+        # Act / Assert
+        with (
+            patch.object(extraction, "_CHILD_TIMEOUT_SECONDS", 0.001),
+            self.assertRaisesRegex(UnreadableFileError, "too complex"),
+        ):
+            render_pdf_page(data, 1, timeout_seconds=60)
 
     def test_invalid_arguments_are_rejected_before_any_work(self):
         # Arrange

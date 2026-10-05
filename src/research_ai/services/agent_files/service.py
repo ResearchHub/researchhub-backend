@@ -26,10 +26,11 @@ from research_ai.services.agent_files.config import AgentFileConfig
 from research_ai.services.agent_files.extraction import (
     SUPPORTED_EXTENSIONS,
     UnreadableFileError,
-    extract_text,
     kind_for_content_type,
     resolve_kind,
 )
+from research_ai.services.agent_files.extraction_service import TextExtractionService
+from research_ai.services.agent_files.mistral_ocr import MistralOcr
 from researchhub.services.private_storage_service import (
     PresignedPost,
     PrivateStorageNotConfiguredError,
@@ -96,8 +97,9 @@ def _key_name(filename: str) -> str:
 class AgentFileService:
     """Uploads, processing, attachment, and cleanup of chat files.
 
-    ``storage`` and ``config`` are injectable for tests; they default to the
-    private bucket and the settings-backed limits.
+    ``storage``, ``config`` and ``extraction`` are injectable for tests; they
+    default to the private bucket, the settings-backed limits, and extraction
+    that reads scanned PDF pages with Mistral OCR when its key is set.
     """
 
     def __init__(
@@ -105,13 +107,19 @@ class AgentFileService:
         *,
         storage: PrivateStorageService | None = None,
         config: AgentFileConfig | None = None,
+        extraction: TextExtractionService | None = None,
     ):
         self.storage = PrivateStorageService() if storage is None else storage
         self._config = config
+        self._extraction = extraction
 
     @property
     def config(self) -> AgentFileConfig:
         return self._config or AgentFileConfig.from_settings()
+
+    @property
+    def extraction(self) -> TextExtractionService:
+        return self._extraction or TextExtractionService(ocr=MistralOcr.from_settings())
 
     # -- request path -----------------------------------------------------
 
@@ -283,7 +291,9 @@ class AgentFileService:
             data = self.storage.read(
                 file.storage_key, max_bytes=config.max_file_bytes, if_match=file.etag
             )
-            extracted = extract_text(data, kind, max_chars=config.max_text_chars)
+            extracted = self.extraction.extract(
+                data, kind, max_chars=config.max_text_chars
+            )
         except UnreadableFileError as exc:
             self._fail(file, str(exc))
             return AgentFile.Status.FAILED

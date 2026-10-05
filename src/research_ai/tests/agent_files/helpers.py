@@ -9,6 +9,7 @@ import fitz
 from research_ai.models import AgentFile
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+SCAN = object()
 
 
 def pdf_bytes(*pages: str, **save_options) -> bytes:
@@ -19,6 +20,29 @@ def pdf_bytes(*pages: str, **save_options) -> bytes:
         if text:
             page.insert_text((72, 72), text)
     data = document.tobytes(**save_options)
+    document.close()
+    return data
+
+
+def stamped_scan(stamp: str) -> tuple:
+    """A ``pdf_with_scans`` page: a scan with ``stamp`` as its only text."""
+    return SCAN, stamp
+
+
+def pdf_with_scans(*pages) -> bytes:
+    """A PDF whose ``SCAN`` pages hold only an image; other pages hold text."""
+    document = fitz.open()
+    for content in pages:
+        page = document.new_page()
+        content, stamp = content if isinstance(content, tuple) else (content, "")
+        if content is SCAN:
+            pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40), False)
+            pixmap.clear_with(180)
+            page.insert_image(page.rect, pixmap=pixmap)
+            content = stamp
+        if content:
+            page.insert_text((72, 72), content)
+    data = document.tobytes()
     document.close()
     return data
 
