@@ -1067,14 +1067,14 @@ wheels = [
 
 [[package]]
 name = "django-simple-history"
-version = "3.7.0"
+version = "3.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/91/bf/a13fdb19834b9a7fc2c6b1b192891e4eac90c1281fb65904a34ad80c0e4f/django_simple_history-3.7.0.tar.gz", hash = "sha256:ac3b7ca8b0d33f7ea6be8fe7fc98cf43415efa500ff5dfe736fbd1ebc0cf39f9", size = 230317, upload-time = "2024-05-30T15:56:57.837Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/1c/0689c13c0aa36df828947692f4e309f93c58e075219735c423edbbf6227d/django_simple_history-3.13.0.tar.gz", hash = "sha256:ca3c1e4ccd5f16f45fbbef6015ee2a246465fd9bd924100df8e9dfb368c4f26c", size = 236759, upload-time = "2026-07-22T13:41:29.588Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/61/d9ec3f38161b4d9ec6a6ed16e882a402d6e4a3b20de2902e4fb6671ed630/django_simple_history-3.7.0-py3-none-any.whl", hash = "sha256:282cb2c4aa63f51547f17da7f2130abaa81ba01694676d19b88d52c94a57a52c", size = 139406, upload-time = "2024-05-30T16:00:38.188Z" },
+    { url = "https://files.pythonhosted.org/packages/65/60/41b2055db523b18a7ef67d0ce7c7c3204bf1b01e388628c8ce578daca7ec/django_simple_history-3.13.0-py3-none-any.whl", hash = "sha256:1cf1d83054479f64aee022023afc1671843aa0a99888799c5c4c3966b0252521", size = 82040, upload-time = "2026-07-22T13:41:28.083Z" },
 ]
 
 [[package]]
@@ -2616,7 +2616,7 @@ requires-dist = [
     { name = "django-opensearch-dsl", specifier = "==0.8.0" },
     { name = "django-ses", extras = ["events"], specifier = ">=4.7.2,<5" },
     { name = "django-silk", specifier = ">=5.6.0,<6" },
-    { name = "django-simple-history", specifier = "==3.7.0" },
+    { name = "django-simple-history", specifier = ">=3.13.0,<4" },
     { name = "django-storages", specifier = "==1.10.1" },
     { name = "djangorestframework", specifier = "==3.18.0" },
     { name = "elastic-apm", specifier = ">=6.26.2,<7" },
