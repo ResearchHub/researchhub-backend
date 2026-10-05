@@ -101,6 +101,7 @@ from research_ai.services.notebook_chat.grant_tools import (
 from research_ai.services.notebook_chat.researcher_profile_tools import (
     ResearcherProfileToolset,
 )
+from research_ai.services.notebook_chat.rfp_details_tools import RFPDetailsToolset
 from research_ai.services.notebook_chat.streaming import ExecutionStreamStore
 from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
@@ -117,7 +118,10 @@ from research_ai.services.usage_budget import (
 )
 from research_ai.services.usage_budget.reservation import claim_deadline
 from research_ai.services.user_profile_tools import UserProfileToolset
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -814,6 +818,14 @@ class NotebookChatService:
             selected_rfp_toolset=(
                 SelectedRFPToolset(note=note, user=conversation.user)
                 if note is not None and note.document_type == PREREGISTRATION
+                else None
+            ),
+            # A note-less chat can create RFP notes, so it always gets the form.
+            rfp_details_toolset=(
+                RFPDetailsToolset(
+                    user=conversation.user, get_note=note_toolset.get_readable_note
+                )
+                if note is None or note.document_type == GRANT
                 else None
             ),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),

@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
-from note.models import Note
+from note.models import GrantSettings, Note
 from note.tests.helpers import create_note
 from research_ai.models import AgentExecution
 from research_ai.services.agent.types import TurnUsage
@@ -186,6 +186,51 @@ class AssistantChatServiceTests(TestCase):
         self.assertEqual(created[0]["label"], "Created a note")
         self.assertEqual(created[0]["note_id"], note.id)
         self.assertEqual(created[0]["note_title"], "Proposal outline")
+
+    def test_run_turn_can_fill_the_details_of_an_rfp_it_created(self):
+        # Arrange: the note only exists once the turn's first tool call ran.
+        execution, _delay = self._submit("Draft an RFP offering $50,000.")
+
+        def fill_the_details():
+            note = Note.objects.get(title="Neuroscience RFP")
+            return tool_turn(
+                "t2",
+                "update_rfp_details",
+                {
+                    "note_id": note.id,
+                    "amount": 50000,
+                    "contact_user_ids": [self.user.id],
+                },
+            )
+
+        # Act
+        self._run(
+            execution,
+            [
+                tool_turn(
+                    "t1",
+                    "create_note",
+                    {"title": "Neuroscience RFP", "document_type": GRANT},
+                ),
+                fill_the_details,
+                text_turn("I created the RFP and set its amount and contact."),
+            ],
+        )
+
+        # Assert
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertIn("update_rfp_details", execution.system_prompt)
+        settings = GrantSettings.objects.get(note__title="Neuroscience RFP")
+        self.assertEqual(settings.amount, 50000)
+        self.assertEqual(settings.currency, "USD")
+        self.assertEqual(list(settings.contacts.all()), [self.user])
+        updated = [
+            event
+            for event in self._activity(0)
+            if event.get("tool") == "update_rfp_details"
+        ]
+        self.assertEqual(updated[0]["label"], "Updated the RFP details")
+        self.assertEqual(updated[0]["status"], "succeeded")
 
     def test_later_turns_see_the_created_notes_and_nothing_else(self):
         # Arrange: one note created by this chat, one the user owns otherwise.
