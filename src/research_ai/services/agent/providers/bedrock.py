@@ -11,11 +11,18 @@ from collections.abc import Callable
 from typing import Any
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.images import (
+    ImageLoader,
+    RequestImages,
+    image_placeholder,
+)
+from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
     Block,
+    ImageBlock,
     Message,
     StopReason,
     TextBlock,
@@ -44,6 +51,20 @@ MAX_OUTPUT_TOKENS = 32_768
 # cache reads. On for Claude-on-Bedrock; a caller running a model without cache
 # support turns it off on the instance.
 PROMPT_CACHING = True
+
+# Bedrock caps an image at 5 MB in base64, which is 3.75 MB of bytes.
+MAX_IMAGE_BYTES = 5 * 1024 * 1024 * 3 // 4
+# Converse rejects a message that carries more than 20 images.
+MAX_MESSAGE_IMAGES = 20
+# Bedrock rejects a request over 20 MB. Base64 adds a third to this, and the
+# rest is left for the conversation's text.
+MAX_REQUEST_IMAGE_BYTES = 10 * 1024 * 1024
+_IMAGE_FORMATS = {
+    "image/jpeg": "jpeg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+}
 
 # Opus 4.7+, Sonnet 5, and Fable reject sampling params (temperature/top_p/
 # top_k) with a 400 ("`temperature` is deprecated for this model"). Match by
@@ -80,9 +101,16 @@ _STOP_REASONS = {
 class BedrockProvider(LLMProvider):
     """Adapts the neutral agent types to the Bedrock Converse API."""
 
-    def __init__(self, *, client: Any = None, model_id: str | None = None):
+    def __init__(
+        self,
+        *,
+        client: Any = None,
+        model_id: str | None = None,
+        image_loader: ImageLoader | None = None,
+    ):
         self._client = client or bedrock_runtime_client()
         self.model_id = model_id or MODEL_ID
+        self.image_loader = image_loader
         self.prompt_caching = PROMPT_CACHING
 
     # -- public surface ---------------------------------------------------
@@ -150,8 +178,16 @@ class BedrockProvider(LLMProvider):
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False
     ) -> list[dict]:
+        images = RequestImages(
+            messages,
+            loader=self.image_loader,
+            vision=model_capabilities("bedrock", self.model_id).vision,
+            max_image_bytes=MAX_IMAGE_BYTES,
+            max_request_bytes=MAX_REQUEST_IMAGE_BYTES,
+            max_message_images=MAX_MESSAGE_IMAGES,
+        )
         rendered = [
-            {"role": m.role, "content": [self._render_block(b) for b in m.content]}
+            {"role": m.role, "content": self._render_content(m.content, images)}
             for m in messages
         ]
         if cache_last and rendered:
@@ -175,7 +211,32 @@ class BedrockProvider(LLMProvider):
             usage.get("outputTokens"),
         )
 
-    def _render_block(self, block: Any) -> dict:
+    def _render_content(self, blocks: list[Block], images: RequestImages) -> list[dict]:
+        # A message's limit counts the images inside its tool results too.
+        images.next_message()
+        rendered: list[dict] = []
+        for block in blocks:
+            if isinstance(block, ImageBlock):
+                rendered.extend(self._render_image(block, images))
+            else:
+                rendered.append(self._render_block(block, images))
+        return rendered
+
+    def _render_image(self, block: ImageBlock, images: RequestImages) -> list[dict]:
+        """The image after its label, or its placeholder as text."""
+        data = images.load(block)
+        if data is None:
+            return [{"text": image_placeholder(block)}]
+        image = {
+            "image": {
+                "format": _IMAGE_FORMATS[block.media_type],
+                # Converse takes raw bytes; boto3 does the base64 encoding.
+                "source": {"bytes": data},
+            }
+        }
+        return [{"text": block.label}, image] if block.label else [image]
+
+    def _render_block(self, block: Any, images: RequestImages) -> dict:
         if isinstance(block, TextBlock):
             return {"text": block.text}
         if isinstance(block, ThinkingBlock):
@@ -193,7 +254,14 @@ class BedrockProvider(LLMProvider):
         if isinstance(block, ToolResultBlock):
             tool_result: dict = {
                 "toolUseId": block.tool_use_id,
-                "content": [{"json": block.content}],
+                "content": [
+                    {"json": block.content},
+                    *(
+                        part
+                        for image in block.images
+                        for part in self._render_image(image, images)
+                    ),
+                ],
             }
             if block.is_error:
                 tool_result["status"] = "error"

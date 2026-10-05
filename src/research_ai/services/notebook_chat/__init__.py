@@ -15,6 +15,11 @@ from research_ai.services.notebook_chat.researcher_profile_tools import (
     GET_RESEARCHER_PROFILE,
     ResearcherProfileToolset,
 )
+from research_ai.services.notebook_chat.rfp_details_tools import (
+    READ_RFP_DETAILS,
+    UPDATE_RFP_DETAILS,
+    RFPDetailsToolset,
+)
 from research_ai.services.notebook_chat.service import (
     ACTIVITY_ALL,
     ACTIVITY_LIVE,
@@ -32,14 +37,17 @@ __all__ = [
     "ACTIVITY_LIVE",
     "ASSISTANT_WORKFLOW",
     "GET_RESEARCHER_PROFILE",
+    "READ_RFP_DETAILS",
     "READ_SELECTED_RFP",
     "SET_SELECTED_RFP",
+    "UPDATE_RFP_DETAILS",
     "WORKFLOW",
     "ConversationEventPublisher",
     "GrantSearchToolset",
     "NotebookChatConfig",
     "NotebookChatService",
     "NotebookWebSearchToolset",
+    "RFPDetailsToolset",
     "ResearcherProfileToolset",
     "SelectedRFPToolset",
     "compose_notebook_toolset",

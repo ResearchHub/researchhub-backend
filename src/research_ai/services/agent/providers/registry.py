@@ -13,6 +13,7 @@ configuration without constructing clients or requiring credentials.
 
 from django.conf import settings
 
+from research_ai.services.agent.images import ImageLoader
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers import bedrock, claude_platform, openrouter
 from research_ai.services.agent.providers.base import LLMProvider
@@ -68,29 +69,33 @@ def resolve_provider(
     native_tools: frozenset[str] = frozenset(),
     effort: str | None = None,
     thinking: str | None = None,
+    image_loader: ImageLoader | None = None,
 ) -> LLMProvider:
     """Build the provider for ``model_ref``.
 
     ``native_tools`` is an explicit per-agent capability request. Unsupported
     names are ignored, so callers can request native search while Bedrock and
-    OpenRouter continue to use their local implementations.
+    OpenRouter continue to use their local implementations. ``image_loader``
+    supplies the bytes of images in the conversation.
     """
     if model_ref is None:
         model_ref = generator_model_ref()
     provider_name, model_id = split_model_ref(model_ref)
     if provider_name == BEDROCK:
-        return BedrockProvider(model_id=model_id)
+        return BedrockProvider(model_id=model_id, image_loader=image_loader)
     if provider_name == OPENROUTER:
         return OpenRouterProvider(
             model_id=model_id,
             effort=effort,
             thinking=thinking,
+            image_loader=image_loader,
         )
     return ClaudePlatformProvider(
         model_id=model_id,
         web_search=claude_platform.WEB_SEARCH_TOOL_NAME in native_tools,
         effort=effort,
         thinking=thinking,
+        image_loader=image_loader,
     )
 
 

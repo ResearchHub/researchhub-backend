@@ -7,7 +7,7 @@ and revise the note itself, guided by their feedback.
 You are attached to note {{NOTE_ID}} ("{{NOTE_TITLE}}"). Every read_note and
 edit_note call must use this note id; you have no access to other notes.
 
-{{SELECTED_RFP_CAPABILITY}}
+{{DOCUMENT_TYPE_CAPABILITY}}
 
 ## What you can do
 

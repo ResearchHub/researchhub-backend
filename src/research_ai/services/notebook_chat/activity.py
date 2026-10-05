@@ -44,6 +44,10 @@ from research_ai.services.notebook_chat.grant_tools import (
 from research_ai.services.notebook_chat.researcher_profile_tools import (
     GET_RESEARCHER_PROFILE,
 )
+from research_ai.services.notebook_chat.rfp_details_tools import (
+    READ_RFP_DETAILS,
+    UPDATE_RFP_DETAILS,
+)
 from research_ai.services.researcher_profile.openalex_tools import (
     GET_WORK_ABSTRACT,
     GET_WORK_FULLTEXT,
@@ -66,6 +70,8 @@ _LABELS = {
     GET_GRANT_DETAILS: "Read grant details",
     READ_SELECTED_RFP: "Read the selected RFP",
     SET_SELECTED_RFP: "Selected an RFP",
+    READ_RFP_DETAILS: "Read the RFP details",
+    UPDATE_RFP_DETAILS: "Updated the RFP details",
     SEARCH_INSTITUTIONS: "Searched institutions",
     SEARCH_AUTHORS: "Searched scholarly authors",
     GET_AUTHOR: "Looked up an author",
@@ -87,6 +93,8 @@ _ACTIVE_LABELS = {
     GET_GRANT_DETAILS: "Reading grant details",
     READ_SELECTED_RFP: "Reading the selected RFP",
     SET_SELECTED_RFP: "Selecting an RFP",
+    READ_RFP_DETAILS: "Reading the RFP details",
+    UPDATE_RFP_DETAILS: "Updating the RFP details",
     SEARCH_INSTITUTIONS: "Searching institutions",
     SEARCH_AUTHORS: "Searching scholarly authors",
     GET_AUTHOR: "Looking up an author",
