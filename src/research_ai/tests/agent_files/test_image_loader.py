@@ -45,12 +45,13 @@ class PrivateStorageImageLoaderTests(TestCase):
         self.assertEqual(self.client.get_object.call_count, 1)
 
     def test_a_deleted_object_is_reported_as_unavailable(self):
-        # Arrange
-        self.client.get_object.side_effect = _client_error("NoSuchKey")
+        for code in ("NoSuchKey", "NotFound", "404"):
+            # Arrange
+            self.client.get_object.side_effect = _client_error(code)
 
-        # Act / Assert
-        with self.assertRaises(ImageUnavailableError):
-            self.loader(KEY)
+            # Act / Assert
+            with self.assertRaises(ImageUnavailableError):
+                self.loader(KEY)
 
     def test_other_storage_failures_propagate(self):
         # Arrange

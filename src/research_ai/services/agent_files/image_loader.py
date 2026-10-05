@@ -3,7 +3,10 @@
 from botocore.exceptions import ClientError
 
 from research_ai.services.agent.images import ImageUnavailableError
-from researchhub.services.private_storage_service import PrivateStorageService
+from researchhub.services.private_storage_service import (
+    MISSING_OBJECT_CODES,
+    PrivateStorageService,
+)
 
 # Chat files, and anything rendered from them, live under this prefix.
 KEY_PREFIX = "uploads/research_ai/"
@@ -40,7 +43,7 @@ class PrivateStorageImageLoader:
         try:
             data = self.storage.read(ref, max_bytes=_MAX_IMAGE_BYTES)
         except ClientError as error:
-            if error.response.get("Error", {}).get("Code") != "NoSuchKey":
+            if error.response.get("Error", {}).get("Code") not in MISSING_OBJECT_CODES:
                 raise
             raise ImageUnavailableError(ref) from error
         except ValueError as error:
