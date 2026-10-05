@@ -5,7 +5,7 @@ from copy import deepcopy
 from django.test import SimpleTestCase
 
 from research_ai.services.agent.errors import ProviderError
-from research_ai.services.agent.images import ImageUnavailableError
+from research_ai.services.agent.images import MANY_IMAGES, ImageUnavailableError
 from research_ai.services.agent.providers import bedrock
 from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.tools import Tool
@@ -19,7 +19,7 @@ from research_ai.services.agent.types import (
     ToolUseBlock,
     TurnUsage,
 )
-from research_ai.tests.agent.image_test_helpers import JPEG, PNG
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG, WIDE_PNG
 
 
 class FakeConverseClient:
@@ -130,7 +130,12 @@ class RenderMessagesTests(SimpleTestCase):
 class RenderImageTests(SimpleTestCase):
     PAGE = ImageBlock(ref="files/1/p1.jpg", media_type="image/jpeg", label="Page 1")
     CHART = ImageBlock(ref="files/1/chart.png", media_type="image/png")
-    IMAGES = {"files/1/p1.jpg": JPEG, "files/1/chart.png": PNG}
+    WIDE = ImageBlock(ref="files/1/wide.png", media_type="image/png", label="wide")
+    IMAGES = {
+        "files/1/p1.jpg": JPEG,
+        "files/1/chart.png": PNG,
+        "files/1/wide.png": WIDE_PNG,
+    }
 
     def _provider(self, model_id="us.anthropic.claude-opus-5"):
         return _build_provider(model_id=model_id, image_loader=self.IMAGES.__getitem__)
@@ -307,6 +312,31 @@ class RenderImageTests(SimpleTestCase):
         self.assertEqual(content[0], {"text": "[Image not shown]"})
         self.assertEqual(
             sum("image" in part for part in content), bedrock.MAX_MESSAGE_IMAGES
+        )
+
+    def test_a_large_image_is_not_sent_once_the_request_has_many_images(self):
+        # Arrange
+        others = [
+            Message(role="user", content=[self.CHART] * MANY_IMAGES),
+            Message(role="assistant", content=[TextBlock(text="ok")]),
+        ]
+        wide = Message(role="user", content=[self.WIDE])
+
+        # Act
+        alone = self._provider()._render_messages([wide])
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
+            among_many = self._provider()._render_messages([*others, wide])
+
+        # Assert
+        self.assertEqual(
+            alone[0]["content"],
+            [
+                {"text": "wide"},
+                {"image": {"format": "png", "source": {"bytes": WIDE_PNG}}},
+            ],
+        )
+        self.assertEqual(
+            among_many[2]["content"], [{"text": "[Image not shown: wide]"}]
         )
 
 

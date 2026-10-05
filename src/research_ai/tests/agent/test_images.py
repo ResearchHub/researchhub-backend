@@ -3,13 +3,16 @@
 from unittest import TestCase
 
 from research_ai.services.agent.images import (
+    MANY_IMAGES,
+    MANY_IMAGES_SIDE_PX,
     MAX_IMAGE_SIDE_PX,
     ImageUnavailableError,
     image_placeholder,
     load_image,
+    max_image_side_px,
 )
-from research_ai.services.agent.types import ImageBlock
-from research_ai.tests.agent.image_test_helpers import JPEG, image_bytes
+from research_ai.services.agent.types import ImageBlock, Message, ToolResultBlock
+from research_ai.tests.agent.image_test_helpers import JPEG, WIDE_PNG, image_bytes
 
 PAGE = ImageBlock(ref="files/1/page-1.jpg", media_type="image/jpeg", label="page 1")
 LOGGER = "research_ai.services.agent.images"
@@ -152,6 +155,23 @@ class LoadImageTests(TestCase):
         # Assert
         self.assertEqual(sent, data)
 
+    def test_an_image_over_the_side_limit_it_is_given_is_not_sent(self):
+        # Arrange
+        png = ImageBlock(ref="files/1/wide.png", media_type="image/png")
+
+        # Act
+        with self.assertLogs(LOGGER, "WARNING"):
+            sent = load_image(
+                png,
+                loader=_loader(WIDE_PNG),
+                vision=True,
+                max_bytes=MAX_BYTES,
+                max_side_px=MANY_IMAGES_SIDE_PX,
+            )
+
+        # Assert
+        self.assertIsNone(sent)
+
     def test_every_supported_type_is_read(self):
         # Arrange
         samples = {
@@ -172,3 +192,32 @@ class LoadImageTests(TestCase):
 
             # Assert
             self.assertEqual(data, sample)
+
+
+class MaxImageSidePxTests(TestCase):
+    def _messages(self, in_tool_result):
+        return [
+            Message(role="user", content=[PAGE] * (MANY_IMAGES - 8)),
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(
+                        tool_use_id="t1", content={}, images=(PAGE,) * in_tool_result
+                    )
+                ],
+            ),
+        ]
+
+    def test_a_request_with_twenty_images_keeps_the_full_limit(self):
+        # Act
+        limit = max_image_side_px(self._messages(in_tool_result=8))
+
+        # Assert
+        self.assertEqual(limit, MAX_IMAGE_SIDE_PX)
+
+    def test_images_in_every_message_and_tool_result_count_towards_many(self):
+        # Act
+        limit = max_image_side_px(self._messages(in_tool_result=9))
+
+        # Assert
+        self.assertEqual(limit, MANY_IMAGES_SIDE_PX)

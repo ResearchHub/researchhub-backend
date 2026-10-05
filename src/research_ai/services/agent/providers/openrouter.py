@@ -24,6 +24,7 @@ from research_ai.services.agent.images import (
     ImageLoader,
     image_placeholder,
     load_image,
+    max_image_side_px,
 )
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
@@ -272,14 +273,15 @@ class OpenRouterProvider(LLMProvider):
         self, system_prompt: str, messages: list[Message]
     ) -> list[dict]:
         rendered: list[dict] = [{"role": "system", "content": system_prompt}]
+        max_side_px = max_image_side_px(messages)
         for message in messages:
             if message.role == "assistant":
                 rendered.append(self._render_assistant(message))
             else:
-                rendered.extend(self._render_user(message))
+                rendered.extend(self._render_user(message, max_side_px))
         return rendered
 
-    def _render_user(self, message: Message) -> list[dict]:
+    def _render_user(self, message: Message, max_side_px: int) -> list[dict]:
         # User-side turns: each tool result becomes its own ``tool`` message
         # keyed by ``tool_call_id`` (the id-correlation invariant), emitted
         # before any plain text so they directly follow the assistant
@@ -297,11 +299,11 @@ class OpenRouterProvider(LLMProvider):
                         "content": json.dumps(block.content),
                     }
                 )
-                parts.extend(self._tool_image_parts(block))
+                parts.extend(self._tool_image_parts(block, max_side_px))
             elif isinstance(block, TextBlock):
                 parts.append({"type": "text", "text": block.text})
             elif isinstance(block, ImageBlock):
-                parts.extend(self._image_parts(block))
+                parts.extend(self._image_parts(block, max_side_px))
             else:
                 raise TypeError(f"unrenderable user block: {block!r}")
         if not parts:
@@ -312,23 +314,24 @@ class OpenRouterProvider(LLMProvider):
             content = "".join(part["text"] for part in parts)
         return [*tool_messages, {"role": "user", "content": content}]
 
-    def _tool_image_parts(self, block: ToolResultBlock) -> list[dict]:
+    def _tool_image_parts(self, block: ToolResultBlock, max_side_px: int) -> list[dict]:
         # Upstreams differ on images in tool messages, so a result's images
         # follow in the user message instead.
         if not block.images:
             return []
         parts = [{"type": "text", "text": _TOOL_IMAGES_NOTE}]
         for image in block.images:
-            parts.extend(self._image_parts(image))
+            parts.extend(self._image_parts(image, max_side_px))
         return parts
 
-    def _image_parts(self, block: ImageBlock) -> list[dict]:
+    def _image_parts(self, block: ImageBlock, max_side_px: int) -> list[dict]:
         """The image after its label, or its placeholder as text."""
         data = load_image(
             block,
             loader=self.image_loader,
             vision=model_capabilities("openrouter", self.model_id).vision,
             max_bytes=MAX_IMAGE_BYTES,
+            max_side_px=max_side_px,
         )
         if data is None:
             return [{"type": "text", "text": f"{image_placeholder(block)}\n"}]

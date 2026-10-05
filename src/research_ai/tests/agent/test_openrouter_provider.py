@@ -10,6 +10,7 @@ import openai
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.images import MANY_IMAGES
 from research_ai.services.agent.providers import openrouter
 from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 from research_ai.services.agent.tools import Tool
@@ -22,7 +23,7 @@ from research_ai.services.agent.types import (
     ToolResultBlock,
     ToolUseBlock,
 )
-from research_ai.tests.agent.image_test_helpers import JPEG, PNG
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG, WIDE_PNG
 
 
 class FakeChatCompletionsClient:
@@ -198,7 +199,12 @@ class RenderMessagesTests(SimpleTestCase):
 class RenderImageTests(SimpleTestCase):
     PAGE = ImageBlock(ref="files/1/p1.jpg", media_type="image/jpeg", label="Page 1")
     CHART = ImageBlock(ref="files/1/chart.png", media_type="image/png")
-    IMAGES = {"files/1/p1.jpg": JPEG, "files/1/chart.png": PNG}
+    WIDE = ImageBlock(ref="files/1/wide.png", media_type="image/png", label="wide")
+    IMAGES = {
+        "files/1/p1.jpg": JPEG,
+        "files/1/chart.png": PNG,
+        "files/1/wide.png": WIDE_PNG,
+    }
     JPEG_URL = "data:image/jpeg;base64," + base64.b64encode(JPEG).decode()
     PNG_URL = "data:image/png;base64," + base64.b64encode(PNG).decode()
 
@@ -310,6 +316,24 @@ class RenderImageTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(rendered[1], {"role": "user", "content": "ab"})
+
+    def test_a_large_image_is_not_sent_once_the_request_has_many_images(self):
+        # Arrange
+        others = Message(role="user", content=[self.CHART] * MANY_IMAGES)
+        wide = Message(role="user", content=[self.WIDE])
+
+        # Act
+        alone = self._provider()._render_messages("sys", [wide])
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
+            among_many = self._provider()._render_messages("sys", [others, wide])
+
+        # Assert
+        self.assertEqual(
+            [part["type"] for part in alone[1]["content"]], ["text", "image_url"]
+        )
+        self.assertEqual(
+            among_many[2], {"role": "user", "content": "[Image not shown: wide]\n"}
+        )
 
 
 class CompleteRequestTests(SimpleTestCase):

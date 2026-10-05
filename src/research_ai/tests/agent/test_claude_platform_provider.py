@@ -32,7 +32,7 @@ from anthropic.types.refusal_stop_details import RefusalStopDetails
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
-from research_ai.services.agent.images import ImageUnavailableError
+from research_ai.services.agent.images import MANY_IMAGES, ImageUnavailableError
 from research_ai.services.agent.providers import claude_platform
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.tools import Tool
@@ -52,7 +52,7 @@ from research_ai.services.agent.types import (
     ToolUseStreamStart,
     TurnUsage,
 )
-from research_ai.tests.agent.image_test_helpers import JPEG, PNG
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG, WIDE_PNG
 
 
 class _FakeStream:
@@ -341,10 +341,41 @@ class RenderMessagesTests(SimpleTestCase):
 class RenderImageTests(SimpleTestCase):
     PAGE = ImageBlock(ref="files/1/p1.jpg", media_type="image/jpeg", label="Page 1")
     CHART = ImageBlock(ref="files/1/chart.png", media_type="image/png")
-    IMAGES = {"files/1/p1.jpg": JPEG, "files/1/chart.png": PNG}
+    WIDE = ImageBlock(ref="files/1/wide.png", media_type="image/png", label="wide")
+    IMAGES = {
+        "files/1/p1.jpg": JPEG,
+        "files/1/chart.png": PNG,
+        "files/1/wide.png": WIDE_PNG,
+    }
 
     def _provider(self, **kwargs):
         return _build_provider(image_loader=self.IMAGES.__getitem__, **kwargs)
+
+    def test_a_large_image_is_not_sent_once_the_request_has_many_images(self):
+        # Arrange: the other images arrive in a tool result on an earlier turn.
+        others = Message(
+            role="user",
+            content=[
+                ToolResultBlock(
+                    tool_use_id="t1", content={}, images=(self.CHART,) * MANY_IMAGES
+                )
+            ],
+        )
+        wide = Message(role="user", content=[self.WIDE])
+
+        # Act
+        alone = self._provider()._render_messages([wide])
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
+            among_many = self._provider()._render_messages([others, wide])
+
+        # Assert
+        self.assertEqual(
+            [part["type"] for part in alone[0]["content"]], ["text", "image"]
+        )
+        self.assertEqual(
+            among_many[1]["content"],
+            [{"type": "text", "text": "[Image not shown: wide]"}],
+        )
 
     def test_user_images_render_as_base64_blocks_after_their_label(self):
         # Arrange

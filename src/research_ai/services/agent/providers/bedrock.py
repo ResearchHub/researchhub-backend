@@ -16,6 +16,7 @@ from research_ai.services.agent.images import (
     ImageLoader,
     image_placeholder,
     load_image,
+    max_image_side_px,
 )
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
@@ -98,8 +99,9 @@ _STOP_REASONS = {
 
 @dataclass
 class _ImageQuota:
-    """The images the message being rendered may still carry."""
+    """The images a message may still carry, and how long a side each may have."""
 
+    max_side_px: int
     left: int = MAX_MESSAGE_IMAGES
 
 
@@ -183,8 +185,9 @@ class BedrockProvider(LLMProvider):
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False
     ) -> list[dict]:
+        max_side_px = max_image_side_px(messages)
         rendered = [
-            {"role": m.role, "content": self._render_content(m.content)}
+            {"role": m.role, "content": self._render_content(m.content, max_side_px)}
             for m in messages
         ]
         if cache_last and rendered:
@@ -208,9 +211,9 @@ class BedrockProvider(LLMProvider):
             usage.get("outputTokens"),
         )
 
-    def _render_content(self, blocks: list[Block]) -> list[dict]:
+    def _render_content(self, blocks: list[Block], max_side_px: int) -> list[dict]:
         # One quota for the message: images inside tool results count too.
-        quota = _ImageQuota()
+        quota = _ImageQuota(max_side_px)
         rendered: list[dict] = []
         for block in blocks:
             if isinstance(block, ImageBlock):
@@ -228,6 +231,7 @@ class BedrockProvider(LLMProvider):
                 loader=self.image_loader,
                 vision=model_capabilities("bedrock", self.model_id).vision,
                 max_bytes=MAX_IMAGE_BYTES,
+                max_side_px=quota.max_side_px,
             )
         else:
             logger.warning("image %r is past the message's image limit", block.ref)
