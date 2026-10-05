@@ -1,5 +1,5 @@
 from datetime import timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import responses
 from django.contrib.auth import get_user_model
@@ -718,6 +718,42 @@ class AgentFileServiceTests(TestCase):
         stale = make_file(self.user)
         self._age(stale, field="created_date", seconds=CONFIG.unsent_ttl_seconds + 1)
         self.storage.delete.side_effect = RuntimeError("s3 unavailable")
+
+        # Act
+        purged = self.service.purge()
+
+        # Assert
+        self.assertEqual(purged, 0)
+        self.assertTrue(AgentFile.objects.filter(id=stale.id).exists())
+
+    def test_purge_deletes_a_files_page_images_after_its_original(self):
+        # Arrange
+        stale = make_file(self.user, page_count=3)
+        self._age(stale, field="created_date", seconds=CONFIG.unsent_ttl_seconds + 1)
+        deletes = Mock()
+        deletes.attach_mock(self.storage.delete, "delete")
+        deletes.attach_mock(self.storage.delete_many, "delete_many")
+
+        # Act
+        purged = self.service.purge()
+
+        # Assert
+        prefix = stale.storage_key.rsplit("/", 1)[0]
+        self.assertEqual(purged, 1)
+        self.assertEqual(
+            deletes.mock_calls,
+            [
+                call.delete(stale.storage_key),
+                call.delete_many([f"{prefix}/pages/{page}.jpg" for page in (1, 2, 3)]),
+            ],
+        )
+        self.assertFalse(AgentFile.objects.filter(id=stale.id).exists())
+
+    def test_purge_keeps_a_file_whose_page_images_could_not_be_deleted(self):
+        # Arrange
+        stale = make_file(self.user, page_count=3)
+        self._age(stale, field="created_date", seconds=CONFIG.unsent_ttl_seconds + 1)
+        self.storage.delete_many.side_effect = RuntimeError("s3 unavailable")
 
         # Act
         purged = self.service.purge()
