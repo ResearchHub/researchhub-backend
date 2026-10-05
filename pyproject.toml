@@ -36,7 +36,7 @@ dependencies = [
     "django-silk>=5.6.0,<6",
     "django-simple-history>=3.13.0,<4",
     "django-storages==1.14.6",
-    "django==5.2.17",
+    "django==6.1.1",
     "djangorestframework==3.18.1",
     "elastic-apm>=6.26.2,<7",
     "flower>=2.2.0,<3",
