@@ -1,8 +1,9 @@
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
+import responses
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from research_ai.models import AgentFile
@@ -11,8 +12,15 @@ from research_ai.services.agent_files import (
     AgentFileError,
     AgentFileService,
 )
+from research_ai.services.agent_files.extraction import NO_TEXT_LAYER, OCR_NOTE
+from research_ai.services.agent_files.mistral_ocr import API_URL as MISTRAL_OCR_URL
 from research_ai.services.agent_persistence import AgentConversationService
-from research_ai.tests.agent_files.helpers import make_file, pdf_bytes
+from research_ai.tests.agent_files.helpers import (
+    SCAN,
+    make_file,
+    pdf_bytes,
+    pdf_with_scans,
+)
 from researchhub.services.private_storage_service import (
     PresignedPost,
     PrivateStorageNotConfiguredError,
@@ -239,6 +247,45 @@ class AgentFileServiceTests(TestCase):
         self.assertEqual(status, AgentFile.Status.FAILED)
         self.assertIn("no selectable text", file.error)
         self.storage.delete.assert_called_once_with(file.storage_key)
+
+    @override_settings(MISTRAL_API_KEY="test-key")
+    @responses.activate
+    def test_process_reads_scanned_pages_by_ocr_when_the_key_is_set(self):
+        # Arrange
+        file = make_file(self.user, status=AgentFile.Status.PROCESSING, text="")
+        self.storage.read.return_value = pdf_with_scans("Specific aims", SCAN)
+        responses.post(
+            MISTRAL_OCR_URL, json={"pages": [{"index": 0, "markdown": "Budget"}]}
+        )
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        file.refresh_from_db()
+        self.assertEqual(status, AgentFile.Status.READY)
+        self.assertEqual(
+            file.text, f"[Page 1]\nSpecific aims\n\n[Page 2]\n{OCR_NOTE}\nBudget"
+        )
+        self.assertEqual(len(responses.calls), 1)
+
+    @override_settings(MISTRAL_API_KEY="")
+    @responses.activate
+    def test_process_only_marks_scanned_pages_without_the_key(self):
+        # Arrange
+        file = make_file(self.user, status=AgentFile.Status.PROCESSING, text="")
+        self.storage.read.return_value = pdf_with_scans("Specific aims", SCAN)
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        file.refresh_from_db()
+        self.assertEqual(status, AgentFile.Status.READY)
+        self.assertEqual(
+            file.text, f"[Page 1]\nSpecific aims\n\n[Page 2]\n{NO_TEXT_LAYER}"
+        )
+        self.assertEqual(len(responses.calls), 0)
 
     def test_process_fails_generically_when_storage_breaks(self):
         # Arrange

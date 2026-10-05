@@ -514,6 +514,13 @@ OPENROUTER_API_KEY = os.environ.get(
     getattr(keys, "OPENROUTER_API_KEY", ""),
 )
 
+# Mistral OCR (research_ai chat files). Optional: when set, scanned PDF pages
+# are read by OCR; without it they are only marked as having no text layer.
+MISTRAL_API_KEY = os.environ.get(
+    "MISTRAL_API_KEY",
+    getattr(keys, "MISTRAL_API_KEY", ""),
+)
+
 # Which provider the research_ai agent core generates with: "claude_platform"
 # (default, Claude Platform on AWS), "bedrock", or "openrouter". Each adapter
 # names its own model and inference knobs as module constants.
