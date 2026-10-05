@@ -70,8 +70,9 @@ MAX_IMAGE_BYTES = 5 * 1024 * 1024 * 3 // 4
 # and room for the conversation's text.
 MAX_REQUEST_IMAGE_BYTES = 10 * 1024 * 1024
 
-# Shown before a tool result's images, which travel in a user message.
-_TOOL_IMAGES_NOTE = "[Images returned by the tool call above.]\n"
+# Shown before a tool result's images, which travel in a user message after
+# every result of the turn; a model may not see ids, so it gets the position too.
+_TOOL_IMAGES_NOTE = "[Images returned by tool result {position} above (id {id}).]\n"
 
 # Opus 4.7+, Fable, and OpenAI reasoning models reject sampling params
 # (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
@@ -294,6 +295,7 @@ class OpenRouterProvider(LLMProvider):
         # keyed by ``tool_call_id`` (the id-correlation invariant), emitted
         # before any plain text so they directly follow the assistant
         # message that issued the calls, as the wire format requires.
+        results = sum(isinstance(block, ToolResultBlock) for block in message.content)
         tool_messages: list[dict] = []
         parts: list[dict] = []
         for block in message.content:
@@ -307,7 +309,8 @@ class OpenRouterProvider(LLMProvider):
                         "content": json.dumps(block.content),
                     }
                 )
-                parts.extend(self._tool_image_parts(block, images))
+                position = f"{len(tool_messages)} of {results}"
+                parts.extend(self._tool_image_parts(block, images, position))
             elif isinstance(block, TextBlock):
                 parts.append({"type": "text", "text": block.text})
             elif isinstance(block, ImageBlock):
@@ -323,13 +326,14 @@ class OpenRouterProvider(LLMProvider):
         return [*tool_messages, {"role": "user", "content": content}]
 
     def _tool_image_parts(
-        self, block: ToolResultBlock, images: RequestImages
+        self, block: ToolResultBlock, images: RequestImages, position: str
     ) -> list[dict]:
         # Upstreams differ on images in tool messages, so a result's images
         # follow in the user message instead.
         if not block.images:
             return []
-        parts = [{"type": "text", "text": _TOOL_IMAGES_NOTE}]
+        note = _TOOL_IMAGES_NOTE.format(position=position, id=block.tool_use_id)
+        parts = [{"type": "text", "text": note}]
         for image in block.images:
             parts.extend(self._image_parts(image, images))
         return parts

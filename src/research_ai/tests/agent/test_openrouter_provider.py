@@ -273,12 +273,48 @@ class RenderImageTests(SimpleTestCase):
                     "content": [
                         {
                             "type": "text",
-                            "text": "[Images returned by the tool call above.]\n",
+                            "text": (
+                                "[Images returned by tool result 1 of 2 above "
+                                "(id call-1).]\n"
+                            ),
                         },
                         {"type": "text", "text": "Page 1"},
                         {"type": "image_url", "image_url": {"url": self.JPEG_URL}},
                     ],
                 },
+            ],
+        )
+
+    def test_images_from_several_tool_results_each_name_their_result(self):
+        # Arrange: both results' images end up after the second tool message.
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(
+                        tool_use_id="call-1", content={}, images=(self.PAGE,)
+                    ),
+                    ToolResultBlock(
+                        tool_use_id="call-2", content={}, images=(self.CHART,)
+                    ),
+                ],
+            ),
+        ]
+
+        # Act
+        rendered = self._provider()._render_messages("sys", messages)
+
+        # Assert
+        first = "[Images returned by tool result 1 of 2 above (id call-1).]\n"
+        second = "[Images returned by tool result 2 of 2 above (id call-2).]\n"
+        self.assertEqual(
+            rendered[3]["content"],
+            [
+                {"type": "text", "text": first},
+                {"type": "text", "text": "Page 1"},
+                {"type": "image_url", "image_url": {"url": self.JPEG_URL}},
+                {"type": "text", "text": second},
+                {"type": "image_url", "image_url": {"url": self.PNG_URL}},
             ],
         )
 
