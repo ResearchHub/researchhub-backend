@@ -317,7 +317,32 @@ def _open_pdf(data: bytes) -> fitz.Document:
     if document.page_count == 0:
         document.close()
         raise not_a_pdf
+    # MuPDF sizes its page map by the declared /Count. Every page is an object
+    # of its own, so a count above the object count is lowered to it.
+    objects = document.xref_length()
+    if document.page_count > objects:
+        try:
+            pages = document.xref_get_key(document.pdf_catalog(), "Pages")[1]
+            document.xref_set_key(int(pages.split()[0]), "Count", str(objects))
+        except Exception as exc:  # no page tree whose count can be lowered
+            document.close()
+            raise not_a_pdf from exc
     return document
+
+
+def _loadable_page_count(document: fitz.Document, loaded: int) -> int:
+    """How many pages load in sequence, given that the first ``loaded`` did.
+
+    A /Count can claim any number, so a page is counted only once it loads.
+    """
+    count = loaded
+    while count < document.page_count:
+        try:
+            document.load_page(count)
+        except Exception:  # the page tree ends here, whatever /Count says
+            break
+        count += 1
+    return count
 
 
 def _pdf_pages(data: bytes, max_chars: int) -> dict:
@@ -327,7 +352,6 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
     large image, as a scan under a stamp does.
     """
     with _open_pdf(data) as document:
-        page_count = document.page_count
         pages: list[str | None] = []
         mostly_image: list[int] = []
         # No more than max_chars reaches the unlimited parent.
@@ -336,6 +360,8 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
         try:
             for number, page in enumerate(document, start=1):
                 if remaining <= 0 or number > _MAX_PDF_PAGES:
+                    # This page exists and is left unread.
+                    cut = True
                     break
                 page_text = page.get_text().strip()
                 # Judged on the page's whole text, before any cut.
@@ -351,11 +377,12 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
                     pages.append(page_text)
         except Exception as exc:  # noqa: BLE001 - a damaged page stream
             raise UnreadableFileError("This PDF could not be read.") from exc
+        page_count = _loadable_page_count(document, len(pages))
     return {
         "pages": pages,
         "mostly_image": mostly_image,
         "page_count": page_count,
-        "truncated": cut or len(pages) < page_count,
+        "truncated": cut,
     }
 
 
@@ -384,10 +411,11 @@ def _pdf_page_image(
     max_bytes: int,
 ) -> dict:
     with _open_pdf(data) as document:
-        if page > document.page_count:
-            raise UnreadableFileError(f"This PDF has no page {page}.")
         try:
             pdf_page = document[page - 1]
+        except Exception as exc:  # nothing loads there, whatever /Count says
+            raise UnreadableFileError(f"This PDF has no page {page}.") from exc
+        try:
             longest = max(pdf_page.rect.width, pdf_page.rect.height)
             if longest <= 0:
                 raise ValueError("empty page")

@@ -47,6 +47,23 @@ def page_of_text() -> bytes:
     return data
 
 
+def pdf_claiming(count: int, *pages: str, cycle: bool = False) -> bytes:
+    """``pdf_bytes(*pages)`` with its page tree's /Count forged to ``count``.
+
+    ``cycle`` also lists the tree's root among its own pages, which keeps MuPDF
+    from correcting the count.
+    """
+    document = fitz.open(stream=pdf_bytes(*pages), filetype="pdf")
+    root = int(document.xref_get_key(document.pdf_catalog(), "Pages")[1].split()[0])
+    if cycle:
+        kids = document.xref_get_key(root, "Kids")[1]
+        document.xref_set_key(root, "Kids", f"{kids[:-1]} {root} 0 R]")
+    document.xref_set_key(root, "Count", str(count))
+    data = document.tobytes()
+    document.close()
+    return data
+
+
 class ResolveKindTests(TestCase):
     def test_extension_decides_the_kind(self):
         # Act / Assert
@@ -171,6 +188,54 @@ class PdfExtractionTests(TestCase):
         # Act / Assert
         with self.assertRaisesRegex(UnreadableFileError, "could not be read as a PDF"):
             extract_text(b"GIF89a not a pdf", PDF, max_chars=MAX_CHARS)
+
+
+class PdfPageCountTests(TestCase):
+    def test_a_forged_page_count_gives_way_to_the_pages_that_exist(self):
+        # Arrange
+        data = pdf_claiming(2**31 - 1, "Alpha findings", "Beta methods", "Gamma")
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.page_count, 3)
+        self.assertFalse(extracted.truncated)
+        self.assertTrue(extracted.text.endswith("[Page 3]\nGamma"))
+
+    def test_pages_are_counted_by_loading_them_where_mupdf_keeps_a_forged_count(self):
+        # Arrange: the text limit is met on page 2, before the tree's cycle.
+        data = pdf_claiming(2500, "Alpha findings", "Beta methods", "Gamma", cycle=True)
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=20)
+
+        # Assert
+        self.assertEqual(extracted.page_count, 3)
+        self.assertTrue(extracted.truncated)
+
+    def test_a_page_past_the_real_end_of_a_forged_pdf_is_refused(self):
+        # Arrange
+        data = pdf_claiming(2**31 - 1, "Alpha findings", "Beta methods")
+
+        # Act
+        last = render_pdf_page(data, 2, dpi=72)
+
+        # Assert
+        self.assertEqual((last.width, last.height), (595, 842))
+        with self.assertRaisesRegex(UnreadableFileError, "has no page 3"):
+            render_pdf_page(data, 3)
+
+    def test_only_pages_left_unread_flag_a_text_limit_met_at_a_pages_end(self):
+        # Act
+        # Run in this process: the parent's page markers would pass the limit.
+        unread = extraction._pdf_pages(pdf_bytes("Alpha", "Beta", "Gamma"), 5)
+        whole = extraction._pdf_pages(pdf_bytes("Alpha"), 5)
+
+        # Assert
+        self.assertEqual(unread["pages"], ["Alpha"])
+        self.assertEqual((unread["page_count"], unread["truncated"]), (3, True))
+        self.assertEqual((whole["page_count"], whole["truncated"]), (1, False))
 
 
 class PdfPagesWithoutTextTests(TestCase):
