@@ -429,6 +429,7 @@ class SendQueuedEmailsTaskTests(TestCase):
                 kwargs={
                     "generated_email_ids": [record.id for record in records],
                     "sender_user_id": self.user.id,
+                    "immediate": True,
                 }
             ).get()
         for record in [*records, *experts]:
@@ -473,6 +474,7 @@ class SendQueuedEmailsTaskTests(TestCase):
             kwargs={
                 "generated_email_ids": [record.id for record in records],
                 "sender_user_id": self.user.id,
+                "immediate": True,
             }
         ).get()
         for record in records:
