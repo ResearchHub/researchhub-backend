@@ -1,6 +1,6 @@
+import threading
 from unittest import TestCase
 
-import fitz
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent_files.extraction import (
@@ -14,26 +14,14 @@ from research_ai.services.agent_files.extraction_service import (
     TextExtractionService,
 )
 from research_ai.services.agent_files.ocr import OcrError
-from research_ai.tests.agent_files.helpers import pdf_bytes
+from research_ai.tests.agent_files.helpers import (
+    SCAN,
+    pdf_bytes,
+    pdf_with_scans,
+    stamped_scan,
+)
 
 MAX_CHARS = 10_000
-SCAN = object()
-
-
-def pdf_with_scans(*pages) -> bytes:
-    """A PDF whose ``SCAN`` pages hold only an image; other pages hold text."""
-    document = fitz.open()
-    for content in pages:
-        page = document.new_page()
-        if content is SCAN:
-            pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40), False)
-            pixmap.clear_with(180)
-            page.insert_image(page.rect, pixmap=pixmap)
-        elif content:
-            page.insert_text((72, 72), content)
-    data = document.tobytes()
-    document.close()
-    return data
 
 
 class FakeOcr:
@@ -47,6 +35,24 @@ class FakeOcr:
         self.images.append(image)
         if image.page in self.failing:
             raise OcrError(f"page {image.page} unreadable")
+        return f"Scan {image.page}"
+
+    @property
+    def pages(self):
+        return sorted(image.page for image in self.images)
+
+
+class PairedOcr:
+    """Reads a page only while another read is in flight."""
+
+    def __init__(self):
+        self.together = threading.Barrier(2, timeout=10)
+
+    def read_page(self, image):
+        try:
+            self.together.wait()
+        except threading.BrokenBarrierError as exc:
+            raise OcrError(f"page {image.page} was read alone") from exc
         return f"Scan {image.page}"
 
 
@@ -97,9 +103,37 @@ class TextExtractionServiceTests(TestCase):
         extracted = service.extract(data, PDF, max_chars=MAX_CHARS)
 
         # Assert
-        self.assertEqual([image.page for image in ocr.images], [1, 2])
+        self.assertEqual(ocr.pages, [1, 2])
         self.assertEqual(extracted.ocr_pages, (1, 2))
         self.assertEqual(extracted.pages_without_text, (3,))
+
+    def test_a_scan_under_a_stamp_goes_to_the_engine(self):
+        # Arrange
+        ocr = FakeOcr()
+        service = TextExtractionService(ocr=ocr)
+        data = pdf_with_scans("Alpha findings", stamped_scan("Downloaded 5 March"))
+
+        # Act
+        extracted = service.extract(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(
+            extracted.text, f"[Page 1]\nAlpha findings\n\n[Page 2]\n{OCR_NOTE}\nScan 2"
+        )
+        self.assertEqual(ocr.pages, [2])
+
+    def test_pages_are_read_several_at_a_time(self):
+        # Arrange
+        service = TextExtractionService(
+            ocr=PairedOcr(), config=OcrConfig(concurrency=2)
+        )
+        data = pdf_with_scans(SCAN, SCAN, SCAN, SCAN)
+
+        # Act
+        extracted = service.extract(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.ocr_pages, (1, 2, 3, 4))
 
     def test_a_page_the_engine_cannot_read_stays_marked(self):
         # Arrange
@@ -121,9 +155,9 @@ class TextExtractionServiceTests(TestCase):
 
     def test_an_engine_that_keeps_failing_is_not_asked_again(self):
         # Arrange
-        ocr = FakeOcr(failing={2, 3, 4, 5})
-        service = TextExtractionService(ocr=ocr)
-        data = pdf_with_scans("Alpha findings", SCAN, SCAN, SCAN, SCAN)
+        ocr = FakeOcr(failing={2, 3, 4, 5, 6, 7})
+        service = TextExtractionService(ocr=ocr, config=OcrConfig(concurrency=2))
+        data = pdf_with_scans("Alpha findings", SCAN, SCAN, SCAN, SCAN, SCAN, SCAN)
 
         # Act
         with self.assertLogs(
@@ -132,8 +166,9 @@ class TextExtractionServiceTests(TestCase):
             extracted = service.extract(data, PDF, max_chars=MAX_CHARS)
 
         # Assert
-        self.assertEqual([image.page for image in ocr.images], [2, 3, 4])
-        self.assertEqual(extracted.pages_without_text, (2, 3, 4, 5))
+        # The third failure in a row lands in the second pair; no third pair is read.
+        self.assertEqual(ocr.pages, [2, 3, 4, 5])
+        self.assertEqual(extracted.pages_without_text, (2, 3, 4, 5, 6, 7))
 
     def test_ocr_stops_when_its_time_is_up(self):
         # Arrange
