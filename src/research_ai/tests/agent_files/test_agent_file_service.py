@@ -12,6 +12,11 @@ from research_ai.services.agent_files import (
     AgentFileError,
     AgentFileService,
 )
+from research_ai.services.agent_files.delivery import (
+    DeliveryConfig,
+    PageImages,
+    TextDelivery,
+)
 from research_ai.services.agent_files.extraction import NO_TEXT_LAYER, OCR_NOTE
 from research_ai.services.agent_files.mistral_ocr import API_URL as MISTRAL_OCR_URL
 from research_ai.services.agent_persistence import AgentConversationService
@@ -35,6 +40,12 @@ CONFIG = AgentFileConfig(
     max_files_per_conversation=3,
     max_unsent_files=3,
 )
+DELIVERY = DeliveryConfig(
+    inline_max_chars=40,
+    inline_max_chars_per_message=60,
+    page_images_max_pages=5,
+    page_images_max_per_message=5,
+)
 UPLOAD = PresignedPost("https://bucket.s3.amazonaws.com/", {"key": "k"})
 PROCESS_DELAY = "research_ai.tasks.process_agent_file_task.delay"
 
@@ -55,7 +66,9 @@ class AgentFileServiceTests(TestCase):
         self.storage = Mock(spec=PrivateStorageService)
         self.storage.configured = True
         self.storage.presigned_post.return_value = UPLOAD
-        self.service = AgentFileService(storage=self.storage, config=CONFIG)
+        self.service = AgentFileService(
+            storage=self.storage, config=CONFIG, delivery_config=DELIVERY
+        )
         conversations = AgentConversationService()
         self.conversation = conversations.create(
             user=self.user, workflow="assistant_chat"
@@ -478,6 +491,78 @@ class AgentFileServiceTests(TestCase):
         self.assertEqual(view["status"], AgentFile.Status.READY)
         self.assertNotIn("text", view)
         self.assertEqual(list(attachments), [self.message.id])
+
+    # -- delivery -------------------------------------------------------------
+
+    def _send(self, *, chars, **fields):
+        return make_file(self.user, message=self.message, text="x" * chars, **fields)
+
+    def test_message_attachments_load_text_only_for_short_files(self):
+        # Arrange
+        short = self._send(chars=DELIVERY.inline_max_chars)
+        long = self._send(chars=DELIVERY.inline_max_chars + 1)
+
+        # Act
+        inline, behind_tools = self.service.message_attachments(
+            self.message, vision=True
+        )
+
+        # Assert
+        self.assertEqual(inline.file.id, short.id)
+        self.assertEqual(inline.delivery.text, TextDelivery.INLINE)
+        self.assertEqual(inline.inline_text, short.text)
+        self.assertEqual(behind_tools.file.id, long.id)
+        self.assertEqual(behind_tools.delivery.text, TextDelivery.TOOLS)
+        self.assertIsNone(behind_tools.inline_text)
+        self.assertIn("text", behind_tools.file.get_deferred_fields())
+        self.assertEqual(behind_tools.file.text_chars, len(long.text))
+
+    def test_message_attachments_share_the_messages_inline_budget(self):
+        # Arrange: any one fits, but the budget holds the first and the last.
+        rest = DELIVERY.inline_max_chars_per_message - DELIVERY.inline_max_chars
+        for chars in (DELIVERY.inline_max_chars, DELIVERY.inline_max_chars, rest):
+            self._send(chars=chars)
+
+        # Act
+        attachments = self.service.message_attachments(self.message, vision=True)
+
+        # Assert
+        self.assertEqual(
+            [attachment.delivery.text for attachment in attachments],
+            [TextDelivery.INLINE, TextDelivery.TOOLS, TextDelivery.INLINE],
+        )
+        self.assertEqual(
+            [attachment.inline_text is not None for attachment in attachments],
+            [True, False, True],
+        )
+
+    def test_message_attachments_offer_page_images_only_to_a_vision_model(self):
+        # Arrange
+        self._send(chars=DELIVERY.inline_max_chars, page_count=2)
+
+        # Act
+        (seeing,) = self.service.message_attachments(self.message, vision=True)
+        (text_only,) = self.service.message_attachments(self.message, vision=False)
+
+        # Assert: the text arrives the same way for both.
+        self.assertEqual(seeing.delivery.page_images, PageImages.ATTACHED)
+        self.assertEqual(text_only.delivery.page_images, PageImages.NONE)
+        self.assertEqual(text_only.delivery.text, TextDelivery.INLINE)
+        self.assertEqual(text_only.inline_text, seeing.inline_text)
+
+    def test_message_attachments_cover_only_that_messages_ready_files(self):
+        # Arrange
+        sent = self._send(chars=1)
+        self._send(chars=1, status=AgentFile.Status.FAILED)
+        make_file(self.user)
+        later = AgentConversationService().add_human_message(self.conversation, "Next")
+        make_file(self.user, message=later)
+
+        # Act
+        attachments = self.service.message_attachments(self.message, vision=True)
+
+        # Assert
+        self.assertEqual([attachment.file.id for attachment in attachments], [sent.id])
 
     # -- removal, download, purge -------------------------------------------
 

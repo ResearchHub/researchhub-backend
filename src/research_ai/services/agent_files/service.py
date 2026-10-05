@@ -8,6 +8,7 @@ A file moves UPLOADING -> PROCESSING -> READY or FAILED:
 - ``complete_upload`` confirms the object landed and queues extraction.
 - ``process`` (worker) extracts the text the agent reads.
 - ``attach`` binds READY files to the user message they are sent with.
+- ``message_attachments`` plans how each of a message's files reaches the model.
 
 ``purge`` deletes files never sent and files of removed conversations.
 """
@@ -17,6 +18,7 @@ import os
 import uuid
 from collections import defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import timedelta
 
 from django.db import transaction
@@ -27,6 +29,13 @@ from django.utils.text import slugify
 
 from research_ai.models import AgentConversation, AgentConversationMessage, AgentFile
 from research_ai.services.agent_files.config import AgentFileConfig
+from research_ai.services.agent_files.delivery import (
+    Delivery,
+    DeliveryConfig,
+    Document,
+    TextDelivery,
+    plan_delivery,
+)
 from research_ai.services.agent_files.extraction import (
     SUPPORTED_EXTENSIONS,
     UnreadableFileError,
@@ -60,6 +69,16 @@ class AgentFileError(ValueError):
     def __init__(self, message: str, *, code: str):
         super().__init__(message)
         self.code = code
+
+
+@dataclass(frozen=True)
+class Attachment:
+    """A file sent with a message and how it reaches the model."""
+
+    file: AgentFile
+    delivery: Delivery
+    # The whole extracted text when it is delivered inline; not loaded otherwise.
+    inline_text: str | None = None
 
 
 def public_file(file: AgentFile) -> dict:
@@ -101,9 +120,10 @@ def _key_name(filename: str) -> str:
 class AgentFileService:
     """Uploads, processing, attachment, and cleanup of chat files.
 
-    ``storage``, ``config`` and ``extraction`` are injectable for tests; they
-    default to the private bucket, the settings-backed limits, and extraction
-    that reads scanned PDF pages with Mistral OCR when its key is set.
+    ``storage``, ``config``, ``extraction`` and ``delivery_config`` are
+    injectable for tests; they default to the private bucket, the
+    settings-backed limits, extraction that reads scanned PDF pages with
+    Mistral OCR when its key is set, and the settings-backed delivery policy.
     """
 
     def __init__(
@@ -112,10 +132,12 @@ class AgentFileService:
         storage: PrivateStorageService | None = None,
         config: AgentFileConfig | None = None,
         extraction: TextExtractionService | None = None,
+        delivery_config: DeliveryConfig | None = None,
     ):
         self.storage = PrivateStorageService() if storage is None else storage
         self._config = config
         self._extraction = extraction
+        self._delivery_config = delivery_config
 
     @property
     def config(self) -> AgentFileConfig:
@@ -335,14 +357,40 @@ class AgentFileService:
             grouped[file.message_id].append(public_file(file))
         return grouped
 
-    def message_attachments(self, message: AgentConversationMessage) -> list[AgentFile]:
-        """The READY files sent with ``message``, annotated with ``text_chars``."""
-        return list(
+    def message_attachments(
+        self, message: AgentConversationMessage, *, vision: bool
+    ) -> list[Attachment]:
+        """The READY files sent with ``message`` and how each reaches the model.
+
+        ``vision`` is whether the conversation's model accepts images. Files
+        carry ``text_chars``; text is loaded only for those delivered inline.
+        """
+        files = list(
             AgentFile.objects.defer("text")
             .filter(message=message, status=AgentFile.Status.READY)
             .annotate(text_chars=Length("text"))
             .order_by("id")
         )
+        deliveries = plan_delivery(
+            [
+                Document(text_chars=file.text_chars, page_count=file.page_count)
+                for file in files
+            ],
+            vision=vision,
+            config=self._delivery_config,
+        )
+        inline_ids = [
+            file.id
+            for file, delivery in zip(files, deliveries, strict=True)
+            if delivery.text == TextDelivery.INLINE
+        ]
+        texts = dict(
+            AgentFile.objects.filter(id__in=inline_ids).values_list("id", "text")
+        )
+        return [
+            Attachment(file=file, delivery=delivery, inline_text=texts.get(file.id))
+            for file, delivery in zip(files, deliveries, strict=True)
+        ]
 
     # -- worker path ------------------------------------------------------
 

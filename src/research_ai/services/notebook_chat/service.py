@@ -36,8 +36,9 @@ tool creates is attached to the conversation, so later turns can read and edit
 exactly those notes and nothing else.
 
 Files the user uploads (``services.agent_files``) are attached to the message
-they are sent with. The turn's prompt names them, and the attachment tools
-read or search them for the rest of the conversation.
+they are sent with. The turn's prompt lists them and carries the short ones in
+full, and the attachment tools read or search them for the rest of the
+conversation.
 """
 
 import logging
@@ -68,7 +69,10 @@ from research_ai.services.agent import (
     split_model_ref,
     validate_model_ref,
 )
-from research_ai.services.agent.model_capabilities import validate_generation_options
+from research_ai.services.agent.model_capabilities import (
+    model_capabilities,
+    validate_generation_options,
+)
 from research_ai.services.agent.providers.registry import default_effort
 from research_ai.services.agent_files import AgentFileService
 from research_ai.services.agent_persistence import (
@@ -94,7 +98,7 @@ from research_ai.services.notebook_chat.activity import (
 )
 from research_ai.services.notebook_chat.attachment_tools import (
     AttachmentToolset,
-    attachment_manifest,
+    attachment_preamble,
 )
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
@@ -881,10 +885,17 @@ class NotebookChatService:
             if execution.context_parent_id
             else []
         )
+        # Planned once per turn; the prompt uses each file's text delivery.
+        attachments = self.files.message_attachments(
+            trigger,
+            vision=model_capabilities(
+                accounting_provider, accounting_model or ""
+            ).vision,
+        )
         prompt = trigger.content
-        manifest = attachment_manifest(self.files.message_attachments(trigger))
-        if manifest:
-            prompt = f"{manifest}\n\n{prompt}"
+        preamble = attachment_preamble(attachments)
+        if preamble:
+            prompt = f"{preamble}\n\n{prompt}"
         # The user may have edited a note between turns; the model's earlier
         # reads (and version ids) of it would otherwise look current.
         notice = note_toolset.changed_notes_notice(context)
