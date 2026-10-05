@@ -47,18 +47,25 @@ def page_of_text() -> bytes:
     return data
 
 
-def pdf_claiming(count: int, *pages: str, cycle: bool = False) -> bytes:
+def pdf_claiming(
+    count: int, *pages: str, cycle: bool = False, inline: bool = False
+) -> bytes:
     """``pdf_bytes(*pages)`` with its page tree's /Count forged to ``count``.
 
     ``cycle`` also lists the tree's root among its own pages, which keeps MuPDF
-    from correcting the count.
+    from correcting the count. ``inline`` writes the tree into the catalog,
+    where the count cannot be lowered.
     """
     document = fitz.open(stream=pdf_bytes(*pages), filetype="pdf")
-    root = int(document.xref_get_key(document.pdf_catalog(), "Pages")[1].split()[0])
+    catalog = document.pdf_catalog()
+    root = int(document.xref_get_key(catalog, "Pages")[1].split()[0])
+    kids = document.xref_get_key(root, "Kids")[1]
     if cycle:
-        kids = document.xref_get_key(root, "Kids")[1]
         document.xref_set_key(root, "Kids", f"{kids[:-1]} {root} 0 R]")
     document.xref_set_key(root, "Count", str(count))
+    if inline:
+        tree = f"<</Type/Pages/Kids{kids}/Count {count}>>"
+        document.xref_set_key(catalog, "Pages", tree)
     data = document.tobytes()
     document.close()
     return data
@@ -225,6 +232,14 @@ class PdfPageCountTests(TestCase):
         self.assertEqual((last.width, last.height), (595, 842))
         with self.assertRaisesRegex(UnreadableFileError, "has no page 3"):
             render_pdf_page(data, 3)
+
+    def test_a_forged_page_count_that_cannot_be_lowered_is_refused(self):
+        # Arrange
+        data = pdf_claiming(2**31 - 1, "Alpha findings", "Beta methods", inline=True)
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "could not be read as a PDF"):
+            extract_text(data, PDF, max_chars=MAX_CHARS)
 
     def test_only_pages_left_unread_flag_a_text_limit_met_at_a_pages_end(self):
         # Act
