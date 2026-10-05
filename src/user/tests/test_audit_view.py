@@ -1,6 +1,8 @@
 from datetime import timedelta
 
 from django.contrib.admin.options import get_content_type_for_model
+from django.core import mail
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -205,6 +207,36 @@ class AuditViewTests(APITestCase):
         child_comment = RhCommentModel.all_objects.get(id=child_res.data["id"])
         self.assertTrue(parent_comment.is_removed)
         self.assertTrue(child_comment.is_removed)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_flag_and_remove_emails_the_content_creator(self):
+        """Removing flagged content emails its creator the verdict and the item."""
+        # Arrange
+        target_paper = create_paper(uploaded_by=self.random_content_creator)
+        self.client.force_authenticate(self.test_editor)
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                FLAG_AND_REMOVE_URL,
+                {
+                    "flag": [
+                        {
+                            "content_type": get_content_type_for_model(target_paper).id,
+                            "object_id": target_paper.id,
+                            "reason_choice": SPAM,
+                        },
+                    ],
+                    "verdict": {"verdict_choice": SPAM, "is_content_removed": True},
+                },
+            )
+
+        # Assert
+        self.assertEqual(len(mail.outbox), 1)
+        email = mail.outbox[0]
+        self.assertEqual(email.to, [self.random_content_creator.email])
+        self.assertIn("The following item has been removed for: SPAM", email.body)
+        self.assertIn(target_paper.title, email.body)
 
 
 class AutoPaymentAuditTests(APITestCase):

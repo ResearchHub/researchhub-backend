@@ -1,8 +1,9 @@
 from django.db import models
+from django.utils.html import format_html
 
 from invite.models import Invitation
 from mailing_list.services import EmailService
-from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
+from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 from user.models import Organization
 
@@ -16,26 +17,31 @@ class OrganizationInvitation(Invitation):
     )
 
     def send_invitation(self):
-        key = self.key
         inviter = self.inviter
         recipient = self.recipient
-        email = self.recipient_email
-        organization = self.organization
-        invite_type = self.invite_type.lower()
-        template = "organization_invite"
+        organization_name = self.organization.name
         inviter_name = f"{inviter.first_name} {inviter.last_name}"
-        subject = f"{inviter_name} has invited you to join {organization.name}"
+        user_name = (
+            f"{recipient.first_name} {recipient.last_name}" if recipient else "User"
+        )
+        subject = f"{inviter_name} has invited you to join {organization_name}"
         email_context = {
-            "access_type": invite_type.lower(),
-            "assets_base_url": ASSETS_BASE_URL,
-            "organization_title": organization.name,
-            "organization_link": f"{BASE_FRONTEND_URL}/org/join/{key}",
-            "inviter_name": inviter_name,
+            "subject": f"{organization_name} Invitation",
+            "body": format_html(
+                "<p>Hey there {},</p>"
+                "<p>{} has invited you to join their organization <b>{}</b>. "
+                "Click below to accept their invitation!</p>",
+                user_name,
+                inviter_name,
+                organization_name,
+            ),
+            "cta_url": f"{BASE_FRONTEND_URL}/org/join/{self.key}",
+            "cta_label": f"Go to {organization_name}",
         }
 
-        if recipient:
-            email_context["user_name"] = f"{recipient.first_name} {recipient.last_name}"
-        else:
-            email_context["user_name"] = "User"
-
-        EmailService().send_email([email], subject, email_context, template=template)
+        EmailService().send_email(
+            [self.recipient_email],
+            subject,
+            email_context,
+            template="general_branded_email",
+        )
