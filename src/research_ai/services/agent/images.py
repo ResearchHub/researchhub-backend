@@ -73,7 +73,7 @@ def load_image(
     if len(data) > max_bytes:
         logger.warning("image %r is %d bytes, over the limit", block.ref, len(data))
         return None
-    # A mislabelled or oversized image is a 400 on every later turn.
+    # A mislabelled, oversized or damaged image is a 400 on every later turn.
     problem = _problem(data, block.media_type, max_side_px)
     if problem:
         logger.warning("image %r %s", block.ref, problem)
@@ -88,6 +88,13 @@ def _problem(data: bytes, media_type: str, max_side_px: int) -> str | None:
             width, height = image.size
             if max(width, height) > max_side_px:
                 return f"is {width}x{height} px, over the limit"
+            # The header reads fine when the rest is cut short. A PNG's checksums
+            # show it; anything else is decoded, a JPEG at an eighth of its size.
+            if image.format == "PNG":
+                image.verify()
+            else:
+                image.draft("L", (1, 1))
+                image.load()
     except Exception:  # noqa: BLE001 - whatever Pillow raises, it cannot be sent
         return f"cannot be read as {media_type}"
     return None

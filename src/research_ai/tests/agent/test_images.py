@@ -1,6 +1,9 @@
 """Unit tests for resolving image references into request bytes."""
 
+import io
 from unittest import TestCase
+
+from PIL import Image
 
 from research_ai.services.agent.images import (
     MANY_IMAGES,
@@ -171,6 +174,26 @@ class LoadImageTests(TestCase):
 
         # Assert
         self.assertIsNone(sent)
+
+    def test_an_image_cut_short_after_its_header_is_not_sent(self):
+        for media_type, image_format in (("image/jpeg", "JPEG"), ("image/png", "PNG")):
+            # Arrange: half the file, which still opens and reports its size.
+            whole = image_bytes(image_format, (400, 400))
+            cut = whole[: len(whole) // 2]
+            with Image.open(io.BytesIO(cut)) as header:
+                self.assertEqual(header.size, (400, 400))
+
+            # Act
+            with self.assertLogs(LOGGER, "WARNING"):
+                sent = load_image(
+                    ImageBlock(ref="x", media_type=media_type),
+                    loader=_loader(cut),
+                    vision=True,
+                    max_bytes=MAX_BYTES,
+                )
+
+            # Assert
+            self.assertIsNone(sent)
 
     def test_every_supported_type_is_read(self):
         # Arrange
