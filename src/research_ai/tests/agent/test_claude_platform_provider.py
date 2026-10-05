@@ -52,6 +52,7 @@ from research_ai.services.agent.types import (
     ToolUseStreamStart,
     TurnUsage,
 )
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG
 
 
 class _FakeStream:
@@ -335,10 +336,6 @@ class RenderMessagesTests(SimpleTestCase):
         # Act / Assert
         with self.assertRaisesRegex(ProviderError, "not valid JSON"):
             provider._render_messages(messages)
-
-
-JPEG = b"\xff\xd8\xff-jpeg"
-PNG = b"\x89PNG\r\n\x1a\n-png"
 
 
 class RenderImageTests(SimpleTestCase):

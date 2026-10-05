@@ -18,6 +18,7 @@ from research_ai.services.agent.types import (
     ToolUseBlock,
     TurnUsage,
 )
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG
 
 
 class FakeConverseClient:
@@ -123,10 +124,6 @@ class RenderMessagesTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(rendered[0]["content"][0], {"reasoningContent": payload})
-
-
-JPEG = b"\xff\xd8\xff-jpeg"
-PNG = b"\x89PNG\r\n\x1a\n-png"
 
 
 class RenderImageTests(SimpleTestCase):

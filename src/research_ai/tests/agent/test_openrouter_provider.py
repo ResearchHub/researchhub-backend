@@ -22,6 +22,7 @@ from research_ai.services.agent.types import (
     ToolResultBlock,
     ToolUseBlock,
 )
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG
 
 
 class FakeChatCompletionsClient:
@@ -192,10 +193,6 @@ class RenderMessagesTests(SimpleTestCase):
         # Assert
         sent = provider._client.calls[0]["messages"]
         self.assertIsNone(sent[1]["content"])
-
-
-JPEG = b"\xff\xd8\xff-jpeg"
-PNG = b"\x89PNG\r\n\x1a\n-png"
 
 
 class RenderImageTests(SimpleTestCase):
