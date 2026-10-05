@@ -95,7 +95,7 @@ def _problem(data: bytes, media_type: str, max_side_px: int) -> str | None:
             else:
                 image.draft("L", (1, 1))
                 image.load()
-    except Exception:  # noqa: BLE001 - whatever Pillow raises, it cannot be sent
+    except Exception:  # whatever Pillow raises, the image cannot be sent
         return f"cannot be read as {media_type}"
     return None
 
