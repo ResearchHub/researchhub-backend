@@ -3,7 +3,7 @@
 import logging
 import time
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from functools import partial
 
@@ -37,7 +37,7 @@ class OcrConfig:
     # Pages read per file; the rest stay marked as unread.
     max_pages: int = 50
 
-    # Wall time for one file's OCR, so a slow engine cannot stall processing.
+    # Wall time for one file's OCR; a page still being read then is left unread.
     max_seconds: int = 120
 
     # Pages read at once; a dense page takes an engine about two seconds.
@@ -87,17 +87,22 @@ class TextExtractionService:
         deadline = time.monotonic() + config.max_seconds
         pages = pages[: config.max_pages]
         batch_size = max(1, config.concurrency)
-        read_page = partial(self._ocr_page, data, config)
+        read_page = partial(self._ocr_page, data, config, deadline)
         texts: dict[int, str] = {}
         failures = 0
-        with ThreadPoolExecutor(max_workers=batch_size) as executor:
-            # The time and failure limits are checked between batches.
+        executor = ThreadPoolExecutor(max_workers=batch_size)
+        try:
+            # The failure limit is checked between batches.
             for start in range(0, len(pages), batch_size):
-                if time.monotonic() >= deadline:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
                     logger.warning("OCR stopped at page %d: out of time", pages[start])
                     break
                 batch = pages[start : start + batch_size]
-                for page, text in zip(batch, executor.map(read_page, batch)):
+                reads = [executor.submit(read_page, page) for page in batch]
+                wait(reads, timeout=remaining)
+                for page, read in zip(batch, reads):
+                    text = _text_if_done(read, page)
                     if text is None:
                         failures += 1
                     else:
@@ -105,15 +110,31 @@ class TextExtractionService:
                         failures = 0
                 if failures >= _MAX_CONSECUTIVE_FAILURES:
                     break
+        finally:
+            # A read still running at the deadline is left behind, not waited for.
+            executor.shutdown(wait=False, cancel_futures=True)
         return texts
 
-    def _ocr_page(self, data: bytes, config: OcrConfig, page: int) -> str | None:
+    def _ocr_page(
+        self, data: bytes, config: OcrConfig, deadline: float, page: int
+    ) -> str | None:
         """The page's text; ``None`` when it could not be rendered or read."""
         try:
             image = render_pdf_page(
-                data, page, dpi=config.dpi, max_edge_px=config.max_edge_px
+                data,
+                page,
+                dpi=config.dpi,
+                max_edge_px=config.max_edge_px,
+                timeout_seconds=deadline - time.monotonic(),
             )
             return self.ocr.read_page(image)
         except (OcrError, UnreadableFileError):
             logger.warning("OCR failed on page %d", page, exc_info=True)
             return None
+
+
+def _text_if_done(read: Future, page: int) -> str | None:
+    if read.done():
+        return read.result()
+    logger.warning("OCR left page %d unread: out of time", page)
+    return None

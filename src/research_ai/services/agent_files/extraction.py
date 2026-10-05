@@ -169,11 +169,12 @@ def render_pdf_page(
     max_edge_px: int = MAX_IMAGE_EDGE_PX,
     image_format: str = "jpeg",
     max_bytes: int = 3 * 1024 * 1024,
+    timeout_seconds: float | None = None,
 ) -> PageImage:
     """PDF page ``page`` (1-based) as an image. Raises ``UnreadableFileError``.
 
     Neither side exceeds ``max_edge_px``; the image is scaled down further
-    until it fits ``max_bytes``.
+    until it fits ``max_bytes``. ``timeout_seconds`` shortens the time allowed.
     """
     if image_format not in _IMAGE_MEDIA_TYPES:
         raise ValueError(f"unsupported image format: {image_format!r}")
@@ -183,6 +184,7 @@ def render_pdf_page(
         "render",
         data,
         label=PDF.label,
+        timeout=timeout_seconds,
         page=page,
         dpi=dpi,
         max_edge_px=min(max_edge_px, _MAX_RENDER_EDGE_PX),
@@ -238,8 +240,12 @@ def _assemble_pdf(
     )
 
 
-def _run_child(mode: str, data: bytes, *, label: str, **options) -> dict:
+def _run_child(
+    mode: str, data: bytes, *, label: str, timeout: float | None = None, **options
+) -> dict:
     too_complex = UnreadableFileError(f"This {label} is too complex to read.")
+    if timeout is None or timeout > _CHILD_TIMEOUT_SECONDS:
+        timeout = _CHILD_TIMEOUT_SECONDS
     try:
         result = subprocess.run(
             [
@@ -254,7 +260,7 @@ def _run_child(mode: str, data: bytes, *, label: str, **options) -> dict:
             input=data,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            timeout=_CHILD_TIMEOUT_SECONDS,
+            timeout=timeout,
         )
     except subprocess.TimeoutExpired as exc:
         raise too_complex from exc

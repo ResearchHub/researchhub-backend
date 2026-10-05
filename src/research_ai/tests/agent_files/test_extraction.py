@@ -428,6 +428,25 @@ class PdfPageRenderingTests(TestCase):
         ):
             render_pdf_page(data, 1)
 
+    def test_rendering_stops_at_a_shorter_time_limit_when_given_one(self):
+        # Arrange
+        data = pdf_bytes("Alpha findings")
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "too complex"):
+            render_pdf_page(data, 1, timeout_seconds=0.001)
+
+    def test_a_time_limit_cannot_extend_the_parsing_limits(self):
+        # Arrange
+        data = pdf_bytes("Alpha findings")
+
+        # Act / Assert
+        with (
+            patch.object(extraction, "_CHILD_TIMEOUT_SECONDS", 0.001),
+            self.assertRaisesRegex(UnreadableFileError, "too complex"),
+        ):
+            render_pdf_page(data, 1, timeout_seconds=60)
+
     def test_invalid_arguments_are_rejected_before_any_work(self):
         # Arrange
         data = pdf_bytes("Alpha findings")

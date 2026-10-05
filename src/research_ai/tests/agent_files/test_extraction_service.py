@@ -1,4 +1,5 @@
 import threading
+import time
 from unittest import TestCase
 
 from django.test import SimpleTestCase, override_settings
@@ -40,6 +41,20 @@ class FakeOcr:
     @property
     def pages(self):
         return sorted(image.page for image in self.images)
+
+
+class StallingOcr(FakeOcr):
+    """Reads pages at once, except ``stalled`` ones, which wait for ``release``."""
+
+    def __init__(self, stalled):
+        super().__init__()
+        self.stalled = set(stalled)
+        self.release = threading.Event()
+
+    def read_page(self, image):
+        if image.page in self.stalled:
+            self.release.wait(timeout=30)
+        return super().read_page(image)
 
 
 class PairedOcr:
@@ -185,6 +200,31 @@ class TextExtractionServiceTests(TestCase):
         # Assert
         self.assertEqual(ocr.images, [])
         self.assertEqual(extracted.pages_without_text, (2,))
+
+    def test_a_page_still_being_read_when_time_is_up_is_left_unread(self):
+        # Arrange
+        ocr = StallingOcr(stalled={2})
+        self.addCleanup(ocr.release.set)
+        service = TextExtractionService(
+            ocr=ocr, config=OcrConfig(max_seconds=3, concurrency=2)
+        )
+        data = pdf_with_scans(SCAN, SCAN, SCAN)
+
+        # Act
+        started = time.monotonic()
+        with self.assertLogs(
+            "research_ai.services.agent_files.extraction_service", "WARNING"
+        ):
+            extracted = service.extract(data, PDF, max_chars=MAX_CHARS)
+        elapsed = time.monotonic() - started
+
+        # Assert
+        self.assertEqual(extracted.ocr_pages, (1,))
+        # Page 2 is abandoned mid-read and page 3 is never started.
+        self.assertEqual(extracted.pages_without_text, (2, 3))
+        self.assertEqual(ocr.pages, [1])
+        # Well short of the 30 seconds the stalled read would hold a waiter.
+        self.assertLess(elapsed, 15)
 
     def test_files_with_text_never_reach_the_engine(self):
         # Arrange
