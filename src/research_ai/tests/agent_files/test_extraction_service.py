@@ -317,10 +317,11 @@ class FullyScannedPdfTests(TestCase):
         # Arrange
         ocr = FakeOcr()
         service = TextExtractionService(ocr=ocr)
+        data = pdf_bytes("", "")
 
         # Act / Assert
         with self.assertRaisesRegex(UnreadableFileError, "pages are blank"):
-            service.extract(pdf_bytes("", ""), PDF, max_chars=MAX_CHARS)
+            service.extract(data, PDF, max_chars=MAX_CHARS)
         self.assertEqual(ocr.images, [])
 
     def test_a_word_file_without_text_is_still_refused(self):
