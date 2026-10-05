@@ -10,10 +10,9 @@ logger = logging.getLogger(__name__)
 
 MAX_TRACE_MESSAGE_BYTES = 128 * 1024
 MAX_BLOCK_PAYLOAD_BYTES = 48 * 1024
-# Must exceed the largest single model turn: a full 128K-token turn serializes
-# to ~750KB with JSON escaping, and an over-limit assistant message is replaced
-# by a marker that orphans its tool results (the conversation stops resuming).
-MAX_CONTEXT_MESSAGE_BYTES = 2 * 1024 * 1024
+# Must exceed any turn the API can replay (its 32 MB request cap): a fetched PDF
+# rides inside the assistant turn, and a replaced turn orphans its tool results.
+MAX_CONTEXT_MESSAGE_BYTES = 32 * 1024 * 1024
 _PREVIEW_CHARS = 2048
 _FINAL_OUTPUT_SUFFIX = "\n[Response truncated for durable storage.]"
 _COMPACTED_MESSAGE_TEXT = (
@@ -66,9 +65,26 @@ def bounded_payload(value: Any) -> tuple[Any, bool, int]:
     return _bounded_json(value, limit=MAX_BLOCK_PAYLOAD_BYTES)
 
 
+def _trace_block(block: dict) -> dict:
+    """Drop a fetched page's body; the trace needs only its url, title and outcome."""
+    data = block.get("data") if block.get("type") == "server_tool" else None
+    if not isinstance(data, dict) or data.get("type") != "web_fetch_tool_result":
+        return block
+    page = data.get("content")
+    document = page.get("content") if isinstance(page, dict) else None
+    source = document.get("source") if isinstance(document, dict) else None
+    if not isinstance(source, dict) or "data" not in source:
+        return block
+    source = {**source, "data": "", "omitted_chars": len(str(source["data"]))}
+    page = {**page, "content": {**document, "source": source}}
+    return {**block, "data": {**data, "content": page}}
+
+
 def serialize_trace_message(message: Message) -> tuple[list[dict], bool, int]:
     """Keep a complete trace message or replace it with one marker."""
-    blocks = serialize_messages([message])[0]["content"]
+    blocks = [
+        _trace_block(block) for block in serialize_messages([message])[0]["content"]
+    ]
     safe_blocks, was_replaced, original_size = _bounded_json(
         blocks,
         limit=MAX_TRACE_MESSAGE_BYTES,
@@ -98,8 +114,9 @@ def serialize_context_message(
 
     Provider continuation state is bounded together with the content because
     both are required to resume a provider turn correctly. Neither should ever
-    reach the limit: model output is capped by ``max_tokens`` and tool results
-    by ``MAX_TOOL_RESULT_BYTES``, so a message this large means one of those
+    reach the limit: model output is capped by ``max_tokens``, server-side tool
+    results by the API's request cap, and tool results by
+    ``MAX_TOOL_RESULT_BYTES``, so a message this large means one of those
     bounds is missing rather than that a conversation grew. The row still has
     to hold something, so it holds text the provider accepts -- a compacted
     marker, and no state describing content that is no longer there.

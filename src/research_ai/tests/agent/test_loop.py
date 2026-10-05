@@ -167,6 +167,20 @@ class ServerResultSummaryTests(SimpleTestCase):
         # Assert
         self.assertEqual(summary, "error: execution_time_exceeded")
 
+    def test_fetched_page_logs_only_its_type(self):
+        # Arrange
+        content = {
+            "type": "web_fetch_result",
+            "url": "https://example.org/private-page",
+            "content": {"type": "document", "source": {"data": "page body"}},
+        }
+
+        # Act
+        summary = _summarize_server_result(content)
+
+        # Assert: the request line already names the url; the body never logs.
+        self.assertEqual(summary, "web_fetch_result")
+
     def test_search_result_list_logs_only_its_size(self):
         # Arrange
         content = [{"url": "https://example.org/private-result"}]

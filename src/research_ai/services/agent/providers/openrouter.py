@@ -56,6 +56,15 @@ MAX_OUTPUT_TOKENS = 32_768
 # not silently change the workflow's reasoning depth. ``""`` omits the option.
 EFFORT = "low"
 
+# OpenRouter's server-side page fetch (Exa for every model). Nothing comes back to
+# replay, so a later request that still needs a page fetches it again.
+WEB_FETCH = True
+WEB_FETCH_TOOL_TYPE = "openrouter:web_fetch"
+WEB_FETCH_TOOL_NAME = "web_fetch"
+WEB_FETCH_ENGINE = "exa"
+WEB_FETCH_MAX_USES = 5
+WEB_FETCH_MAX_CONTENT_TOKENS = 25_000
+
 # Opus 4.7+, Fable, and OpenAI reasoning models reject sampling params
 # (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
 # provider verbatim, so omit them for those models.
@@ -146,6 +155,7 @@ class OpenRouterProvider(LLMProvider):
         model_id: str | None = None,
         effort: str | None = None,
         thinking: str | None = None,
+        web_fetch: bool = False,
     ):
         self.model_id = model_id or MODEL_ID
         capabilities = model_capabilities("openrouter", self.model_id)
@@ -156,6 +166,7 @@ class OpenRouterProvider(LLMProvider):
         else:
             self.effort = EFFORT if EFFORT in capabilities.effort else ""
         self.thinking = thinking
+        self.web_fetch = web_fetch and WEB_FETCH
         if client is not None:
             self._client = client
         else:
@@ -168,9 +179,14 @@ class OpenRouterProvider(LLMProvider):
 
     # -- public surface ---------------------------------------------------
 
+    @property
+    def native_tool_names(self) -> frozenset[str]:
+        """``web_fetch`` when OpenRouter's fetch is on; nothing otherwise."""
+        return frozenset({WEB_FETCH_TOOL_NAME} if self.web_fetch else ())
+
     def render_tools(self, tools: list[Tool]) -> list[dict]:
-        """Render tools to the Chat Completions function-tool list."""
-        return [
+        """Render function tools, then the server tools OpenRouter runs itself."""
+        rendered = [
             {
                 "type": "function",
                 "function": {
@@ -181,6 +197,18 @@ class OpenRouterProvider(LLMProvider):
             }
             for tool in tools
         ]
+        if self.web_fetch:
+            rendered.append(
+                {
+                    "type": WEB_FETCH_TOOL_TYPE,
+                    "parameters": {
+                        "engine": WEB_FETCH_ENGINE,
+                        "max_uses": WEB_FETCH_MAX_USES,
+                        "max_content_tokens": WEB_FETCH_MAX_CONTENT_TOKENS,
+                    },
+                }
+            )
+        return rendered
 
     def complete(
         self,
@@ -320,10 +348,11 @@ class OpenRouterProvider(LLMProvider):
         if usage is None:
             return
         logger.info(
-            "openrouter usage: input=%s cached=%s output=%s",
+            "openrouter usage: input=%s cached=%s output=%s server_tools=%s",
             getattr(usage, "prompt_tokens", None),
             self._cached_tokens(usage),
             getattr(usage, "completion_tokens", None),
+            self._server_tool_calls(usage),
         )
 
     def _parse_turn(
@@ -424,6 +453,13 @@ class OpenRouterProvider(LLMProvider):
     @staticmethod
     def _cached_tokens(usage: Any) -> int | None:
         return OpenRouterProvider._cache_detail(usage, "cached_tokens")
+
+    @staticmethod
+    def _server_tool_calls(usage: Any) -> int | None:
+        details = getattr(usage, "server_tool_use_details", None)
+        if isinstance(details, dict):
+            return details.get("tool_calls_executed")
+        return getattr(details, "tool_calls_executed", None)
 
     @staticmethod
     def _cache_detail(usage: Any, name: str) -> int | None:

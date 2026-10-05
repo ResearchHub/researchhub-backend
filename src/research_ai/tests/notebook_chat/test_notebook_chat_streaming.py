@@ -260,6 +260,15 @@ class NotebookStreamBufferTests(SimpleTestCase):
         self.assertEqual(item["text"], "")
         self.assertEqual(len(self.publisher.calls), 1)
 
+    def test_web_fetch_announces_the_page_read(self):
+        # Arrange / Act: the only live signal while the provider fetches.
+        self.buffer.append(1, ToolUseStreamStart(block_index=0, name="web_fetch"))
+        self.buffer.flush()
+
+        # Assert
+        item = self.store.get(9)["items"][0]
+        self.assertEqual(item["label"], "Reading a web page")
+
     def test_tool_draft_text_is_bounded(self):
         # Arrange
         self.buffer.append(1, ToolUseStreamStart(block_index=0, name="edit_note"))
