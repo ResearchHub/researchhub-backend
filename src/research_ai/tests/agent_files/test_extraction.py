@@ -328,6 +328,21 @@ class PdfPagesWithoutTextTests(TestCase):
         self.assertNotIn(IMAGE_UNREAD, extracted.text)
         self.assertEqual(extracted.pages_without_text, ())
 
+    def test_a_page_whose_images_cannot_be_listed_keeps_its_text(self):
+        # Arrange
+        data = pdf_with_scans(stamped_scan(STAMP))
+
+        # Act
+        # Run in this process: a patch does not reach the parsing child.
+        with patch.object(
+            fitz.Page, "get_image_info", side_effect=RuntimeError("damaged image")
+        ):
+            output = extraction._pdf_pages(data, MAX_CHARS)
+
+        # Assert
+        self.assertEqual(output["pages"], [STAMP])
+        self.assertEqual(output["mostly_image"], [])
+
 
 class PdfPageRenderingTests(TestCase):
     def test_a_page_renders_as_a_jpeg_at_the_requested_resolution(self):
