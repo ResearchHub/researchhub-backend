@@ -52,7 +52,10 @@ from research_ai.tests.notebook_chat.test_notebook_chat_events import FakeChanne
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 
 # edit_note input: block operations in the compact dialect (a bare string
 # block is a paragraph).
@@ -131,6 +134,7 @@ class NotebookChatServiceTests(TestCase):
         self.assertIn(self.note.title, execution.system_prompt)
         self.assertIn("get_user_profile", execution.system_prompt)
         self.assertNotIn("read_selected_rfp", execution.system_prompt)
+        self.assertNotIn("update_rfp_details", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
@@ -145,6 +149,20 @@ class NotebookChatServiceTests(TestCase):
 
         # Assert
         self.assertIn("read_selected_rfp", execution.system_prompt)
+        self.assertNotIn("update_rfp_details", execution.system_prompt)
+
+    def test_submit_message_mentions_rfp_details_tools_for_an_rfp_note(self):
+        # Arrange
+        self.note.document_type = GRANT
+        self.note.save(update_fields=["document_type"])
+
+        # Act
+        execution, _delay = self._submit()
+
+        # Assert
+        self.assertIn("read_rfp_details", execution.system_prompt)
+        self.assertIn("update_rfp_details", execution.system_prompt)
+        self.assertNotIn("read_selected_rfp", execution.system_prompt)
 
     def test_submit_message_stamps_the_generator_default_model(self):
         # Act
@@ -676,6 +694,26 @@ class NotebookChatServiceTests(TestCase):
         # Assert
         self.assertEqual(result["final_text"], "Done.")
         selected_rfp_toolset.assert_not_called()
+
+    def test_run_turn_offers_rfp_details_tools_only_for_an_rfp_note(self):
+        for document_type, offered in ((GRANT, True), (PREREGISTRATION, False)):
+            with self.subTest(document_type=document_type):
+                # Arrange
+                self.note.document_type = document_type
+                self.note.save(update_fields=["document_type"])
+                execution, _delay = self._submit()
+                provider = FakeProvider([text_turn("Done.")])
+
+                # Act: FakeProvider renders a toolset as its tool names.
+                with patch.object(
+                    provider, "complete", wraps=provider.complete
+                ) as complete:
+                    _make_service(provider=provider).run_turn(execution.id)
+
+                # Assert
+                tool_names = complete.call_args.kwargs["rendered_tools"]
+                self.assertEqual("read_rfp_details" in tool_names, offered)
+                self.assertEqual("update_rfp_details" in tool_names, offered)
 
     def test_run_turn_continues_past_the_former_model_call_limit(self):
         # Arrange
