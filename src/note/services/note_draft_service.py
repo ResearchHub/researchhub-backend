@@ -4,8 +4,18 @@ Nothing here creates a live ``Grant``, ``Fundraise``, escrow, application, or
 nonprofit link; those remain publish-time concerns.
 """
 
+from django.db import transaction
+
 from note.models import GrantSettings, Note, PreregistrationSettings
+from researchhub_document.related_models.constants.document_type import GRANT
 from user.models import Author
+
+NOT_RFP_NOTE = "Only RFP notes have RFP details."
+NOTE_PUBLISHED = "Published notes cannot change RFP details."
+
+
+class DraftDetailsError(Exception):
+    """A draft Details write the note's state does not allow."""
 
 
 def save_note_draft_details(
@@ -22,6 +32,21 @@ def save_note_draft_details(
         _save_grant_settings(note, grant_settings)
     if preregistration_settings is not None:
         _save_preregistration_settings(note, preregistration_settings)
+
+
+def update_grant_settings(*, note: Note, values: dict) -> GrantSettings:
+    """Write the supplied grant Details fields for a non-HTTP caller.
+
+    Mirrors the note API, which refuses non-grant and published notes itself.
+    """
+    if hasattr(note, "post"):
+        raise DraftDetailsError(NOTE_PUBLISHED)
+    if note.document_type != GRANT:
+        raise DraftDetailsError(NOT_RFP_NOTE)
+    with transaction.atomic():
+        _save_grant_settings(note, dict(values))
+        note.save(update_fields=["updated_date"])
+    return note.grant_settings
 
 
 def _save_grant_settings(note: Note, values: dict) -> None:
