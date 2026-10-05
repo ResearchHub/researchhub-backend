@@ -275,43 +275,52 @@ class OpenRouterProvider(LLMProvider):
         for message in messages:
             if message.role == "assistant":
                 rendered.append(self._render_assistant(message))
-                continue
-            # User-side turns: each tool result becomes its own ``tool`` message
-            # keyed by ``tool_call_id`` (the id-correlation invariant), emitted
-            # before any plain text so they directly follow the assistant
-            # message that issued the calls, as the wire format requires.
-            parts: list[dict] = []
-            for block in message.content:
-                if isinstance(block, ToolResultBlock):
-                    # No error flag on tool messages in this wire format; the
-                    # error payload inside ``content`` is what the model sees.
-                    rendered.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": block.tool_use_id,
-                            "content": json.dumps(block.content),
-                        }
-                    )
-                    # Upstreams differ on images in tool messages, so a
-                    # result's images follow in the user message instead.
-                    if block.images:
-                        parts.append({"type": "text", "text": _TOOL_IMAGES_NOTE})
-                    for image in block.images:
-                        parts.extend(self._image_parts(image))
-                elif isinstance(block, TextBlock):
-                    parts.append({"type": "text", "text": block.text})
-                elif isinstance(block, ImageBlock):
-                    parts.extend(self._image_parts(block))
-                else:
-                    raise TypeError(f"unrenderable user block: {block!r}")
-            if not parts:
-                continue
-            content: str | list[dict] = parts
-            if all(part["type"] == "text" for part in parts):
-                # Text-only turns stay a plain string, as before images existed.
-                content = "".join(part["text"] for part in parts)
-            rendered.append({"role": "user", "content": content})
+            else:
+                rendered.extend(self._render_user(message))
         return rendered
+
+    def _render_user(self, message: Message) -> list[dict]:
+        # User-side turns: each tool result becomes its own ``tool`` message
+        # keyed by ``tool_call_id`` (the id-correlation invariant), emitted
+        # before any plain text so they directly follow the assistant
+        # message that issued the calls, as the wire format requires.
+        tool_messages: list[dict] = []
+        parts: list[dict] = []
+        for block in message.content:
+            if isinstance(block, ToolResultBlock):
+                # No error flag on tool messages in this wire format; the
+                # error payload inside ``content`` is what the model sees.
+                tool_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": block.tool_use_id,
+                        "content": json.dumps(block.content),
+                    }
+                )
+                parts.extend(self._tool_image_parts(block))
+            elif isinstance(block, TextBlock):
+                parts.append({"type": "text", "text": block.text})
+            elif isinstance(block, ImageBlock):
+                parts.extend(self._image_parts(block))
+            else:
+                raise TypeError(f"unrenderable user block: {block!r}")
+        if not parts:
+            return tool_messages
+        content: str | list[dict] = parts
+        if all(part["type"] == "text" for part in parts):
+            # Text-only turns stay a plain string, as before images existed.
+            content = "".join(part["text"] for part in parts)
+        return [*tool_messages, {"role": "user", "content": content}]
+
+    def _tool_image_parts(self, block: ToolResultBlock) -> list[dict]:
+        # Upstreams differ on images in tool messages, so a result's images
+        # follow in the user message instead.
+        if not block.images:
+            return []
+        parts = [{"type": "text", "text": _TOOL_IMAGES_NOTE}]
+        for image in block.images:
+            parts.extend(self._image_parts(image))
+        return parts
 
     def _image_parts(self, block: ImageBlock) -> list[dict]:
         """The image after its label, or its placeholder as text."""
