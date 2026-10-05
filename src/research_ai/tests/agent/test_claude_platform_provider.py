@@ -4,6 +4,7 @@ import base64
 from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import anthropic
 import httpx
@@ -376,6 +377,22 @@ class RenderImageTests(SimpleTestCase):
             among_many[1]["content"],
             [{"type": "text", "text": "[Image not shown: wide]"}],
         )
+
+    def test_images_stop_at_the_size_a_request_may_reach(self):
+        # Arrange: room for two of the three images.
+        messages = [Message(role="user", content=[self.CHART] * 3)]
+
+        # Act
+        with (
+            patch.object(claude_platform, "MAX_REQUEST_IMAGE_BYTES", 2 * len(PNG)),
+            self.assertLogs("research_ai.services.agent.images", "WARNING"),
+        ):
+            rendered = self._provider()._render_messages(messages)
+
+        # Assert
+        content = rendered[0]["content"]
+        self.assertEqual([part["type"] for part in content], ["image", "image", "text"])
+        self.assertEqual(content[-1]["text"], "[Image not shown]")
 
     def test_user_images_render_as_base64_blocks_after_their_label(self):
         # Arrange

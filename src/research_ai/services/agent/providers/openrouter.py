@@ -22,9 +22,8 @@ from openai import OpenAI
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.images import (
     ImageLoader,
+    RequestImages,
     image_placeholder,
-    load_image,
-    max_image_side_px,
 )
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
@@ -67,6 +66,9 @@ EFFORT = "low"
 # Upstream image caps differ and are not all published; this is the tightest
 # known one (5 MB in base64).
 MAX_IMAGE_BYTES = 5 * 1024 * 1024 * 3 // 4
+# Likewise for a whole request: Bedrock's 20 MB, less the third base64 adds
+# and room for the conversation's text.
+MAX_REQUEST_IMAGE_BYTES = 10 * 1024 * 1024
 
 # Shown before a tool result's images, which travel in a user message.
 _TOOL_IMAGES_NOTE = "[Images returned by the tool call above.]\n"
@@ -273,15 +275,21 @@ class OpenRouterProvider(LLMProvider):
         self, system_prompt: str, messages: list[Message]
     ) -> list[dict]:
         rendered: list[dict] = [{"role": "system", "content": system_prompt}]
-        max_side_px = max_image_side_px(messages)
+        images = RequestImages(
+            messages,
+            loader=self.image_loader,
+            vision=model_capabilities("openrouter", self.model_id).vision,
+            max_image_bytes=MAX_IMAGE_BYTES,
+            max_request_bytes=MAX_REQUEST_IMAGE_BYTES,
+        )
         for message in messages:
             if message.role == "assistant":
                 rendered.append(self._render_assistant(message))
             else:
-                rendered.extend(self._render_user(message, max_side_px))
+                rendered.extend(self._render_user(message, images))
         return rendered
 
-    def _render_user(self, message: Message, max_side_px: int) -> list[dict]:
+    def _render_user(self, message: Message, images: RequestImages) -> list[dict]:
         # User-side turns: each tool result becomes its own ``tool`` message
         # keyed by ``tool_call_id`` (the id-correlation invariant), emitted
         # before any plain text so they directly follow the assistant
@@ -299,11 +307,11 @@ class OpenRouterProvider(LLMProvider):
                         "content": json.dumps(block.content),
                     }
                 )
-                parts.extend(self._tool_image_parts(block, max_side_px))
+                parts.extend(self._tool_image_parts(block, images))
             elif isinstance(block, TextBlock):
                 parts.append({"type": "text", "text": block.text})
             elif isinstance(block, ImageBlock):
-                parts.extend(self._image_parts(block, max_side_px))
+                parts.extend(self._image_parts(block, images))
             else:
                 raise TypeError(f"unrenderable user block: {block!r}")
         if not parts:
@@ -314,25 +322,21 @@ class OpenRouterProvider(LLMProvider):
             content = "".join(part["text"] for part in parts)
         return [*tool_messages, {"role": "user", "content": content}]
 
-    def _tool_image_parts(self, block: ToolResultBlock, max_side_px: int) -> list[dict]:
+    def _tool_image_parts(
+        self, block: ToolResultBlock, images: RequestImages
+    ) -> list[dict]:
         # Upstreams differ on images in tool messages, so a result's images
         # follow in the user message instead.
         if not block.images:
             return []
         parts = [{"type": "text", "text": _TOOL_IMAGES_NOTE}]
         for image in block.images:
-            parts.extend(self._image_parts(image, max_side_px))
+            parts.extend(self._image_parts(image, images))
         return parts
 
-    def _image_parts(self, block: ImageBlock, max_side_px: int) -> list[dict]:
+    def _image_parts(self, block: ImageBlock, images: RequestImages) -> list[dict]:
         """The image after its label, or its placeholder as text."""
-        data = load_image(
-            block,
-            loader=self.image_loader,
-            vision=model_capabilities("openrouter", self.model_id).vision,
-            max_bytes=MAX_IMAGE_BYTES,
-            max_side_px=max_side_px,
-        )
+        data = images.load(block)
         if data is None:
             return [{"type": "text", "text": f"{image_placeholder(block)}\n"}]
         encoded = base64.b64encode(data).decode("ascii")

@@ -35,9 +35,8 @@ from django.conf import settings
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.images import (
     ImageLoader,
+    RequestImages,
     image_placeholder,
-    load_image,
-    max_image_side_px,
 )
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
@@ -113,6 +112,9 @@ WEB_SEARCH_MAX_USES = 6
 
 # The API caps an image at 10 MB; base64 adds a third, so this holds either way.
 MAX_IMAGE_BYTES = 10 * 1024 * 1024 * 3 // 4
+# The API rejects a request over 32 MB. Base64 adds a third to this, and the
+# rest is left for the conversation's text.
+MAX_REQUEST_IMAGE_BYTES = 18 * 1024 * 1024
 
 
 # Messages API ``stop_reason`` -> neutral ``StopReason``. ``refusal`` is a
@@ -700,9 +702,15 @@ class ClaudePlatformProvider(LLMProvider):
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False
     ) -> list[dict]:
-        max_side_px = max_image_side_px(messages)
+        images = RequestImages(
+            messages,
+            loader=self.image_loader,
+            vision=model_capabilities("claude_platform", self.model_id).vision,
+            max_image_bytes=MAX_IMAGE_BYTES,
+            max_request_bytes=MAX_REQUEST_IMAGE_BYTES,
+        )
         rendered = [
-            {"role": m.role, "content": self._render_content(m.content, max_side_px)}
+            {"role": m.role, "content": self._render_content(m.content, images)}
             for m in messages
         ]
         if (
@@ -721,24 +729,18 @@ class ClaudePlatformProvider(LLMProvider):
                 last["cache_control"] = {"type": "ephemeral"}
         return rendered
 
-    def _render_content(self, blocks: list[Block], max_side_px: int) -> list[dict]:
+    def _render_content(self, blocks: list[Block], images: RequestImages) -> list[dict]:
         rendered: list[dict] = []
         for block in blocks:
             if isinstance(block, ImageBlock):
-                rendered.extend(self._render_image(block, max_side_px))
+                rendered.extend(self._render_image(block, images))
             else:
-                rendered.append(self._render_block(block, max_side_px))
+                rendered.append(self._render_block(block, images))
         return rendered
 
-    def _render_image(self, block: ImageBlock, max_side_px: int) -> list[dict]:
+    def _render_image(self, block: ImageBlock, images: RequestImages) -> list[dict]:
         """The image after its label, or its placeholder as text."""
-        data = load_image(
-            block,
-            loader=self.image_loader,
-            vision=model_capabilities("claude_platform", self.model_id).vision,
-            max_bytes=MAX_IMAGE_BYTES,
-            max_side_px=max_side_px,
-        )
+        data = images.load(block)
         if data is None:
             return [{"type": "text", "text": image_placeholder(block)}]
         image = {
@@ -753,7 +755,7 @@ class ClaudePlatformProvider(LLMProvider):
             return [{"type": "text", "text": block.label}, image]
         return [image]
 
-    def _render_block(self, block: Any, max_side_px: int) -> dict:
+    def _render_block(self, block: Any, images: RequestImages) -> dict:
         if isinstance(block, TextBlock):
             if block.data is not None:
                 # Citation-bearing assistant text contains encrypted replay
@@ -806,7 +808,7 @@ class ClaudePlatformProvider(LLMProvider):
                     *(
                         part
                         for image in block.images
-                        for part in self._render_image(image, max_side_px)
+                        for part in self._render_image(image, images)
                     ),
                 ]
             if block.is_error:

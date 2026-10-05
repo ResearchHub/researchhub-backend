@@ -1,6 +1,7 @@
 """Unit tests for the Bedrock Converse provider adapter (no network)."""
 
 from copy import deepcopy
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
@@ -232,7 +233,7 @@ class RenderImageTests(SimpleTestCase):
         messages = [Message(role="user", content=[*pages, TextBlock(text="compare")])]
 
         # Act
-        with self.assertLogs("research_ai.services.agent.providers.bedrock", "WARNING"):
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
             rendered = self._provider()._render_messages(messages)
 
         # Assert
@@ -262,7 +263,7 @@ class RenderImageTests(SimpleTestCase):
         ]
 
         # Act
-        with self.assertLogs("research_ai.services.agent.providers.bedrock", "WARNING"):
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
             rendered = self._provider()._render_messages(messages)
 
         # Assert
@@ -338,6 +339,22 @@ class RenderImageTests(SimpleTestCase):
         self.assertEqual(
             among_many[2]["content"], [{"text": "[Image not shown: wide]"}]
         )
+
+    def test_images_stop_at_the_size_a_request_may_reach(self):
+        # Arrange: room for two of the three images.
+        messages = [Message(role="user", content=[self.CHART] * 3)]
+
+        # Act
+        with (
+            patch.object(bedrock, "MAX_REQUEST_IMAGE_BYTES", 2 * len(PNG)),
+            self.assertLogs("research_ai.services.agent.images", "WARNING"),
+        ):
+            rendered = self._provider()._render_messages(messages)
+
+        # Assert
+        content = rendered[0]["content"]
+        self.assertEqual(sum("image" in part for part in content), 2)
+        self.assertEqual(content[-1], {"text": "[Image not shown]"})
 
 
 class CompleteAndParseTests(SimpleTestCase):

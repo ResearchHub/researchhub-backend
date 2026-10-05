@@ -8,15 +8,13 @@ split into the provider-agnostic ``LLMProvider`` shape.
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.images import (
     ImageLoader,
+    RequestImages,
     image_placeholder,
-    load_image,
-    max_image_side_px,
 )
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
@@ -58,6 +56,9 @@ PROMPT_CACHING = True
 MAX_IMAGE_BYTES = 5 * 1024 * 1024 * 3 // 4
 # Converse rejects a message that carries more than 20 images.
 MAX_MESSAGE_IMAGES = 20
+# Bedrock rejects a request over 20 MB. Base64 adds a third to this, and the
+# rest is left for the conversation's text.
+MAX_REQUEST_IMAGE_BYTES = 10 * 1024 * 1024
 _IMAGE_FORMATS = {
     "image/jpeg": "jpeg",
     "image/png": "png",
@@ -95,14 +96,6 @@ _STOP_REASONS = {
     "content_filtered": StopReason.CONTENT_FILTERED,
     "guardrail_intervened": StopReason.CONTENT_FILTERED,
 }
-
-
-@dataclass
-class _ImageQuota:
-    """The images a message may still carry, and how long a side each may have."""
-
-    max_side_px: int
-    left: int = MAX_MESSAGE_IMAGES
 
 
 class BedrockProvider(LLMProvider):
@@ -185,9 +178,16 @@ class BedrockProvider(LLMProvider):
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False
     ) -> list[dict]:
-        max_side_px = max_image_side_px(messages)
+        images = RequestImages(
+            messages,
+            loader=self.image_loader,
+            vision=model_capabilities("bedrock", self.model_id).vision,
+            max_image_bytes=MAX_IMAGE_BYTES,
+            max_request_bytes=MAX_REQUEST_IMAGE_BYTES,
+            max_message_images=MAX_MESSAGE_IMAGES,
+        )
         rendered = [
-            {"role": m.role, "content": self._render_content(m.content, max_side_px)}
+            {"role": m.role, "content": self._render_content(m.content, images)}
             for m in messages
         ]
         if cache_last and rendered:
@@ -211,33 +211,22 @@ class BedrockProvider(LLMProvider):
             usage.get("outputTokens"),
         )
 
-    def _render_content(self, blocks: list[Block], max_side_px: int) -> list[dict]:
-        # One quota for the message: images inside tool results count too.
-        quota = _ImageQuota(max_side_px)
+    def _render_content(self, blocks: list[Block], images: RequestImages) -> list[dict]:
+        # A message's limit counts the images inside its tool results too.
+        images.next_message()
         rendered: list[dict] = []
         for block in blocks:
             if isinstance(block, ImageBlock):
-                rendered.extend(self._render_image(block, quota))
+                rendered.extend(self._render_image(block, images))
             else:
-                rendered.append(self._render_block(block, quota))
+                rendered.append(self._render_block(block, images))
         return rendered
 
-    def _render_image(self, block: ImageBlock, quota: _ImageQuota) -> list[dict]:
+    def _render_image(self, block: ImageBlock, images: RequestImages) -> list[dict]:
         """The image after its label, or its placeholder as text."""
-        data = None
-        if quota.left:
-            data = load_image(
-                block,
-                loader=self.image_loader,
-                vision=model_capabilities("bedrock", self.model_id).vision,
-                max_bytes=MAX_IMAGE_BYTES,
-                max_side_px=quota.max_side_px,
-            )
-        else:
-            logger.warning("image %r is past the message's image limit", block.ref)
+        data = images.load(block)
         if data is None:
             return [{"text": image_placeholder(block)}]
-        quota.left -= 1
         image = {
             "image": {
                 "format": _IMAGE_FORMATS[block.media_type],
@@ -247,7 +236,7 @@ class BedrockProvider(LLMProvider):
         }
         return [{"text": block.label}, image] if block.label else [image]
 
-    def _render_block(self, block: Any, quota: _ImageQuota) -> dict:
+    def _render_block(self, block: Any, images: RequestImages) -> dict:
         if isinstance(block, TextBlock):
             return {"text": block.text}
         if isinstance(block, ThinkingBlock):
@@ -270,7 +259,7 @@ class BedrockProvider(LLMProvider):
                     *(
                         part
                         for image in block.images
-                        for part in self._render_image(image, quota)
+                        for part in self._render_image(image, images)
                     ),
                 ],
             }

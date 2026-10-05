@@ -4,6 +4,7 @@ import base64
 import json
 from copy import deepcopy
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import httpx
 import openai
@@ -316,6 +317,24 @@ class RenderImageTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(rendered[1], {"role": "user", "content": "ab"})
+
+    def test_images_stop_at_the_size_a_request_may_reach(self):
+        # Arrange: room for two of the three images.
+        messages = [Message(role="user", content=[self.CHART] * 3)]
+
+        # Act
+        with (
+            patch.object(openrouter, "MAX_REQUEST_IMAGE_BYTES", 2 * len(PNG)),
+            self.assertLogs("research_ai.services.agent.images", "WARNING"),
+        ):
+            rendered = self._provider()._render_messages("sys", messages)
+
+        # Assert
+        content = rendered[1]["content"]
+        self.assertEqual(
+            [part["type"] for part in content], ["image_url", "image_url", "text"]
+        )
+        self.assertEqual(content[-1]["text"], "[Image not shown]\n")
 
     def test_a_large_image_is_not_sent_once_the_request_has_many_images(self):
         # Arrange

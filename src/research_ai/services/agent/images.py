@@ -23,6 +23,8 @@ IMAGE_MEDIA_TYPES = frozenset(_FORMATS)
 MAX_IMAGE_SIDE_PX = 8000
 MANY_IMAGES_SIDE_PX = 2000
 MANY_IMAGES = 20
+# Claude takes 100 images a request on its 200K-context models, the fewest.
+MAX_REQUEST_IMAGES = 100
 
 # ``ref`` -> the image's bytes; raises ``ImageUnavailableError`` when it is gone.
 ImageLoader = Callable[[str], bytes]
@@ -98,6 +100,56 @@ def _problem(data: bytes, media_type: str, max_side_px: int) -> str | None:
     except Exception:  # whatever Pillow raises, the image cannot be sent
         return f"cannot be read as {media_type}"
     return None
+
+
+class RequestImages:
+    """Loads one request's images, within what its provider takes in a request.
+
+    Build one per request and ``load`` its images in message order. They are
+    admitted first come, first served, so a later image never displaces an
+    earlier turn's.
+    """
+
+    def __init__(
+        self,
+        messages: Iterable[Message],
+        *,
+        loader: ImageLoader | None,
+        vision: bool,
+        max_image_bytes: int,
+        max_request_bytes: int,
+        max_message_images: int = MAX_REQUEST_IMAGES,
+    ):
+        self._loader = loader
+        self._vision = vision
+        self._max_image_bytes = max_image_bytes
+        self._max_side_px = max_image_side_px(messages)
+        self._max_message_images = max_message_images
+        self._images_left = MAX_REQUEST_IMAGES
+        self._bytes_left = max_request_bytes
+        self._message_images_left = max_message_images
+
+    def next_message(self) -> None:
+        """Start the next message's own allowance of images."""
+        self._message_images_left = self._max_message_images
+
+    def load(self, block: ImageBlock) -> bytes | None:
+        """The bytes to send for ``block``, or ``None`` to send its placeholder."""
+        if min(self._images_left, self._message_images_left, self._bytes_left) <= 0:
+            logger.warning("image %r is past what its request may carry", block.ref)
+            return None
+        data = load_image(
+            block,
+            loader=self._loader,
+            vision=self._vision,
+            max_bytes=min(self._max_image_bytes, self._bytes_left),
+            max_side_px=self._max_side_px,
+        )
+        if data is not None:
+            self._images_left -= 1
+            self._message_images_left -= 1
+            self._bytes_left -= len(data)
+        return data
 
 
 def image_placeholder(block: ImageBlock) -> str:
