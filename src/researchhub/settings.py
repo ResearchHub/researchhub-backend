@@ -551,6 +551,7 @@ EMAIL_DOMAIN = (
     "researchhub.com" if APP_ENV == "production" else f"{APP_ENV}.researchhub.com"
 )
 DEFAULT_FROM_EMAIL = f"noreply@{EMAIL_DOMAIN}"
+EXPERT_FINDER_FROM_EMAIL = f"outreach@{EMAIL_DOMAIN}"
 
 # Storage
 STORAGES = {
@@ -836,11 +837,7 @@ if STAGING or PRODUCTION:
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
 EXPERT_FINDER_OUTREACH_ENABLED = (
-    os.environ.get(
-        "EXPERT_FINDER_OUTREACH_ENABLED",
-        str(keys.EXPERT_FINDER_OUTREACH_ENABLED),
-    ).lower()
-    == "true"
+    os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
 )
 
 # Crossref

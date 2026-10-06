@@ -12,14 +12,7 @@ from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.outreach.email_generator import generate_expert_email
-from research_ai.services.outreach.email_sender import (
-    ExpertFinderOutreachDisabledError,
-    send_outreach_email,
-)
-from research_ai.services.outreach.gmail_sender import (
-    GmailNeedsReauthError,
-    GmailNotConnectedError,
-)
+from research_ai.services.outreach.email_sender import send_outreach_email
 from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
     link_experts_for_new_user,
@@ -30,7 +23,6 @@ from research_ai.services.outreach.proposal_draft_outreach import (
 from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
-from research_ai.services.outreach.send_pacing import next_bulk_interval_seconds
 from research_ai.services.proposal_draft import run_proposal_draft
 from research_ai.services.proposal_draft.cancel_service import ACTIVE_STATUSES
 from research_ai.services.proposal_draft.liveness_service import (
@@ -42,9 +34,6 @@ from researchhub.celery import QUEUE_AGENTS, app
 from user.models import User
 
 logger = logging.getLogger(__name__)
-
-_REQUEUE_MAX_RETRIES = 5
-_REQUEUE_RETRY_COUNTDOWN_SECONDS = 30
 
 # Ceilings against a runaway live worker, not liveness: a killed task's run is
 # reclaimed by ``reclaim_lost_agent_runs`` once its lease lapses.
@@ -630,95 +619,56 @@ def send_queued_emails_task(
     generated_email_ids: list[int],
     reply_to: list[str] | None = None,
     cc: list[str] | None = None,
-    sender_user_id: int | None = None,
-    immediate: bool = False,
+    from_email: str | None = None,
 ):
     """
-    Send generated emails that are in SENDING status via the editor's Gmail.
-
-    Updates each to SENT on success or SEND_FAILED on failure. On Gmail
-    invalid_grant / needs_reauth, marks remaining queued rows SEND_FAILED.
-    When outreach is disabled, unsent rows in this batch revert to DRAFT.
-
-    ``immediate=True`` (single-id sends) skips inter-send pacing. Bulk batches
-    send one message then re-queue the rest with a random 20–30 min countdown.
-    A broker failure while scheduling that follow-up is retried separately so
-    it cannot mark a just-sent message SEND_FAILED or leave remaining rows
-    stranded without a follow-up task.
+    Send generated emails that are in SENDING status. Updates each to SENT on
+    success or SEND_FAILED on failure.
     """
 
     cc_list = list(cc or [])
     reply_to_list = list(reply_to or [])
-    sender = None
-    if sender_user_id is not None:
-        sender = User.objects.filter(id=sender_user_id).first()
-    records = list(
-        GeneratedEmail.objects.filter(
-            id__in=generated_email_ids,
-            status=GeneratedEmail.Status.SENDING,
-        )
-        .select_related("created_by")
-        .order_by("id")
-    )
+    qs = GeneratedEmail.objects.filter(
+        id__in=generated_email_ids,
+        status=GeneratedEmail.Status.SENDING,
+    ).order_by("id")
     sent = 0
     failed = 0
-    deferred = 0
-    abort_remaining = False
-    for idx, rec in enumerate(records):
-        try:
-            rec.refresh_from_db()
-        except GeneratedEmail.DoesNotExist:
-            continue
-        if rec.status != GeneratedEmail.Status.SENDING:
-            continue
-        if abort_remaining:
-            GeneratedEmail.objects.filter(
-                id=rec.id,
-                status=GeneratedEmail.Status.SENDING,
-            ).update(
-                status=GeneratedEmail.Status.SEND_FAILED,
-                updated_date=timezone.now(),
-            )
-            failed += 1
-            continue
+    for rec in qs:
         if not (rec.expert_email or "").strip():
             rec.status = GeneratedEmail.Status.SEND_FAILED
             rec.save(update_fields=["status", "updated_date"])
             failed += 1
             continue
-        send_as = sender or rec.created_by
         try:
-            result = send_outreach_email(
-                send_as,
+            ses_message_id = send_outreach_email(
                 rec.expert_email,
                 rec.email_subject,
                 rec.email_body,
                 reply_to=reply_to_list or None,
                 cc=cc_list or None,
+                from_email=from_email,
             )
-        except (GmailNotConnectedError, GmailNeedsReauthError):
-            logger.exception(
-                "Gmail mailbox unavailable for send id=%s; failing remaining",
-                rec.id,
-            )
+            if ses_message_id is None:
+                GeneratedEmail.objects.filter(id=rec.id).update(
+                    status=GeneratedEmail.Status.SEND_FAILED,
+                    updated_date=timezone.now(),
+                )
+                failed += 1
+                continue
             GeneratedEmail.objects.filter(id=rec.id).update(
-                status=GeneratedEmail.Status.SEND_FAILED,
+                status=GeneratedEmail.Status.SENT,
+                channels=[GeneratedEmail.Channel.EMAIL],
+                ses_message_id=ses_message_id,
                 updated_date=timezone.now(),
             )
-            failed += 1
-            abort_remaining = True
-            continue
-        except ExpertFinderOutreachDisabledError:
-            remaining_ids = [r.id for r in records[idx:]]
-            logger.warning(
-                "Outreach disabled; reverting %s unsent email(s) to draft",
-                len(remaining_ids),
-            )
-            GeneratedEmail.objects.filter(id__in=remaining_ids).update(
-                status=GeneratedEmail.Status.DRAFT,
-                updated_date=timezone.now(),
-            )
-            break
+            ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
+            try:
+                grant_invited_expert_access_for_send(generated_email=rec)
+            except Exception:
+                # Don't let an access-grant failure mask a successful send.
+                logger.exception("Grant access on send failed id=%s", rec.id)
+            sent += 1
         except Exception:
             logger.exception("Send to expert failed id=%s", rec.id)
             GeneratedEmail.objects.filter(id=rec.id).update(
@@ -726,50 +676,4 @@ def send_queued_emails_task(
                 updated_date=timezone.now(),
             )
             failed += 1
-            continue
-
-        GeneratedEmail.objects.filter(id=rec.id).update(
-            status=GeneratedEmail.Status.SENT,
-            channels=[GeneratedEmail.Channel.EMAIL],
-            gmail_message_id=result.message_id,
-            gmail_thread_id=result.thread_id or "",
-            updated_date=timezone.now(),
-        )
-        ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
-        try:
-            grant_invited_expert_access_for_send(generated_email=rec)
-        except Exception:
-            logger.exception("Grant access on send failed id=%s", rec.id)
-        sent += 1
-        if not immediate and idx + 1 < len(records):
-            remaining_ids = [r.id for r in records[idx + 1 :]]
-            wait = next_bulk_interval_seconds()
-            deferred = len(remaining_ids)
-            logger.info(
-                "Pacing Gmail outreach: deferring %s email(s) for %ss (user=%s)",
-                deferred,
-                wait,
-                getattr(send_as, "id", None),
-            )
-            requeue_kwargs = {
-                "generated_email_ids": remaining_ids,
-                "reply_to": reply_to_list or None,
-                "cc": cc_list or None,
-                "sender_user_id": sender_user_id,
-                "immediate": False,
-            }
-            try:
-                self.apply_async(kwargs=requeue_kwargs, countdown=wait)
-            except Exception as exc:
-                logger.exception(
-                    "Failed to requeue remaining Gmail outreach emails ids=%s",
-                    remaining_ids,
-                )
-                raise self.retry(
-                    kwargs=requeue_kwargs,
-                    countdown=_REQUEUE_RETRY_COUNTDOWN_SECONDS,
-                    max_retries=_REQUEUE_MAX_RETRIES,
-                    exc=exc,
-                ) from exc
-            break
-    return {"sent": sent, "failed": failed, "deferred": deferred}
+    return {"sent": sent, "failed": failed}

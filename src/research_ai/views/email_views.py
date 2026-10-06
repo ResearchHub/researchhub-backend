@@ -1,7 +1,7 @@
 import logging
 
+from django.conf import settings
 from django.db import transaction
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -24,16 +24,7 @@ from research_ai.serializers import (
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.outreach.email_generator import create_expert_email_draft
-from research_ai.services.outreach.email_sender import (
-    ExpertFinderOutreachDisabledError,
-    mailbox_connection_error_payload,
-    send_outreach_email,
-)
-from research_ai.services.outreach.gmail_sender import (
-    GmailNeedsReauthError,
-    GmailNotConnectedError,
-    get_active_outreach_mailbox,
-)
+from research_ai.services.outreach.email_sender import send_outreach_email
 from research_ai.services.outreach.proposal_draft_outreach import (
     prepare_proposal_outreach,
 )
@@ -41,87 +32,11 @@ from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
 from research_ai.services.outreach.rfp_invite import invite_applicants
-from research_ai.services.outreach.send_rate_limits import (
-    bulk_in_progress_error_payload,
-    editor_has_sending,
-    get_send_quota,
-    queue_payload,
-    rate_limit_error_payload,
-)
 from research_ai.services.outreach.template_variables import format_expert_name_from_raw
 from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
 from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
-
-
-def _mailbox_error_response(user):
-    """Return None if mailbox is active, else a 409 Response."""
-    try:
-        get_active_outreach_mailbox(user)
-    except (GmailNotConnectedError, GmailNeedsReauthError) as exc:
-        return Response(
-            mailbox_connection_error_payload(exc),
-            status=status.HTTP_409_CONFLICT,
-        )
-    return None
-
-
-def _queue_drafts_with_rate_limit(
-    *,
-    user,
-    ordered_draft_ids: list[int],
-    reply_to: list[str] | None,
-    cc: list[str],
-):
-    """
-    Mark drafts as SENDING and enqueue the Celery send task when the full
-    request fits under the daily quota. If ``requested > remaining``, reject
-    with 429 and send nothing.
-
-    Bulk (2+ ids) is rejected with 409 if this editor already has SENDING rows.
-    Single-id sends are never blocked by an in-flight bulk and run immediately.
-
-    Returns either a Response (409/429), or a dict payload
-    ``{queued, deferred, remaining_today}``.
-    """
-    is_bulk = len(ordered_draft_ids) >= 2
-    if is_bulk and editor_has_sending(user):
-        return Response(
-            bulk_in_progress_error_payload(),
-            status=status.HTTP_409_CONFLICT,
-        )
-
-    quota = get_send_quota(user)
-    requested = len(ordered_draft_ids)
-    if requested > quota.remaining_day:
-        payload = {
-            **rate_limit_error_payload(quota, requested=requested),
-            **queue_payload(
-                queued_ids=[],
-                deferred_ids=ordered_draft_ids,
-                remaining_today=quota.remaining_day,
-            ),
-        }
-        return Response(payload, status=status.HTTP_429_TOO_MANY_REQUESTS)
-
-    GeneratedEmail.objects.filter(id__in=ordered_draft_ids).update(
-        status=GeneratedEmail.Status.SENDING,
-        updated_date=timezone.now(),
-    )
-    send_queued_emails_task.delay(
-        generated_email_ids=ordered_draft_ids,
-        reply_to=reply_to,
-        cc=cc,
-        sender_user_id=user.id,
-        immediate=requested == 1,
-    )
-    remaining_today = max(0, quota.remaining_day - requested)
-    return queue_payload(
-        queued_ids=ordered_draft_ids,
-        deferred_ids=[],
-        remaining_today=remaining_today,
-    )
 
 
 def _generated_email_list_sequence_queryset(expert_search_id):
@@ -359,7 +274,7 @@ class BulkGenerateEmailView(APIView):
 class PreviewEmailView(APIView):
     """
     POST /api/research_ai/expert-finder/emails/preview/
-    Send generated email(s) to current user via their connected Gmail.
+    Send generated email(s) to current user.
     """
 
     permission_classes = [
@@ -373,16 +288,20 @@ class PreviewEmailView(APIView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        mailbox_err = _mailbox_error_response(request.user)
-        if mailbox_err is not None:
-            return mailbox_err
-
         recipient = (getattr(request.user, "email", None) or "").strip()
         if not recipient or "@" not in recipient:
             return Response(
                 {"detail": "User has no email address for preview."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        get_full_name = getattr(request.user, "get_full_name", None)
+        display_name = (
+            (get_full_name() if callable(get_full_name) else "") or ""
+        ).strip() or "ResearchHub"
+        from_email = (
+            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
+        )
 
         ids = data["generated_email_ids"]
         reply_to = list(data["reply_to"])
@@ -392,24 +311,15 @@ class PreviewEmailView(APIView):
         sent = 0
         for rec in qs:
             try:
-                send_outreach_email(
-                    request.user,
+                message_id = send_outreach_email(
                     recipient,
                     rec.email_subject,
                     rec.email_body,
                     reply_to=reply_to,
+                    from_email=from_email,
                 )
-                sent += 1
-            except (GmailNotConnectedError, GmailNeedsReauthError) as exc:
-                return Response(
-                    mailbox_connection_error_payload(exc),
-                    status=status.HTTP_409_CONFLICT,
-                )
-            except ExpertFinderOutreachDisabledError as exc:
-                return Response(
-                    {"detail": str(exc), "code": "outreach_disabled"},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
+                if message_id is not None:
+                    sent += 1
             except Exception as e:
                 logger.exception("Preview send failed for email id=%s", rec.id)
                 return Response(
@@ -422,7 +332,7 @@ class PreviewEmailView(APIView):
 class SendEmailView(APIView):
     """
     POST /api/research_ai/expert-finder/emails/send/
-    Queue generated emails to experts via the editor's connected Gmail.
+    Send generated emails to experts via SES.
     """
 
     permission_classes = [
@@ -436,40 +346,34 @@ class SendEmailView(APIView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        mailbox_err = _mailbox_error_response(request.user)
-        if mailbox_err is not None:
-            return mailbox_err
-
         reply_to = list(data["reply_to"])
         cc_list = list(data.get("cc") or [])
         ids = data["generated_email_ids"]
 
-        draft_id_set = set(
-            GeneratedEmail.objects.filter(
-                id__in=ids,
-                status=GeneratedEmail.Status.DRAFT,
-            ).values_list("id", flat=True)
+        get_full_name = getattr(request.user, "get_full_name", None)
+        display_name = (
+            (get_full_name() if callable(get_full_name) else "") or ""
+        ).strip() or "ResearchHub"
+        from_email = (
+            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
         )
-        # Preserve client order for rate-limit / queue responses.
-        ordered_draft_ids = [i for i in ids if i in draft_id_set]
-        if not ordered_draft_ids:
-            return Response(
-                queue_payload(
-                    queued_ids=[],
-                    deferred_ids=[],
-                    remaining_today=get_send_quota(request.user).remaining_day,
-                )
-            )
 
-        result = _queue_drafts_with_rate_limit(
-            user=request.user,
-            ordered_draft_ids=ordered_draft_ids,
-            reply_to=reply_to,
-            cc=cc_list,
+        qs = GeneratedEmail.objects.filter(
+            id__in=ids,
+            status=GeneratedEmail.Status.DRAFT,
         )
-        if isinstance(result, Response):
-            return result
-        return Response(result)
+        queued_ids = list(qs.values_list("id", flat=True))
+        if queued_ids:
+            GeneratedEmail.objects.filter(id__in=queued_ids).update(
+                status=GeneratedEmail.Status.SENDING
+            )
+            send_queued_emails_task.delay(
+                generated_email_ids=queued_ids,
+                reply_to=reply_to,
+                cc=cc_list,
+                from_email=from_email,
+            )
+        return Response({"sent": len(queued_ids)})
 
 
 class GeneratedEmailListView(APIView):
@@ -629,10 +533,6 @@ class InviteRfpApplicantsView(APIView):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
 
-        mailbox_err = _mailbox_error_response(request.user)
-        if mailbox_err is not None:
-            return mailbox_err
-
         try:
             result = invite_applicants(
                 grant=grant,
@@ -647,34 +547,25 @@ class InviteRfpApplicantsView(APIView):
 
         reply_to = (data.get("reply_to") or request.user.email or "").strip() or None
         cc_list = list(data.get("cc") or [])
-
-        if not result.generated_email_ids:
-            return Response(
-                {
-                    "queued": 0,
-                    "deferred": [],
-                    "remaining_today": get_send_quota(request.user).remaining_day,
-                    "skipped_existing": result.skipped_existing,
-                    "generated_email_ids": [],
-                },
-                status=status.HTTP_202_ACCEPTED,
-            )
-
-        queue_result = _queue_drafts_with_rate_limit(
-            user=request.user,
-            ordered_draft_ids=result.generated_email_ids,
-            reply_to=[reply_to] if reply_to else None,
-            cc=cc_list,
+        get_full_name = getattr(request.user, "get_full_name", None)
+        display_name = (
+            (get_full_name() if callable(get_full_name) else "") or ""
+        ).strip() or "ResearchHub"
+        from_email = (
+            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
         )
-        if isinstance(queue_result, Response):
-            body = dict(queue_result.data)
-            body["skipped_existing"] = result.skipped_existing
-            body["generated_email_ids"] = result.generated_email_ids
-            return Response(body, status=queue_result.status_code)
+
+        if result.generated_email_ids:
+            send_queued_emails_task.delay(
+                generated_email_ids=result.generated_email_ids,
+                reply_to=[reply_to] if reply_to else None,
+                cc=cc_list,
+                from_email=from_email,
+            )
 
         return Response(
             {
-                **queue_result,
+                "queued": len(result.generated_email_ids),
                 "skipped_existing": result.skipped_existing,
                 "generated_email_ids": result.generated_email_ids,
             },

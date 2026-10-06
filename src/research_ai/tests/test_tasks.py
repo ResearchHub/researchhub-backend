@@ -3,41 +3,26 @@
 from datetime import timedelta
 from unittest.mock import ANY, MagicMock, patch
 
-from celery.exceptions import Retry
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from research_ai.models import (
     AgentConversation,
     AgentExecution,
-    AgentFile,
     Expert,
     ExpertSearch,
     GeneratedEmail,
     ProposalDraft,
     SearchExpert,
 )
-from research_ai.services.outreach.email_sender import (
-    ExpertFinderOutreachDisabledError,
-)
-from research_ai.services.outreach.gmail_sender import (
-    GmailNeedsReauthError,
-    OutreachSendResult,
-)
 from research_ai.services.usage_budget import ReservationHeartbeat
 from research_ai.tasks import (
-    _REQUEUE_MAX_RETRIES,
-    _REQUEUE_RETRY_COUNTDOWN_SECONDS,
     _update_search_progress,
-    process_agent_file_task,
     process_bulk_generate_emails_task,
-    purge_agent_files,
     reclaim_lost_agent_runs,
     run_proposal_draft_task,
     send_queued_emails_task,
 )
-from research_ai.tests.agent_files.helpers import make_file, pdf_bytes
-from researchhub.services.private_storage_service import PrivateStorageService
 from user.tests.helpers import create_random_authenticated_user
 
 # --- _update_search_progress ---
@@ -255,14 +240,6 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-@patch(
-    "research_ai.services.outreach.send_pacing.OUTREACH_SEND_MIN_INTERVAL_SECONDS",
-    0,
-)
-@patch(
-    "research_ai.services.outreach.send_pacing.OUTREACH_SEND_MAX_INTERVAL_SECONDS",
-    0,
-)
 class SendQueuedEmailsTaskTests(TestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("send_user")
@@ -282,95 +259,18 @@ class SendQueuedEmailsTaskTests(TestCase):
                 "generated_email_ids": [rec.id],
                 "reply_to": None,
                 "cc": None,
-                "sender_user_id": self.user.id,
+                "from_email": None,
             }
         ).get()
         self.assertEqual(result["sent"], 0)
         self.assertEqual(result["failed"], 1)
-        self.assertEqual(result["deferred"], 0)
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
         mock_send.assert_not_called()
 
-    @patch("research_ai.tasks.send_queued_emails_task.apply_async")
-    @patch("research_ai.tasks.send_outreach_email")
-    def test_skips_row_no_longer_sending_before_gmail_send(
-        self, mock_send, mock_apply_async
-    ):
-        # Arrange
-        mock_send.return_value = OutreachSendResult(message_id="gmail-2")
-        first = GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_email="skip@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status=GeneratedEmail.Status.SENDING,
-        )
-        second = GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_email="keep@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status=GeneratedEmail.Status.SENDING,
-        )
-        first.status = GeneratedEmail.Status.DRAFT
-        first.save(update_fields=["status", "updated_date"])
-
-        # Act
-        with patch("research_ai.tasks.grant_invited_expert_access_for_send"):
-            result = send_queued_emails_task.apply(
-                kwargs={
-                    "generated_email_ids": [first.id, second.id],
-                    "sender_user_id": self.user.id,
-                    "immediate": False,
-                }
-            ).get()
-
-        # Assert
-        first.refresh_from_db()
-        second.refresh_from_db()
-        self.assertEqual(first.status, GeneratedEmail.Status.DRAFT)
-        self.assertEqual(second.status, GeneratedEmail.Status.SENT)
-        self.assertEqual(result["sent"], 1)
-        self.assertEqual(result["failed"], 0)
-        mock_send.assert_called_once()
-        mock_apply_async.assert_not_called()
-
-    @patch("research_ai.tasks.send_outreach_email")
-    def test_skips_current_row_if_status_changes_after_load(self, mock_send):
-        rec = GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_email="race@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status=GeneratedEmail.Status.SENDING,
-        )
-        real_refresh = GeneratedEmail.refresh_from_db
-
-        def revert_to_draft(instance, *args, **kwargs):
-            real_refresh(instance, *args, **kwargs)
-            GeneratedEmail.objects.filter(id=instance.id).update(
-                status=GeneratedEmail.Status.DRAFT
-            )
-            instance.status = GeneratedEmail.Status.DRAFT
-
-        with patch.object(GeneratedEmail, "refresh_from_db", revert_to_draft):
-            result = send_queued_emails_task.apply(
-                kwargs={
-                    "generated_email_ids": [rec.id],
-                    "sender_user_id": self.user.id,
-                }
-            ).get()
-
-        rec.refresh_from_db()
-        self.assertEqual(rec.status, GeneratedEmail.Status.DRAFT)
-        self.assertEqual(result["sent"], 0)
-        self.assertEqual(result["failed"], 0)
-        mock_send.assert_not_called()
-
     @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_send_raises_marks_send_failed(self, mock_send):
-        mock_send.side_effect = Exception("Gmail API error")
+        mock_send.side_effect = Exception("SMTP error")
         rec = GeneratedEmail.objects.create(
             created_by=self.user,
             expert_name="Dr. Y",
@@ -384,33 +284,24 @@ class SendQueuedEmailsTaskTests(TestCase):
                 "generated_email_ids": [rec.id],
                 "reply_to": None,
                 "cc": None,
-                "sender_user_id": self.user.id,
+                "from_email": None,
             }
         ).get()
         self.assertEqual(result["sent"], 0)
         self.assertEqual(result["failed"], 1)
-        self.assertEqual(result["deferred"], 0)
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.SEND_FAILED)
 
     @patch("research_ai.tasks.send_outreach_email")
-    def test_needs_reauth_fails_remaining_queued_rows(
+    def test_skips_suppressed_email_and_continues_sending(
         self, mock_send: MagicMock
     ) -> None:
-        """On Gmail needs_reauth, fail the current row and abort the rest."""
+        """Skip suppressed outreach while accepting a send without a message ID."""
         # Arrange
-        mock_send.side_effect = [
-            OutreachSendResult(message_id="ok-1"),
-            GmailNeedsReauthError(),
-            OutreachSendResult(message_id="should-not-send"),
-        ]
+        mock_send.side_effect = [None, ""]
         experts = [
             Expert.objects.create(email=email)
-            for email in (
-                "first@example.com",
-                "second@example.com",
-                "third@example.com",
-            )
+            for email in ("blocked@example.com", "accepted@example.com")
         ]
         records = [
             GeneratedEmail.objects.create(
@@ -426,72 +317,25 @@ class SendQueuedEmailsTaskTests(TestCase):
         # Act
         with patch("research_ai.tasks.grant_invited_expert_access_for_send") as grant:
             result = send_queued_emails_task.apply(
-                kwargs={
-                    "generated_email_ids": [record.id for record in records],
-                    "sender_user_id": self.user.id,
-                    "immediate": True,
-                }
+                kwargs={"generated_email_ids": [record.id for record in records]}
             ).get()
         for record in [*records, *experts]:
             record.refresh_from_db()
 
         # Assert
-        self.assertEqual(result, {"sent": 1, "failed": 2, "deferred": 0})
-        self.assertEqual(records[0].status, GeneratedEmail.Status.SENT)
-        self.assertEqual(records[0].gmail_message_id, "ok-1")
-        self.assertEqual(records[1].status, GeneratedEmail.Status.SEND_FAILED)
-        self.assertEqual(records[2].status, GeneratedEmail.Status.SEND_FAILED)
-        self.assertEqual(mock_send.call_count, 2)
-        grant.assert_called_once_with(generated_email=records[0])
-
-    @patch("research_ai.tasks.send_outreach_email")
-    def test_outreach_disabled_reverts_unsent_rows_to_draft(
-        self, mock_send: MagicMock
-    ) -> None:
-        mock_send.side_effect = [
-            OutreachSendResult(message_id="ok-1"),
-            ExpertFinderOutreachDisabledError(
-                "Expert finder outreach is temporarily disabled."
-            ),
-            OutreachSendResult(message_id="should-not-send"),
-        ]
-        records = [
-            GeneratedEmail.objects.create(
-                created_by=self.user,
-                expert_email=email,
-                email_subject="Subject",
-                email_body="Body",
-                status=GeneratedEmail.Status.SENDING,
-            )
-            for email in (
-                "first@example.com",
-                "second@example.com",
-                "third@example.com",
-            )
-        ]
-
-        result = send_queued_emails_task.apply(
-            kwargs={
-                "generated_email_ids": [record.id for record in records],
-                "sender_user_id": self.user.id,
-                "immediate": True,
-            }
-        ).get()
-        for record in records:
-            record.refresh_from_db()
-
-        self.assertEqual(result, {"sent": 1, "failed": 0, "deferred": 0})
-        self.assertEqual(records[0].status, GeneratedEmail.Status.SENT)
-        self.assertEqual(records[1].status, GeneratedEmail.Status.DRAFT)
-        self.assertEqual(records[2].status, GeneratedEmail.Status.DRAFT)
-        self.assertEqual(mock_send.call_count, 2)
+        self.assertEqual(result, {"sent": 1, "failed": 1})
+        self.assertEqual(records[0].status, GeneratedEmail.Status.SEND_FAILED)
+        self.assertEqual(records[0].channels, [])
+        self.assertIsNone(experts[0].last_email_sent_at)
+        self.assertEqual(records[1].status, GeneratedEmail.Status.SENT)
+        self.assertEqual(records[1].channels, [GeneratedEmail.Channel.EMAIL])
+        self.assertEqual(records[1].ses_message_id, "")
+        self.assertIsNotNone(experts[1].last_email_sent_at)
+        grant.assert_called_once_with(generated_email=records[1])
 
     @patch("research_ai.tasks.send_outreach_email")
     def test_send_queued_success_sets_expert_last_email_sent_at(self, mock_send):
-        mock_send.return_value = OutreachSendResult(
-            message_id="gmail-1",
-            thread_id="thr-1",
-        )
+        mock_send.return_value = "ses-1"
         Expert.objects.create(
             email="sentmark@edu",
             first_name="S",
@@ -511,159 +355,15 @@ class SendQueuedEmailsTaskTests(TestCase):
                 "generated_email_ids": [rec.id],
                 "reply_to": None,
                 "cc": None,
-                "sender_user_id": self.user.id,
+                "from_email": None,
             }
         ).get()
         rec.refresh_from_db()
         self.assertEqual(rec.channels, [GeneratedEmail.Channel.EMAIL])
-        self.assertEqual(rec.gmail_message_id, "gmail-1")
         ex = Expert.objects.get(email__iexact="sentmark@edu")
         self.assertIsNotNone(ex.last_email_sent_at)
         if before:
             self.assertGreaterEqual(ex.last_email_sent_at, before)
-
-
-@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-class SendQueuedEmailsPacingTests(TestCase):
-    def setUp(self):
-        self.user = create_random_authenticated_user("pace_user")
-
-    def _sending(self, email: str) -> GeneratedEmail:
-        return GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_name="Expert",
-            expert_email=email,
-            email_subject="Subj",
-            email_body="Body",
-            status=GeneratedEmail.Status.SENDING,
-        )
-
-    @patch("research_ai.tasks.send_queued_emails_task.apply_async")
-    @patch("research_ai.tasks.send_outreach_email")
-    def test_bulk_requeues_remaining_with_random_countdown(
-        self, mock_send, mock_apply_async
-    ):
-        # Arrange
-        mock_send.return_value = OutreachSendResult(message_id="gmail-1")
-        first = self._sending("a@example.com")
-        second = self._sending("b@example.com")
-        third = self._sending("c@example.com")
-
-        # Act
-        with patch("research_ai.tasks.grant_invited_expert_access_for_send"):
-            result = send_queued_emails_task.apply(
-                kwargs={
-                    "generated_email_ids": [first.id, second.id, third.id],
-                    "reply_to": ["reply@example.com"],
-                    "cc": ["cc@example.com"],
-                    "sender_user_id": self.user.id,
-                    "immediate": False,
-                }
-            ).get()
-
-        # Assert — one sent now; rest stay SENDING and are re-queued
-        self.assertEqual(result, {"sent": 1, "failed": 0, "deferred": 2})
-        first.refresh_from_db()
-        second.refresh_from_db()
-        third.refresh_from_db()
-        self.assertEqual(first.status, GeneratedEmail.Status.SENT)
-        self.assertEqual(second.status, GeneratedEmail.Status.SENDING)
-        self.assertEqual(third.status, GeneratedEmail.Status.SENDING)
-        self.assertEqual(mock_send.call_count, 1)
-        mock_apply_async.assert_called_once()
-        call_kwargs = mock_apply_async.call_args.kwargs
-        self.assertEqual(
-            call_kwargs["kwargs"]["generated_email_ids"],
-            [second.id, third.id],
-        )
-        self.assertEqual(call_kwargs["kwargs"]["reply_to"], ["reply@example.com"])
-        self.assertEqual(call_kwargs["kwargs"]["cc"], ["cc@example.com"])
-        self.assertEqual(call_kwargs["kwargs"]["sender_user_id"], self.user.id)
-        self.assertFalse(call_kwargs["kwargs"]["immediate"])
-        self.assertGreaterEqual(call_kwargs["countdown"], 1200)
-        self.assertLessEqual(call_kwargs["countdown"], 1800)
-
-    @patch.object(send_queued_emails_task, "retry")
-    @patch("research_ai.tasks.send_queued_emails_task.apply_async")
-    @patch("research_ai.tasks.send_outreach_email")
-    def test_requeue_failure_keeps_sent_status_and_retries(
-        self, mock_send, mock_apply_async, mock_retry
-    ):
-        # Arrange
-        mock_send.return_value = OutreachSendResult(message_id="gmail-1")
-        mock_apply_async.side_effect = ConnectionError("broker down")
-        mock_retry.side_effect = Retry()
-        first = self._sending("a@example.com")
-        second = self._sending("b@example.com")
-        third = self._sending("c@example.com")
-
-        # Act
-        with (
-            patch("research_ai.tasks.grant_invited_expert_access_for_send"),
-            self.assertRaises(Retry),
-        ):
-            send_queued_emails_task.apply(
-                kwargs={
-                    "generated_email_ids": [first.id, second.id, third.id],
-                    "reply_to": ["reply@example.com"],
-                    "cc": ["cc@example.com"],
-                    "sender_user_id": self.user.id,
-                    "immediate": False,
-                }
-            ).get()
-
-        # Assert — delivered mail stays SENT; remaining stay SENDING
-        first.refresh_from_db()
-        second.refresh_from_db()
-        third.refresh_from_db()
-        self.assertEqual(first.status, GeneratedEmail.Status.SENT)
-        self.assertEqual(first.gmail_message_id, "gmail-1")
-        self.assertEqual(second.status, GeneratedEmail.Status.SENDING)
-        self.assertEqual(third.status, GeneratedEmail.Status.SENDING)
-        mock_send.assert_called_once()
-        mock_retry.assert_called_once()
-        retry_kwargs = mock_retry.call_args.kwargs
-        self.assertEqual(
-            retry_kwargs["kwargs"]["generated_email_ids"],
-            [second.id, third.id],
-        )
-        self.assertEqual(retry_kwargs["countdown"], _REQUEUE_RETRY_COUNTDOWN_SECONDS)
-        self.assertEqual(retry_kwargs["max_retries"], _REQUEUE_MAX_RETRIES)
-
-    @patch("research_ai.tasks.send_queued_emails_task.apply_async")
-    @patch("research_ai.tasks.send_outreach_email")
-    def test_immediate_sends_without_pacing(self, mock_send, mock_apply_async):
-        # Arrange — prior send exists; single/immediate still sends now
-        mock_send.return_value = OutreachSendResult(message_id="gmail-now")
-        prior = GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_name="Prior",
-            expert_email="prior@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status=GeneratedEmail.Status.SENT,
-        )
-        GeneratedEmail.objects.filter(id=prior.id).update(
-            updated_date=timezone.now() - timedelta(seconds=60)
-        )
-        queued = self._sending("next@example.com")
-
-        # Act
-        with patch("research_ai.tasks.grant_invited_expert_access_for_send"):
-            result = send_queued_emails_task.apply(
-                kwargs={
-                    "generated_email_ids": [queued.id],
-                    "sender_user_id": self.user.id,
-                    "immediate": True,
-                }
-            ).get()
-
-        # Assert
-        self.assertEqual(result, {"sent": 1, "failed": 0, "deferred": 0})
-        queued.refresh_from_db()
-        self.assertEqual(queued.status, GeneratedEmail.Status.SENT)
-        mock_send.assert_called_once()
-        mock_apply_async.assert_not_called()
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
@@ -862,37 +562,3 @@ class ReclaimLostAgentRunsTaskTests(TestCase):
         self.assertEqual(result, {"executions": [], "proposal_drafts": []})
         execution.refresh_from_db()
         self.assertEqual(execution.status, AgentExecution.Status.RUNNING)
-
-
-class AgentFileTaskTests(TestCase):
-    def setUp(self):
-        self.user = create_random_authenticated_user("file_task_user")
-
-    @patch.object(PrivateStorageService, "read", return_value=pdf_bytes("Aims"))
-    def test_process_task_extracts_the_uploaded_file(self, _mock_read):
-        # Arrange
-        file = make_file(self.user, status=AgentFile.Status.PROCESSING, text="")
-
-        # Act
-        result = process_agent_file_task.apply(args=[file.id]).get()
-
-        # Assert
-        self.assertEqual(result, {"file_id": file.id, "status": "READY"})
-        file.refresh_from_db()
-        self.assertEqual(file.text, "[Page 1]\nAims")
-
-    @patch.object(PrivateStorageService, "delete")
-    def test_purge_task_removes_abandoned_uploads(self, mock_delete):
-        # Arrange
-        file = make_file(self.user)
-        AgentFile.objects.filter(id=file.id).update(
-            created_date=timezone.now() - timedelta(days=2)
-        )
-
-        # Act
-        result = purge_agent_files.apply().get()
-
-        # Assert
-        self.assertEqual(result, {"purged": 1})
-        self.assertFalse(AgentFile.objects.filter(id=file.id).exists())
-        mock_delete.assert_called_once_with(file.storage_key)

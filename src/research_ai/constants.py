@@ -38,12 +38,6 @@ EXPERT_FINDER_DEFAULT_STATE = "All States"
 EXPERT_FINDER_SEEN_WORK_IDS_CAP = 80
 EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY = "seen_openalex_work_ids"
 
-# Per-mailbox Gmail outreach caps + pacing.
-# Daily cap is the only hard limit; bulk sends space randomly in [min, max].
-OUTREACH_SEND_DAILY_CAP = 20
-OUTREACH_SEND_MIN_INTERVAL_SECONDS = 1200  # 20 min
-OUTREACH_SEND_MAX_INTERVAL_SECONDS = 1800  # 30 min
-
 
 def expert_finder_web_search_budget(expert_count: int) -> int:
     """Brave web_search ceiling for one EF run (scales with target size)."""

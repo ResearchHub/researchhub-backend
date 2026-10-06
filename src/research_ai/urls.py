@@ -33,10 +33,6 @@ from research_ai.views.expert_finder_views import (
     InvitedExpertEditorsOverviewView,
     InvitedExpertOverviewView,
 )
-from research_ai.views.mailbox_views import (
-    OutreachMailboxConnectView,
-    OutreachMailboxView,
-)
 from research_ai.views.model_views import AvailableModelsView, UsageBudgetStatusView
 from research_ai.views.notebook_chat_views import (
     NotebookChatCancelView,
@@ -90,11 +86,6 @@ urlpatterns = [
     path(
         "expert-finder/progress/<int:search_id>/",
         ExpertSearchProgressStreamView.as_view(),
-    ),
-    path("expert-finder/mailbox/", OutreachMailboxView.as_view()),
-    path(
-        "expert-finder/mailbox/connect/",
-        OutreachMailboxConnectView.as_view(),
     ),
     path("expert-finder/generate-email/", GenerateEmailView.as_view()),
     path(

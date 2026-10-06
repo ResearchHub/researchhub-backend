@@ -7,13 +7,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from purchase.models import Grant
-from research_ai.models import (
-    Expert,
-    ExpertSearch,
-    GeneratedEmail,
-    OutreachMailboxConnection,
-    SearchExpert,
-)
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail, SearchExpert
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
 from user.tests.helpers import create_random_authenticated_user
@@ -37,29 +31,12 @@ def _make_grant(*, created_by, contacts=None):
     return grant
 
 
-def _connect_gmail(user, email: str):
-    return OutreachMailboxConnection.objects.create(
-        user=user,
-        email=email,
-        provider=OutreachMailboxConnection.Provider.GMAIL,
-        refresh_token="refresh-token",
-        access_token="access-token",
-        access_token_expires_at=timezone.now() + timedelta(hours=1),
-        scopes=["https://www.googleapis.com/auth/gmail.send"],
-        status=OutreachMailboxConnection.Status.ACTIVE,
-        connected_at=timezone.now(),
-    )
-
-
 class InviteRfpApplicantsViewTests(APITestCase):
     def setUp(self):
         self.creator = create_random_authenticated_user("creator", moderator=False)
         self.contact = create_random_authenticated_user("contact", moderator=False)
         self.other = create_random_authenticated_user("other", moderator=False)
         self.moderator = create_random_authenticated_user("mod", moderator=True)
-        _connect_gmail(self.creator, "creator@gmail.com")
-        _connect_gmail(self.contact, "contact@gmail.com")
-        _connect_gmail(self.moderator, "mod@gmail.com")
         self.grant = _make_grant(created_by=self.creator, contacts=[self.contact])
         self.url = (
             f"/api/research_ai/expert-finder/rfp/{self.grant.id}/invite-applicants/"
@@ -129,24 +106,10 @@ class InviteRfpApplicantsViewTests(APITestCase):
         mock_delay.assert_called_once()
         kwargs = mock_delay.call_args.kwargs
         self.assertEqual(kwargs["reply_to"], [self.creator.email])
-        self.assertEqual(kwargs["sender_user_id"], self.creator.id)
-        self.assertNotIn("from_email", kwargs)
         self.assertEqual(
             sorted(kwargs["generated_email_ids"]),
             sorted(data["generated_email_ids"]),
         )
-        self.assertEqual(data["deferred"], [])
-        self.assertIn("remaining_today", data)
-
-    def test_invite_without_gmail_returns_409(self):
-        user = create_random_authenticated_user("invite_nogmail", moderator=False)
-        grant = _make_grant(created_by=user)
-        url = f"/api/research_ai/expert-finder/rfp/{grant.id}/invite-applicants/"
-        self.client.force_authenticate(user)
-        resp = self.client.post(url, {"emails": ["a@example.com"]}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
-        self.assertEqual(resp.json().get("code"), "gmail_not_connected")
-        self.assertEqual(GeneratedEmail.objects.count(), 0)
 
     @patch("research_ai.views.email_views.send_queued_emails_task.delay")
     def test_grant_contact_can_invite(self, mock_delay):
@@ -207,55 +170,3 @@ class InviteRfpApplicantsViewTests(APITestCase):
                 self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
                 self.assertEqual(GeneratedEmail.objects.count(), 0)
                 mock_delay.assert_not_called()
-
-    @patch("research_ai.views.email_views.send_queued_emails_task.delay")
-    @patch(
-        "research_ai.services.outreach.send_rate_limits.OUTREACH_SEND_DAILY_CAP",
-        1,
-    )
-    def test_invite_respects_daily_cap(self, mock_delay):
-        from research_ai.services.outreach.send_rate_limits import RATE_LIMIT_CODE
-
-        GeneratedEmail.objects.create(
-            created_by=self.creator,
-            expert_email="prior@example.com",
-            email_subject="Prior",
-            email_body="Body",
-            status=GeneratedEmail.Status.SENT,
-        )
-        self.client.force_authenticate(self.creator)
-        resp = self._post({"emails": ["a@example.com", "b@example.com"]})
-        self.assertEqual(resp.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
-        body = resp.json()
-        self.assertEqual(body["code"], RATE_LIMIT_CODE)
-        self.assertEqual(len(body["deferred"]), 2)
-        self.assertEqual(GeneratedEmail.objects.filter(status="draft").count(), 2)
-        mock_delay.assert_not_called()
-
-    @patch("research_ai.views.email_views.send_queued_emails_task.delay")
-    @patch(
-        "research_ai.services.outreach.send_rate_limits.OUTREACH_SEND_DAILY_CAP",
-        1,
-    )
-    def test_invite_rejects_when_request_exceeds_daily_cap(self, mock_delay):
-        from research_ai.services.outreach.send_rate_limits import RATE_LIMIT_CODE
-
-        self.client.force_authenticate(self.creator)
-        resp = self._post({"emails": ["a@example.com", "b@example.com"]})
-        self.assertEqual(resp.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
-        body = resp.json()
-        self.assertEqual(body["code"], RATE_LIMIT_CODE)
-        self.assertEqual(body["requested"], 2)
-        self.assertEqual(body["remaining_today"], 1)
-        self.assertEqual(len(body["deferred"]), 2)
-        self.assertEqual(
-            GeneratedEmail.objects.filter(status=GeneratedEmail.Status.DRAFT).count(),
-            2,
-        )
-        self.assertEqual(
-            GeneratedEmail.objects.filter(status=GeneratedEmail.Status.SENDING).count(),
-            0,
-        )
-        mock_delay.assert_not_called()
-        mock_delay.assert_called_once()
-        self.assertEqual(len(mock_delay.call_args.kwargs["generated_email_ids"]), 1)
