@@ -7,6 +7,7 @@ import zipfile
 
 import fitz
 from botocore.exceptions import ClientError
+from PIL import Image
 
 from research_ai.models import AgentFile
 from research_ai.services.agent_files.extraction import PageImage, UnreadableFileError
@@ -48,6 +49,15 @@ def pdf_with_scans(*pages) -> bytes:
     data = document.tobytes()
     document.close()
     return data
+
+
+def image_bytes(
+    size=(40, 30), color="navy", *, mode="RGB", image_format="PNG", **save_options
+) -> bytes:
+    """An image of one colour, as an upload holds it."""
+    buffer = io.BytesIO()
+    Image.new(mode, size, color).save(buffer, image_format, **save_options)
+    return buffer.getvalue()
 
 
 def docx_bytes(

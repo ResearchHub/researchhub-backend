@@ -38,8 +38,9 @@ exactly those notes and nothing else.
 Files the user uploads (``services.agent_files``) are attached to the message
 they are sent with. The turn's prompt lists them and carries the short ones in
 full, and the attachment tools read or search them for the rest of the
-conversation. A model that takes images is also sent a short PDF's pages with
-the message and can look at any PDF's pages through a tool.
+conversation. A model that takes images is also sent a short PDF's pages and
+any uploaded image with the message, and can look at any PDF's pages through a
+tool.
 """
 
 import logging

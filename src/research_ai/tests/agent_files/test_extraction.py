@@ -1,11 +1,14 @@
 import base64
 import codecs
+import io
 import json
+import random
 import subprocess
 from unittest import TestCase
 from unittest.mock import patch
 
 import fitz
+from PIL import Image
 
 from research_ai.services.agent_files import extraction
 from research_ai.services.agent_files.extraction import (
@@ -16,12 +19,14 @@ from research_ai.services.agent_files.extraction import (
     PDF,
     UnreadableFileError,
     extract_text,
+    prepare_image,
     render_pdf_page,
     resolve_kind,
 )
 from research_ai.tests.agent_files.helpers import (
     SCAN,
     docx_bytes,
+    image_bytes,
     paragraph,
     pdf_bytes,
     pdf_with_scans,
@@ -78,6 +83,9 @@ class ResolveKindTests(TestCase):
         self.assertEqual(resolve_kind("cv.docx", "application/octet-stream"), DOCX)
         self.assertEqual(resolve_kind("notes.md").content_type, "text/markdown")
         self.assertEqual(resolve_kind("paper.tex").extractor, "text")
+        self.assertEqual(resolve_kind("Figure 2.JPG").content_type, "image/jpeg")
+        self.assertTrue(resolve_kind("gel.webp").is_image)
+        self.assertFalse(PDF.is_image)
 
     def test_unsupported_extensions_are_refused_whatever_the_declared_type(self):
         # Act / Assert
@@ -615,6 +623,125 @@ class PdfPageRenderingTests(TestCase):
                 with self.assertRaises(ValueError):
                     render_pdf_page(data, **arguments)
         run.assert_not_called()
+
+
+def _pixel(image, at=(0, 0)) -> tuple:
+    with Image.open(io.BytesIO(image.data)) as stored:
+        return stored.convert("RGB").getpixel(at)
+
+
+class UploadedImageTests(TestCase):
+    def _assert_color(self, pixel, expected):
+        """Lossy formats shift a colour by a few levels."""
+        for channel, level in zip(pixel, expected, strict=True):
+            self.assertAlmostEqual(channel, level, delta=8)
+
+    def test_an_image_becomes_a_jpeg_no_side_over_the_edge_limit(self):
+        # Arrange
+        data = image_bytes((400, 100))
+
+        # Act
+        image = prepare_image(data, max_edge_px=200)
+        as_it_is = prepare_image(data)
+
+        # Assert
+        self.assertEqual((image.page, image.media_type), (1, "image/jpeg"))
+        self.assertEqual((image.width, image.height), (200, 50))
+        with Image.open(io.BytesIO(image.data)) as stored:
+            self.assertEqual((stored.format, stored.size), ("JPEG", (200, 50)))
+        # A small image is not enlarged.
+        self.assertEqual((as_it_is.width, as_it_is.height), (400, 100))
+
+    def test_each_supported_format_is_read_whatever_its_extension_said(self):
+        for image_format in ("PNG", "JPEG", "GIF", "WEBP"):
+            with self.subTest(image_format=image_format):
+                # Arrange
+                data = image_bytes(color=(200, 30, 30), image_format=image_format)
+
+                # Act
+                image = prepare_image(data)
+
+                # Assert
+                self._assert_color(_pixel(image), (200, 30, 30))
+
+    def test_a_file_that_is_not_one_of_those_images_is_refused(self):
+        cases = {
+            "text": b"Specific aims",
+            "bitmap": image_bytes(image_format="BMP"),
+            "cut short": image_bytes((300, 300))[:200],
+        }
+        for name, data in cases.items():
+            # Act / Assert
+            with self.subTest(name), self.assertRaises(UnreadableFileError) as raised:
+                prepare_image(data)
+            self.assertIn("could not be read as an image", str(raised.exception))
+
+    def test_a_photo_taken_sideways_is_turned_upright(self):
+        # Arrange: EXIF orientation 6 asks for a quarter turn.
+        exif = Image.Exif()
+        exif[0x0112] = 6
+        data = image_bytes((40, 20), image_format="JPEG", exif=exif)
+
+        # Act
+        image = prepare_image(data)
+
+        # Assert
+        self.assertEqual((image.width, image.height), (20, 40))
+
+    def test_transparency_shows_as_white(self):
+        # Arrange: black where it is opaque, as a figure's lines are.
+        clear = image_bytes(color=(0, 0, 0, 0), mode="RGBA")
+        palette = image_bytes(color=0, mode="P", image_format="GIF", transparency=0)
+
+        for data in (clear, palette):
+            # Act
+            image = prepare_image(data)
+
+            # Assert
+            self._assert_color(_pixel(image), (255, 255, 255))
+
+    def test_sixteen_bit_greys_keep_their_levels(self):
+        # Arrange: mid grey, which a plain conversion to 8 bits turns white.
+        data = image_bytes(color=32768, mode="I;16")
+
+        # Act
+        image = prepare_image(data)
+
+        # Assert
+        self._assert_color(_pixel(image), (127, 127, 127))
+
+    def test_an_image_over_the_byte_limit_is_scaled_down_to_fit(self):
+        # Arrange: noise, which a JPEG cannot compress away.
+        noise = Image.frombytes("RGB", (600, 600), random.Random(0).randbytes(1080000))
+        buffer = io.BytesIO()
+        noise.save(buffer, "PNG")
+        full = prepare_image(buffer.getvalue())
+        limit = len(full.data) // 3
+
+        # Act
+        image = prepare_image(buffer.getvalue(), max_bytes=limit)
+
+        # Assert
+        self.assertLessEqual(len(image.data), limit)
+        self.assertLess(image.width, full.width)
+        self.assertEqual(image.width, image.height)
+        with self.assertRaises(UnreadableFileError) as raised:
+            prepare_image(buffer.getvalue(), max_bytes=100)
+        self.assertIn("too detailed", str(raised.exception))
+
+    def test_only_a_jpeg_may_hold_more_pixels_than_are_decoded(self):
+        # Arrange: 81 megapixels; a JPEG decodes at a fraction of its size.
+        png = image_bytes((9000, 9000), 0, mode="1")
+        jpeg = image_bytes((9000, 9000), 128, mode="L", image_format="JPEG")
+
+        # Act
+        image = prepare_image(jpeg)
+        with self.assertRaises(UnreadableFileError) as raised:
+            prepare_image(png)
+
+        # Assert
+        self.assertEqual((image.width, image.height), (2000, 2000))
+        self.assertIn("too large to read", str(raised.exception))
 
 
 class DocxExtractionTests(TestCase):

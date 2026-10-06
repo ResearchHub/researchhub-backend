@@ -1,7 +1,8 @@
-"""PDF pages as images the model can look at, rendered on first need and stored.
+"""PDF pages and uploaded images as images the model can look at.
 
-A page's render lives at one key beside its file's original, so every key a
-file can have follows from its ``page_count`` and nothing lists the bucket.
+Each is rendered on first need and stored at one key beside its file's
+original; an uploaded image is its file's page 1. Every key a file can have
+follows from its type and ``page_count``, so nothing lists the bucket.
 """
 
 import logging
@@ -17,7 +18,11 @@ from django.conf import settings
 from research_ai.models import AgentFile
 from research_ai.services.agent.types import ImageBlock
 from research_ai.services.agent_files.config import AgentFileConfig
-from research_ai.services.agent_files.extraction import PDF, render_pdf_page
+from research_ai.services.agent_files.extraction import (
+    is_image_type,
+    prepare_image,
+    render_pdf_page,
+)
 from researchhub.services.private_storage_service import PrivateStorageService
 
 logger = logging.getLogger(__name__)
@@ -43,8 +48,9 @@ class PageRenderConfig:
     # Longest side; Claude rejects more once a request carries over 20 images.
     max_edge_px: int = 2000
 
-    # A page is scaled down until it fits; bounds what a message's pages add
-    # to a request, which takes 10 MB of images on Bedrock and OpenRouter.
+    # A page or uploaded image is scaled down until it fits; bounds what a
+    # message's images add to a request, which takes 10 MB of them on Bedrock
+    # and OpenRouter.
     max_bytes: int = 500 * 1024
 
     # Pages rendered at once, each in its own child process.
@@ -73,7 +79,9 @@ class RenderedPages:
 
 
 def page_image_count(file: AgentFile) -> int:
-    """How many of the file's pages can be shown as images; only PDFs have any."""
+    """How many images the file can be shown as: a PDF's pages, an image's one."""
+    if is_image_type(file.content_type):
+        return 1
     return min(file.page_count or 0, MAX_PAGE)
 
 
@@ -87,10 +95,11 @@ def page_image_keys(file: AgentFile) -> list[str]:
 
 
 class PageImageService:
-    """Images of a READY PDF's pages, rendered and stored on first need.
+    """Images of a READY PDF's pages or uploaded image, stored on first need.
 
     Only for a file sent in a live chat: a purge deletes any other with its
-    page images. ``storage``, the configs and ``render`` are injectable for tests.
+    page images. ``storage``, the configs, ``render`` and ``prepare`` are
+    injectable for tests.
     """
 
     def __init__(
@@ -100,11 +109,13 @@ class PageImageService:
         config: PageRenderConfig | None = None,
         file_config: AgentFileConfig | None = None,
         render: Callable = render_pdf_page,
+        prepare: Callable = prepare_image,
     ):
         self.storage = PrivateStorageService() if storage is None else storage
         self._config = config
         self._file_config = file_config
         self._render = render
+        self._prepare = prepare
 
     @property
     def config(self) -> PageRenderConfig:
@@ -113,16 +124,17 @@ class PageImageService:
     def images(self, file: AgentFile, pages: Sequence[int]) -> RenderedPages:
         """Images of ``pages`` (1-based), without those that cannot be rendered.
 
-        Raises ``ValueError`` unless ``file`` is a READY PDF that has every page.
+        Raises ``ValueError`` unless ``file`` is a READY PDF or image that has
+        every page.
         """
         last = page_image_count(file)
-        ready = file.status == AgentFile.Status.READY
-        if not ready or file.content_type != PDF.content_type or not last:
-            raise ValueError("page images need a READY PDF")
+        if file.status != AgentFile.Status.READY or not last:
+            raise ValueError("page images need a READY PDF or image")
         if not all(isinstance(page, int) and 1 <= page <= last for page in pages):
             raise ValueError(f"pages must be between 1 and {last}")
         # Worker threads get plain values, never the model instance.
         keys = {page: page_image_key(file, page) for page in pages}
+        uploaded_image = is_image_type(file.content_type)
         if not _kept(file):
             # A purge may be deleting the file's keys; a page stored now would stay.
             logger.warning("agent file %s is not in a live chat", file.id)
@@ -135,7 +147,9 @@ class PageImageService:
             missing = {page: key for page, key in keys.items() if page not in stored}
             data = self._original(executor, file, deadline) if missing else None
             if data is not None:
-                store = partial(self._render_and_store, data, config, deadline)
+                store = partial(
+                    self._render_and_store, data, uploaded_image, config, deadline
+                )
                 stored |= _run(executor, store, missing, deadline)
         finally:
             # A page still rendering at the deadline is left behind, not waited for.
@@ -148,7 +162,11 @@ class PageImageService:
                 ImageBlock(
                     ref=key,
                     media_type=_MEDIA_TYPE,
-                    label=f"{file.filename}, page {page}",
+                    label=(
+                        file.filename
+                        if uploaded_image
+                        else f"{file.filename}, page {page}"
+                    ),
                 )
                 for page, key in keys.items()
                 if page in stored
@@ -167,7 +185,7 @@ class PageImageService:
     def _original(
         self, executor: ThreadPoolExecutor, file: AgentFile, deadline: float
     ) -> bytes | None:
-        """The PDF the file's text was read from; ``None`` unless read in time."""
+        """The object the file's text was read from; ``None`` unless read in time."""
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             logger.warning("no time left to read agent file %s", file.id)
@@ -189,6 +207,7 @@ class PageImageService:
     def _render_and_store(
         self,
         data: bytes,
+        uploaded_image: bool,
         config: PageRenderConfig,
         deadline: float,
         page: int,
@@ -198,15 +217,23 @@ class PageImageService:
         if remaining <= 0:
             return False
         try:
-            image = self._render(
-                data,
-                page,
-                dpi=config.dpi,
-                max_edge_px=config.max_edge_px,
-                image_format=_IMAGE_FORMAT,
-                max_bytes=config.max_bytes,
-                timeout_seconds=remaining,
-            )
+            if uploaded_image:
+                image = self._prepare(
+                    data,
+                    max_edge_px=config.max_edge_px,
+                    max_bytes=config.max_bytes,
+                    timeout_seconds=remaining,
+                )
+            else:
+                image = self._render(
+                    data,
+                    page,
+                    dpi=config.dpi,
+                    max_edge_px=config.max_edge_px,
+                    image_format=_IMAGE_FORMAT,
+                    max_bytes=config.max_bytes,
+                    timeout_seconds=remaining,
+                )
             self.storage.write(key, image.data, content_type=_MEDIA_TYPE)
         except Exception:  # one bad page must not fail the caller
             logger.warning("could not store page image %s", key, exc_info=True)

@@ -5,7 +5,7 @@ from utils.models import DefaultModel
 
 
 class AgentFile(DefaultModel):
-    """A document a user uploaded to the private bucket for Research AI chats.
+    """A document or image a user uploaded to the private bucket for Research AI chats.
 
     Created unattached when the upload starts; sending a chat message with it
     attaches it to that message. Rows are hard-deleted along with their object:

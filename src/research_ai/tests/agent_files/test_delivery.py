@@ -64,15 +64,17 @@ class PlanDeliveryTests(SimpleTestCase):
 
     def test_a_model_without_vision_gets_text_only(self):
         # Act
-        short, long = _plan(
+        short, long, image = _plan(
             Document(text_chars=200, page_count=3),
             Document(text_chars=9_000, page_count=30),
+            Document(text_chars=0, image=True),
             vision=False,
         )
 
         # Assert
         self.assertEqual(short, Delivery(TextDelivery.INLINE, PageImages.NONE))
         self.assertEqual(long, Delivery(TextDelivery.TOOLS, PageImages.NONE))
+        self.assertEqual(image, Delivery(TextDelivery.INLINE, PageImages.NONE))
 
     def test_files_in_one_message_share_the_inline_budget(self):
         # Act: 900 + 500 fit the 1,500 budget; the next 500 does not.
@@ -163,6 +165,40 @@ class PlanDeliveryTests(SimpleTestCase):
         self.assertEqual(
             [delivery.page_images for delivery in deliveries],
             [PageImages.NO_ROOM, PageImages.ATTACHED, PageImages.NO_ROOM],
+        )
+
+    def test_an_uploaded_image_is_attached_past_the_attached_share(self):
+        # Arrange: attached pages have used their 12; the conversation has 3 left.
+        used = ConversationUsage(attached_page_images=12)
+
+        # Act
+        page, image = _plan(
+            Document(text_chars=100, page_count=1),
+            Document(text_chars=0, image=True),
+            used=used,
+        )
+
+        # Assert
+        self.assertEqual(page.page_images, PageImages.ON_REQUEST)
+        self.assertEqual(image, Delivery(TextDelivery.INLINE, PageImages.ATTACHED))
+
+    def test_uploaded_images_stop_at_what_the_message_and_conversation_take(self):
+        # Arrange
+        image = Document(text_chars=0, image=True)
+        last_one = ConversationUsage(requested_page_images=14)
+
+        # Act: a message takes 12, of which the PDF's pages are 10.
+        in_message = _plan(Document(text_chars=100, page_count=10), image, image, image)
+        in_conversation = _plan(image, image, used=last_one)
+
+        # Assert
+        self.assertEqual(
+            [delivery.page_images for delivery in in_message[1:]],
+            [PageImages.ATTACHED, PageImages.ATTACHED, PageImages.ON_REQUEST],
+        )
+        self.assertEqual(
+            [delivery.page_images for delivery in in_conversation],
+            [PageImages.ATTACHED, PageImages.NO_ROOM],
         )
 
     def test_a_conversation_over_its_budgets_gets_tools_and_no_pages(self):

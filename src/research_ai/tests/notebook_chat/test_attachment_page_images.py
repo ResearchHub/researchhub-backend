@@ -40,7 +40,12 @@ from research_ai.tests.agent.persistence_test_helpers import (
     text_turn,
     tool_turn,
 )
-from research_ai.tests.agent_files.helpers import FakeBucket, FakeRender, make_file
+from research_ai.tests.agent_files.helpers import (
+    FakeBucket,
+    FakeRender,
+    image_bytes,
+    make_file,
+)
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -89,6 +94,12 @@ def _page(file, page) -> ImageBlock:
     )
 
 
+def _shown(file) -> ImageBlock:
+    """An uploaded image as a model is shown it."""
+    prefix = file.storage_key.rsplit("/", 1)[0]
+    return ImageBlock(f"{prefix}/pages/1.jpg", "image/jpeg", file.filename)
+
+
 def _images(messages) -> list[ImageBlock]:
     """Every image a request carries, sent with a message or in a tool result."""
     images = []
@@ -119,6 +130,18 @@ class BucketTestCase(AWSMockTestCase):
         )
         # The fake renderer never parses the original.
         file.etag = self.bucket.put(file.storage_key, b"%PDF-1.7", "application/pdf")
+        file.save(update_fields=["etag"])
+        return file
+
+    def _image(self, *, message=None, filename="gel.png", text="") -> AgentFile:
+        file = make_file(
+            self.user,
+            message=message,
+            filename=filename,
+            content_type="image/png",
+            text=text,
+        )
+        file.etag = self.bucket.put(file.storage_key, image_bytes(), "image/png")
         file.save(update_fields=["etag"])
         return file
 
@@ -197,6 +220,21 @@ class ViewAttachmentPagesTests(BucketTestCase):
         self.assertIn("is not a PDF", output.content["error"])
         self.assertIn(READ_ATTACHMENT, output.content["error"])
         self.assertEqual(output.images, ())
+
+    def test_an_uploaded_image_is_viewed_as_page_1(self):
+        # Arrange
+        gel = self._image(message=self.message)
+
+        # Act
+        shown = self._view(gel.id, [1])
+        refused = self._view(gel.id, [2])
+
+        # Assert
+        self.assertEqual(shown.images, (_shown(gel),))
+        self.assertEqual(
+            refused.content["error"],
+            f"attachment {gel.id} is an image; view it as page 1",
+        )
 
     def test_a_page_the_file_does_not_have_is_refused(self):
         for pages in ([0], [4], [1, 4]):
@@ -361,7 +399,7 @@ class ViewAttachmentPagesTests(BucketTestCase):
             flat = " ".join(text.split())
             self.assertIn(PLACEHOLDER, flat)
             self.assertIn("no room left for images", flat)
-            self.assertIn("rather than asking for the page again", flat)
+            self.assertIn("say so rather than asking for", flat)
 
     def test_activity_names_the_file_whose_pages_were_viewed(self):
         # Arrange
@@ -500,6 +538,51 @@ class NotebookChatPageImageTests(ChatTurnTestCase):
         )
         self.assertEqual(sorted(self.render.pages), [1, 1, 2])
 
+    def test_an_uploaded_image_is_sent_with_the_message(self):
+        # Arrange
+        gel = self._image()
+        table = self._image(filename="table.png", text="Budget: $50,000")
+        execution = self._submit_to_vision_model(
+            "What do these show?", file_ids=[gel.id, table.id]
+        )
+
+        # Act
+        provider = self._finish(execution, text_turn("A gel and a budget."))
+
+        # Assert: only the image OCR read anything in has text to give.
+        message = provider.calls[0][-1]
+        self.assertEqual(message.content[:-1], [_shown(gel), _shown(table)])
+        self.assertEqual(
+            self._manifest(message),
+            [
+                "the image is shown with this message",
+                "full text below; the image is shown with this message",
+            ],
+        )
+        prompt = message.content[-1].text
+        self.assertIn('"gel.png" (PNG image, no text was read in it)', prompt)
+        self.assertIn(
+            '"table.png" (PNG image, 15 characters read in it by OCR)', prompt
+        )
+        self.assertIn(f'id="{table.id}">\nBudget: $50,000\n', prompt)
+        self.assertNotIn(f'id="{gel.id}"', prompt)
+
+    def test_a_text_only_model_is_told_it_cannot_see_an_uploaded_image(self):
+        # Arrange: the default tier's model takes no images.
+        gel = self._image()
+        execution = self._submit("What does this show?", file_ids=[gel.id])
+
+        # Act
+        provider = self._finish(execution, text_turn("I cannot view it."))
+
+        # Assert
+        message = provider.calls[0][-1]
+        self.assertEqual([type(block) for block in message.content], [TextBlock])
+        self.assertEqual(
+            self._manifest(message), ["the image itself cannot be shown to you"]
+        )
+        self.mock_aws_client.get_object.assert_not_called()
+
     def test_a_second_turn_replays_the_first_turns_images_from_its_context(self):
         # Arrange
         grant = self._pdf(2)
@@ -565,7 +648,10 @@ class NotebookChatPageImageTests(ChatTurnTestCase):
     def test_a_storage_outage_does_not_fail_the_turn(self):
         # Arrange
         grant = self._pdf(2)
-        execution = self._submit_to_vision_model("Describe it", file_ids=[grant.id])
+        gel = self._image()
+        execution = self._submit_to_vision_model(
+            "Describe them", file_ids=[grant.id, gel.id]
+        )
         for call in ("head_object", "get_object", "put_object"):
             getattr(self.mock_aws_client, call).side_effect = RuntimeError("s3 down")
 
@@ -577,7 +663,10 @@ class NotebookChatPageImageTests(ChatTurnTestCase):
         self.assertEqual([type(block) for block in message.content], [TextBlock])
         self.assertEqual(
             self._manifest(message),
-            ["full text below; its pages could not be shown as images"],
+            [
+                "full text below; its pages could not be shown as images",
+                "the image could not be shown",
+            ],
         )
         self.assertIn(PDF_TEXT, message.content[-1].text)
 

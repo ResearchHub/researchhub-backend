@@ -23,6 +23,7 @@ from research_ai.services.agent_persistence import AgentConversationService
 from research_ai.tests.agent_files.helpers import (
     FakeBucket,
     FakeRender,
+    image_bytes,
     make_file,
     pdf_bytes,
 )
@@ -87,6 +88,20 @@ class PageImageServiceTests(AWSMockTestCase):
         file.save(update_fields=["etag"])
         return file
 
+    def _image(self) -> AgentFile:
+        """A READY image sent in the chat, its original in the bucket."""
+        file = make_file(
+            self.user,
+            message=self.message,
+            filename="gel.png",
+            content_type="image/png",
+            text="",
+        )
+        data = image_bytes((400, 200))
+        file.etag = self.bucket.put(file.storage_key, data, "image/png")
+        file.save(update_fields=["etag"])
+        return file
+
     def _prefix(self, file) -> str:
         return file.storage_key.rsplit("/", 1)[0]
 
@@ -115,6 +130,23 @@ class PageImageServiceTests(AWSMockTestCase):
                 self.assertEqual(stored.format, "JPEG")
                 # An A4 page at 72 DPI.
                 self.assertEqual(stored.size, (595, 842))
+
+    def test_an_uploaded_image_is_shown_as_its_files_one_page(self):
+        # Arrange
+        file = self._image()
+        service = PageImageService(config=PageRenderConfig(max_edge_px=100))
+
+        # Act
+        result = service.images(file, [1])
+
+        # Assert: named by its file alone, and scaled as a page is.
+        ref = f"{self._prefix(file)}/pages/1.jpg"
+        self.assertEqual(result.images, (ImageBlock(ref, "image/jpeg", "gel.png"),))
+        self.assertEqual(page_image_keys(file), [ref])
+        with Image.open(io.BytesIO(self.bucket.objects[ref])) as stored:
+            self.assertEqual((stored.format, stored.size), ("JPEG", (100, 50)))
+        with self.assertRaises(ValueError):
+            service.images(file, [2])
 
     def test_a_stored_page_is_reused_not_rendered_again(self):
         # Arrange
@@ -385,7 +417,10 @@ class PageImageServiceTests(AWSMockTestCase):
     def test_purge_deletes_page_images_without_listing_the_bucket(self):
         # Arrange
         file = self._pdf("Aims", "Approach")
-        PageImageService(render=FakeRender()).images(file, [1, 2])
+        image = self._image()
+        service = PageImageService(render=FakeRender())
+        service.images(file, [1, 2])
+        service.images(image, [1])
         AgentConversation.objects.filter(id=self.conversation.id).update(
             is_removed=True
         )
@@ -394,8 +429,8 @@ class PageImageServiceTests(AWSMockTestCase):
         purged = AgentFileService().purge()
 
         # Assert
-        self.assertEqual(purged, 1)
+        self.assertEqual(purged, 2)
         self.assertEqual(self.bucket.objects, {})
-        self.assertFalse(AgentFile.objects.filter(id=file.id).exists())
+        self.assertFalse(AgentFile.objects.filter(id__in=[file.id, image.id]).exists())
         self.mock_aws_client.list_objects_v2.assert_not_called()
         self.mock_aws_client.get_paginator.assert_not_called()

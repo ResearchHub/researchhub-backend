@@ -1,4 +1,4 @@
-"""Text extraction with an OCR fallback for PDF pages whose text is in an image."""
+"""Text extraction, with OCR for uploaded images and PDF pages that are scans."""
 
 import logging
 import time
@@ -10,11 +10,14 @@ from functools import partial
 from django.conf import settings
 
 from research_ai.services.agent_files.extraction import (
+    IMAGE_OCR_NOTE,
     PDF,
     ExtractedText,
     FileKind,
+    PageImage,
     UnreadableFileError,
     extract_text,
+    prepare_image,
     render_pdf_page,
 )
 from research_ai.services.agent_files.ocr import OcrError, PageOcr
@@ -59,9 +62,10 @@ class OcrConfig:
 
 
 class TextExtractionService:
-    """Extracts a file's text, reading by OCR the PDF pages that are scans.
+    """Extracts a file's text, reading by OCR images and the PDF pages that are scans.
 
-    ``ocr`` is the engine; without one those pages are only marked.
+    ``ocr`` is the engine; without one those pages are only marked and an
+    image has no text.
     """
 
     def __init__(self, *, ocr: PageOcr | None = None, config: OcrConfig | None = None):
@@ -74,6 +78,8 @@ class TextExtractionService:
 
     def extract(self, data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedText:
         """Text of the file, cut at ``max_chars``. Raises ``UnreadableFileError``."""
+        if kind.is_image:
+            return self._image_text(data, max_chars)
         ocr = self.ocr is not None and kind == PDF
         return extract_text(
             data,
@@ -81,6 +87,34 @@ class TextExtractionService:
             max_chars=max_chars,
             recover_pages=partial(self._ocr_pages, data) if ocr else None,
         )
+
+    def _image_text(self, data: bytes, max_chars: int) -> ExtractedText:
+        """What OCR reads in an image; no text is fine, the image itself is shown."""
+        config = self.config
+        # Decoding is also what refuses a file that is not an image.
+        image = prepare_image(data, max_edge_px=config.max_edge_px)
+        text = ""
+        if self.ocr is not None:
+            text = self._read_image(image, config.max_seconds)
+        # Postgres text columns cannot hold NUL.
+        text = text.replace("\x00", "").strip()
+        if text:
+            text = f"{IMAGE_OCR_NOTE}\n{text}"
+        return ExtractedText(
+            text=text[:max_chars], page_count=None, truncated=len(text) > max_chars
+        )
+
+    def _read_image(self, image: PageImage, max_seconds: float) -> str:
+        """The image's text; empty when the engine fails or outlasts its time."""
+        executor = ThreadPoolExecutor(max_workers=1)
+        try:
+            return executor.submit(self.ocr.read_page, image).result(max_seconds)
+        except (OcrError, TimeoutError):
+            logger.warning("OCR failed on an image", exc_info=True)
+            return ""
+        finally:
+            # A read still running at the deadline is left behind, not waited for.
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def _ocr_pages(self, data: bytes, pages: Sequence[int]) -> dict[int, str]:
         config = self.config
