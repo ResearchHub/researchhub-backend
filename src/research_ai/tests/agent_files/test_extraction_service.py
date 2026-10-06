@@ -303,9 +303,12 @@ class UploadedImageTextTests(TestCase):
                 self.assertLess(elapsed, 15)
 
     def test_a_file_that_is_not_an_image_is_refused_without_an_engine(self):
+        # Arrange
+        service = TextExtractionService()
+
         # Act / Assert
         with self.assertRaises(UnreadableFileError):
-            TextExtractionService().extract(b"Aims", PNG, max_chars=MAX_CHARS)
+            service.extract(b"Aims", PNG, max_chars=MAX_CHARS)
 
 
 class FullyScannedPdfTests(TestCase):

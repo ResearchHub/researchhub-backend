@@ -52,6 +52,11 @@ class Document:
     # An image the user uploaded, shown as it is: one image.
     image: bool = False
 
+    @property
+    def images(self) -> int:
+        """How many images the file can be shown as."""
+        return 1 if self.image else self.page_count or 0
+
 
 @dataclass(frozen=True)
 class Delivery:
@@ -122,6 +127,30 @@ class DeliveryConfig:
         )
 
 
+@dataclass
+class _ImageRoom:
+    """The images one message's files may still attach."""
+
+    message: int
+    # What is left of the conversation's attached share, and of its total.
+    attached: int
+    conversation: int
+
+    def claim(self, document: Document, max_pages: int) -> PageImages:
+        """``ATTACHED``, taking the room, if the file's images fit; else on request."""
+        room = min(self.message, self.conversation)
+        # The attached share keeps room for what is asked for later; the user
+        # asks for an image to be seen by sending it.
+        if not document.image:
+            room = min(room, self.attached, max_pages)
+        if document.images > room:
+            return PageImages.ON_REQUEST
+        self.message -= document.images
+        self.attached -= document.images
+        self.conversation -= document.images
+        return PageImages.ATTACHED
+
+
 def plan_delivery(
     documents: Sequence[Document],
     *,
@@ -140,10 +169,12 @@ def plan_delivery(
         config.inline_max_chars_per_message,
         config.inline_max_chars_per_conversation - used.inline_chars,
     )
-    images_left = config.page_images_left(used)
-    message_left = config.page_images_max_per_message
-    attached_left = (
-        config.page_images_max_attached_per_conversation - used.attached_page_images
+    image_room = _ImageRoom(
+        message=config.page_images_max_per_message,
+        attached=(
+            config.page_images_max_attached_per_conversation - used.attached_page_images
+        ),
+        conversation=config.page_images_left(used),
     )
     planned = []
     for document in documents:
@@ -152,23 +183,14 @@ def plan_delivery(
             text = TextDelivery.INLINE
             inline_room -= document.text_chars
         page_images = PageImages.NONE
-        pages = 1 if document.image else document.page_count or 0
-        if vision and pages:
-            page_images = PageImages.ON_REQUEST
-            room = min(message_left, images_left)
-            # The attached share keeps room for what is asked for later; the
-            # user asks for an image to be seen by sending it.
-            if not document.image:
-                room = min(room, attached_left, config.page_images_max_pages)
-            if pages <= room:
-                page_images = PageImages.ATTACHED
-                message_left -= pages
-                attached_left -= pages
-                images_left -= pages
+        if vision and document.images:
+            page_images = image_room.claim(document, config.page_images_max_pages)
         planned.append((text, page_images))
     # A file past what is attached is on request while the conversation has
     # room, counting what is attached here.
-    on_request = PageImages.ON_REQUEST if images_left else PageImages.NO_ROOM
+    on_request = (
+        PageImages.ON_REQUEST if image_room.conversation else PageImages.NO_ROOM
+    )
     return [
         Delivery(
             text=text,

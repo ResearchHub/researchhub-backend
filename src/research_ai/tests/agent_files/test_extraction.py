@@ -715,18 +715,19 @@ class UploadedImageTests(TestCase):
         noise = Image.frombytes("RGB", (600, 600), random.Random(0).randbytes(1080000))
         buffer = io.BytesIO()
         noise.save(buffer, "PNG")
-        full = prepare_image(buffer.getvalue())
+        data = buffer.getvalue()
+        full = prepare_image(data)
         limit = len(full.data) // 3
 
         # Act
-        image = prepare_image(buffer.getvalue(), max_bytes=limit)
+        image = prepare_image(data, max_bytes=limit)
 
         # Assert
         self.assertLessEqual(len(image.data), limit)
         self.assertLess(image.width, full.width)
         self.assertEqual(image.width, image.height)
         with self.assertRaises(UnreadableFileError) as raised:
-            prepare_image(buffer.getvalue(), max_bytes=100)
+            prepare_image(data, max_bytes=100)
         self.assertIn("too detailed", str(raised.exception))
 
     def test_only_a_jpeg_may_hold_more_pixels_than_are_decoded(self):
