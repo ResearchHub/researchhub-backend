@@ -54,23 +54,6 @@ The expert resolved from the search. Built from the `resolved_expert` dict passe
 
 ---
 
-### `work`
-
-Linked search document when it is a paper (or other non-RFP / non-proposal work). Built from `generic_work_context_dict` in `document_context.py`.
-
-
-| Property | Description                                      |
-| -------- | ------------------------------------------------ |
-| `title`  | Paper / work title                               |
-| `blurb`  | Abstract or summary snippet                      |
-| `url`    | Frontend or source URL                           |
-| `kind`   | Kind label (e.g. `paper`, `generic`, `custom query`) |
-
-
-**Example:** `{{work.title}}`, `{{work.blurb}}`, `{{work.url}}`
-
----
-
 ### `rfp`
 
 Grant/RFP context. Built from `build_rfp_context(grant)` in `rfp_email_context.py`.
@@ -114,7 +97,7 @@ Proposal (preregistration post) context. Built from `build_proposal_context(post
 
 To add a new variable:
 
-1. Add the key to the appropriate tuple in `template_variables.py` (`USER_VARIABLES`, `RFP_VARIABLES`, `PROPOSAL_VARIABLES`, `EXPERT_VARIABLES`, or `WORK_VARIABLES`).
+1. Add the key to the appropriate tuple in `template_variables.py` (`USER_VARIABLES`, `RFP_VARIABLES`, `PROPOSAL_VARIABLES`, or `EXPERT_VARIABLES`).
 2. Update the corresponding `_build_*_context()` function to include the new field.
 3. Update this README.
 

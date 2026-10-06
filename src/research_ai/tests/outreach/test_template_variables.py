@@ -128,17 +128,10 @@ class BuildReplacementContextTests(TestCase):
             "expertise": "Bio",
             "notes": "Matched on CRISPR work",
         }
-        work_dict = {
-            "title": "Gene Editing Study",
-            "blurb": "Abstract snippet",
-            "url": "https://rh.com/paper/1",
-            "kind": "paper",
-        }
         ctx = build_replacement_context(
             user=user,
             rfp_context_dict=rfp_dict,
             resolved_expert=expert_dict,
-            work_context_dict=work_dict,
         )
         self.assertEqual(ctx["user"]["email"], "sender@x.com")
         self.assertEqual(ctx["user"]["full_name"], "Alice Smith")
@@ -148,19 +141,10 @@ class BuildReplacementContextTests(TestCase):
         self.assertEqual(ctx["expert"]["name"], "Bob")
         self.assertEqual(ctx["expert"]["affiliation"], "Yale")
         self.assertEqual(ctx["expert"]["notes"], "Matched on CRISPR work")
-        self.assertEqual(ctx["work"]["title"], "Gene Editing Study")
-        self.assertEqual(ctx["work"]["kind"], "paper")
 
-        text = (
-            "Hi {{expert.name}}, your paper {{work.title}} looked relevant "
-            "({{expert.notes}})."
-        )
+        text = "Hi {{expert.name}}, {{expert.notes}}."
         out = replace_template_variables(text, ctx)
-        self.assertEqual(
-            out,
-            "Hi Bob, your paper Gene Editing Study looked relevant "
-            "(Matched on CRISPR work).",
-        )
+        self.assertEqual(out, "Hi Bob, Matched on CRISPR work.")
 
     def test_none_inputs_yield_empty_entity_dicts(self):
         ctx = build_replacement_context(
@@ -174,7 +158,6 @@ class BuildReplacementContextTests(TestCase):
         self.assertEqual(ctx["proposal"]["title"], "")
         self.assertEqual(ctx["expert"]["name"], "")
         self.assertEqual(ctx["expert"]["notes"], "")
-        self.assertEqual(ctx["work"]["title"], "")
 
     def test_format_expert_name_first_and_last_token_only(self):
         self.assertEqual(

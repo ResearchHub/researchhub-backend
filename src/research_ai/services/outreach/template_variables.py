@@ -25,7 +25,6 @@ PROPOSAL_VARIABLES = (
     "blurb",
 )
 EXPERT_VARIABLES = ("name", "title", "affiliation", "email", "expertise", "notes")
-WORK_VARIABLES = ("title", "blurb", "url", "kind")
 
 
 def format_expert_name_from_raw(raw: str) -> str:
@@ -125,35 +124,21 @@ def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
     }
 
 
-def _build_work_context(work_context_dict: dict | None) -> dict[str, str]:
-    """Build work/paper entity from ``generic_work_context_dict``."""
-    if not work_context_dict:
-        return dict.fromkeys(WORK_VARIABLES, "")
-    return {
-        "title": (work_context_dict.get("title") or "").strip(),
-        "blurb": (work_context_dict.get("blurb") or "").strip(),
-        "url": (work_context_dict.get("url") or "").strip(),
-        "kind": (work_context_dict.get("kind") or "").strip(),
-    }
-
-
 def build_replacement_context(
     user=None,
     resolved_expert: dict | None = None,
     rfp_context_dict: dict | None = None,
     proposal_context_dict: dict | None = None,
-    work_context_dict: dict | None = None,
 ) -> dict[str, dict[str, str]]:
     """
     Build nested context for {{entity.field}} replacement.
-    Returns user/rfp/proposal/expert/work dicts.
+    Returns user/rfp/proposal/expert dicts.
     """
     return {
         "user": _build_user_context(user),
         "rfp": _build_rfp_context(rfp_context_dict),
         "proposal": _build_proposal_context(proposal_context_dict),
         "expert": _build_expert_context(resolved_expert),
-        "work": _build_work_context(work_context_dict),
     }
 
 

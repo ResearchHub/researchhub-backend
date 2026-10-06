@@ -78,6 +78,3 @@ HEALTH_CHECK_TOKEN = "PLACEHOLDER"
 
 ENDAOMENT_ACCOUNT_ID = ""
 RESEARCHHUB_JOURNAL_ID = ""
-
-# Killswitch: expert-finder Gmail outreach (override via env in staging/prod)
-EXPERT_FINDER_OUTREACH_ENABLED = False
