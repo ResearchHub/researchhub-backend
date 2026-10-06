@@ -547,19 +547,20 @@ class NotebookChatService:
         so it is known to belong to ``note``. ``note`` is ``None`` for a
         note-less assistant conversation, whose turn runs with ``create_note``
         against the notes attached to it. A chat still untitled takes its
-        name from this message. ``model_ref`` selects the model for the first
-        turn. Later turns reuse that model and effort; requesting a different
-        provider, model, or effort raises ``ValueError``. ``file_ids`` are the
-        user's READY uploads to attach; ``AgentFileError`` (a ``ValueError``)
-        rejects the whole message when one cannot be.
-        Raises ``ValueError`` on an empty or oversized message or a model not
-        in the selectable catalog, and lets ``AgentConversationBusyError``
-        propagate when a turn is already running on this conversation (the
-        API maps it to a 409). Budget admission may also serialize work across
-        the user's other chats.
+        name from this message: its text, or its files' names when it has
+        none. ``model_ref`` selects the model for the first turn. Later turns
+        reuse that model and effort; requesting a different provider, model,
+        or effort raises ``ValueError``. ``file_ids`` are the user's READY
+        uploads to attach; ``AgentFileError`` (a ``ValueError``) rejects the
+        whole message when one cannot be.
+        Raises ``ValueError`` on an oversized message, one with neither text
+        nor files, or a model not in the selectable catalog, and lets
+        ``AgentConversationBusyError`` propagate when a turn is already
+        running on this conversation (the API maps it to a 409). Budget
+        admission may also serialize work across the user's other chats.
         """
         text = (text or "").strip()
-        if not text:
+        if not text and not file_ids:
             raise ValueError("message must not be empty")
         config = self.config
         if len(text) > config.max_message_chars:
@@ -669,7 +670,7 @@ class NotebookChatService:
                     configuration=configuration,
                     system_prompt=self._system_prompt(note, locked_conversation),
                 )
-                self.files.attach(prepared.human_message, file_ids)
+                attached = self.files.attach(prepared.human_message, file_ids)
                 # Held until a worker claims the turn and takes over renewal.
                 prepared.execution.usage_reservation_expires_at = claim_deadline()
                 prepared.execution.save(
@@ -678,7 +679,9 @@ class NotebookChatService:
         execution = prepared.execution
         # After prepare_turn so a refused turn (busy, for instance) names
         # nothing; the filtered update keeps a concurrent rename authoritative.
-        self.conversations.set_title_if_blank(conversation, _derive_title(text))
+        # A message of files alone is named after them.
+        title = text or ", ".join(file.filename for file in attached)
+        self.conversations.set_title_if_blank(conversation, _derive_title(title))
         # Publish before scheduling: under autocommit both run immediately in
         # this order, keeping turn_queued ahead of anything the worker or a
         # synchronous broker refusal publishes.
@@ -939,9 +942,11 @@ class NotebookChatService:
         )
 
         prompt = trigger.content
-        preamble = attachment_preamble(attachments, unshown_pages=unshown_pages)
+        preamble = attachment_preamble(
+            attachments, unshown_pages=unshown_pages, files_only=not prompt
+        )
         if preamble:
-            prompt = f"{preamble}\n\n{prompt}"
+            prompt = f"{preamble}\n\n{prompt}" if prompt else preamble
         # The user may have edited a note between turns; the model's earlier
         # reads (and version ids) of it would otherwise look current.
         notice = note_toolset.changed_notes_notice(context)

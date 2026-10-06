@@ -1064,9 +1064,10 @@ class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
     selects the model for the first turn from the selectable catalog; the
     conversation keeps that model for all later turns. ``file_ids`` attach the
     user's processed uploads; the service enforces the per-message limit.
+    ``message`` may be blank only when ``file_ids`` names a file.
     """
 
-    message = serializers.CharField(max_length=20000)
+    message = serializers.CharField(max_length=20000, allow_blank=True)
     model = ModelSelectionField()
     file_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
@@ -1074,6 +1075,14 @@ class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
         default=list,
         max_length=50,
     )
+
+    def validate(self, attrs):
+        if not attrs["message"] and not attrs["file_ids"]:
+            # The field's own refusal, as before text became optional.
+            raise serializers.ValidationError(
+                {"message": self.fields["message"].error_messages["blank"]}
+            )
+        return attrs
 
 
 class AgentFileCreateSerializer(serializers.Serializer):
