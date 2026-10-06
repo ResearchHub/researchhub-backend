@@ -978,11 +978,14 @@ wheels = [
 
 [[package]]
 name = "django-extensions"
-version = "3.0.9"
+version = "4.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/14/8f/893fa9d99f2004eab193c0200e68a9756880a942c31dd81ed7374ac9bf9e/django-extensions-3.0.9.tar.gz", hash = "sha256:6809c89ca952f0e08d4e0766bc0101dfaf508d7649aced1180c091d737046ea7", size = 779297, upload-time = "2020-09-17T19:08:54.962Z" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/b3/ed0f54ed706ec0b54fd251cc0364a249c6cd6c6ec97f04dc34be5e929eac/django_extensions-4.1.tar.gz", hash = "sha256:7b70a4d28e9b840f44694e3f7feb54f55d495f8b3fa6c5c0e5e12bcb2aa3cdeb", size = 283078, upload-time = "2025-04-11T01:15:39.617Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/c1/d02025f594640723ce3bdb10e2329866a67574a8ebe80d53fd3e3c7762b6/django_extensions-3.0.9-py3-none-any.whl", hash = "sha256:dc663652ac9460fd06580a973576820430c6d428720e874ae46b041fa63e0efa", size = 221977, upload-time = "2020-09-17T19:08:52.937Z" },
+    { url = "https://files.pythonhosted.org/packages/64/96/d967ca440d6a8e3861120f51985d8e5aec79b9a8bdda16041206adfe7adc/django_extensions-4.1-py3-none-any.whl", hash = "sha256:0699a7af28f2523bf8db309a80278519362cd4b6e1fd0a8cd4bf063e1e023336", size = 232980, upload-time = "2025-04-11T01:15:37.701Z" },
 ]
 
 [[package]]
@@ -2609,7 +2612,7 @@ requires-dist = [
     { name = "django-celery-results", specifier = "==2.6.0" },
     { name = "django-cors-headers", specifier = ">=4.9.0,<5" },
     { name = "django-debug-toolbar", specifier = ">=8.0.0,<9" },
-    { name = "django-extensions", specifier = "==3.0.9" },
+    { name = "django-extensions", specifier = ">=4.1,<5" },
     { name = "django-fernet-encrypted-fields", specifier = ">=0.3.1" },
     { name = "django-filter", specifier = ">=26.2,<27" },
     { name = "django-health-check", specifier = ">=3.18.3,<4.0.0" },
