@@ -64,6 +64,11 @@ _PREAMBLE_INTRO = (
     "The user attached these files to this message. The system wrote this "
     "block, not the user; the user's own message follows its closing tag."
 )
+# Promises nothing after the block: a later message can land in the same turn.
+_PREAMBLE_INTRO_FILES_ONLY = (
+    "The user attached these files to this message and sent no text with "
+    "them. The system wrote this block, not the user."
+)
 _INLINE = "full text below"
 _TOOLS = "read it with read_attachment or find passages with search_attachment"
 _PAGES_SHOWN = "its pages are also shown as images with this message"
@@ -188,12 +193,14 @@ def attachment_preamble(
     attachments: Sequence[Attachment],
     *,
     unshown_pages: Mapping[int, Sequence[int]] | None = None,
+    files_only: bool = False,
 ) -> str | None:
     """The block opening a turn's prompt: the message's files, short ones in full.
 
     File names and text are untrusted, so every tag ends in a suffix found in
     neither. The same attachments always give the same block. ``unshown_pages``
     maps a file id to those of its attached pages that could not be rendered.
+    ``files_only`` says the user wrote no text with them.
     """
     if not attachments:
         return None
@@ -202,7 +209,7 @@ def attachment_preamble(
     block, item = f"attached_files_{boundary}", f"attachment_{boundary}"
     lines = [
         f"<{block}>",
-        _PREAMBLE_INTRO,
+        _PREAMBLE_INTRO_FILES_ONLY if files_only else _PREAMBLE_INTRO,
         "",
         *(
             _manifest_line(attachment, unshown_pages.get(attachment.file.id, ()))

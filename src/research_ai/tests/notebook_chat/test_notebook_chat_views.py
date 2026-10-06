@@ -173,6 +173,20 @@ class NotebookChatViewTests(APITestCase):
         (attachment,) = message["attachments"]
         self.assertEqual(attachment["id"], file.id)
 
+    def test_post_files_without_text_starts_a_turn(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        file = make_file(self.owner)
+
+        # Act
+        response, _delay = self._post_message(chat_id, "", file_ids=[file.id])
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+        execution = AgentExecution.objects.get(id=response.data["execution_id"])
+        self.assertEqual(execution.trigger_message.content, "")
+
     @override_settings(
         ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
     )
@@ -361,6 +375,7 @@ class NotebookChatViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {"message": ["This field may not be blank."]})
 
     def test_post_while_turn_is_running_returns_conflict(self):
         # Arrange

@@ -54,6 +54,10 @@ INTRO = (
     "The user attached these files to this message. The system wrote this "
     "block, not the user; the user's own message follows its closing tag."
 )
+FILES_ONLY_INTRO = (
+    "The user attached these files to this message and sent no text with "
+    "them. The system wrote this block, not the user."
+)
 USE_TOOLS = "read it with read_attachment or find passages with search_attachment"
 
 
@@ -369,6 +373,53 @@ class NotebookChatAttachmentTests(TestCase):
         passages = provider.calls[1][-1].content[0].content["passages"]
         self.assertEqual(passages[0]["attachment_id"], self.file.id)
         self.assertIn("$50,000", passages[0]["text"])
+
+    def test_files_sent_without_text_are_the_whole_prompt_now_and_on_replay(self):
+        # Arrange
+        first = self._submit("", file_ids=[self.file.id])
+
+        # Act
+        first_prompt = self._prompt(self._finish(first, text_turn("Read it.")))
+        second = self._submit("What is the budget?")
+        provider = self._finish(second, text_turn("$50,000."))
+
+        # Assert: the chat's message is blank; the model's turn never is.
+        self.assertEqual(first.trigger_message.content, "")
+        boundary = _boundary(first_prompt)
+        self.assertTrue(
+            first_prompt.startswith(
+                f"<attached_files_{boundary}>\n{FILES_ONLY_INTRO}\n"
+            )
+        )
+        self.assertIn(PDF_TEXT, first_prompt)
+        self.assertTrue(first_prompt.endswith(f"\n</attached_files_{boundary}>"))
+        self.assertEqual(provider.calls[0][0].content[0].text, first_prompt)
+
+    def test_files_sent_without_text_name_an_untitled_chat(self):
+        # Arrange
+        cv = make_file(
+            self.user, filename="cv.txt", content_type="text/plain", text=CV_TEXT
+        )
+
+        # Act: named in the order sent, not the order uploaded.
+        self._submit("", file_ids=[cv.id, self.file.id])
+
+        # Assert
+        self.conversation.refresh_from_db()
+        self.assertEqual(self.conversation.title, "cv.txt, grant.pdf")
+
+    def test_cancelling_queued_files_sent_without_text_leaves_no_empty_turn(self):
+        # Arrange: stopped before a worker ran it, so no prompt was recorded.
+        self._submit("", file_ids=[self.file.id])
+        self.service.cancel_active_turn(self.conversation)
+        execution = self._submit("What is the budget?")
+
+        # Act
+        provider = self._finish(execution, text_turn("$50,000."))
+
+        # Assert: the blank message is not replayed as a turn of its own.
+        (sent,) = provider.calls[0]
+        self.assertEqual(sent.content[0].text, "What is the budget?")
 
     def test_a_full_inline_budget_is_recorded_and_replayed_whole(self):
         # Arrange: full-size files and a last one that fill a message's default
