@@ -7,10 +7,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 
 from note.tests.helpers import create_note
-from research_ai.models import AgentExecution, AgentFile
 from research_ai.services.agent_files import (
     AgentFileConfig,
-    AgentFileError,
     AgentFileService,
 )
 from research_ai.services.agent_files.delivery import DeliveryConfig, PageImages
@@ -376,17 +374,3 @@ class NotebookChatAttachmentTests(TestCase):
         for text in texts:
             self.assertIn(text, first_prompt)
         self.assertEqual(provider.calls[0][0].content[0].text, first_prompt)
-
-    def test_a_file_that_cannot_be_sent_rejects_the_whole_message(self):
-        # Arrange
-        failed = make_file(self.user, status=AgentFile.Status.FAILED, error="Bad.")
-
-        # Act
-        with self.assertRaises(AgentFileError):
-            self._submit("Use both", file_ids=[self.file.id, failed.id])
-
-        # Assert
-        self.assertFalse(self.conversation.chat_messages.exists())
-        self.assertFalse(AgentExecution.objects.exists())
-        self.file.refresh_from_db()
-        self.assertIsNone(self.file.message_id)

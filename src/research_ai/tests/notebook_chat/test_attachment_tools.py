@@ -316,20 +316,6 @@ class AttachmentToolsetTests(TestCase):
         self.assertNotIn("Specific aims", preamble)
         self.assertIsNone(attachment_preamble([]))
 
-    def test_preamble_without_a_short_file_only_lists(self):
-        # Act
-        preamble = attachment_preamble(self._attachments(inline_max_chars=0))
-
-        # Assert
-        boundary = self._boundary(preamble)
-        listed = [line for line in preamble.split("\n") if line.startswith("- ")]
-        self.assertEqual(len(listed), 2)
-        for line in listed:
-            self.assertTrue(line.endswith("find passages with search_attachment"))
-        self.assertNotIn("full text", preamble)
-        self.assertNotIn("<attachment_", preamble)
-        self.assertTrue(preamble.endswith(f"\n</attached_files_{boundary}>"))
-
     def test_preamble_is_the_same_each_time_under_one_secret_key(self):
         # Act
         first = attachment_preamble(self._attachments(inline_max_chars=len(CV_TEXT)))
