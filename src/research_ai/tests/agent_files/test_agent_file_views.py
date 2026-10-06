@@ -300,7 +300,7 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
     def test_a_message_carries_its_files_into_the_chat(self):
         # Arrange
         chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
-        file = make_file(self.owner, page_count=12)
+        file = make_file(self.owner, page_count=12, pages_without_text=5)
 
         # Act
         sent = self._send(chat_id, file_ids=[file.id])
@@ -313,6 +313,7 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
         self.assertEqual(attachment["id"], file.id)
         self.assertEqual(attachment["filename"], "grant.pdf")
         self.assertEqual(attachment["page_count"], 12)
+        self.assertEqual(attachment["pages_without_text"], 5)
         self.assertEqual(attachment["message_id"], message["id"])
 
     def test_a_message_with_an_unready_file_is_refused_whole(self):

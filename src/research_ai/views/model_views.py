@@ -84,6 +84,8 @@ class AvailableModelsView(APIView):
                         "description": option.description,
                         "provider": option.provider,
                         "capabilities": capabilities(option),
+                        # Whether the model accepts images; not a control to set.
+                        "vision": option.capabilities.vision,
                         "allowed": allowed(option),
                         "credit_rates": model_credit_rates(option.ref),
                         "multiplier": (

@@ -18,12 +18,18 @@ from research_ai.services.agent_files.delivery import (
     DeliveryConfig,
     TextDelivery,
 )
-from research_ai.services.agent_files.extraction import NO_TEXT_LAYER, OCR_NOTE
+from research_ai.services.agent_files.extraction import (
+    DOCX,
+    NO_TEXT_LAYER,
+    OCR_NOTE,
+)
 from research_ai.services.agent_files.mistral_ocr import API_URL as MISTRAL_OCR_URL
 from research_ai.services.agent_persistence import AgentConversationService
 from research_ai.tests.agent_files.helpers import (
     SCAN,
+    docx_bytes,
     make_file,
+    paragraph,
     pdf_bytes,
     pdf_with_scans,
 )
@@ -283,6 +289,7 @@ class AgentFileServiceTests(TestCase):
         self.assertEqual(
             file.text, f"[Page 1]\nSpecific aims\n\n[Page 2]\n{OCR_NOTE}\nBudget"
         )
+        self.assertEqual(file.pages_without_text, 0)
         self.assertEqual(len(responses.calls), 1)
 
     @override_settings(MISTRAL_API_KEY="")
@@ -301,6 +308,7 @@ class AgentFileServiceTests(TestCase):
         self.assertEqual(
             file.text, f"[Page 1]\nSpecific aims\n\n[Page 2]\n{NO_TEXT_LAYER}"
         )
+        self.assertEqual(file.pages_without_text, 1)
         self.assertEqual(len(responses.calls), 0)
 
     @override_settings(MISTRAL_API_KEY="")
@@ -319,6 +327,7 @@ class AgentFileServiceTests(TestCase):
             file.text, f"[Page 1]\n{NO_TEXT_LAYER}\n\n[Page 2]\n{NO_TEXT_LAYER}"
         )
         self.assertEqual(file.page_count, 2)
+        self.assertEqual(file.pages_without_text, 2)
         self.assertEqual(file.error, "")
         self.storage.delete.assert_not_called()
 
@@ -343,6 +352,27 @@ class AgentFileServiceTests(TestCase):
             file.text, f"[Page 1]\n{NO_TEXT_LAYER}\n\n[Page 2]\n{NO_TEXT_LAYER}"
         )
         self.assertEqual(len(responses.calls), 2)
+
+    def test_process_counts_no_pages_for_a_word_file(self):
+        # Arrange
+        file = make_file(
+            self.user,
+            status=AgentFile.Status.PROCESSING,
+            filename="aims.docx",
+            content_type=DOCX.content_type,
+            text="",
+        )
+        self.storage.read.return_value = docx_bytes(paragraph("Specific aims"))
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        file.refresh_from_db()
+        self.assertEqual(status, AgentFile.Status.READY)
+        self.assertEqual(file.text, "Specific aims")
+        self.assertIsNone(file.page_count)
+        self.assertIsNone(file.pages_without_text)
 
     def test_process_fails_generically_when_storage_breaks(self):
         # Arrange
