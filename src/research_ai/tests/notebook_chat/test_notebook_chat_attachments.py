@@ -371,17 +371,18 @@ class NotebookChatAttachmentTests(TestCase):
         self.assertIn("$50,000", passages[0]["text"])
 
     def test_a_full_inline_budget_is_recorded_and_replayed_whole(self):
-        # Arrange: as many full-size files as the default budget takes inline.
+        # Arrange: full-size files and a last one that fill a message's default
+        # inline budget.
         config = DeliveryConfig.from_settings()
-        count = min(
-            config.inline_max_chars_per_message // config.inline_max_chars,
-            AgentFileConfig.from_settings().max_files_per_message,
+        full, rest = divmod(
+            config.inline_max_chars_per_message, config.inline_max_chars
         )
+        sizes = [config.inline_max_chars] * full + [rest] * bool(rest)
+        sizes = sizes[: AgentFileConfig.from_settings().max_files_per_message]
         texts = []
-        for index in range(count):
+        for index, size in enumerate(sizes):
             unit = f"Abschnitt {index}: Größe, 研究, “quoted”.\n"
-            repeats = config.inline_max_chars // len(unit) + 1
-            texts.append((unit * repeats)[: config.inline_max_chars])
+            texts.append((unit * (size // len(unit) + 1))[:size])
         files = [
             make_file(
                 self.user,

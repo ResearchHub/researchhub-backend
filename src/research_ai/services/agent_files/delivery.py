@@ -73,12 +73,15 @@ class ConversationUsage:
 
 @dataclass(frozen=True)
 class DeliveryConfig:
-    # About 15K tokens, what two or three read calls would pull anyway; longer
-    # files are read through tools.
-    inline_max_chars: int = 60_000
+    # Token figures here run from 4 characters a token to Claude's 3.1.
 
-    # Inline text across one message's files; the rest fall back to tools.
-    inline_max_chars_per_message: int = 120_000
+    # Holds a 12-15 page proposal narrative (53-87K characters), which costs
+    # more read through tools: the same history plus three calls. 25-32K tokens.
+    inline_max_chars: int = 100_000
+
+    # Inline text across one message's files, 38-48K tokens; the rest fall back
+    # to tools.
+    inline_max_chars_per_message: int = 150_000
 
     # A letter page costs about 2,700 tokens at 150 DPI, replayed on every later
     # call; the text is sent as well, so longer PDFs get pages on request.
@@ -88,8 +91,8 @@ class DeliveryConfig:
     # pages of 500 KB take half the smallest per-request image budget (10 MB).
     page_images_max_per_message: int = 10
 
-    # Inline text across a conversation, about 60K tokens; later files go
-    # behind the tools.
+    # Inline text across a conversation, 60-77K tokens; later files go behind
+    # the tools.
     inline_max_chars_per_conversation: int = 240_000
 
     # Pages attached with messages across a conversation; the rest of its page
