@@ -179,79 +179,8 @@ class Notification(models.Model):
                 "link": document_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], document_url
-
-    def _format_comment_on_thread(self):
-        item = self.item
-        action_user = self.action_user
-        action_user_name = action_user.first_name
-        base_url = self._create_frontend_doc_link()
-        conversation_url = f"{base_url}/conversation"
-        comment_plain_text = item.plain_text
-
-        return [
-            {
-                "type": "link",
-                "value": f"{action_user_name}",
-                "extra": '["bold", "link"]',
-                "link": action_user.frontend_view_link(),
-            },
-            {"type": "text", "value": "left a "},
-            {
-                "type": "link",
-                "value": "comment ",
-                "link": conversation_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "in your thread "},
-            {
-                "type": "link",
-                "value": comment_plain_text,
-                "link": base_url,
-                "extra": '["link"]',
-            },
-        ], conversation_url
-
-    def _format_reply_on_thread(self):
-        item = self.item
-        action_user = self.action_user
-        action_user_name = action_user.first_name
-        base_url = self._create_frontend_doc_link()
-        conversation_url = f"{base_url}/conversation"
-        reply_plain_text = item.plain_text
-
-        return [
-            {
-                "type": "link",
-                "value": f"{action_user_name}",
-                "extra": '["bold", "link"]',
-                "link": action_user.frontend_view_link(),
-            },
-            {"type": "text", "value": "left a "},
-            {
-                "type": "link",
-                "value": "reply ",
-                "link": conversation_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "in your comment "},
-            {
-                "type": "link",
-                "value": reply_plain_text,
-                "link": base_url,
-                "extra": '["link"]',
-            },
-        ], conversation_url
-
-    def _format_rsc_withdrawal_complete(self):
-        transaction_hash = self.item.transaction_hash
-        url = f"https://goerli.etherscan.io/tx/{transaction_hash}"
-
-        return [
-            {"type": "text", "value": "Your withdrawal has now been completed!\n"},
-            {"type": "text", "value": "View the transaction at\n"},
-            {"type": "link", "value": url, "link": url, "extra": '["link"]'},
-        ], None
 
     def _format_rsc_support_on_doc(self):
         action_user = self.action_user
@@ -273,6 +202,7 @@ class Notification(models.Model):
                 "extra": '["bold", "link"]',
                 "link": action_user.frontend_view_link(),
             },
+            {"type": "text", "value": "."},
         ], reviews_url
 
     def _format_rsc_support_on_dis(self):
@@ -296,6 +226,7 @@ class Notification(models.Model):
                 "extra": '["bold", "link"]',
                 "link": action_user.frontend_view_link(),
             },
+            {"type": "text", "value": "."},
         ], conversation_url
 
     def _format_flagged_content_verdict(self):
@@ -315,70 +246,8 @@ class Notification(models.Model):
                 "value": f"{model_name} for {verdict_choice} in ",
             },
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
+            {"type": "text", "value": "."},
         ], None
-
-    def _format_bounty_expiring_soon(self):
-        bounty = self.item
-        unified_document = bounty.unified_document
-        document = unified_document.get_document()
-        doc_title = self._truncate_title(document.title)
-        base_url = unified_document.frontend_view_link()
-
-        return [
-            {"type": "text", "value": "Your bounty is expiring in "},
-            {"type": "text", "value": "24 hours. ", "extra": '["bold"]'},
-            {"type": "text", "value": "Please award it to the best answer. "},
-            {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
-        ], base_url
-
-    def _format_bounty_hub_expiring_soon(self):
-        bounty = self.item
-        unified_document = bounty.unified_document
-        document = unified_document.get_document()
-        doc_title = self._truncate_title(document.title)
-        base_url = unified_document.frontend_view_link()
-
-        return [
-            {"type": "text", "value": "A bounty for "},
-            {
-                "type": "link",
-                "value": f"{doc_title} ",
-                "link": base_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "is expiring soon. "},
-            {
-                "type": "text",
-                "value": "Answer before the bounty expires!",
-            },
-        ], base_url
-
-    def _format_dis_on_bounty(self):
-        bounty = self.item
-        action_user = self.action_user
-        action_user_name = action_user.first_name
-        bounty_item = bounty.item
-        unified_document = bounty.unified_document
-        base_url = unified_document.frontend_view_link()
-        conversation_url = f"{base_url}/conversation"
-
-        return [
-            {
-                "type": "link",
-                "value": f"{action_user_name}",
-                "extra": '["bold", "link"]',
-                "link": action_user.frontend_view_link(),
-            },
-            {"type": "text", "value": "left a "},
-            {
-                "type": "link",
-                "value": f"{bounty_item._meta.model_name} ",
-                "link": conversation_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "on your "},
-            {"type": "link", "value": "bounty", "link": base_url, "extra": '["link"]'},
-        ], conversation_url
 
     def _format_comment(self) -> tuple[list[dict[str, str]], str]:
         """Format a new top-level comment on a document as a new thread."""
@@ -405,6 +274,7 @@ class Notification(models.Model):
             },
             {"type": "text", "value": "in "},
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
+            {"type": "text", "value": "."},
         ], conversation_url
 
     def _format_comment_on_comment(self):
@@ -436,6 +306,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], conversation_url
 
     def _format_comment_user_mention(self):
@@ -453,10 +324,11 @@ class Notification(models.Model):
             {"type": "text", "value": "mentioned you in a "},
             {
                 "type": "link",
-                "value": "comment ",
+                "value": "comment",
                 "link": comment_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], comment_url
 
     def _format_bounty_payout(self):
@@ -492,6 +364,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], bounties_url
 
     def _format_fundraise_payout(self):
@@ -507,7 +380,7 @@ class Notification(models.Model):
             },
             {
                 "type": "text",
-                "value": " has been fulfilled and paid out to you",
+                "value": " has been fulfilled and paid out to you.",
             },
         ], base_url
 
@@ -539,6 +412,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], base_url
 
     def _format_preregistration_update_reminder(self):
@@ -555,6 +429,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], base_url
 
     def _format_funding_credits_reminder(self):
@@ -608,6 +483,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], base_url
 
     def _format_proposal_peer_review(self) -> tuple[list, str | None]:
@@ -636,6 +512,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], base_url
 
     def _format_content_approved(self) -> tuple[list, str | None]:
