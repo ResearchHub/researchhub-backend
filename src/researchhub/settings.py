@@ -402,14 +402,6 @@ ORCID_REDIRECT_URL = os.environ.get(
     "ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", "")
 )
 
-# Google OAuth (website login SocialApp; also used for Gmail outreach connect).
-GOOGLE_CLIENT_ID = os.environ.get(
-    "GOOGLE_CLIENT_ID", getattr(keys, "GOOGLE_CLIENT_ID", "")
-)
-GOOGLE_CLIENT_SECRET = os.environ.get(
-    "GOOGLE_CLIENT_SECRET", getattr(keys, "GOOGLE_CLIENT_SECRET", "")
-)
-
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 

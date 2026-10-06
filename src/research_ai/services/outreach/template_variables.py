@@ -131,14 +131,15 @@ def build_replacement_context(
 ) -> dict[str, dict[str, str]]:
     """
     Build nested context for {{entity.field}} replacement.
-    Returns user/rfp/proposal/expert dicts.
+    Returns {"user": {...}, "rfp": {...}, "proposal": {...}, "expert": {...}}.
     """
-    return {
+    result = {
         "user": _build_user_context(user),
         "rfp": _build_rfp_context(rfp_context_dict),
         "proposal": _build_proposal_context(proposal_context_dict),
         "expert": _build_expert_context(resolved_expert),
     }
+    return result
 
 
 def replace_template_variables(text: str, context: dict[str, dict[str, Any]]) -> str:
