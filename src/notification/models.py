@@ -181,32 +181,6 @@ class Notification(models.Model):
             },
         ], document_url
 
-    def _format_thread_on_doc(self):
-        document = self.unified_document.get_document()
-        action_user = self.action_user
-        action_user_name = action_user.first_name
-        doc_title = self._truncate_title(document.title)
-        base_url = self._create_frontend_doc_link()
-        conversation_url = f"{base_url}/conversation"
-
-        return [
-            {
-                "type": "link",
-                "value": f"{action_user_name}",
-                "extra": '["bold", "link"]',
-                "link": action_user.frontend_view_link(),
-            },
-            {"type": "text", "value": "created a "},
-            {
-                "type": "link",
-                "value": "thread ",
-                "link": conversation_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "in "},
-            {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
-        ], conversation_url
-
     def _format_comment_on_thread(self):
         item = self.item
         action_user = self.action_user
@@ -406,7 +380,8 @@ class Notification(models.Model):
             {"type": "link", "value": "bounty", "link": base_url, "extra": '["link"]'},
         ], conversation_url
 
-    def _format_comment(self):
+    def _format_comment(self) -> tuple[list[dict[str, str]], str]:
+        """Format a new top-level comment on a document as a new thread."""
         document = self.unified_document.get_document()
         action_user = self.action_user
         action_user_name = action_user.first_name
