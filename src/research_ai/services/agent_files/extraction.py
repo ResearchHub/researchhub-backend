@@ -10,6 +10,7 @@ import codecs
 import contextlib
 import io
 import json
+import math
 import os
 import resource
 import subprocess
@@ -24,7 +25,7 @@ from markdownify import markdownify
 
 
 class UnreadableFileError(ValueError):
-    """The file yields no text; the message is written for the user."""
+    """The file cannot be read; the message is written for the user."""
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,11 @@ MAX_IMAGE_EDGE_PX = 2000
 _MAX_RENDER_EDGE_PX = 4000
 _MIN_RENDER_EDGE_PX = 256
 _JPEG_QUALITY = 85
+# A render over its byte limit is redone smaller. Bytes go roughly with pixel
+# count, so a side shrinks by the square root of the excess, less this margin.
+_FIT_MARGIN = 0.95
+# One step at most halves a side, however far over the limit the render is.
+_FIT_MIN_STEP = 0.5
 _IMAGE_MEDIA_TYPES = {"jpeg": "image/jpeg", "png": "image/png"}
 
 # Text for the PDF pages it is called with (1-based); pages it omits stay marked.
@@ -90,6 +96,7 @@ PageRecovery = Callable[[Sequence[int]], Mapping[int, str]]
 
 @dataclass(frozen=True)
 class ExtractedText:
+    # For a PDF of scans that nothing read, only the page markers and their notes.
     text: str
     page_count: int | None
     truncated: bool
@@ -149,7 +156,8 @@ def extract_text(
     text = text.replace("\x00", "")
     if len(text) > max_chars:
         text, truncated = text[:max_chars], True
-    # An empty Word table still renders its Markdown frame.
+    # An empty Word table still renders its Markdown frame; a PDF of unread
+    # scans passes on its page markers.
     if not any(map(str.isalnum, text)):
         raise UnreadableFileError("No readable text was found in this file.")
     return ExtractedText(
@@ -214,16 +222,16 @@ def _assemble_pdf(
         {number for number, text in enumerate(pages, start=1) if text is None}
         | set(mostly_image)
     )
+    # A scan or figure can still be looked at as a page image; blank pages cannot.
+    if not unread and not any(pages):
+        raise UnreadableFileError(
+            "This PDF has no content; all of its pages are blank."
+        )
     recovered: dict[int, str] = {}
     if unread and recover_pages is not None:
         for number, text in recover_pages(unread).items():
             if number in unread and text and text.strip():
                 recovered[number] = text.strip()
-    if not any(pages) and not recovered:
-        raise UnreadableFileError(
-            "This PDF has no selectable text; it may be a scanned image. Upload "
-            "a version with a text layer."
-        )
     parts = []
     for number, text in enumerate(pages, start=1):
         if number in recovered:
@@ -309,7 +317,33 @@ def _open_pdf(data: bytes) -> fitz.Document:
     if document.page_count == 0:
         document.close()
         raise not_a_pdf
+    # MuPDF sizes its page map by the declared /Count. Every page is an object
+    # of its own, so a count above the object count is lowered to it.
+    objects = document.xref_length()
+    if document.page_count > objects:
+        try:
+            pages = document.xref_get_key(document.pdf_catalog(), "Pages")[1]
+            document.xref_set_key(int(pages.split()[0]), "Count", str(objects))
+        except Exception as exc:  # no page tree whose count can be lowered
+            document.close()
+            raise not_a_pdf from exc
     return document
+
+
+def _loadable_page_count(document: fitz.Document, loaded: int) -> int:
+    """How many pages load in sequence, given that the first ``loaded`` did.
+
+    Guards against a /Count above the pages that exist. Pages past a lower
+    /Count stay out: MuPDF, which also renders the pages, does not load them.
+    """
+    count = loaded
+    while count < document.page_count:
+        try:
+            document.load_page(count)
+        except Exception:  # the page tree ends here, whatever /Count says
+            break
+        count += 1
+    return count
 
 
 def _pdf_pages(data: bytes, max_chars: int) -> dict:
@@ -319,7 +353,6 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
     large image, as a scan under a stamp does.
     """
     with _open_pdf(data) as document:
-        page_count = document.page_count
         pages: list[str | None] = []
         mostly_image: list[int] = []
         # No more than max_chars reaches the unlimited parent.
@@ -328,6 +361,8 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
         try:
             for number, page in enumerate(document, start=1):
                 if remaining <= 0 or number > _MAX_PDF_PAGES:
+                    # This page exists and is left unread.
+                    cut = True
                     break
                 page_text = page.get_text().strip()
                 # Judged on the page's whole text, before any cut.
@@ -343,11 +378,12 @@ def _pdf_pages(data: bytes, max_chars: int) -> dict:
                     pages.append(page_text)
         except Exception as exc:  # noqa: BLE001 - a damaged page stream
             raise UnreadableFileError("This PDF could not be read.") from exc
+        page_count = _loadable_page_count(document, len(pages))
     return {
         "pages": pages,
         "mostly_image": mostly_image,
         "page_count": page_count,
-        "truncated": cut or len(pages) < page_count,
+        "truncated": cut,
     }
 
 
@@ -376,10 +412,11 @@ def _pdf_page_image(
     max_bytes: int,
 ) -> dict:
     with _open_pdf(data) as document:
-        if page > document.page_count:
-            raise UnreadableFileError(f"This PDF has no page {page}.")
         try:
             pdf_page = document[page - 1]
+        except Exception as exc:  # nothing loads there, whatever /Count says
+            raise UnreadableFileError(f"This PDF has no page {page}.") from exc
+        try:
             longest = max(pdf_page.rect.width, pdf_page.rect.height)
             if longest <= 0:
                 raise ValueError("empty page")
@@ -397,7 +434,8 @@ def _pdf_page_image(
                 small = max(pixmap.width, pixmap.height) <= _MIN_RENDER_EDGE_PX
                 if len(image) <= max_bytes or small:
                     break
-                scale *= 0.7
+                fit = math.sqrt(max_bytes / len(image)) * _FIT_MARGIN
+                scale *= max(fit, _FIT_MIN_STEP)
         except Exception as exc:  # noqa: BLE001 - a damaged page stream
             raise UnreadableFileError("This PDF page could not be rendered.") from exc
     if len(image) > max_bytes:

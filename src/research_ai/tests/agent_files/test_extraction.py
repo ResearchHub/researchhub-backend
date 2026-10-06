@@ -1,3 +1,4 @@
+import base64
 import codecs
 import json
 import subprocess
@@ -34,6 +35,40 @@ PACKAGE_NS = "http://schemas.openxmlformats.org/package/2006"
 TEXT = resolve_kind("notes.txt")
 MAX_CHARS = 10_000
 STAMP = "Downloaded from an archive on 5 March 2019"
+
+
+def page_of_text() -> bytes:
+    """A PDF page full of text, whose render is far larger than a blank page's."""
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_textbox(fitz.Rect(54, 54, 541, 788), "finding " * 600, fontsize=9)
+    data = document.tobytes()
+    document.close()
+    return data
+
+
+def pdf_claiming(
+    count: int, *pages: str, cycle: bool = False, inline: bool = False
+) -> bytes:
+    """``pdf_bytes(*pages)`` with its page tree's /Count forged to ``count``.
+
+    ``cycle`` also lists the tree's root among its own pages, which keeps MuPDF
+    from correcting the count. ``inline`` writes the tree into the catalog,
+    where the count cannot be lowered.
+    """
+    document = fitz.open(stream=pdf_bytes(*pages), filetype="pdf")
+    catalog = document.pdf_catalog()
+    root = int(document.xref_get_key(catalog, "Pages")[1].split()[0])
+    kids = document.xref_get_key(root, "Kids")[1]
+    if cycle:
+        document.xref_set_key(root, "Kids", f"{kids[:-1]} {root} 0 R]")
+    document.xref_set_key(root, "Count", str(count))
+    if inline:
+        tree = f"<</Type/Pages/Kids{kids}/Count {count}>>"
+        document.xref_set_key(catalog, "Pages", tree)
+    data = document.tobytes()
+    document.close()
+    return data
 
 
 class ResolveKindTests(TestCase):
@@ -87,13 +122,17 @@ class PdfExtractionTests(TestCase):
         self.assertTrue(extracted.truncated)
         self.assertEqual(extracted.page_count, 3)
 
-    def test_a_pdf_without_a_text_layer_is_reported_as_a_scan(self):
+    def test_a_pdf_of_blank_pages_is_refused(self):
         # Arrange
         data = pdf_bytes("", "")
+        asked = []
 
         # Act / Assert
-        with self.assertRaisesRegex(UnreadableFileError, "no selectable text"):
+        with self.assertRaisesRegex(UnreadableFileError, "pages are blank"):
             extract_text(data, PDF, max_chars=MAX_CHARS)
+        with self.assertRaisesRegex(UnreadableFileError, "pages are blank"):
+            extract_text(data, PDF, max_chars=MAX_CHARS, recover_pages=asked.append)
+        self.assertEqual(asked, [])
 
     def test_a_password_protected_pdf_is_refused(self):
         # Arrange
@@ -158,6 +197,62 @@ class PdfExtractionTests(TestCase):
             extract_text(b"GIF89a not a pdf", PDF, max_chars=MAX_CHARS)
 
 
+class PdfPageCountTests(TestCase):
+    def test_a_forged_page_count_gives_way_to_the_pages_that_exist(self):
+        # Arrange
+        data = pdf_claiming(2**31 - 1, "Alpha findings", "Beta methods", "Gamma")
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.page_count, 3)
+        self.assertFalse(extracted.truncated)
+        self.assertTrue(extracted.text.endswith("[Page 3]\nGamma"))
+
+    def test_pages_are_counted_by_loading_them_where_mupdf_keeps_a_forged_count(self):
+        # Arrange: the text limit is met on page 2, before the tree's cycle.
+        data = pdf_claiming(2500, "Alpha findings", "Beta methods", "Gamma", cycle=True)
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=20)
+
+        # Assert
+        self.assertEqual(extracted.page_count, 3)
+        self.assertTrue(extracted.truncated)
+
+    def test_a_page_past_the_real_end_of_a_forged_pdf_is_refused(self):
+        # Arrange
+        data = pdf_claiming(2**31 - 1, "Alpha findings", "Beta methods")
+
+        # Act
+        last = render_pdf_page(data, 2, dpi=72)
+
+        # Assert
+        self.assertEqual((last.width, last.height), (595, 842))
+        with self.assertRaisesRegex(UnreadableFileError, "has no page 3"):
+            render_pdf_page(data, 3)
+
+    def test_a_forged_page_count_that_cannot_be_lowered_is_refused(self):
+        # Arrange
+        data = pdf_claiming(2**31 - 1, "Alpha findings", "Beta methods", inline=True)
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "could not be read as a PDF"):
+            extract_text(data, PDF, max_chars=MAX_CHARS)
+
+    def test_only_pages_left_unread_flag_a_text_limit_met_at_a_pages_end(self):
+        # Act
+        # Run in this process: the parent's page markers would pass the limit.
+        unread = extraction._pdf_pages(pdf_bytes("Alpha", "Beta", "Gamma"), 5)
+        whole = extraction._pdf_pages(pdf_bytes("Alpha"), 5)
+
+        # Assert
+        self.assertEqual(unread["pages"], ["Alpha"])
+        self.assertEqual((unread["page_count"], unread["truncated"]), (3, True))
+        self.assertEqual((whole["page_count"], whole["truncated"]), (1, False))
+
+
 class PdfPagesWithoutTextTests(TestCase):
     def test_a_scanned_page_is_marked_and_reported(self):
         # Arrange
@@ -186,15 +281,37 @@ class PdfPagesWithoutTextTests(TestCase):
         self.assertEqual(extracted.text, "[Page 1]\nAlpha findings\n\n[Page 2]\n")
         self.assertEqual(extracted.pages_without_text, ())
 
-    def test_a_fully_scanned_pdf_is_still_refused_without_recovered_text(self):
+    def test_a_fully_scanned_pdf_keeps_only_its_page_markers(self):
         # Arrange
         data = pdf_with_scans(SCAN, SCAN)
 
-        # Act / Assert
-        with self.assertRaisesRegex(UnreadableFileError, "no selectable text"):
-            extract_text(data, PDF, max_chars=MAX_CHARS)
-        with self.assertRaisesRegex(UnreadableFileError, "no selectable text"):
-            extract_text(data, PDF, max_chars=MAX_CHARS, recover_pages=lambda pages: {})
+        # Act
+        unaided = extract_text(data, PDF, max_chars=MAX_CHARS)
+        unrecovered = extract_text(
+            data, PDF, max_chars=MAX_CHARS, recover_pages=lambda pages: {}
+        )
+
+        # Assert
+        for extracted in (unaided, unrecovered):
+            self.assertEqual(
+                extracted.text,
+                f"[Page 1]\n{NO_TEXT_LAYER}\n\n[Page 2]\n{NO_TEXT_LAYER}",
+            )
+            self.assertEqual(extracted.page_count, 2)
+            self.assertEqual(extracted.pages_without_text, (1, 2))
+            self.assertEqual(extracted.ocr_pages, ())
+            self.assertFalse(extracted.truncated)
+
+    def test_one_scanned_page_among_blank_ones_is_enough_to_keep_a_pdf(self):
+        # Arrange
+        data = pdf_with_scans("", SCAN)
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, f"[Page 1]\n\n\n[Page 2]\n{NO_TEXT_LAYER}")
+        self.assertEqual(extracted.pages_without_text, (2,))
 
     def test_recovered_text_fills_only_the_pages_without_a_text_layer(self):
         # Arrange
@@ -382,17 +499,54 @@ class PdfPageRenderingTests(TestCase):
         self.assertEqual(max(image.width, image.height), 1000)
         self.assertLessEqual(max(unbounded.width, unbounded.height), 4000)
 
-    def test_a_page_is_scaled_down_until_it_fits_the_byte_limit(self):
+    def test_a_page_within_the_byte_limit_is_left_at_full_size(self):
         # Arrange
-        data = pdf_bytes("Alpha findings " * 5)
+        data = page_of_text()
         full = render_pdf_page(data, 1)
 
         # Act
-        image = render_pdf_page(data, 1, max_bytes=len(full.data) // 3)
+        image = render_pdf_page(data, 1, max_bytes=len(full.data))
 
         # Assert
-        self.assertLessEqual(len(image.data), len(full.data) // 3)
+        self.assertEqual(image, full)
+
+    def test_a_page_just_over_the_byte_limit_keeps_most_of_its_resolution(self):
+        # Arrange
+        data = page_of_text()
+        full = render_pdf_page(data, 1)
+        limit = len(full.data) * 95 // 100
+
+        # Act
+        image = render_pdf_page(data, 1, max_bytes=limit)
+
+        # Assert
+        self.assertLessEqual(len(image.data), limit)
         self.assertLess(image.width, full.width)
+        self.assertGreater(image.width, 0.85 * full.width)
+
+    def test_a_page_far_over_the_byte_limit_fits_within_a_few_renders(self):
+        # Arrange
+        data = page_of_text()
+        limit = len(render_pdf_page(data, 1).data) // 10
+
+        # Act
+        # Run in this process: a patch does not reach the rendering child.
+        with patch.object(
+            fitz.Page, "get_pixmap", autospec=True, side_effect=fitz.Page.get_pixmap
+        ) as render:
+            output = extraction._pdf_page_image(data, 1, 150, 2000, "jpeg", limit)
+
+        # Assert
+        self.assertLessEqual(len(base64.b64decode(output["image"])), limit)
+        self.assertLessEqual(render.call_count, 4)
+
+    def test_a_page_that_cannot_fit_the_byte_limit_is_refused(self):
+        # Arrange
+        data = page_of_text()
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "too detailed"):
+            render_pdf_page(data, 1, max_bytes=500)
 
     def test_a_page_the_pdf_does_not_have_is_refused(self):
         # Arrange

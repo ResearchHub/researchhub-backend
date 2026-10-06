@@ -48,17 +48,20 @@ class Delivery:
 
 @dataclass(frozen=True)
 class DeliveryConfig:
-    # About 15K tokens: longer files are read through tools.
+    # About 15K tokens, what two or three read calls would pull anyway; longer
+    # files are read through tools.
     inline_max_chars: int = 60_000
 
     # Inline text across one message's files; the rest fall back to tools.
     inline_max_chars_per_message: int = 120_000
 
-    # A letter page costs about 2,700 tokens at 150 DPI, 1,240 at 100 DPI.
-    page_images_max_pages: int = 20
+    # A letter page costs about 2,700 tokens at 150 DPI, replayed on every later
+    # call; the text is sent as well, so longer PDFs get pages on request.
+    page_images_max_pages: int = 10
 
-    # Pages attached across one message's files; the rest are on request.
-    page_images_max_per_message: int = 20
+    # Pages attached across one message's files; the rest are on request. Ten
+    # pages of 500 KB take half the smallest per-request image budget (10 MB).
+    page_images_max_per_message: int = 10
 
     @classmethod
     def from_settings(cls) -> "DeliveryConfig":
