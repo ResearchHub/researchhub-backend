@@ -39,6 +39,7 @@ from research_ai.services.agent_files.delivery import (
     plan_delivery,
 )
 from research_ai.services.agent_files.extraction import (
+    KINDS_BY_EXTENSION,
     SUPPORTED_EXTENSIONS,
     UnreadableFileError,
     is_image_type,
@@ -163,13 +164,43 @@ class AgentFileService:
         """``user``'s file ``file_id``, if any."""
         return AgentFile.objects.defer("text").filter(user=user, id=file_id).first()
 
+    def unsent_files(self, user) -> list[AgentFile]:
+        """``user``'s files not yet sent with a message, oldest first.
+
+        FAILED files are listed too: each keeps its row until removed or purged.
+        """
+        files = (
+            AgentFile.objects.defer("text")
+            .filter(user=user, message__isnull=True)
+            .order_by("id")
+        )
+        return [self.refresh(file) for file in files]
+
+    def limits(self) -> dict:
+        """What a client checks before uploading; timeouts stay internal."""
+        config = self.config
+        return {
+            "max_file_bytes": config.max_file_bytes,
+            "max_files_per_message": config.max_files_per_message,
+            "max_files_per_conversation": config.max_files_per_conversation,
+            "max_unsent_files": config.max_unsent_files,
+            "supported_types": [
+                {
+                    "extension": extension,
+                    "content_type": kind.content_type,
+                    "label": kind.label,
+                }
+                for extension, kind in KINDS_BY_EXTENSION.items()
+            ],
+        }
+
     def create_upload(
         self, user, *, filename: str, size_bytes: int, content_type: str = ""
     ) -> tuple[AgentFile, PresignedPost]:
         """Record a new upload and return the presigned form to send it with.
 
-        Raises ``AgentFileError`` for an unsupported, oversized, or excess
-        file, and ``PrivateStorageNotConfiguredError`` without a bucket.
+        Raises ``AgentFileError`` for an unsupported, empty, oversized, or
+        excess file, and ``PrivateStorageNotConfiguredError`` without a bucket.
         """
         config = self.config
         filename = _display_name(filename)
@@ -181,6 +212,8 @@ class AgentFileService:
                 + ").",
                 code="unsupported_file_type",
             )
+        if size_bytes <= 0:
+            raise AgentFileError("Empty files cannot be attached.", code="file_empty")
         if size_bytes > config.max_file_bytes:
             raise AgentFileError(_too_large(config), code="file_too_large")
         if not self.storage.configured:
