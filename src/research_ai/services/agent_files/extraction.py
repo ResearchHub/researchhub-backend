@@ -333,7 +333,8 @@ def _open_pdf(data: bytes) -> fitz.Document:
 def _loadable_page_count(document: fitz.Document, loaded: int) -> int:
     """How many pages load in sequence, given that the first ``loaded`` did.
 
-    A /Count can claim any number, so a page is counted only once it loads.
+    Guards against a /Count above the pages that exist. Pages past a lower
+    /Count stay out: MuPDF, which also renders the pages, does not load them.
     """
     count = loaded
     while count < document.page_count:
