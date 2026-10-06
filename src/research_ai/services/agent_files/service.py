@@ -30,6 +30,7 @@ from django.utils.text import slugify
 from research_ai.models import AgentConversation, AgentConversationMessage, AgentFile
 from research_ai.services.agent_files.config import AgentFileConfig
 from research_ai.services.agent_files.delivery import (
+    ConversationUsage,
     Delivery,
     DeliveryConfig,
     Document,
@@ -147,6 +148,10 @@ class AgentFileService:
     @property
     def extraction(self) -> TextExtractionService:
         return self._extraction or TextExtractionService(ocr=MistralOcr.from_settings())
+
+    @property
+    def delivery_config(self) -> DeliveryConfig:
+        return self._delivery_config or DeliveryConfig.from_settings()
 
     # -- request path -----------------------------------------------------
 
@@ -360,12 +365,17 @@ class AgentFileService:
         return grouped
 
     def message_attachments(
-        self, message: AgentConversationMessage, *, vision: bool
+        self,
+        message: AgentConversationMessage,
+        *,
+        vision: bool,
+        used: ConversationUsage | None = None,
     ) -> list[Attachment]:
         """The READY files sent with ``message`` and how each reaches the model.
 
-        ``vision`` is whether the conversation's model accepts images. Files
-        carry ``text_chars``; text is loaded only for those delivered inline.
+        ``vision`` is whether the conversation's model accepts images; ``used``
+        is what its context carried before this message. Files carry
+        ``text_chars``; text is loaded only for those delivered inline.
         """
         files = list(
             AgentFile.objects.defer("text")
@@ -379,7 +389,8 @@ class AgentFileService:
                 for file in files
             ],
             vision=vision,
-            config=self._delivery_config,
+            config=self.delivery_config,
+            used=used,
         )
         inline_ids = [
             file.id

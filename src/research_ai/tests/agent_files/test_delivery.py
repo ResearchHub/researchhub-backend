@@ -1,6 +1,9 @@
 from django.test import SimpleTestCase, override_settings
 
+from research_ai.services.agent import images
+from research_ai.services.agent.providers import bedrock, claude_platform, openrouter
 from research_ai.services.agent_files.delivery import (
+    ConversationUsage,
     Delivery,
     DeliveryConfig,
     Document,
@@ -8,17 +11,20 @@ from research_ai.services.agent_files.delivery import (
     TextDelivery,
     plan_delivery,
 )
+from research_ai.services.agent_files.page_images import PageRenderConfig
 
 CONFIG = DeliveryConfig(
     inline_max_chars=1_000,
     inline_max_chars_per_message=1_500,
     page_images_max_pages=10,
     page_images_max_per_message=12,
+    inline_max_chars_per_conversation=2_000,
+    page_images_max_per_conversation=15,
 )
 
 
-def _plan(*documents, vision=True, config=CONFIG):
-    return plan_delivery(documents, vision=vision, config=config)
+def _plan(*documents, vision=True, config=CONFIG, used=None):
+    return plan_delivery(documents, vision=vision, config=config, used=used)
 
 
 class PlanDeliveryTests(SimpleTestCase):
@@ -107,6 +113,66 @@ class PlanDeliveryTests(SimpleTestCase):
             ],
         )
 
+    def test_inline_text_stops_at_what_the_conversation_has_left(self):
+        # Arrange: 600 of the conversation's 2,000 characters are left.
+        used = ConversationUsage(inline_chars=1_400)
+
+        # Act
+        deliveries = _plan(
+            Document(text_chars=700), Document(text_chars=600), used=used
+        )
+
+        # Assert
+        self.assertEqual(
+            [delivery.text for delivery in deliveries],
+            [TextDelivery.TOOLS, TextDelivery.INLINE],
+        )
+
+    def test_pages_that_no_longer_fit_the_conversation_are_on_request(self):
+        # Arrange: 5 of the conversation's 15 page images are left.
+        used = ConversationUsage(page_images=10)
+
+        # Act: 6 pages do not fit; 3 do, and leave 2 to ask for.
+        deliveries = _plan(
+            Document(text_chars=100, page_count=6),
+            Document(text_chars=100, page_count=3),
+            used=used,
+        )
+
+        # Assert
+        self.assertEqual(
+            [delivery.page_images for delivery in deliveries],
+            [PageImages.ON_REQUEST, PageImages.ATTACHED],
+        )
+
+    def test_no_page_can_be_asked_for_once_attached_pages_fill_the_conversation(self):
+        # Arrange: 5 of the conversation's 15 page images are left.
+        used = ConversationUsage(page_images=10)
+
+        # Act: the second file's pages take all five.
+        deliveries = _plan(
+            Document(text_chars=100, page_count=40),
+            Document(text_chars=100, page_count=5),
+            Document(text_chars=100, page_count=1),
+            used=used,
+        )
+
+        # Assert
+        self.assertEqual(
+            [delivery.page_images for delivery in deliveries],
+            [PageImages.NO_ROOM, PageImages.ATTACHED, PageImages.NO_ROOM],
+        )
+
+    def test_a_conversation_over_its_budgets_gets_tools_and_no_pages(self):
+        # Arrange: as a chat can be whose files were sent before the budgets.
+        used = ConversationUsage(inline_chars=9_000, page_images=40)
+
+        # Act
+        (delivery,) = _plan(Document(text_chars=1, page_count=1), used=used)
+
+        # Assert
+        self.assertEqual(delivery, Delivery(TextDelivery.TOOLS, PageImages.NO_ROOM))
+
     def test_no_documents_plan_to_nothing(self):
         # Act / Assert
         self.assertEqual(_plan(), [])
@@ -125,6 +191,34 @@ class DeliveryConfigTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(delivery, Delivery(TextDelivery.TOOLS, PageImages.ON_REQUEST))
+
+    @override_settings(
+        RESEARCH_AI_FILE_INLINE_MAX_CHARS_PER_CONVERSATION=10,
+        RESEARCH_AI_FILE_PAGE_IMAGES_MAX_PER_CONVERSATION=1,
+    )
+    def test_settings_override_the_conversation_budgets(self):
+        # Act
+        (delivery,) = plan_delivery(
+            [Document(text_chars=11, page_count=2)], vision=True
+        )
+
+        # Assert
+        self.assertEqual(delivery, Delivery(TextDelivery.TOOLS, PageImages.ON_REQUEST))
+
+    def test_the_default_page_images_of_a_conversation_fit_any_providers_request(self):
+        # Arrange: a page render is at most this large.
+        pages = DeliveryConfig().page_images_max_per_conversation
+        page_bytes = PageRenderConfig().max_bytes
+        request_bytes = min(
+            bedrock.MAX_REQUEST_IMAGE_BYTES,
+            claude_platform.MAX_REQUEST_IMAGE_BYTES,
+            openrouter.MAX_REQUEST_IMAGE_BYTES,
+        )
+
+        # Act / Assert: so none is ever sent as a placeholder.
+        self.assertLessEqual(pages * page_bytes, request_bytes)
+        self.assertLessEqual(pages, images.MAX_REQUEST_IMAGES)
+        self.assertLessEqual(pages, bedrock.MAX_MESSAGE_IMAGES)
 
     def test_the_defaults_inline_a_short_paper_and_attach_its_pages(self):
         # Arrange
