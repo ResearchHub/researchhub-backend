@@ -44,6 +44,7 @@ the message and can look at any PDF's pages through a tool.
 
 import logging
 from collections.abc import Collection, Sequence
+from dataclasses import replace
 from datetime import timedelta
 
 from django.db import transaction
@@ -191,6 +192,14 @@ def _takes_images(model_ref: str) -> bool:
     """
     provider_name, model_id = split_model_ref(model_ref or generator_model_ref())
     return model_capabilities(provider_name, model_id or "").vision
+
+
+def _pages_on_request(attachment: Attachment) -> Attachment:
+    """``attachment``, its pages on request where the plan found no room."""
+    if attachment.delivery.page_images != PageImages.NO_ROOM:
+        return attachment
+    delivery = replace(attachment.delivery, page_images=PageImages.ON_REQUEST)
+    return replace(attachment, delivery=delivery)
 
 
 def _stream_phase(stream: dict | None) -> dict | None:
@@ -872,6 +881,9 @@ class NotebookChatService:
         # What the page tool can still show: the pages attached here count too.
         page_image_room = self.files.delivery_config.page_images_left(used)
         page_image_room -= len(images)
+        if page_image_room > 0:
+            # An attached page that failed to render left room the plan spent.
+            attachments = [_pages_on_request(item) for item in attachments]
         note_toolset = self._note_toolset(conversation, note)
         toolset = compose_notebook_toolset(
             note_toolset=note_toolset,

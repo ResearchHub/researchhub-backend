@@ -822,6 +822,35 @@ class ConversationPageImageBudgetTests(ChatTurnTestCase):
         self.assertEqual(result.images, (_page(long, 1), _page(long, 2)))
         self.assertEqual(len(_images(provider.calls[1])), 4)
 
+    def test_an_attached_page_that_fails_to_render_leaves_its_room_on_request(self):
+        # Arrange: the short PDF's two pages are planned into the chat's only room.
+        short = self._pdf(2)
+        long = self._pdf(3, filename="plan.pdf")
+        execution = self._submit_to_vision_model(
+            "Compare them", file_ids=[short.id, long.id]
+        )
+
+        # Act: page 2 cannot be rendered.
+        provider = self._finish(
+            execution,
+            self._view("t1", long, [1]),
+            text_turn("Compared."),
+            render=FakeRender(failing={2}),
+            delivery=replace(DELIVERY, page_images_max_per_conversation=2),
+        )
+
+        # Assert: the long PDF's pages are offered, and the tool shows one.
+        message = provider.calls[0][-1]
+        self.assertEqual(
+            self._manifest(message),
+            [
+                f"full text below; {SHOWN}, except page 2, which could not be rendered",
+                f"full text below; {ON_REQUEST}",
+            ],
+        )
+        (result,) = provider.calls[1][-1].content
+        self.assertEqual(result.images, (_page(long, 1),))
+
     def test_a_retried_turn_plans_with_the_room_its_first_attempt_had(self):
         # Arrange: two pages were viewed; the message's two take the chat's last
         # room, and then the provider fails.
