@@ -21,6 +21,7 @@ from research_ai.models import (
     SearchExpert,
 )
 from research_ai.services.agent import validate_model_ref
+from research_ai.services.agent_files.config import MAX_FILE_IDS_PER_REQUEST
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.outreach.invited_experts import (
     EDITOR_SORT_FIELDS,
@@ -1073,7 +1074,7 @@ class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
         child=serializers.IntegerField(min_value=1),
         required=False,
         default=list,
-        max_length=50,
+        max_length=MAX_FILE_IDS_PER_REQUEST,
     )
 
     def validate(self, attrs):

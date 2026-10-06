@@ -425,6 +425,19 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
         ready.refresh_from_db()
         self.assertIsNone(ready.message_id)
 
+    @override_settings(RESEARCH_AI_FILE_MAX_PER_MESSAGE=1000)
+    def test_a_message_with_the_published_file_limit_is_not_malformed(self):
+        # Arrange
+        chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
+        published = self.client.get(LIMITS_URL).data["max_files_per_message"]
+
+        # Act
+        response = self._send(chat_id, file_ids=list(range(1, published + 1)))
+
+        # Assert: refused by the chat's own cap, not as a field error.
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data.get("code"), "too_many_attachments")
+
     def test_another_users_file_cannot_be_sent(self):
         # Arrange
         chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]

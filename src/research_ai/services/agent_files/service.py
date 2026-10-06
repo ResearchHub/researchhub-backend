@@ -29,7 +29,10 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from research_ai.models import AgentConversation, AgentConversationMessage, AgentFile
-from research_ai.services.agent_files.config import AgentFileConfig
+from research_ai.services.agent_files.config import (
+    MAX_FILE_IDS_PER_REQUEST,
+    AgentFileConfig,
+)
 from research_ai.services.agent_files.delivery import (
     ConversationUsage,
     Delivery,
@@ -181,7 +184,10 @@ class AgentFileService:
         config = self.config
         return {
             "max_file_bytes": config.max_file_bytes,
-            "max_files_per_message": config.max_files_per_message,
+            # A longer ``file_ids`` is refused before the setting is consulted.
+            "max_files_per_message": min(
+                config.max_files_per_message, MAX_FILE_IDS_PER_REQUEST
+            ),
             "max_files_per_conversation": config.max_files_per_conversation,
             "max_unsent_files": config.max_unsent_files,
             "supported_types": [
