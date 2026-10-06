@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import Mock, patch
 
@@ -60,6 +61,15 @@ PDF_TEXT = "[Page 1]\nAim 1: map enhancers.\n\n[Page 2]\nFigure 2 shows the scre
 DELIVERY = DeliveryConfig(page_images_max_pages=2, page_images_max_per_message=4)
 SHOWN = "its pages are also shown as images with this message"
 ON_REQUEST = f"view its pages as images with {VIEW_ATTACHMENT_PAGES}"
+USE_TOOLS = "read it with read_attachment or find passages with search_attachment"
+NO_ROOM = (
+    "its pages cannot be shown as images in this chat, which has no room left "
+    "for images"
+)
+NO_ROOM_ERROR = (
+    "This chat has no room left for page images, so no more pages can be "
+    "shown. Work from the files' text and say so rather than asking again."
+)
 # What an adapter writes where an image is not sent, up to the image's label.
 PLACEHOLDER = image_placeholder(ImageBlock("ref", "image/jpeg", "|")).split("|")[0]
 
@@ -77,6 +87,18 @@ def _page(file, page) -> ImageBlock:
     return ImageBlock(
         f"{prefix}/pages/{page}.jpg", "image/jpeg", f"{file.filename}, page {page}"
     )
+
+
+def _images(messages) -> list[ImageBlock]:
+    """Every image a request carries, sent with a message or in a tool result."""
+    images = []
+    for message in messages:
+        for block in message.content:
+            if isinstance(block, ImageBlock):
+                images.append(block)
+            elif isinstance(block, ToolResultBlock):
+                images.extend(block.images)
+    return images
 
 
 class BucketTestCase(AWSMockTestCase):
@@ -114,10 +136,11 @@ class ViewAttachmentPagesTests(BucketTestCase):
         self.render = FakeRender()
         self.toolset = self._toolset(self.render)
 
-    def _toolset(self, render):
+    def _toolset(self, render, room=None):
         return AttachmentToolset(
             conversation=self.conversation,
             page_images=PageImageService(render=render),
+            page_image_room=room,
         )
 
     def _view(self, attachment_id, pages, toolset=None):
@@ -235,6 +258,50 @@ class ViewAttachmentPagesTests(BucketTestCase):
         )
         self.assertEqual(none.images, ())
 
+    def test_a_call_for_more_pages_than_the_chat_has_room_for_shows_what_fits(self):
+        # Arrange: the chat has room for two more page images.
+        toolset = self._toolset(self.render, room=2)
+
+        # Act
+        output = self._view(self.pdf.id, [3, 1, 2], toolset)
+
+        # Assert: the page left out is named, and was not rendered.
+        self.assertEqual(output.content["pages"], [3, 1])
+        self.assertEqual(output.content["pages_without_room"], [2])
+        self.assertEqual(
+            output.content["note"],
+            "This chat had room for only 2 more page images, so page 2 was not "
+            "shown. Work from the file's text for it and say so rather than "
+            "asking again.",
+        )
+        self.assertEqual(output.images, (_page(self.pdf, 3), _page(self.pdf, 1)))
+        self.assertEqual(sorted(self.render.pages), [1, 3])
+
+    def test_the_tool_refuses_once_the_chat_has_no_room_for_page_images(self):
+        # Arrange: the first call takes the chat's last page image.
+        toolset = self._toolset(self.render, room=1)
+        self._view(self.pdf.id, [1], toolset)
+
+        # Act
+        output = self._view(self.pdf.id, [2], toolset)
+
+        # Assert: said plainly, with nothing rendered.
+        self.assertEqual(output.content, {"error": NO_ROOM_ERROR})
+        self.assertEqual(output.images, ())
+        self.assertEqual(self.render.pages, [1])
+
+    def test_a_page_that_cannot_be_rendered_takes_no_room(self):
+        # Arrange
+        toolset = self._toolset(FakeRender(failing={1}), room=1)
+
+        # Act
+        failed = self._view(self.pdf.id, [1], toolset)
+        shown = self._view(self.pdf.id, [2], toolset)
+
+        # Assert
+        self.assertIn("could not be shown", failed.content["error"])
+        self.assertEqual(shown.images, (_page(self.pdf, 2),))
+
     def test_only_the_conversations_sent_files_can_be_viewed(self):
         # Arrange
         unsent = self._pdf(1)
@@ -312,7 +379,11 @@ class ToolRecordingProvider(FakeProvider):
 
 
 @override_settings(**SETTINGS)
-class NotebookChatPageImageTests(BucketTestCase):
+class ChatTurnTestCase(BucketTestCase):
+    """Runs a chat's turns on a scripted provider, planned by ``delivery``."""
+
+    delivery = DELIVERY
+
     def setUp(self):
         super().setUp()
         self.note = create_note(self.user, organization=None)[0]
@@ -326,12 +397,12 @@ class NotebookChatPageImageTests(BucketTestCase):
         self.service = self._service()
         self.conversation = self.service.create_conversation(self.note, self.user)
 
-    def _service(self, provider=None, render=None):
+    def _service(self, provider=None, render=None, delivery=None):
         return NotebookChatService(
             provider=provider,
             oa_client=Mock(),
             web_search_client=Mock(configured=False),
-            file_service=AgentFileService(delivery_config=DELIVERY),
+            file_service=AgentFileService(delivery_config=delivery or self.delivery),
             page_image_service=PageImageService(render=render or self.render),
         )
 
@@ -353,9 +424,16 @@ class NotebookChatPageImageTests(BucketTestCase):
         self._pick_models()
         return self._submit(text, model_ref=VISION_MODEL, **kwargs)
 
-    def _finish(self, execution, *turns, render=None, provider_class=FakeProvider):
+    def _finish(
+        self,
+        execution,
+        *turns,
+        render=None,
+        provider_class=FakeProvider,
+        delivery=None,
+    ):
         provider = provider_class(list(turns))
-        result = self._service(provider, render).run_turn(execution.id)
+        result = self._service(provider, render, delivery).run_turn(execution.id)
         self.assertNotIn("error", result)
         return provider
 
@@ -381,6 +459,8 @@ class NotebookChatPageImageTests(BucketTestCase):
         lines = message.content[-1].text.split("\n")
         return [line.rsplit("): ", 1)[1] for line in lines if line.startswith("- ")]
 
+
+class NotebookChatPageImageTests(ChatTurnTestCase):
     def test_a_short_pdfs_pages_are_sent_with_the_message(self):
         # Arrange
         grant = self._pdf(2)
@@ -646,3 +726,142 @@ class NotebookChatPageImageTests(BucketTestCase):
                 self.assertIs(planned, sends)
                 outcomes.add(planned)
         self.assertEqual(outcomes, {True, False})
+
+
+class ConversationPageImageBudgetTests(ChatTurnTestCase):
+    # A chat takes four page images in all.
+    delivery = replace(DELIVERY, page_images_max_per_conversation=4)
+
+    def _view(self, call_id, file, pages):
+        return tool_turn(
+            call_id, VIEW_ATTACHMENT_PAGES, {"attachment_id": file.id, "pages": pages}
+        )
+
+    def test_attached_pages_use_up_the_chats_page_images(self):
+        # Arrange: two two-page PDFs take the chat's four page images.
+        for name in ("first.pdf", "second.pdf"):
+            file = self._pdf(2, filename=name)
+            sent = self._submit_to_vision_model("Describe it", file_ids=[file.id])
+            self._finish(sent, text_turn("Two pages."))
+        third = self._pdf(2, filename="third.pdf")
+        execution = self._submit("And this one?", file_ids=[third.id])
+
+        # Act
+        provider = self._finish(execution, text_turn("From its text."))
+
+        # Assert: the block says so, and no fifth image is rendered or sent.
+        message = provider.calls[0][-1]
+        self.assertEqual(self._manifest(message), [f"full text below; {NO_ROOM}"])
+        self.assertEqual([type(block) for block in message.content], [TextBlock])
+        self.assertEqual(len(_images(provider.calls[0])), 4)
+        self.assertEqual(sorted(self.render.pages), [1, 1, 2, 2])
+
+    def test_pages_viewed_with_the_tool_use_up_the_chats_page_images(self):
+        # Arrange: four views over two calls, one page twice.
+        long = self._pdf(3, filename="plan.pdf")
+        first = self._submit_to_vision_model("Look through it", file_ids=[long.id])
+        self._finish(
+            first,
+            self._view("t1", long, [1, 2, 3]),
+            self._view("t2", long, [1]),
+            text_turn("Seen."),
+        )
+        short = self._pdf(2)
+        second = self._submit("And this one?", file_ids=[short.id])
+
+        # Act
+        provider = self._finish(
+            second, self._view("t3", short, [1]), text_turn("From its text.")
+        )
+
+        # Assert: the new file's pages are not offered, and the tool refuses.
+        message = provider.calls[0][-1]
+        self.assertEqual(self._manifest(message), [f"full text below; {NO_ROOM}"])
+        (result,) = provider.calls[1][-1].content
+        self.assertEqual(result.content, {"error": NO_ROOM_ERROR})
+        self.assertEqual(result.images, ())
+        self.assertEqual(len(_images(provider.calls[1])), 4)
+
+    def test_attached_and_viewed_pages_share_the_chats_page_images(self):
+        # Arrange: two attached pages leave room for two of the three asked for.
+        short = self._pdf(2)
+        long = self._pdf(3, filename="plan.pdf")
+        execution = self._submit_to_vision_model(
+            "Compare them", file_ids=[short.id, long.id]
+        )
+
+        # Act
+        provider = self._finish(
+            execution, self._view("t1", long, [1, 2, 3]), text_turn("Compared.")
+        )
+
+        # Assert
+        (result,) = provider.calls[1][-1].content
+        self.assertEqual(result.content["pages"], [1, 2])
+        self.assertEqual(result.content["pages_without_room"], [3])
+        self.assertEqual(result.images, (_page(long, 1), _page(long, 2)))
+        self.assertEqual(len(_images(provider.calls[1])), 4)
+
+    def test_a_retried_turn_plans_with_the_room_its_first_attempt_had(self):
+        # Arrange: the message's pages take the chat's last room; the provider fails.
+        first = self._pdf(2, filename="first.pdf")
+        sent = self._submit_to_vision_model("Describe it", file_ids=[first.id])
+        self._finish(sent, text_turn("Two pages."))
+        second = self._pdf(2, filename="second.pdf")
+        execution = self._submit("And this one?", file_ids=[second.id])
+        failing = FakeProvider([RuntimeError("provider down")])
+        failed = self._service(failing).run_turn(execution.id)
+
+        # Act
+        provider = self._finish(self._retry(execution), text_turn("Two pages."))
+
+        # Assert: the failed attempt's own pages do not count against the retry.
+        self.assertIn("error", failed)
+        attempt, again = failing.calls[0][-1], provider.calls[0][-1]
+        self.assertEqual(attempt.content[:-1], [_page(second, 1), _page(second, 2)])
+        self.assertEqual(again.content, attempt.content)
+
+    def test_a_chat_already_over_the_budgets_keeps_what_it_was_sent(self):
+        # Arrange: sent before the budgets, a file's text and pages are in the chat.
+        earlier = self._pdf(2, filename="earlier.pdf")
+        first = self._submit_to_vision_model("Describe it", file_ids=[earlier.id])
+        sent = self._finish(first, text_turn("Two pages.")).calls[0][-1]
+        budgets = replace(
+            DELIVERY,
+            inline_max_chars_per_conversation=len(PDF_TEXT) - 1,
+            page_images_max_per_conversation=1,
+        )
+        later = self._pdf(1, filename="later.pdf")
+        execution = self._submit("And this one?", file_ids=[later.id])
+
+        # Act
+        provider = self._finish(
+            execution, text_turn("From its text."), delivery=budgets
+        )
+
+        # Assert: the earlier message is replayed whole; the new file adds nothing.
+        self.assertEqual(provider.calls[0][0].content, sent.content)
+        self.assertEqual(sent.content[:-1], [_page(earlier, 1), _page(earlier, 2)])
+        self.assertIn(PDF_TEXT, sent.content[-1].text)
+        message = provider.calls[0][-1]
+        self.assertEqual(self._manifest(message), [f"{USE_TOOLS}; {NO_ROOM}"])
+        self.assertEqual([type(block) for block in message.content], [TextBlock])
+        self.assertNotIn(PDF_TEXT, message.content[-1].text)
+
+    def test_a_text_only_model_is_told_nothing_about_room_for_images(self):
+        # Arrange: the default tier's model, in a chat with no room for images.
+        grant = self._pdf(2)
+        execution = self._submit("Describe it", file_ids=[grant.id])
+
+        # Act
+        provider = self._finish(
+            execution,
+            text_turn("Described."),
+            delivery=replace(DELIVERY, page_images_max_per_conversation=0),
+        )
+
+        # Assert
+        self.assertEqual(execution.model, TEXT_ONLY_MODEL)
+        message = provider.calls[0][-1]
+        self.assertEqual(self._manifest(message), ["full text below"])
+        self.assertNotIn("images", message.content[-1].text)

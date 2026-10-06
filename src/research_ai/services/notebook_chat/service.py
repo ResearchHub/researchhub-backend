@@ -108,6 +108,7 @@ from research_ai.services.notebook_chat.activity import (
 from research_ai.services.notebook_chat.attachment_tools import (
     AttachmentToolset,
     attachment_preamble,
+    attachment_usage,
 )
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
@@ -858,6 +859,19 @@ class NotebookChatService:
         )
         # Decides the delivery plan and the page tool; the adapter agrees.
         vision = _takes_images(execution.model)
+        context = (
+            self.contexts.reconstruct(execution.context_parent)
+            if execution.context_parent_id
+            else []
+        )
+        # Planned once per turn, within what the context already carries: a
+        # retried turn starts from the same context, so it plans the same.
+        used = attachment_usage(context)
+        attachments = self.files.message_attachments(trigger, vision=vision, used=used)
+        images, unshown_pages = self._attached_page_images(attachments)
+        # What the page tool can still show: the pages attached here count too.
+        page_image_room = self.files.delivery_config.page_images_left(used)
+        page_image_room -= len(images)
         note_toolset = self._note_toolset(conversation, note)
         toolset = compose_notebook_toolset(
             note_toolset=note_toolset,
@@ -884,6 +898,8 @@ class NotebookChatService:
             attachment_toolset=AttachmentToolset(
                 conversation=conversation,
                 page_images=self.page_images if vision else None,
+                # At zero the tool is still offered, and refuses.
+                page_image_room=page_image_room,
             ),
             native_tool_names=provider.native_tool_names,
         )
@@ -910,14 +926,6 @@ class NotebookChatService:
             recorder=budget_recorder,
         )
 
-        context = (
-            self.contexts.reconstruct(execution.context_parent)
-            if execution.context_parent_id
-            else []
-        )
-        # Planned once per turn, for the prompt's text and the pages sent as images.
-        attachments = self.files.message_attachments(trigger, vision=vision)
-        images, unshown_pages = self._attached_page_images(attachments)
         prompt = trigger.content
         preamble = attachment_preamble(attachments, unshown_pages=unshown_pages)
         if preamble:
