@@ -1,8 +1,9 @@
 """Text extraction and page rendering for files users attach to Research AI chats.
 
-Every supported format reduces to one string: PDF pages via PyMuPDF, each
+Every supported document reduces to one string: PDF pages via PyMuPDF, each
 introduced by a ``[Page N]`` marker the agent can cite; Word documents as
-Markdown via mammoth; text formats by decoding. PDF pages also render to images.
+Markdown via mammoth; text formats by decoding. PDF pages also render to images,
+and an uploaded image is prepared as one.
 """
 
 import base64
@@ -22,6 +23,7 @@ from dataclasses import dataclass
 import fitz
 import mammoth
 from markdownify import markdownify
+from PIL import Image, ImageOps
 
 
 class UnreadableFileError(ValueError):
@@ -34,6 +36,10 @@ class FileKind:
     content_type: str
     label: str
 
+    @property
+    def is_image(self) -> bool:
+        return self.extractor == "image"
+
 
 PDF = FileKind("pdf", "application/pdf", "PDF")
 DOCX = FileKind(
@@ -42,6 +48,7 @@ DOCX = FileKind(
     "Word document",
 )
 _MARKDOWN = FileKind("text", "text/markdown", "Markdown file")
+_JPEG = FileKind("image", "image/jpeg", "JPEG image")
 _KINDS_BY_EXTENSION = {
     ".pdf": PDF,
     ".docx": DOCX,
@@ -51,6 +58,11 @@ _KINDS_BY_EXTENSION = {
     ".csv": FileKind("text", "text/csv", "CSV file"),
     ".tsv": FileKind("text", "text/tab-separated-values", "TSV file"),
     ".tex": FileKind("text", "application/x-tex", "LaTeX file"),
+    ".png": FileKind("image", "image/png", "PNG image"),
+    ".jpg": _JPEG,
+    ".jpeg": _JPEG,
+    ".gif": FileKind("image", "image/gif", "GIF image"),
+    ".webp": FileKind("image", "image/webp", "WebP image"),
 }
 _KINDS_BY_CONTENT_TYPE = {
     kind.content_type: kind for kind in _KINDS_BY_EXTENSION.values()
@@ -62,6 +74,8 @@ NO_TEXT_LAYER = "[This page has no text layer; it may be a scan or a figure.]"
 # Written after the little text a page has when an image covers most of it.
 IMAGE_UNREAD = "[Most of this page is an image; any text in it was not read.]"
 OCR_NOTE = "[Text on this page was read by OCR and may contain errors.]"
+# Written above the text OCR read in an uploaded image.
+IMAGE_OCR_NOTE = "[Text in this image was read by OCR and may contain errors.]"
 
 # A scan under a download stamp or page number: little text over a large image.
 _SCAN_MAX_TEXT_CHARS = 500
@@ -90,13 +104,19 @@ _FIT_MARGIN = 0.95
 _FIT_MIN_STEP = 0.5
 _IMAGE_MEDIA_TYPES = {"jpeg": "image/jpeg", "png": "image/png"}
 
+# What an upload may hold, whichever of the image extensions it came with.
+_UPLOAD_IMAGE_FORMATS = ("JPEG", "PNG", "GIF", "WEBP")
+# Pixels the child decodes at most: with transparency, 256 MB of its memory.
+_MAX_UPLOAD_IMAGE_PIXELS = 64_000_000
+
 # Text for the PDF pages it is called with (1-based); pages it omits stay marked.
 PageRecovery = Callable[[Sequence[int]], Mapping[int, str]]
 
 
 @dataclass(frozen=True)
 class ExtractedText:
-    # For a PDF of scans that nothing read, only the page markers and their notes.
+    # For a PDF of scans that nothing read, only the page markers and their
+    # notes; empty for an image nothing was read in.
     text: str
     page_count: int | None
     truncated: bool
@@ -127,6 +147,12 @@ def kind_for_content_type(content_type: str) -> FileKind | None:
     return _KINDS_BY_CONTENT_TYPE.get(content_type)
 
 
+def is_image_type(content_type: str) -> bool:
+    """Whether a file stored with this type is an image the user uploaded."""
+    kind = kind_for_content_type(content_type)
+    return kind is not None and kind.is_image
+
+
 def extract_text(
     data: bytes,
     kind: FileKind,
@@ -134,10 +160,10 @@ def extract_text(
     max_chars: int,
     recover_pages: PageRecovery | None = None,
 ) -> ExtractedText:
-    """Text of the file, cut at ``max_chars``. Raises ``UnreadableFileError``.
+    """Text of the document, cut at ``max_chars``. Raises ``UnreadableFileError``.
 
     ``recover_pages`` supplies text for PDF pages that have no text layer or
-    are mostly an image.
+    are mostly an image. An uploaded image goes through ``prepare_image``.
     """
     pages_without_text: tuple[int, ...] = ()
     ocr_pages: tuple[int, ...] = ()
@@ -203,6 +229,35 @@ def render_pdf_page(
         page=page,
         data=base64.b64decode(output["image"]),
         media_type=_IMAGE_MEDIA_TYPES[image_format],
+        width=output["width"],
+        height=output["height"],
+    )
+
+
+def prepare_image(
+    data: bytes,
+    *,
+    max_edge_px: int = MAX_IMAGE_EDGE_PX,
+    max_bytes: int = 3 * 1024 * 1024,
+    timeout_seconds: float | None = None,
+) -> PageImage:
+    """An uploaded image as a JPEG to show a model. Raises ``UnreadableFileError``.
+
+    Upright, transparency over white, and scaled down to fit ``max_edge_px``
+    and ``max_bytes``; an animation gives its first frame.
+    """
+    output = _run_child(
+        "image",
+        data,
+        label="image",
+        timeout=timeout_seconds,
+        max_edge_px=min(max_edge_px, _MAX_RENDER_EDGE_PX),
+        max_bytes=max_bytes,
+    )
+    return PageImage(
+        page=1,
+        data=base64.b64decode(output["image"]),
+        media_type=_IMAGE_MEDIA_TYPES["jpeg"],
         width=output["width"],
         height=output["height"],
     )
@@ -289,7 +344,12 @@ def _child_main(mode: str, cpu_seconds: int, memory_bytes: int, options: dict) -
     # macOS rejects address-space limits; Linux workers enforce them.
     with contextlib.suppress(ValueError, OSError):
         resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
-    work = {"pdf": _pdf_pages, "docx": _docx_text, "render": _pdf_page_image}[mode]
+    work = {
+        "pdf": _pdf_pages,
+        "docx": _docx_text,
+        "render": _pdf_page_image,
+        "image": _upload_image,
+    }[mode]
     data = sys.stdin.buffer.read()
     try:
         output = work(data, **options)
@@ -434,8 +494,7 @@ def _pdf_page_image(
                 small = max(pixmap.width, pixmap.height) <= _MIN_RENDER_EDGE_PX
                 if len(image) <= max_bytes or small:
                     break
-                fit = math.sqrt(max_bytes / len(image)) * _FIT_MARGIN
-                scale *= max(fit, _FIT_MIN_STEP)
+                scale *= _fit_step(len(image), max_bytes)
         except Exception as exc:  # noqa: BLE001 - a damaged page stream
             raise UnreadableFileError("This PDF page could not be rendered.") from exc
     if len(image) > max_bytes:
@@ -445,6 +504,71 @@ def _pdf_page_image(
         "width": pixmap.width,
         "height": pixmap.height,
     }
+
+
+def _fit_step(size: int, max_bytes: int) -> float:
+    """What to scale a side by so an image of ``size`` bytes nears ``max_bytes``."""
+    return max(math.sqrt(max_bytes / size) * _FIT_MARGIN, _FIT_MIN_STEP)
+
+
+def _upload_image(data: bytes, max_edge_px: int, max_bytes: int) -> dict:
+    not_an_image = UnreadableFileError("This file could not be read as an image.")
+    # Checked below instead, once a JPEG is set to decode at a fraction of its size.
+    Image.MAX_IMAGE_PIXELS = None
+    try:
+        source = Image.open(io.BytesIO(data), formats=_UPLOAD_IMAGE_FORMATS)
+        source.draft("RGB", (max_edge_px, max_edge_px))
+    except Exception as exc:  # whatever Pillow raises for bytes it cannot identify
+        raise not_an_image from exc
+    if source.width * source.height > _MAX_UPLOAD_IMAGE_PIXELS:
+        raise UnreadableFileError(
+            "This image is too large to read. Upload a smaller copy of it."
+        )
+    try:
+        image = _upright_rgb(source, max_edge_px)
+        while True:
+            buffer = io.BytesIO()
+            image.save(buffer, "JPEG", quality=_JPEG_QUALITY)
+            encoded = buffer.getvalue()
+            small = max(image.size) <= _MIN_RENDER_EDGE_PX
+            if len(encoded) <= max_bytes or small:
+                break
+            step = _fit_step(len(encoded), max_bytes)
+            image = image.resize(
+                (max(1, round(image.width * step)), max(1, round(image.height * step))),
+                Image.Resampling.LANCZOS,
+            )
+    except MemoryError:
+        raise
+    except Exception as exc:  # a damaged or cut-short file fails as it is decoded
+        raise not_an_image from exc
+    if len(encoded) > max_bytes:
+        raise UnreadableFileError("This image is too detailed to read.")
+    return {
+        "image": base64.b64encode(encoded).decode("ascii"),
+        "width": image.width,
+        "height": image.height,
+    }
+
+
+def _upright_rgb(image: Image.Image, max_edge_px: int) -> Image.Image:
+    """The image's first frame, upright, opaque and within ``max_edge_px`` a side."""
+    if image.mode == "I;16":
+        # 16-bit greys are scaled to 8 bits; a plain conversion clips them to white.
+        image = image.point(lambda value: value * (1 / 257)).convert("L")
+    elif image.has_transparency_data:
+        image = image.convert("RGBA")
+    elif image.mode not in ("L", "RGB"):
+        # Palette images only scale by nearest neighbour.
+        image = image.convert("RGB")
+    image.thumbnail((max_edge_px, max_edge_px), Image.Resampling.LANCZOS)
+    image = ImageOps.exif_transpose(image)
+    if image.mode != "RGBA":
+        return image.convert("RGB")
+    # A JPEG has no transparency; left to a plain conversion it turns black.
+    opaque = Image.new("RGB", image.size, "white")
+    opaque.paste(image, mask=image.getchannel("A"))
+    return opaque
 
 
 def _docx_text(data: bytes, max_chars: int) -> dict:

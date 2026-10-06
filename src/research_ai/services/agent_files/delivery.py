@@ -1,4 +1,4 @@
-"""How attached documents reach the model: inline text, tools, page images.
+"""How attached files reach the model: inline text, tools, images.
 
 Every threshold is overridable via a ``RESEARCH_AI_FILE_*`` setting, read at
 call time so per-test ``override_settings`` applies.
@@ -36,9 +36,9 @@ class TextDelivery(StrEnum):
 
 class PageImages(StrEnum):
     NONE = "none"
-    # Every page is sent as an image with the message.
+    # Every page, or an uploaded image itself, is sent with the message.
     ATTACHED = "attached"
-    # The model is shown the pages it asks a tool for.
+    # The model is shown the pages, or the image, it asks a tool for.
     ON_REQUEST = "on_request"
     # The model takes images, but the conversation has no room left for any.
     NO_ROOM = "no_room"
@@ -47,8 +47,15 @@ class PageImages(StrEnum):
 @dataclass(frozen=True)
 class Document:
     text_chars: int
-    # ``None`` for formats without pages (Word, text).
+    # ``None`` for formats without pages (Word, text, images).
     page_count: int | None = None
+    # An image the user uploaded, shown as it is: one image.
+    image: bool = False
+
+    @property
+    def images(self) -> int:
+        """How many images the file can be shown as."""
+        return 1 if self.image else self.page_count or 0
 
 
 @dataclass(frozen=True)
@@ -62,7 +69,7 @@ class ConversationUsage:
     """What a conversation's context already carries, replayed on every call."""
 
     inline_chars: int = 0
-    # Page images sent with messages, and page images the page tool showed.
+    # Pages and uploaded images sent with messages, and those the page tool showed.
     attached_page_images: int = 0
     requested_page_images: int = 0
 
@@ -87,20 +94,22 @@ class DeliveryConfig:
     # call; the text is sent as well, so longer PDFs get pages on request.
     page_images_max_pages: int = 10
 
-    # Pages attached across one message's files; the rest are on request. Ten
-    # pages of 500 KB take half the smallest per-request image budget (10 MB).
+    # Pages and uploaded images attached across one message's files; the rest
+    # are on request. Ten of 500 KB take half the smallest per-request image
+    # budget (10 MB).
     page_images_max_per_message: int = 10
 
     # Inline text across a conversation, 60-77K tokens; later files go behind
     # the tools.
     inline_max_chars_per_conversation: int = 240_000
 
-    # Pages attached with messages across a conversation; the rest of its page
-    # images are kept for the pages the model asks to see.
+    # Pages attached with messages across a conversation; the rest of its
+    # images are kept for uploaded images and the pages the model asks to see.
     page_images_max_attached_per_conversation: int = 10
 
-    # Pages attached or shown on request across a conversation. Twenty pages of
-    # 500 KB fill the smallest per-request image budget (10 MB).
+    # Pages and uploaded images, attached or shown on request, across a
+    # conversation. Twenty of 500 KB fill the smallest per-request image budget
+    # (10 MB).
     page_images_max_per_conversation: int = 20
 
     def page_images_left(self, used: ConversationUsage) -> int:
@@ -116,6 +125,30 @@ class DeliveryConfig:
                 for field, setting in _SETTING_OVERRIDES.items()
             }
         )
+
+
+@dataclass
+class _ImageRoom:
+    """The images one message's files may still attach."""
+
+    message: int
+    # What is left of the conversation's attached share, and of its total.
+    attached: int
+    conversation: int
+
+    def claim(self, document: Document, max_pages: int) -> PageImages:
+        """``ATTACHED``, taking the room, if the file's images fit; else on request."""
+        room = min(self.message, self.conversation)
+        # The attached share keeps room for what is asked for later; the user
+        # asks for an image to be seen by sending it.
+        if not document.image:
+            room = min(room, self.attached, max_pages)
+        if document.images > room:
+            return PageImages.ON_REQUEST
+        self.message -= document.images
+        self.attached -= document.images
+        self.conversation -= document.images
+        return PageImages.ATTACHED
 
 
 def plan_delivery(
@@ -136,11 +169,13 @@ def plan_delivery(
         config.inline_max_chars_per_message,
         config.inline_max_chars_per_conversation - used.inline_chars,
     )
-    images_left = config.page_images_left(used)
-    attached_left = (
-        config.page_images_max_attached_per_conversation - used.attached_page_images
+    image_room = _ImageRoom(
+        message=config.page_images_max_per_message,
+        attached=(
+            config.page_images_max_attached_per_conversation - used.attached_page_images
+        ),
+        conversation=config.page_images_left(used),
     )
-    image_room = min(config.page_images_max_per_message, attached_left, images_left)
     planned = []
     for document in documents:
         text = TextDelivery.TOOLS
@@ -148,17 +183,14 @@ def plan_delivery(
             text = TextDelivery.INLINE
             inline_room -= document.text_chars
         page_images = PageImages.NONE
-        pages = document.page_count or 0
-        if vision and pages:
-            page_images = PageImages.ON_REQUEST
-            if pages <= min(config.page_images_max_pages, image_room):
-                page_images = PageImages.ATTACHED
-                image_room -= pages
-                images_left -= pages
+        if vision and document.images:
+            page_images = image_room.claim(document, config.page_images_max_pages)
         planned.append((text, page_images))
-    # A PDF past the attached share is on request while the conversation has
-    # room, counting the pages attached here.
-    on_request = PageImages.ON_REQUEST if images_left else PageImages.NO_ROOM
+    # A file past what is attached is on request while the conversation has
+    # room, counting what is attached here.
+    on_request = (
+        PageImages.ON_REQUEST if image_room.conversation else PageImages.NO_ROOM
+    )
     return [
         Delivery(
             text=text,

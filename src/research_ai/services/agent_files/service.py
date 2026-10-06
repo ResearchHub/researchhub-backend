@@ -6,7 +6,8 @@ A file moves UPLOADING -> PROCESSING -> READY or FAILED:
   upload; the browser sends the bytes straight to the private bucket, which
   enforces the size cap and content type.
 - ``complete_upload`` confirms the object landed and queues extraction.
-- ``process`` (worker) extracts the text the agent reads.
+- ``process`` (worker) extracts the text the agent reads; an image's is what
+  OCR reads in it, which may be nothing.
 - ``attach`` binds READY files to the user message they are sent with.
 - ``message_attachments`` plans how each of a message's files reaches the model.
 
@@ -40,6 +41,7 @@ from research_ai.services.agent_files.delivery import (
 from research_ai.services.agent_files.extraction import (
     SUPPORTED_EXTENSIONS,
     UnreadableFileError,
+    is_image_type,
     kind_for_content_type,
     resolve_kind,
 )
@@ -174,7 +176,7 @@ class AgentFileService:
         kind = resolve_kind(filename, content_type) if filename else None
         if kind is None:
             raise AgentFileError(
-                "Upload a PDF, Word (.docx), or text file ("
+                "Upload a PDF, Word (.docx), text, or image file ("
                 + ", ".join(SUPPORTED_EXTENSIONS)
                 + ").",
                 code="unsupported_file_type",
@@ -387,7 +389,11 @@ class AgentFileService:
         )
         deliveries = plan_delivery(
             [
-                Document(text_chars=file.text_chars, page_count=file.page_count)
+                Document(
+                    text_chars=file.text_chars,
+                    page_count=file.page_count,
+                    image=is_image_type(file.content_type),
+                )
                 for file in files
             ],
             vision=vision,
@@ -486,7 +492,7 @@ class AgentFileService:
                 # Re-checked under a lock: the file may have been sent since the scan.
                 file = (
                     AgentFile.objects.select_for_update(of=("self",))
-                    .only("storage_key", "page_count")
+                    .only("storage_key", "content_type", "page_count")
                     .filter(expired, id=file_id)
                     .first()
                 )

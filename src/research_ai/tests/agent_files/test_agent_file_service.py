@@ -28,6 +28,7 @@ from research_ai.services.agent_persistence import AgentConversationService
 from research_ai.tests.agent_files.helpers import (
     SCAN,
     docx_bytes,
+    image_bytes,
     make_file,
     paragraph,
     pdf_bytes,
@@ -373,6 +374,29 @@ class AgentFileServiceTests(TestCase):
         self.assertEqual(file.text, "Specific aims")
         self.assertIsNone(file.page_count)
         self.assertIsNone(file.pages_without_text)
+
+    @override_settings(MISTRAL_API_KEY="")
+    def test_process_keeps_an_image_nothing_was_read_in(self):
+        # Arrange
+        file = make_file(
+            self.user,
+            status=AgentFile.Status.PROCESSING,
+            filename="gel.png",
+            content_type="image/png",
+            text="",
+        )
+        self.storage.read.return_value = image_bytes()
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        file.refresh_from_db()
+        self.assertEqual(status, AgentFile.Status.READY)
+        self.assertEqual(file.text, "")
+        self.assertIsNone(file.page_count)
+        self.assertIsNone(file.pages_without_text)
+        self.storage.delete.assert_not_called()
 
     def test_process_fails_generically_when_storage_breaks(self):
         # Arrange

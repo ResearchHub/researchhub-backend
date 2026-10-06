@@ -6,6 +6,7 @@ from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent_files.extraction import (
     DOCX,
+    IMAGE_OCR_NOTE,
     NO_TEXT_LAYER,
     OCR_NOTE,
     PDF,
@@ -20,12 +21,14 @@ from research_ai.services.agent_files.ocr import OcrError
 from research_ai.tests.agent_files.helpers import (
     SCAN,
     docx_bytes,
+    image_bytes,
     pdf_bytes,
     pdf_with_scans,
     stamped_scan,
 )
 
 MAX_CHARS = 10_000
+PNG = resolve_kind("figure.png")
 
 
 class FakeOcr:
@@ -246,6 +249,66 @@ class TextExtractionServiceTests(TestCase):
         self.assertEqual(pdf.text, "[Page 1]\nAlpha findings")
         self.assertEqual(text.text, "Plain notes")
         self.assertEqual(ocr.images, [])
+
+
+class UploadedImageTextTests(TestCase):
+    def test_an_images_text_is_what_the_engine_reads_in_it(self):
+        # Arrange
+        ocr = FakeOcr()
+        service = TextExtractionService(ocr=ocr, config=OcrConfig(max_edge_px=100))
+
+        # Act
+        extracted = service.extract(image_bytes((400, 200)), PNG, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, f"{IMAGE_OCR_NOTE}\nScan 1")
+        self.assertIsNone(extracted.page_count)
+        (image,) = ocr.images
+        self.assertEqual(image.media_type, "image/jpeg")
+        self.assertEqual((image.width, image.height), (100, 50))
+
+    def test_an_image_with_nothing_to_read_is_kept_without_text(self):
+        for ocr in (None, FakeOcr(empty={1})):
+            with self.subTest(ocr=ocr):
+                # Act
+                extracted = TextExtractionService(ocr=ocr).extract(
+                    image_bytes(), PNG, max_chars=MAX_CHARS
+                )
+
+                # Assert
+                self.assertEqual(extracted.text, "")
+                self.assertFalse(extracted.truncated)
+
+    def test_an_image_the_engine_does_not_read_in_time_is_kept_without_text(self):
+        stalling = StallingOcr(stalled={1})
+        self.addCleanup(stalling.release.set)
+        for ocr in (FakeOcr(failing={1}), stalling):
+            with self.subTest(ocr=type(ocr).__name__):
+                # Arrange
+                service = TextExtractionService(
+                    ocr=ocr, config=OcrConfig(max_seconds=1)
+                )
+
+                # Act
+                started = time.monotonic()
+                with self.assertLogs(
+                    "research_ai.services.agent_files.extraction_service", "WARNING"
+                ):
+                    extracted = service.extract(image_bytes(), PNG, max_chars=MAX_CHARS)
+                elapsed = time.monotonic() - started
+
+                # Assert
+                self.assertEqual(extracted.text, "")
+                # Well short of the 30 seconds the stalled read would hold a waiter.
+                self.assertLess(elapsed, 15)
+
+    def test_a_file_that_is_not_an_image_is_refused_without_an_engine(self):
+        # Arrange
+        service = TextExtractionService()
+
+        # Act / Assert
+        with self.assertRaises(UnreadableFileError):
+            service.extract(b"Aims", PNG, max_chars=MAX_CHARS)
 
 
 class FullyScannedPdfTests(TestCase):

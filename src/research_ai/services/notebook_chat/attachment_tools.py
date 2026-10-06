@@ -5,11 +5,12 @@ turn's prompt opens with ``attachment_preamble``: the files sent with the
 message, short ones in full. Any file can also be read in bounded windows
 (``read_attachment``) or searched for the passages most relevant to a query
 (``search_attachment``). A model that takes images is also shown a short PDF's
-pages with the message and can look at any PDF's pages
-(``view_attachment_pages``). The tools are scoped to the conversation's sent,
-READY files, so the agent cannot reach another chat's files.
+pages and any image the user uploaded with the message, and can look at any
+PDF's pages (``view_attachment_pages``). An uploaded image's text is what OCR
+read in it. The tools are scoped to the conversation's sent, READY files, so
+the agent cannot reach another chat's files.
 
-Inline text and page images stay in the conversation's context, so each has a
+Inline text and images stay in the conversation's context, so each has a
 budget per conversation; ``attachment_usage`` measures what a context carries.
 """
 
@@ -31,7 +32,11 @@ from research_ai.services.agent.types import (
 )
 from research_ai.services.agent_files import Attachment
 from research_ai.services.agent_files.delivery import ConversationUsage, PageImages
-from research_ai.services.agent_files.extraction import PDF, kind_for_content_type
+from research_ai.services.agent_files.extraction import (
+    PDF,
+    is_image_type,
+    kind_for_content_type,
+)
 from research_ai.services.agent_files.page_images import (
     PageImageService,
     page_image_count,
@@ -68,6 +73,16 @@ _PAGES_NO_ROOM = (
     "its pages cannot be shown as images in this chat, which has no room left "
     "for images"
 )
+# How the model sees an uploaded image, which is its file's page 1.
+_IMAGE_HOW = {
+    PageImages.ATTACHED: "the image is shown with this message",
+    PageImages.ON_REQUEST: f"view the image with {VIEW_ATTACHMENT_PAGES}, as page 1",
+    PageImages.NO_ROOM: (
+        "the image cannot be shown in this chat, which has no room left for images"
+    ),
+    PageImages.NONE: "the image itself cannot be shown to you",
+}
+_IMAGE_NOT_SHOWN = "the image could not be shown"
 _NO_ROOM_FOR_PAGES = (
     "This chat has no room left for page images, so no more pages can be "
     "shown. Work from the files' text and say so rather than asking again."
@@ -125,7 +140,11 @@ def _page_list(pages: Sequence[int]) -> str:
 
 
 def _pages_how(attachment: Attachment, unshown: Sequence[int]) -> str | None:
-    """How the model sees the file's pages as images; ``None`` when it does not."""
+    """How the model sees the file as images; ``None`` for a document it does not."""
+    if is_image_type(attachment.file.content_type):
+        if unshown and attachment.delivery.page_images == PageImages.ATTACHED:
+            return _IMAGE_NOT_SHOWN
+        return _IMAGE_HOW[attachment.delivery.page_images]
     if attachment.delivery.page_images == PageImages.ON_REQUEST:
         return _PAGES_ON_REQUEST
     if attachment.delivery.page_images == PageImages.NO_ROOM:
@@ -142,13 +161,22 @@ def _pages_how(attachment: Attachment, unshown: Sequence[int]) -> str | None:
 def _manifest_line(attachment: Attachment, unshown: Sequence[int]) -> str:
     file = attachment.file
     kind = kind_for_content_type(file.content_type)
+    image = is_image_type(file.content_type)
     details = [kind.label if kind else file.content_type]
     if file.page_count:
         details.append(f"{file.page_count} page{'' if file.page_count == 1 else 's'}")
-    details.append(f"{file.text_chars:,} characters")
+    if not image:
+        details.append(f"{file.text_chars:,} characters")
+    elif file.text_chars:
+        details.append(f"{file.text_chars:,} characters read in it by OCR")
+    else:
+        details.append("no text was read in it")
     if file.text_truncated:
         details.append("the rest of the file was too long to keep")
-    how = [_TOOLS if attachment.inline_text is None else _INLINE]
+    how = []
+    # Only an image can have no text.
+    if file.text_chars:
+        how.append(_TOOLS if attachment.inline_text is None else _INLINE)
     pages = _pages_how(attachment, unshown)
     if pages:
         how.append(pages)
@@ -181,9 +209,7 @@ def attachment_preamble(
             for attachment in attachments
         ),
     ]
-    inline = [
-        attachment for attachment in attachments if attachment.inline_text is not None
-    ]
+    inline = [attachment for attachment in attachments if attachment.inline_text]
     if inline:
         lines += ["", _INLINE_NOTE.format(boundary=boundary)]
     for attachment in inline:
@@ -281,6 +307,8 @@ def _page_numbers(value) -> list[int] | None:
 
 
 def _page_range_error(file: AgentFile, last: int) -> str:
+    if is_image_type(file.content_type):
+        return f"attachment {file.id} is an image; view it as page 1"
     has = f"attachment {file.id} has {file.page_count} page"
     if file.page_count != 1:
         has += "s"
@@ -410,11 +438,14 @@ class AttachmentToolset:
                 "as images. Use it where the extracted text is not enough: "
                 "figures, tables, equations, scanned pages, layout. Give up to "
                 f"{_MAX_VIEW_PAGES} page numbers per call, counted from 1 as in "
-                "the text's [Page N] markers. A chat has room for a limited "
-                "number of page images in all, so ask for the pages that "
+                "the text's [Page N] markers. An image the user attached that "
+                "was not shown with its message is viewed the same way, as "
+                "page 1 of its attachment. A chat has room for a limited "
+                "number of images in all, so ask for the pages that "
                 "matter; a call that asks for more than are left shows the "
                 "ones that fit and names the rest. Each page's image follows its "
-                'label, such as "grant.pdf, page 3". Where "[Image not shown: '
+                'label, such as "grant.pdf, page 3", or the file name alone '
+                'for an attached image. Where "[Image not shown: '
                 'grant.pdf, page 3]" stands in its place, that page could not '
                 "be shown -- the chat may have no room left for images -- so "
                 "work from the file's text and say so rather than asking for "
@@ -537,12 +568,12 @@ class AttachmentToolset:
         file = self._file(args.get("attachment_id"))
         if file is None:
             return self._unknown(args.get("attachment_id"))
-        last = page_image_count(file) if file.content_type == PDF.content_type else 0
+        last = page_image_count(file)
         if not last:
             return {
                 "error": (
-                    f"attachment {file.id} is not a PDF, so it has no pages to "
-                    f"view; read it with {READ_ATTACHMENT}"
+                    f"attachment {file.id} is not a PDF or an image, so it has "
+                    f"nothing to view; read it with {READ_ATTACHMENT}"
                 )
             }
         pages = _page_numbers(args.get("pages"))
