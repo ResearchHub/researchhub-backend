@@ -729,32 +729,37 @@ class NotebookChatPageImageTests(ChatTurnTestCase):
 
 
 class ConversationPageImageBudgetTests(ChatTurnTestCase):
-    # A chat takes four page images in all.
-    delivery = replace(DELIVERY, page_images_max_per_conversation=4)
+    # A chat takes four page images in all, two of them attached with messages.
+    delivery = replace(
+        DELIVERY,
+        page_images_max_attached_per_conversation=2,
+        page_images_max_per_conversation=4,
+    )
 
     def _view(self, call_id, file, pages):
         return tool_turn(
             call_id, VIEW_ATTACHMENT_PAGES, {"attachment_id": file.id, "pages": pages}
         )
 
-    def test_attached_pages_use_up_the_chats_page_images(self):
-        # Arrange: two two-page PDFs take the chat's four page images.
-        for name in ("first.pdf", "second.pdf"):
-            file = self._pdf(2, filename=name)
-            sent = self._submit_to_vision_model("Describe it", file_ids=[file.id])
-            self._finish(sent, text_turn("Two pages."))
-        third = self._pdf(2, filename="third.pdf")
-        execution = self._submit("And this one?", file_ids=[third.id])
+    def test_attached_pages_stop_at_their_share_of_the_chats_page_images(self):
+        # Arrange: the first PDF's two pages are all that messages may attach.
+        first = self._pdf(2, filename="first.pdf")
+        sent = self._submit_to_vision_model("Describe it", file_ids=[first.id])
+        self._finish(sent, text_turn("Two pages."))
+        second = self._pdf(2, filename="second.pdf")
+        execution = self._submit("And this one?", file_ids=[second.id])
 
         # Act
-        provider = self._finish(execution, text_turn("From its text."))
+        provider = self._finish(
+            execution, self._view("t1", second, [1, 2]), text_turn("Two more.")
+        )
 
-        # Assert: the block says so, and no fifth image is rendered or sent.
+        # Assert: its pages are on request, and the chat's other two were kept.
         message = provider.calls[0][-1]
-        self.assertEqual(self._manifest(message), [f"full text below; {NO_ROOM}"])
+        self.assertEqual(self._manifest(message), [f"full text below; {ON_REQUEST}"])
         self.assertEqual([type(block) for block in message.content], [TextBlock])
-        self.assertEqual(len(_images(provider.calls[0])), 4)
-        self.assertEqual(sorted(self.render.pages), [1, 1, 2, 2])
+        (result,) = provider.calls[1][-1].content
+        self.assertEqual(result.images, (_page(second, 1), _page(second, 2)))
 
     def test_pages_viewed_with_the_tool_use_up_the_chats_page_images(self):
         # Arrange: four views over two calls, one page twice.
@@ -803,12 +808,13 @@ class ConversationPageImageBudgetTests(ChatTurnTestCase):
         self.assertEqual(len(_images(provider.calls[1])), 4)
 
     def test_a_retried_turn_plans_with_the_room_its_first_attempt_had(self):
-        # Arrange: the message's pages take the chat's last room; the provider fails.
-        first = self._pdf(2, filename="first.pdf")
-        sent = self._submit_to_vision_model("Describe it", file_ids=[first.id])
-        self._finish(sent, text_turn("Two pages."))
-        second = self._pdf(2, filename="second.pdf")
-        execution = self._submit("And this one?", file_ids=[second.id])
+        # Arrange: two pages were viewed; the message's two take the chat's last
+        # room, and then the provider fails.
+        long = self._pdf(3, filename="plan.pdf")
+        sent = self._submit_to_vision_model("Look through it", file_ids=[long.id])
+        self._finish(sent, self._view("t1", long, [1, 2]), text_turn("Seen."))
+        short = self._pdf(2)
+        execution = self._submit("And this one?", file_ids=[short.id])
         failing = FakeProvider([RuntimeError("provider down")])
         failed = self._service(failing).run_turn(execution.id)
 
@@ -818,7 +824,7 @@ class ConversationPageImageBudgetTests(ChatTurnTestCase):
         # Assert: the failed attempt's own pages do not count against the retry.
         self.assertIn("error", failed)
         attempt, again = failing.calls[0][-1], provider.calls[0][-1]
-        self.assertEqual(attempt.content[:-1], [_page(second, 1), _page(second, 2)])
+        self.assertEqual(attempt.content[:-1], [_page(short, 1), _page(short, 2)])
         self.assertEqual(again.content, attempt.content)
 
     def test_a_chat_already_over_the_budgets_keeps_what_it_was_sent(self):

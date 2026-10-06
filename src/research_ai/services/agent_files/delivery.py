@@ -18,6 +18,9 @@ _SETTING_OVERRIDES = {
     "inline_max_chars_per_conversation": (
         "RESEARCH_AI_FILE_INLINE_MAX_CHARS_PER_CONVERSATION"
     ),
+    "page_images_max_attached_per_conversation": (
+        "RESEARCH_AI_FILE_PAGE_IMAGES_MAX_ATTACHED_PER_CONVERSATION"
+    ),
     "page_images_max_per_conversation": (
         "RESEARCH_AI_FILE_PAGE_IMAGES_MAX_PER_CONVERSATION"
     ),
@@ -59,7 +62,13 @@ class ConversationUsage:
     """What a conversation's context already carries, replayed on every call."""
 
     inline_chars: int = 0
-    page_images: int = 0
+    # Page images sent with messages, and page images the page tool showed.
+    attached_page_images: int = 0
+    requested_page_images: int = 0
+
+    @property
+    def page_images(self) -> int:
+        return self.attached_page_images + self.requested_page_images
 
 
 @dataclass(frozen=True)
@@ -82,6 +91,10 @@ class DeliveryConfig:
     # Inline text across a conversation, about 60K tokens; later files go
     # behind the tools.
     inline_max_chars_per_conversation: int = 240_000
+
+    # Pages attached with messages across a conversation; the rest of its page
+    # images are kept for the pages the model asks to see.
+    page_images_max_attached_per_conversation: int = 10
 
     # Pages attached or shown on request across a conversation. Twenty pages of
     # 500 KB fill the smallest per-request image budget (10 MB).
@@ -121,7 +134,10 @@ def plan_delivery(
         config.inline_max_chars_per_conversation - used.inline_chars,
     )
     images_left = config.page_images_left(used)
-    image_room = min(config.page_images_max_per_message, images_left)
+    attached_left = (
+        config.page_images_max_attached_per_conversation - used.attached_page_images
+    )
+    image_room = min(config.page_images_max_per_message, attached_left, images_left)
     planned = []
     for document in documents:
         text = TextDelivery.TOOLS
@@ -137,7 +153,8 @@ def plan_delivery(
                 image_room -= pages
                 images_left -= pages
         planned.append((text, page_images))
-    # A page can be asked for only while room is left after the attached pages.
+    # A PDF past the attached share is on request while the conversation has
+    # room, counting the pages attached here.
     on_request = PageImages.ON_REQUEST if images_left else PageImages.NO_ROOM
     return [
         Delivery(

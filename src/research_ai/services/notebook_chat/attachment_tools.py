@@ -201,21 +201,26 @@ def attachment_usage(context: Iterable[Message]) -> ConversationUsage:
     """The inline file text and the images a conversation's context carries.
 
     Read from the context itself, which is what every later request replays.
+    An image in a message was attached; one in a tool result was asked for.
     """
-    inline_chars = images = 0
+    inline_chars = attached = requested = 0
     for message in context:
         if message.role != "user":
             continue
         for block in message.content:
             if isinstance(block, ImageBlock):
-                images += 1
+                attached += 1
             elif isinstance(block, ToolResultBlock):
-                images += len(block.images)
+                requested += len(block.images)
             elif isinstance(block, TextBlock):
                 inline_chars += sum(
                     len(match.group(2)) for match in _INLINE_TEXT.finditer(block.text)
                 )
-    return ConversationUsage(inline_chars=inline_chars, page_images=images)
+    return ConversationUsage(
+        inline_chars=inline_chars,
+        attached_page_images=attached,
+        requested_page_images=requested,
+    )
 
 
 def _bounded(value, *, name: str, default: int, minimum: int, maximum=None) -> int:

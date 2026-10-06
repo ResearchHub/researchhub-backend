@@ -369,7 +369,8 @@ class AttachmentToolsetTests(TestCase):
     # -- conversation usage -------------------------------------------------
 
     def test_usage_is_the_inline_text_and_images_the_user_turns_carry(self):
-        # Arrange: the CV went inline, and the model quoted its tags back.
+        # Arrange: the CV went inline with two pages attached, the model quoted
+        # its tags back, and a tool result showed a third page.
         preamble = attachment_preamble(self._attachments(inline_max_chars=len(CV_TEXT)))
         boundary = self._boundary(preamble)
         quoted = f'<attachment_{boundary} id="1">\nPhD\n</attachment_{boundary}>'
@@ -385,7 +386,12 @@ class AttachmentToolsetTests(TestCase):
 
         # Assert
         self.assertEqual(
-            usage, ConversationUsage(inline_chars=len(CV_TEXT), page_images=3)
+            usage,
+            ConversationUsage(
+                inline_chars=len(CV_TEXT),
+                attached_page_images=2,
+                requested_page_images=1,
+            ),
         )
 
     def test_usage_counts_a_file_that_imitates_the_tags_in_full(self):

@@ -19,6 +19,7 @@ CONFIG = DeliveryConfig(
     page_images_max_pages=10,
     page_images_max_per_message=12,
     inline_max_chars_per_conversation=2_000,
+    page_images_max_attached_per_conversation=12,
     page_images_max_per_conversation=15,
 )
 
@@ -128,28 +129,29 @@ class PlanDeliveryTests(SimpleTestCase):
             [TextDelivery.TOOLS, TextDelivery.INLINE],
         )
 
-    def test_pages_that_no_longer_fit_the_conversation_are_on_request(self):
-        # Arrange: 5 of the conversation's 15 page images are left.
-        used = ConversationUsage(page_images=10)
+    def test_pages_past_the_attached_share_of_the_conversation_are_on_request(self):
+        # Arrange: attached pages have 3 of their 12 left, the conversation 6 of 15.
+        used = ConversationUsage(attached_page_images=9)
 
-        # Act: 6 pages do not fit; 3 do, and leave 2 to ask for.
+        # Act: 4 pages do not fit the share; 3 do, and use it up.
         deliveries = _plan(
-            Document(text_chars=100, page_count=6),
+            Document(text_chars=100, page_count=4),
             Document(text_chars=100, page_count=3),
+            Document(text_chars=100, page_count=1),
             used=used,
         )
 
-        # Assert
+        # Assert: the conversation's other 3 are kept to be asked for.
         self.assertEqual(
             [delivery.page_images for delivery in deliveries],
-            [PageImages.ON_REQUEST, PageImages.ATTACHED],
+            [PageImages.ON_REQUEST, PageImages.ATTACHED, PageImages.ON_REQUEST],
         )
 
     def test_no_page_can_be_asked_for_once_attached_pages_fill_the_conversation(self):
-        # Arrange: 5 of the conversation's 15 page images are left.
-        used = ConversationUsage(page_images=10)
+        # Arrange: pages the model asked for took 10 of the conversation's 15.
+        used = ConversationUsage(requested_page_images=10)
 
-        # Act: the second file's pages take all five.
+        # Act: the second file's pages are attached and take the other five.
         deliveries = _plan(
             Document(text_chars=100, page_count=40),
             Document(text_chars=100, page_count=5),
@@ -165,7 +167,7 @@ class PlanDeliveryTests(SimpleTestCase):
 
     def test_a_conversation_over_its_budgets_gets_tools_and_no_pages(self):
         # Arrange: as a chat can be whose files were sent before the budgets.
-        used = ConversationUsage(inline_chars=9_000, page_images=40)
+        used = ConversationUsage(inline_chars=9_000, attached_page_images=40)
 
         # Act
         (delivery,) = _plan(Document(text_chars=1, page_count=1), used=used)
@@ -194,16 +196,34 @@ class DeliveryConfigTests(SimpleTestCase):
 
     @override_settings(
         RESEARCH_AI_FILE_INLINE_MAX_CHARS_PER_CONVERSATION=10,
-        RESEARCH_AI_FILE_PAGE_IMAGES_MAX_PER_CONVERSATION=1,
+        RESEARCH_AI_FILE_PAGE_IMAGES_MAX_ATTACHED_PER_CONVERSATION=1,
+        RESEARCH_AI_FILE_PAGE_IMAGES_MAX_PER_CONVERSATION=2,
     )
     def test_settings_override_the_conversation_budgets(self):
+        # Arrange
+        paper = Document(text_chars=11, page_count=2)
+        full = ConversationUsage(requested_page_images=2)
+
+        # Act: in a new conversation, then in one that carries two page images.
+        (first,) = plan_delivery([paper], vision=True)
+        (later,) = plan_delivery([paper], vision=True, used=full)
+
+        # Assert
+        self.assertEqual(first, Delivery(TextDelivery.TOOLS, PageImages.ON_REQUEST))
+        self.assertEqual(later.page_images, PageImages.NO_ROOM)
+
+    def test_the_defaults_keep_page_images_for_the_model_to_ask_for(self):
+        # Arrange: attached pages have used their whole share of a conversation.
+        share = DeliveryConfig().page_images_max_attached_per_conversation
+        used = ConversationUsage(attached_page_images=share)
+
         # Act
         (delivery,) = plan_delivery(
-            [Document(text_chars=11, page_count=2)], vision=True
+            [Document(text_chars=1, page_count=1)], vision=True, used=used
         )
 
         # Assert
-        self.assertEqual(delivery, Delivery(TextDelivery.TOOLS, PageImages.ON_REQUEST))
+        self.assertEqual(delivery.page_images, PageImages.ON_REQUEST)
 
     def test_the_default_page_images_of_a_conversation_fit_any_providers_request(self):
         # Arrange: a page render is at most this large.
