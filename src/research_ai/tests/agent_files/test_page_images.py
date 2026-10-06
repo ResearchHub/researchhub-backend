@@ -224,6 +224,43 @@ class PageImageServiceTests(AWSMockTestCase):
         )
         self.assertEqual(result.failed, (2,))
 
+    def test_the_original_is_not_read_once_the_time_is_up(self):
+        # Arrange
+        file = self._pdf("Aims", "Approach")
+        service = PageImageService(
+            config=PageRenderConfig(max_seconds=0), render=FakeRender()
+        )
+
+        # Act
+        result = service.images(file, [1, 2])
+
+        # Assert
+        self.assertEqual(result.failed, (1, 2))
+        self.mock_aws_client.get_object.assert_not_called()
+
+    def test_a_read_that_outlasts_the_time_limit_is_not_waited_for(self):
+        # Arrange
+        file = self._pdf("Aims")
+        release = threading.Event()
+        self.addCleanup(release.set)
+        get_object = self.mock_aws_client.get_object.side_effect
+
+        def slow_get_object(**request):
+            release.wait(timeout=30)
+            return get_object(**request)
+
+        self.mock_aws_client.get_object.side_effect = slow_get_object
+        service = PageImageService(
+            config=PageRenderConfig(max_seconds=0.5), render=FakeRender()
+        )
+
+        # Act
+        result = service.images(file, [1])
+
+        # Assert
+        self.assertEqual(result.images, ())
+        self.assertEqual(result.failed, (1,))
+
     def test_pages_render_several_at_a_time(self):
         # Arrange
         file = self._pdf("Aims", "Approach")

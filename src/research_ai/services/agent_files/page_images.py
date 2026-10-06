@@ -133,7 +133,7 @@ class PageImageService:
         try:
             stored = _run(executor, self._is_stored, keys, deadline)
             missing = {page: key for page, key in keys.items() if page not in stored}
-            data = self._original(file) if missing else None
+            data = self._original(executor, file, deadline) if missing else None
             if data is not None:
                 store = partial(self._render_and_store, data, config, deadline)
                 stored |= _run(executor, store, missing, deadline)
@@ -164,13 +164,24 @@ class PageImageService:
                 logger.warning("could not check page image %s", key, exc_info=True)
             return False
 
-    def _original(self, file: AgentFile) -> bytes | None:
-        """The PDF the file's text was read from; ``None`` when it cannot be read."""
+    def _original(
+        self, executor: ThreadPoolExecutor, file: AgentFile, deadline: float
+    ) -> bytes | None:
+        """The PDF the file's text was read from; ``None`` unless read in time."""
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            logger.warning("no time left to read agent file %s", file.id)
+            return None
         config = self._file_config or AgentFileConfig.from_settings()
+        # Read on a worker thread, so a slow download cannot outlast the deadline.
+        read = executor.submit(
+            self.storage.read,
+            file.storage_key,
+            max_bytes=config.max_file_bytes,
+            if_match=file.etag,
+        )
         try:
-            return self.storage.read(
-                file.storage_key, max_bytes=config.max_file_bytes, if_match=file.etag
-            )
+            return read.result(timeout=remaining)
         except Exception:  # the caller still gets the pages already stored
             logger.warning("could not read agent file %s", file.id, exc_info=True)
             return None
