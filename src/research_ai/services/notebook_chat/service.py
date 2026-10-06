@@ -34,9 +34,15 @@ The same engine serves the note-less research assistant (workflow
 without a note runs with ``create_note`` in its toolset, and every note that
 tool creates is attached to the conversation, so later turns can read and edit
 exactly those notes and nothing else.
+
+Files the user uploads (``services.agent_files``) are attached to the message
+they are sent with. The turn's prompt lists them and carries the short ones in
+full, and the attachment tools read or search them for the rest of the
+conversation.
 """
 
 import logging
+from collections.abc import Collection
 from datetime import timedelta
 
 from django.db import transaction
@@ -63,8 +69,12 @@ from research_ai.services.agent import (
     split_model_ref,
     validate_model_ref,
 )
-from research_ai.services.agent.model_capabilities import validate_generation_options
+from research_ai.services.agent.model_capabilities import (
+    model_capabilities,
+    validate_generation_options,
+)
 from research_ai.services.agent.providers.registry import default_effort
+from research_ai.services.agent_files import AgentFileService
 from research_ai.services.agent_persistence import (
     AgentChatService,
     AgentContextService,
@@ -85,6 +95,10 @@ from research_ai.services.notebook_chat.activity import (
     drafting_label,
     execution_phase,
     public_activity,
+)
+from research_ai.services.notebook_chat.attachment_tools import (
+    AttachmentToolset,
+    attachment_preamble,
 )
 from research_ai.services.notebook_chat.config import NotebookChatConfig
 from research_ai.services.notebook_chat.events import (
@@ -214,6 +228,7 @@ class NotebookChatService:
         event_publisher: ConversationEventPublisher | None = None,
         stream_store: ExecutionStreamStore | None = None,
         note_creation_service: NoteCreationService | None = None,
+        file_service: AgentFileService | None = None,
         workflow: str = WORKFLOW,
     ):
         self.workflow = workflow
@@ -261,6 +276,7 @@ class NotebookChatService:
             if note_creation_service is None
             else note_creation_service
         )
+        self.files = AgentFileService() if file_service is None else file_service
         self._config = config
 
     @property
@@ -359,8 +375,12 @@ class NotebookChatService:
 
         ``phase`` is present on every execution and is ``None`` for terminal
         ones, so a client reads "what is it doing" from one field either way.
+        Every message carries ``attachments``, the files sent with it.
         """
         data = self.chat.representation(conversation)
+        attachments = self.files.attachments_by_message(conversation)
+        for message in data["messages"]:
+            message["attachments"] = attachments.get(message["id"], [])
         active = {AgentExecution.Status.PENDING, AgentExecution.Status.RUNNING}
         executions = data["executions"]
         scoped_ids = (
@@ -486,6 +506,7 @@ class NotebookChatService:
         effort: str | None = None,
         thinking: str | None = None,
         temperature: float | None = None,
+        file_ids: Collection[int] = (),
     ) -> AgentExecution:
         """Record the user's message on ``conversation`` and schedule the turn.
 
@@ -495,7 +516,9 @@ class NotebookChatService:
         against the notes attached to it. A chat still untitled takes its
         name from this message. ``model_ref`` selects the model for the first
         turn. Later turns reuse that model and effort; requesting a different
-        provider, model, or effort raises ``ValueError``.
+        provider, model, or effort raises ``ValueError``. ``file_ids`` are the
+        user's READY uploads to attach; ``AgentFileError`` (a ``ValueError``)
+        rejects the whole message when one cannot be.
         Raises ``ValueError`` on an empty or oversized message or a model not
         in the selectable catalog, and lets ``AgentConversationBusyError``
         propagate when a turn is already running on this conversation (the
@@ -613,6 +636,7 @@ class NotebookChatService:
                     configuration=configuration,
                     system_prompt=self._system_prompt(note, locked_conversation),
                 )
+                self.files.attach(prepared.human_message, file_ids)
                 # Held until a worker claims the turn and takes over renewal.
                 prepared.execution.usage_reservation_expires_at = claim_deadline()
                 prepared.execution.save(
@@ -830,6 +854,7 @@ class NotebookChatService:
             ),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
+            attachment_toolset=AttachmentToolset(conversation=conversation),
             native_tool_names=provider.native_tool_names,
         )
         config = self._turn_config(execution)
@@ -860,7 +885,17 @@ class NotebookChatService:
             if execution.context_parent_id
             else []
         )
+        # Planned once per turn; the prompt uses each file's text delivery.
+        attachments = self.files.message_attachments(
+            trigger,
+            vision=model_capabilities(
+                accounting_provider, accounting_model or ""
+            ).vision,
+        )
         prompt = trigger.content
+        preamble = attachment_preamble(attachments)
+        if preamble:
+            prompt = f"{preamble}\n\n{prompt}"
         # The user may have edited a note between turns; the model's earlier
         # reads (and version ids) of it would otherwise look current.
         notice = note_toolset.changed_notes_notice(context)

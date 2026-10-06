@@ -17,9 +17,14 @@ from utils.test_helpers import AWSMockMixin
 FILES_URL = "/api/research_ai/files/"
 CHATS_URL = "/api/research_ai/assistant/chats/"
 BUCKET = "researchhub-test-private-storage"
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
+}
 
 
-@override_settings(AWS_PRIVATE_STORAGE_BUCKET_NAME=BUCKET)
+@override_settings(AWS_PRIVATE_STORAGE_BUCKET_NAME=BUCKET, **MODEL_SETTINGS)
 class AgentFileViewTests(AWSMockMixin, APITestCase):
     def setUp(self):
         super().setUp()
@@ -281,3 +286,61 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
                 self.assertEqual(response.status_code, 409)
                 self.assertEqual(response.data["code"], "file_unavailable")
         self.mock_aws_client.generate_presigned_url.assert_not_called()
+
+    # -- sending files in a chat -------------------------------------------
+
+    def _send(self, chat_id, **payload):
+        with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
+            return self.client.post(
+                f"{CHATS_URL}{chat_id}/messages/",
+                {"message": "Summarize the attached proposal", **payload},
+                format="json",
+            )
+
+    def test_a_message_carries_its_files_into_the_chat(self):
+        # Arrange
+        chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
+        file = make_file(self.owner, page_count=12)
+
+        # Act
+        sent = self._send(chat_id, file_ids=[file.id])
+        chat = self.client.get(f"{CHATS_URL}{chat_id}/")
+
+        # Assert
+        self.assertEqual(sent.status_code, 202)
+        (message,) = chat.data["messages"]
+        (attachment,) = message["attachments"]
+        self.assertEqual(attachment["id"], file.id)
+        self.assertEqual(attachment["filename"], "grant.pdf")
+        self.assertEqual(attachment["page_count"], 12)
+        self.assertEqual(attachment["message_id"], message["id"])
+
+    def test_a_message_with_an_unready_file_is_refused_whole(self):
+        # Arrange
+        chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
+        ready = make_file(self.owner)
+        processing = make_file(self.owner, status=AgentFile.Status.PROCESSING)
+
+        # Act
+        response = self._send(chat_id, file_ids=[ready.id, processing.id])
+        chat = self.client.get(f"{CHATS_URL}{chat_id}/")
+
+        # Assert: nothing was recorded, so the user can simply resend.
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "attachment_not_ready")
+        self.assertEqual(chat.data["messages"], [])
+        self.assertEqual(chat.data["executions"], [])
+        ready.refresh_from_db()
+        self.assertIsNone(ready.message_id)
+
+    def test_another_users_file_cannot_be_sent(self):
+        # Arrange
+        chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
+        foreign = make_file(self.other)
+
+        # Act
+        response = self._send(chat_id, file_ids=[foreign.id])
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "attachment_unavailable")
