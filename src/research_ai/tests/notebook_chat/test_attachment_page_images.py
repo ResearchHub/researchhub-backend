@@ -315,7 +315,7 @@ class ToolRecordingProvider(FakeProvider):
 class NotebookChatPageImageTests(BucketTestCase):
     def setUp(self):
         super().setUp()
-        self.note, _content = create_note(self.user, organization=None)
+        self.note = create_note(self.user, organization=None)[0]
         Permission.objects.create(
             access_type=ADMIN,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
