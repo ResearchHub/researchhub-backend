@@ -480,6 +480,15 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         if not hasattr(note, "post"):
             return None
 
+        # A listing that only needs to know whether a note is published asks
+        # for a slim post; without the entry it gets the full shape below.
+        _context_fields = self.context.get("nte_dns_get_post")
+        if _context_fields is not None:
+            serializer = DynamicPostSerializer(
+                note.post, context=self.context, **_context_fields
+            )
+            return serializer.data
+
         context = {
             # Propagate the request so DynamicPostSerializer can resolve the
             # viewer and avoid redacting private posts they are allowed to see.

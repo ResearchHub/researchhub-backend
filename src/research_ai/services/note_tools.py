@@ -24,7 +24,8 @@ admin). A toolset built for a single-note surface can additionally be
 scoped with ``note_ids``; notes outside the scope get the same not-found
 error as inaccessible ones. A surface that starts without a note can pass a
 ``note_creator`` to expose ``create_note``; a note it creates joins the scope
-for the rest of the turn.
+for the rest of the turn. ``rename_note`` retitles a note under the same write
+check and, like a rename through the note API, tells an open notebook.
 
 Stored documents carry editor scaffolding (uuid block ids and a trailing
 empty paragraph; see ``utils.prosemirror.editor_shape``) that is hidden from
@@ -69,6 +70,7 @@ logger = logging.getLogger(__name__)
 
 READ_NOTE = "read_note"
 EDIT_NOTE = "edit_note"
+RENAME_NOTE = "rename_note"
 CREATE_NOTE = "create_note"
 _MAX_BLOCKS_PER_READ = 50
 _MAX_TITLE_CHARS = 255
@@ -291,6 +293,29 @@ class NoteToolset:
                     "required": ["note_id", "expected_version_id", "edits"],
                 },
                 handler=self._edit_note,
+            ),
+            Tool(
+                name=RENAME_NOTE,
+                description=(
+                    "Rename a note. Use it to give a note a short, specific "
+                    "title, or when the user asks to rename it. Returns the "
+                    "title as saved."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "note_id": {
+                            "type": "integer",
+                            "description": "Id of the note to rename.",
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "The note's new title.",
+                        },
+                    },
+                    "required": ["note_id", "title"],
+                },
+                handler=self._rename_note,
             ),
         ]
 
@@ -516,6 +541,32 @@ class NoteToolset:
         block_count = len(saved) - (1 if is_trailing_paragraph(saved[-1]) else 0)
         return version, block_count
 
+    def _rename_note(self, input: dict) -> dict:
+        note = self.get_readable_note(input.get("note_id"))
+        if note is None:
+            return {"error": f"note {input.get('note_id')} not found or not accessible"}
+
+        permissions = note.permissions
+        if not (
+            permissions.has_admin_user(self._user)
+            or permissions.has_editor_user(self._user)
+        ):
+            return {"error": f"no edit permission on note {note.id}"}
+
+        title = input.get("title")
+        if not isinstance(title, str) or not title.strip():
+            return {"error": "title must be a non-empty string"}
+        title = " ".join(title.split())
+        if len(title) > _MAX_TITLE_CHARS:
+            return {"error": f"title must be at most {_MAX_TITLE_CHARS} characters"}
+
+        # Like the note API, only a real rename is saved and broadcast.
+        if note.title != title:
+            note.title = title
+            note.save(update_fields=["title", "updated_date"])
+            notify_note_updated(note)
+        return {"note_id": note.id, "title": note.title}
+
     # -- turn context -----------------------------------------------------
 
     def changed_notes_notice(self, messages: Iterable[Message]) -> str | None:
@@ -567,7 +618,8 @@ class NoteToolset:
 
 
 def notify_note_updated(note: Note) -> None:
-    """Tell an open notebook about a Details write, which adds no NoteContent.
+    """Tell an open notebook about a Details write or a rename, neither of
+    which adds a NoteContent.
 
     Best-effort: an ownerless note has no org room, and the write is committed.
     """
@@ -577,7 +629,8 @@ def notify_note_updated(note: Note) -> None:
         note.notify_note_updated_title()
     except Exception:  # noqa: BLE001 - the write is already saved
         logger.warning(
-            "could not publish note update after a Details change", exc_info=True
+            "could not publish note update after a Details change or rename",
+            exc_info=True,
         )
 
 

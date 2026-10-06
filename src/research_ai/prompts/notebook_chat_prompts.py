@@ -14,10 +14,10 @@ from researchhub_document.related_models.constants.document_type import (
 
 _SELECTED_RFP_CAPABILITY = """## The selected RFP
 
-This preregistration may have a funding opportunity selected. When the user's
-request depends on that RFP's fit, requirements, budget, deadline, or wording,
-call read_selected_rfp before answering or editing. Do not use search_grants to
-guess which RFP is selected.
+This note is a research proposal (a preregistration). It may have a funding
+opportunity selected. When the user's request depends on that RFP's fit,
+requirements, budget, deadline, or wording, call read_selected_rfp before
+answering or editing. Do not use search_grants to guess which RFP is selected.
 
 When the user asks to apply to a grant, switch to a different one, or drop the
 current one, call set_selected_rfp with the grant id from search_grants (or

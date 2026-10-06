@@ -31,7 +31,12 @@ from research_ai.services.agent_persistence.activity import (
     ThinkingEvent,
     ToolCallEvent,
 )
-from research_ai.services.note_tools import CREATE_NOTE, EDIT_NOTE, READ_NOTE
+from research_ai.services.note_tools import (
+    CREATE_NOTE,
+    EDIT_NOTE,
+    READ_NOTE,
+    RENAME_NOTE,
+)
 from research_ai.services.notebook_chat.attachment_tools import (
     READ_ATTACHMENT,
     SEARCH_ATTACHMENT,
@@ -71,6 +76,7 @@ _LABELS = {
     CREATE_NOTE: "Created a note",
     READ_NOTE: "Read the note",
     EDIT_NOTE: "Edited the note",
+    RENAME_NOTE: "Renamed the note",
     WEB_SEARCH: "Searched the web",
     SEARCH_GRANTS: "Searched grants",
     GET_GRANT_DETAILS: "Read grant details",
@@ -97,6 +103,7 @@ _ACTIVE_LABELS = {
     CREATE_NOTE: "Creating a note",
     READ_NOTE: "Reading the note",
     EDIT_NOTE: "Editing the note",
+    RENAME_NOTE: "Renaming the note",
     WEB_SEARCH: "Searching the web",
     SEARCH_GRANTS: "Searching grants",
     GET_GRANT_DETAILS: "Reading grant details",
