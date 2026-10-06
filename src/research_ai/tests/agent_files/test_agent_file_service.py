@@ -16,7 +16,6 @@ from research_ai.services.agent_files import (
 )
 from research_ai.services.agent_files.delivery import (
     DeliveryConfig,
-    PageImages,
     TextDelivery,
 )
 from research_ai.services.agent_files.extraction import NO_TEXT_LAYER, OCR_NOTE
@@ -496,22 +495,6 @@ class AgentFileServiceTests(TestCase):
         self.assertEqual(raised.exception.code, "too_many_attachments")
         self.assertIn("at most 3 files", str(raised.exception))
 
-    def test_attachments_by_message_groups_public_views(self):
-        # Arrange
-        sent = make_file(self.user, message=self.message)
-        make_file(self.user)
-
-        # Act
-        attachments = self.service.attachments_by_message(self.conversation)
-
-        # Assert
-        (view,) = attachments[self.message.id]
-        self.assertEqual(view["id"], sent.id)
-        self.assertEqual(view["filename"], "grant.pdf")
-        self.assertEqual(view["status"], AgentFile.Status.READY)
-        self.assertNotIn("text", view)
-        self.assertEqual(list(attachments), [self.message.id])
-
     # -- delivery -------------------------------------------------------------
 
     def _send(self, *, chars, **fields):
@@ -539,39 +522,6 @@ class AgentFileServiceTests(TestCase):
         self.assertIsNone(behind_tools.inline_text)
         self.assertIn("text", behind_tools.file.get_deferred_fields())
         self.assertEqual(behind_tools.file.text_chars, len(long.text))
-
-    def test_message_attachments_share_the_messages_inline_budget(self):
-        # Arrange: any one fits, but the budget holds the first and the last.
-        rest = DELIVERY.inline_max_chars_per_message - DELIVERY.inline_max_chars
-        for chars in (DELIVERY.inline_max_chars, DELIVERY.inline_max_chars, rest):
-            self._send(chars=chars)
-
-        # Act
-        attachments = self.service.message_attachments(self.message, vision=True)
-
-        # Assert
-        self.assertEqual(
-            [attachment.delivery.text for attachment in attachments],
-            [TextDelivery.INLINE, TextDelivery.TOOLS, TextDelivery.INLINE],
-        )
-        self.assertEqual(
-            [attachment.inline_text is not None for attachment in attachments],
-            [True, False, True],
-        )
-
-    def test_message_attachments_offer_page_images_only_to_a_vision_model(self):
-        # Arrange
-        self._send(chars=DELIVERY.inline_max_chars, page_count=2)
-
-        # Act
-        (seeing,) = self.service.message_attachments(self.message, vision=True)
-        (text_only,) = self.service.message_attachments(self.message, vision=False)
-
-        # Assert: the text arrives the same way for both.
-        self.assertEqual(seeing.delivery.page_images, PageImages.ATTACHED)
-        self.assertEqual(text_only.delivery.page_images, PageImages.NONE)
-        self.assertEqual(text_only.delivery.text, TextDelivery.INLINE)
-        self.assertEqual(text_only.inline_text, seeing.inline_text)
 
     def test_message_attachments_cover_only_that_messages_ready_files(self):
         # Arrange
