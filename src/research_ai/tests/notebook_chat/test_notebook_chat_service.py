@@ -1,6 +1,6 @@
 import json
 from datetime import timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -330,6 +330,7 @@ class NotebookChatServiceTests(TestCase):
         resolve.assert_called_once_with(
             "claude_platform:claude-sonnet-5",
             native_tools=frozenset({"web_search"}),
+            image_loader=ANY,
             effort="low",
         )
 
@@ -637,6 +638,7 @@ class NotebookChatServiceTests(TestCase):
         resolver.assert_called_once_with(
             "claude_platform:claude-sonnet-5",
             native_tools=frozenset({"web_search"}),
+            image_loader=ANY,
             effort="low",
         )
         self.assertEqual(result["final_text"], "Done.")

@@ -12,6 +12,7 @@ from research_ai.services.agent_files import (
     AgentFileService,
 )
 from research_ai.services.agent_files.delivery import DeliveryConfig, PageImages
+from research_ai.services.agent_files.page_images import PageImageService
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.notebook_chat.attachment_tools import (
     READ_ATTACHMENT,
@@ -24,6 +25,7 @@ from research_ai.tests.agent.persistence_test_helpers import (
     tool_turn,
 )
 from research_ai.tests.agent_files.helpers import make_file
+from researchhub.services.private_storage_service import PrivateStorageService
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -79,6 +81,8 @@ def _make_service(provider=None, files=None):
         oa_client=Mock(),
         web_search_client=Mock(configured=False),
         file_service=files or AgentFileService(delivery_config=DELIVERY),
+        # Every page counts as stored, so nothing is rendered or reaches S3.
+        page_image_service=PageImageService(storage=Mock(spec=PrivateStorageService)),
     )
 
 
@@ -121,7 +125,8 @@ class NotebookChatAttachmentTests(TestCase):
         return provider
 
     def _prompt(self, provider, call=0):
-        return provider.calls[call][-1].content[0].text
+        # The text follows any page images sent with the message.
+        return provider.calls[call][-1].content[-1].text
 
     def test_a_short_file_arrives_in_full_with_the_message(self):
         # Arrange

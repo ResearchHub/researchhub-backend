@@ -44,6 +44,7 @@ from research_ai.services.agent_files.extraction import (
 )
 from research_ai.services.agent_files.extraction_service import TextExtractionService
 from research_ai.services.agent_files.mistral_ocr import MistralOcr
+from research_ai.services.agent_files.page_images import page_image_keys
 from researchhub.services.private_storage_service import (
     PresignedPost,
     PrivateStorageNotConfiguredError,
@@ -466,14 +467,16 @@ class AgentFileService:
                 # Re-checked under a lock: the file may have been sent since the scan.
                 file = (
                     AgentFile.objects.select_for_update(of=("self",))
-                    .only("storage_key")
+                    .only("storage_key", "page_count")
                     .filter(expired, id=file_id)
                     .first()
                 )
                 if file is None:
                     continue
                 try:
+                    # The original goes first: without it no page renders again.
                     self.storage.delete(file.storage_key)
+                    self.storage.delete_many(page_image_keys(file))
                 except Exception:  # noqa: BLE001 - the row stays for the next run
                     logger.warning(
                         "could not delete agent file object %s",
