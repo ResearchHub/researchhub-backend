@@ -76,6 +76,15 @@ class AgentFile(DefaultModel):
     )
     text_truncated = models.BooleanField(default=False)
     page_count = models.PositiveIntegerField(null=True, blank=True)
+    pages_without_text = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        db_comment=(
+            "PDF pages left without readable text (scans or figures no OCR "
+            "read); null for other formats and files processed before this "
+            "was recorded."
+        ),
+    )
 
     class Meta:
         db_table = "research_ai_agent_file"

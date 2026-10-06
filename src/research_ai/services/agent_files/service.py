@@ -91,6 +91,8 @@ def public_file(file: AgentFile) -> dict:
         "status": file.status,
         "error": file.error or None,
         "page_count": file.page_count,
+        # Equals ``page_count`` when no page was readable; null when not counted.
+        "pages_without_text": file.pages_without_text,
         "text_truncated": file.text_truncated,
         "conversation_id": file.conversation_id,
         "message_id": file.message_id,
@@ -436,6 +438,12 @@ class AgentFileService:
             text=extracted.text,
             text_truncated=extracted.truncated,
             page_count=extracted.page_count,
+            # Only a PDF has pages to count.
+            pages_without_text=(
+                None
+                if extracted.page_count is None
+                else len(extracted.pages_without_text)
+            ),
             updated_date=timezone.now(),
         )
         return AgentFile.Status.READY if readied else None
