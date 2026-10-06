@@ -1079,14 +1079,14 @@ wheels = [
 
 [[package]]
 name = "django-storages"
-version = "1.10.1"
+version = "1.14.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/f7/60aa5cf8e8a5d129b7041cf75a7687a5290715b3a7088fde50dce19d6b9e/django-storages-1.10.1.tar.gz", hash = "sha256:652275ab7844538c462b62810276c0244866f345878256a9e0e86f5b1283ae18", size = 94868, upload-time = "2020-09-14T06:15:01.742Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/d6/2e50e378fff0408d558f36c4acffc090f9a641fd6e084af9e54d45307efa/django_storages-1.14.6.tar.gz", hash = "sha256:7a25ce8f4214f69ac9c7ce87e2603887f7ae99326c316bc8d2d75375e09341c9", size = 87587, upload-time = "2025-04-02T02:34:55.103Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/23/23/638a91b0ebaeb9f1a791b98c3004ef778b2d79623ceb60f82eef19ee6143/django_storages-1.10.1-py3-none-any.whl", hash = "sha256:12de8fb2605b9b57bfaf54b075280d7cbb3b3ee1ca4bc9b9add147af87fe3a2c", size = 41853, upload-time = "2020-09-14T06:14:59.204Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/21/3cedee63417bc5553eed0c204be478071c9ab208e5e259e97287590194f1/django_storages-1.14.6-py3-none-any.whl", hash = "sha256:11b7b6200e1cb5ffcd9962bd3673a39c7d6a6109e8096f0e03d46fab3d3aabd9", size = 33095, upload-time = "2025-04-02T02:34:53.291Z" },
 ]
 
 [[package]]
@@ -2617,7 +2617,7 @@ requires-dist = [
     { name = "django-ses", extras = ["events"], specifier = ">=4.7.2,<5" },
     { name = "django-silk", specifier = ">=5.6.0,<6" },
     { name = "django-simple-history", specifier = ">=3.13.0,<4" },
-    { name = "django-storages", specifier = "==1.10.1" },
+    { name = "django-storages", specifier = "==1.14.6" },
     { name = "djangorestframework", specifier = "==3.18.1" },
     { name = "elastic-apm", specifier = ">=6.26.2,<7" },
     { name = "flower", specifier = ">=2.2.0,<3" },
