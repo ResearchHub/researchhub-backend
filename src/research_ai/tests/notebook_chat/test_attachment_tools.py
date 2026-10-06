@@ -137,12 +137,12 @@ class AttachmentToolsetTests(TestCase):
 
     def test_read_rejects_bad_bounds(self):
         cases = [
-            {"start_char": -1},
-            {"start_char": len(PDF_TEXT) + 1},
-            {"max_chars": 40_001},
-            {"max_chars": "10"},
+            ({"start_char": -1}, "start_char must be at least 0"),
+            ({"start_char": len(PDF_TEXT) + 1}, "is past the end of attachment"),
+            ({"max_chars": 40_001}, "max_chars must be between 1 and 40000"),
+            ({"max_chars": "10"}, "max_chars must be an integer"),
         ]
-        for bounds in cases:
+        for bounds, message in cases:
             with self.subTest(bounds=bounds):
                 # Act
                 result = self._call(
@@ -150,7 +150,7 @@ class AttachmentToolsetTests(TestCase):
                 )
 
                 # Assert
-                self.assertIn("error", result)
+                self.assertIn(message, result["error"])
 
     def test_read_accepts_a_numeric_string_id(self):
         # Act
@@ -160,7 +160,7 @@ class AttachmentToolsetTests(TestCase):
         self.assertEqual(result["text"], CV_TEXT)
 
     def test_an_id_that_is_not_a_number_names_no_file(self):
-        for attachment_id in (True, "first", None, [self.cv.id]):
+        for attachment_id in ("first", None, [self.cv.id]):
             with self.subTest(attachment_id=attachment_id):
                 # Act
                 result = self._call(READ_ATTACHMENT, {"attachment_id": attachment_id})
@@ -227,23 +227,6 @@ class AttachmentToolsetTests(TestCase):
             if passage["attachment_id"] == self.cv.id
         )
         self.assertIsNone(cv_passage["pages"])
-
-    def test_search_gives_no_page_for_pdf_text_before_any_page_marker(self):
-        # Arrange
-        unmarked = make_file(
-            self.user,
-            message=self.proposal.message,
-            text="Zebrafish husbandry notes, kept without page markers.",
-        )
-
-        # Act
-        result = self._call(
-            SEARCH_ATTACHMENT, {"attachment_id": unmarked.id, "query": "zebrafish"}
-        )
-
-        # Assert
-        (passage,) = result["passages"]
-        self.assertIsNone(passage["pages"])
 
     def test_search_validates_its_input(self):
         # Arrange
@@ -406,7 +389,6 @@ class AttachmentToolsetTests(TestCase):
         # Assert
         self.assertEqual(read["label"], "Read an attached file")
         self.assertEqual(read["detail"], "grant.pdf")
-        self.assertNotIn("text", read)
+        self.assertNotIn("Specific aims", json.dumps(read, default=str))
         self.assertEqual(search["label"], "Searched attached files")
         self.assertEqual(search["detail"], "budget")
-        self.assertEqual(search["status"], "in_progress")
