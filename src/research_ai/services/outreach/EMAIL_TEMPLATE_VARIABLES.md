@@ -47,10 +47,9 @@ The expert resolved from the search. Built from the `resolved_expert` dict passe
 | `affiliation` | Institution or affiliation |
 | `email`       | Expert's email address     |
 | `expertise`   | Area(s) of expertise       |
-| `notes`       | Why recommended (finder match rationale) |
 
 
-**Example:** `{{expert.name}}`, `{{expert.affiliation}}`, `{{expert.notes}}`
+**Example:** `{{expert.name}}`, `{{expert.affiliation}}`
 
 ---
 

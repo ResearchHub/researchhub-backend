@@ -280,7 +280,6 @@ def _generate_with_fixed_template(
         "affiliation": expert_dict["affiliation"],
         "email": expert_dict["email"],
         "expertise": expert_dict["expertise"],
-        "notes": expert_dict.get("notes") or "",
     }
     context = build_replacement_context(
         user=user,

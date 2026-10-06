@@ -24,7 +24,7 @@ PROPOSAL_VARIABLES = (
     "deadline",
     "blurb",
 )
-EXPERT_VARIABLES = ("name", "title", "affiliation", "email", "expertise", "notes")
+EXPERT_VARIABLES = ("name", "title", "affiliation", "email", "expertise")
 
 
 def format_expert_name_from_raw(raw: str) -> str:
@@ -120,7 +120,6 @@ def _build_expert_context(resolved_expert: dict | None) -> dict[str, str]:
         "affiliation": (resolved_expert.get("affiliation") or "").strip(),
         "email": (resolved_expert.get("email") or "").strip(),
         "expertise": (resolved_expert.get("expertise") or "").strip(),
-        "notes": (resolved_expert.get("notes") or "").strip(),
     }
 
 

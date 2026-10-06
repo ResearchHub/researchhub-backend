@@ -126,7 +126,6 @@ class BuildReplacementContextTests(TestCase):
             "affiliation": "Yale",
             "email": "bob@yale.edu",
             "expertise": "Bio",
-            "notes": "Matched on CRISPR work",
         }
         ctx = build_replacement_context(
             user=user,
@@ -140,11 +139,10 @@ class BuildReplacementContextTests(TestCase):
         self.assertEqual(ctx["rfp"]["blurb"], "B")
         self.assertEqual(ctx["expert"]["name"], "Bob")
         self.assertEqual(ctx["expert"]["affiliation"], "Yale")
-        self.assertEqual(ctx["expert"]["notes"], "Matched on CRISPR work")
 
-        text = "Hi {{expert.name}}, {{expert.notes}}."
+        text = "Hi {{expert.name}}, {{expert.affiliation}}."
         out = replace_template_variables(text, ctx)
-        self.assertEqual(out, "Hi Bob, Matched on CRISPR work.")
+        self.assertEqual(out, "Hi Bob, Yale.")
 
     def test_none_inputs_yield_empty_entity_dicts(self):
         ctx = build_replacement_context(
@@ -157,7 +155,6 @@ class BuildReplacementContextTests(TestCase):
         self.assertEqual(ctx["rfp"]["title"], "")
         self.assertEqual(ctx["proposal"]["title"], "")
         self.assertEqual(ctx["expert"]["name"], "")
-        self.assertEqual(ctx["expert"]["notes"], "")
 
     def test_format_expert_name_first_and_last_token_only(self):
         self.assertEqual(
