@@ -3,7 +3,7 @@ name = "researchhub"
 version = "0.1.0"
 description = "ResearchHub Backend"
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.13,<3.15"
 authors = [{ name = "ResearchHub", email = "dev@researchhub.com" }]
 dependencies = [
     "anthropic[aws]>=0.120.0",
