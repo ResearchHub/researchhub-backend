@@ -30,7 +30,7 @@ def notify_mentioned_users(comment_id: int, recipient_ids: list[int]) -> None:
             unified_document=unified_document,
         )
         if notification is not None:
-            link = f"{unified_document.frontend_view_link()}#comments"
+            link = f"{unified_document.frontend_view_link()}/conversation"
             transaction.on_commit(
                 lambda email=recipient.email, link=link: emails.send_message_email(
                     [email], subject, message, link=link

@@ -2,12 +2,15 @@ import decimal
 import threading
 import time
 from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.test import TransactionTestCase
 from rest_framework.test import APIClient, APITestCase
 
+from mailing_list.tasks import send_message_email
+from notification.models import Notification
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
@@ -61,6 +64,28 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
             recipient=self.recipient,
         ).latest("id")
         self.assertEqual(distribution.distribution_type, "BOUNTY_PAYOUT")
+
+    @patch.object(send_message_email, "delay")
+    def test_bounty_payout_notifies_and_emails_recipient(
+        self, mock_delay: Mock
+    ) -> None:
+        """Notify and email the paid-out user once the bounty payout commits."""
+        # Arrange
+        bounty = Bounty.objects.get(id=self._create_bounty().data["id"])
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            bounty.escrow.payout(
+                recipient=self.recipient, payout_amount=decimal.Decimal(100)
+            )
+
+        # Assert
+        notification = Notification.objects.get(
+            notification_type=Notification.BOUNTY_PAYOUT
+        )
+        self.assertEqual(notification.recipient, self.recipient)
+        mock_delay.assert_called_once()
+        self.assertEqual(mock_delay.call_args.args[0], [self.recipient.email])
 
     def test_author_rsc_escrow_payout_is_rejected(self):
         paper = create_paper()

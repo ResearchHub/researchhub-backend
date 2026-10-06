@@ -4,6 +4,7 @@ from logging import Logger
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Q
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -19,7 +20,7 @@ from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from user.related_models.follow_model import Follow
+from user.related_models.user_model import User
 
 logger = Logger(__name__)
 
@@ -76,7 +77,7 @@ def create_author_update_notification(sender, instance, created, **kwargs):
 
 
 def _create_author_update_notification(comment: RhCommentModel) -> None:
-    """Notify followers that the preregistration author posted an update."""
+    """Notify followers and RFP creators and contacts of a preregistration update."""
     document = comment.unified_document.get_document()
 
     if not (
@@ -91,17 +92,21 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         return
 
     author = comment.created_by
-    follows = Follow.objects.filter(
-        content_type=ContentType.objects.get_for_model(document),
-        object_id=document.id,
-    ).select_related("user")
+    recipients = User.objects.filter(
+        Q(
+            following__content_type=ContentType.objects.get_for_model(document),
+            following__object_id=document.id,
+        )
+        | Q(grants__applications__preregistration_post=document)
+        | Q(grant_contacts__applications__preregistration_post=document)
+    ).distinct()
 
-    recipient_emails = [follow.user.email for follow in follows]
+    recipient_emails = [recipient.email for recipient in recipients]
     notifications = NotificationService()
-    for follow in follows:
+    for recipient in recipients:
         notifications.send(
             Notification.PREREGISTRATION_UPDATE,
-            recipient=follow.user,
+            recipient=recipient,
             action_user=author,
             item=comment,
             unified_document=comment.unified_document,

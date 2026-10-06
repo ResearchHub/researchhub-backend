@@ -369,7 +369,7 @@ class CommentViewTests(APITestCase):
             [recipient.email],
             "You were Mentioned in a Comment",
             f"{creator.first_name} {creator.last_name} mentioned you in their comment",
-            link=f"{self.paper.unified_document.frontend_view_link()}#comments",
+            link=f"{self.paper.unified_document.frontend_view_link()}/conversation",
         )
 
     def test_censored_top_level_comments_excluded_from_list(self):

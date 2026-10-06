@@ -100,6 +100,7 @@ class Escrow(DefaultModel):
         self.set_status(self.PENDING, should_save=should_save)
 
     def payout(self, recipient, payout_amount):
+        from mailing_list.tasks import send_message_email
         from notification.models import Notification
         from notification.services import NotificationService
         from reputation.distributor import Distributor
@@ -150,24 +151,39 @@ class Escrow(DefaultModel):
             else:
                 escrow.set_paid_status(should_save=True)
 
-            notifications = NotificationService()
+            unified_document = escrow.item.unified_document
+            title = unified_document.get_display_title()
             if escrow.hold_type == escrow.BOUNTY:
-                notifications.try_send(
-                    Notification.BOUNTY_PAYOUT,
-                    recipient=recipient,
-                    action_user=escrow.created_by,
-                    item=escrow,
-                    unified_document=escrow.item.unified_document,
-                    extra={"amount": str(payout_amount)},
+                notification_type = Notification.BOUNTY_PAYOUT
+                subject = "Bounty Payout"
+                message = (
+                    f"{escrow.created_by.full_name()} awarded you a bounty for your "
+                    f"thread in {title}."
                 )
-            elif escrow.hold_type == escrow.FUNDRAISE:
-                notifications.try_send(
-                    Notification.FUNDRAISE_PAYOUT,
-                    recipient=recipient,
-                    action_user=escrow.created_by,
-                    item=escrow,
-                    unified_document=escrow.item.unified_document,
+                link = f"{unified_document.frontend_view_link()}/conversation"
+            else:
+                notification_type = Notification.FUNDRAISE_PAYOUT
+                subject = "Fundraise Payout"
+                message = (
+                    f"Congratulations! Your fundraise for {title} has been fulfilled "
+                    "and paid out to you."
                 )
+                link = unified_document.frontend_view_link()
+
+            NotificationService().try_send(
+                notification_type,
+                recipient=recipient,
+                action_user=escrow.created_by,
+                item=escrow,
+                unified_document=unified_document,
+                extra={"amount": str(payout_amount)},
+            )
+            transaction.on_commit(
+                lambda: send_message_email.delay(
+                    [recipient.email], subject, message, link=link
+                ),
+                robust=True,
+            )
 
             self.amount_holding = escrow.amount_holding
             self.amount_paid = escrow.amount_paid
