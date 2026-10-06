@@ -74,6 +74,30 @@ class ModelPricingTests(SimpleTestCase):
             cost_microusd("openrouter", "openai/gpt-6-luna", usage), 55_150
         )
 
+    def test_kimi_k3_uses_openrouter_list_price(self):
+        # Arrange
+        usage = TurnUsage(
+            input_tokens=1_000_000,
+            output_tokens=1_000_000,
+            cache_read_tokens=1_000_000,
+        )
+
+        # Act
+        cost = cost_microusd("openrouter", "moonshotai/kimi-k3", usage)
+
+        # Assert: OpenRouter lists $0.69 input, $15 output, $0.23 cached input.
+        self.assertEqual(cost, 15_920_000)
+
+    def test_gemini_3_8_flash_web_search_requests_are_priced(self):
+        # Arrange
+        usage = TurnUsage(web_search_requests=2)
+
+        # Act
+        cost = cost_microusd("openrouter", "google/gemini-3.8-flash", usage)
+
+        # Assert: OpenRouter lists $0.014 per search.
+        self.assertEqual(cost, 28_000)
+
     def test_opus_5_5_cache_reads_use_its_model_specific_rate(self):
         # Arrange
         usage = TurnUsage(cache_read_tokens=1_000_000)
