@@ -74,19 +74,24 @@ class ModelPricingTests(SimpleTestCase):
             cost_microusd("openrouter", "openai/gpt-6-luna", usage), 55_150
         )
 
-    def test_kimi_k3_uses_openrouter_list_price(self):
+    def test_open_weight_models_use_openrouter_list_prices(self):
         # Arrange
         usage = TurnUsage(
             input_tokens=1_000_000,
             output_tokens=1_000_000,
             cache_read_tokens=1_000_000,
         )
+        cases = (
+            # $0.69 input, $15 output, $0.23 cached input.
+            ("moonshotai/kimi-k3", 15_920_000),
+            # $0.0055 input, $1.28 output, $0.0055 cached input.
+            ("deepseek/deepseek-v4-flash-0731", 1_291_000),
+        )
 
-        # Act
-        cost = cost_microusd("openrouter", "moonshotai/kimi-k3", usage)
-
-        # Assert: OpenRouter lists $0.69 input, $15 output, $0.23 cached input.
-        self.assertEqual(cost, 15_920_000)
+        # Act / Assert
+        for model_id, expected in cases:
+            with self.subTest(model_id=model_id):
+                self.assertEqual(cost_microusd("openrouter", model_id, usage), expected)
 
     def test_gemini_3_8_flash_web_search_requests_are_priced(self):
         # Arrange
@@ -140,7 +145,7 @@ class ModelPricingTests(SimpleTestCase):
         multiplier = cost_multiplier("openrouter:deepseek/deepseek-v4-flash-0731")
 
         # Assert
-        self.assertEqual(multiplier, Decimal("0.03"))
+        self.assertEqual(multiplier, Decimal("0.16"))
 
     def test_new_cheaper_model_does_not_change_existing_multipliers(self):
         # Arrange

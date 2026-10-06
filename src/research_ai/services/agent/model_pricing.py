@@ -153,7 +153,7 @@ _OPENROUTER_PRICING = {
     ),
     # Use GLM's undiscounted rates; its launch discount expires September 9, 2026.
     "z-ai/glm-5.3-flash": _price("0.15", "0.50", "0.03", "0.15"),
-    "deepseek/deepseek-v4-flash-0731": _price("0.05", "0.16", "0.013", "0.05"),
+    "deepseek/deepseek-v4-flash-0731": _price("0.0055", "1.28", "0.0055", "0.0055"),
     "deepseek/deepseek-v4-pro-0813": _price("0.66", "1.98", "0.022", "0.66"),
     "moonshotai/kimi-k3": _price("0.69", "15", "0.23", "0.69"),
     "qwen/qwen3.8-max-0902": _price("2", "6", "0.25", "2.50"),
