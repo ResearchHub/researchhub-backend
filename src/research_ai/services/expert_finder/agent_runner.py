@@ -60,8 +60,9 @@ _SUBMIT_INPUT_SCHEMA = {
         "experts": {
             "type": "array",
             "description": (
-                "Grounded experts with validated professional emails. "
-                "Prefer fewer over inventing fillers."
+                "Additional grounded experts with validated professional "
+                "emails. Submit only new candidates; already-kept ids are "
+                "ignored. Prefer fewer over inventing fillers."
             ),
             "items": {
                 "type": "object",
@@ -210,7 +211,8 @@ def build_agent_user_prompt(
         + "\n\n## Research description\n"
         + (query or "").strip()
         + format_additional_context_section(additional_context)
-        + "\n\nCall submit_experts when done."
+        + "\n\nCall submit_experts with additional grounded experts as you "
+        "verify them. Continue until the tool reports the target is met."
     )
     return body
 
@@ -382,6 +384,7 @@ class ExpertFinderAgentToolset:
         exclude_work_ids: list[str] | None = None,
         web_search_max: int | None = None,
         expert_count: int = 10,
+        excluded_expert_names: list[str] | None = None,
     ):
         self._expert_count = max(1, int(expert_count))
         self.openalex = openalex_toolset or ExpertFinderOpenAlexToolset(
@@ -402,14 +405,21 @@ class ExpertFinderAgentToolset:
         self.email_validate = email_validate_toolset or EmailValidateToolset(
             service=email_validation,
         )
-        self.submitted: dict | None = None
+        self._email_validation = self.email_validate.service
+        self._region_filter = region_filter or Region.ALL_REGIONS
+        self._excluded_expert_names = list(excluded_expert_names or [])
+        self.accepted_experts: list[dict[str, Any]] = []
+        self.gate_errors: list[str] = []
+        self._accepted_ids: set[str] = set()
+        self.submit_called = False
+        self._submit_tool = self._build_submit_tool()
 
     def build_tools(self) -> list[Tool]:
         tools: list[Tool] = []
         tools.extend(self.openalex.build_tools())
         tools.extend(self.web_search.build_tools())
         tools.extend(self.email_validate.build_tools())
-        tools.append(self._build_submit_tool())
+        tools.append(self._submit_tool)
         return tools
 
     def as_toolset(self, *, native_tool_names: frozenset[str] = frozenset()) -> Toolset:
@@ -428,31 +438,96 @@ class ExpertFinderAgentToolset:
         return Tool(
             name=SUBMIT_EXPERTS,
             description=(
-                "Submit the final list of grounded experts with validated "
-                "professional emails. Each expert must include an "
-                "openalex_author_id returned by a tool this run. Call exactly "
-                "once when finished; prefer fewer experts over inventing fillers. "
-                "Call this before running out of turns even if under target."
+                "Submit grounded experts with validated professional emails. "
+                "Each expert must include an openalex_author_id returned by a "
+                "tool this run. Call again with additional experts until the "
+                "tool reports the target is met. If under target, page "
+                "search_works (next_cursor) or try new keywords. Submit only "
+                "new candidates; already-kept ids are ignored. Call this "
+                "before running out of turns so a partial list can be kept."
             ),
             input_schema=_SUBMIT_INPUT_SCHEMA,
             handler=self._submit_experts,
-            is_terminal=True,
+            is_terminal=False,
         )
+
+    def _kept_openalex_ids(self) -> list[str]:
+        return [
+            str(row.get("openalex_author_id") or "")
+            for row in self.accepted_experts
+            if row.get("openalex_author_id")
+        ]
+
+    def _merge_kept(self, batch: list[dict[str, Any]]) -> int:
+        added = 0
+        room = max(0, self._expert_count - len(self.accepted_experts))
+        for row in batch:
+            if added >= room:
+                break
+            bare = normalize_openalex_id(row.get("openalex_author_id")).lower()
+            if not bare or bare in self._accepted_ids:
+                continue
+            self._accepted_ids.add(bare)
+            self.accepted_experts.append(row)
+            added += 1
+        return added
 
     def _submit_experts(self, args: dict) -> dict:
         payload = args if isinstance(args, dict) else {}
         experts = payload.get("experts")
         if not isinstance(experts, list):
             return {"error": "experts must be an array"}
-        self.submitted = {"experts": experts}
-        return {
-            "accepted": True,
-            "submitted_count": len(experts),
-            "message": (
-                "Submission received. The server will ground OpenAlex ids and "
-                "re-validate emails before persist."
-            ),
+        self.submit_called = True
+        remaining = max(0, self._expert_count - len(self.accepted_experts))
+        if remaining <= 0:
+            self._submit_tool.is_terminal = True
+            return {
+                "accepted": True,
+                "kept_count": len(self.accepted_experts),
+                "added_count": 0,
+                "target_count": self._expert_count,
+                "still_needed": 0,
+                "kept_openalex_author_ids": self._kept_openalex_ids(),
+                "drop_reasons": [],
+                "message": (
+                    f"Target met ({len(self.accepted_experts)} of "
+                    f"{self._expert_count})."
+                ),
+            }
+        batch_kept, gate_errors = ground_submitted_experts(
+            experts,
+            openalex_toolset=self.openalex,
+            email_validation=self._email_validation,
+            expert_count=remaining,
+            excluded_expert_names=self._excluded_expert_names,
+            region_filter=self._region_filter,
+        )
+        self.gate_errors.extend(gate_errors)
+        added = self._merge_kept(batch_kept)
+        kept_count = len(self.accepted_experts)
+        still_needed = max(0, self._expert_count - kept_count)
+        filled = still_needed == 0
+        self._submit_tool.is_terminal = filled
+        result: dict[str, Any] = {
+            "accepted": filled,
+            "kept_count": kept_count,
+            "added_count": added,
+            "target_count": self._expert_count,
+            "still_needed": still_needed,
+            "kept_openalex_author_ids": self._kept_openalex_ids(),
+            "drop_reasons": gate_errors,
         }
+        if filled:
+            result["message"] = f"Target met ({kept_count} of {self._expert_count})."
+            return result
+        result["message"] = (
+            f"Kept {kept_count} grounded experts; need {still_needed} more "
+            f"to reach the target of {self._expert_count}. "
+            "If search_works has_more, call search_works with next_cursor; "
+            "otherwise try new keywords. Submit additional experts only — "
+            "do not resubmit kept OpenAlex ids."
+        )
+        return result
 
 
 def run_expert_finder_agent(
@@ -495,6 +570,7 @@ def run_expert_finder_agent(
         exclude_work_ids=exclude_work_ids,
         web_search_max=expert_finder_web_search_budget(target or 10),
         expert_count=target or 10,
+        excluded_expert_names=excluded_expert_names,
     )
     provider = provider or resolve_provider()
     agent = AgentService(provider=provider, max_iterations=iterations).create_agent(
@@ -527,17 +603,21 @@ def run_expert_finder_agent(
             getattr(exc, "iterations", iterations),
         )
         errors.append(
-            "agent: iteration budget exhausted before submit_experts "
-            f"({getattr(exc, 'iterations', iterations)} turns)"
+            "agent: iteration budget exhausted before target "
+            f"({getattr(exc, 'iterations', iterations)} turns; "
+            f"kept {len(toolset.accepted_experts)})"
         )
     except Exception as exc:  # noqa: BLE001 - agent run is best-effort
         logger.exception("expert-finder agent failed")
         errors.append(f"agent: {exc}")
 
     seen_work_ids = toolset.openalex.collected_work_ids()
+    errors.extend(toolset.gate_errors)
 
-    if toolset.submitted is None:
-        if not any("iteration budget exhausted" in e for e in errors):
+    if not toolset.accepted_experts:
+        if not toolset.submit_called and not any(
+            "iteration budget exhausted" in e for e in errors
+        ):
             errors.append("agent: did not submit experts")
         return {
             "experts": [],
@@ -545,17 +625,8 @@ def run_expert_finder_agent(
             "seen_openalex_work_ids": seen_work_ids,
         }
 
-    kept, gate_errors = ground_submitted_experts(
-        toolset.submitted.get("experts"),
-        openalex_toolset=toolset.openalex,
-        email_validation=email_service,
-        expert_count=target,
-        excluded_expert_names=excluded_expert_names,
-        region_filter=region_filter,
-    )
-    errors.extend(gate_errors)
     return {
-        "experts": kept,
+        "experts": list(toolset.accepted_experts),
         "errors": errors,
         "seen_openalex_work_ids": seen_work_ids,
     }

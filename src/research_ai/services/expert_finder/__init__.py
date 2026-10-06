@@ -5,8 +5,8 @@
 - ``find_more_service`` -- lock, validate, enqueue, and roll back find-more
   (append) runs.
 - ``agent_runner`` -- tool-using agent (OpenAlex + Brave + SES + submit_experts)
-  via ``resolve_provider()``; grounds OpenAlex ids, hard-filters region, and
-  re-validates emails.
+  via ``resolve_provider()``; grounds OpenAlex ids, hard-filters region,
+  accumulates until the target count, and re-validates emails.
 - ``region_filter`` -- Region → ISO country codes and author match helpers.
 - ``web_search_tools`` -- Brave contact ``web_search`` for the agent path.
 - ``openai_finder`` -- legacy OpenAI Responses path (unused by the live finder).
