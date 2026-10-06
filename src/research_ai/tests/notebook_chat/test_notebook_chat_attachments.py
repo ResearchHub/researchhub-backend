@@ -1,5 +1,6 @@
 import json
 import re
+from dataclasses import replace
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -63,8 +64,8 @@ class PlanRecordingFileService(AgentFileService):
         super().__init__(delivery_config=DELIVERY)
         self.plans = []
 
-    def message_attachments(self, message, *, vision):
-        attachments = super().message_attachments(message, vision=vision)
+    def message_attachments(self, message, *, vision, **options):
+        attachments = super().message_attachments(message, vision=vision, **options)
         self.plans.append((vision, attachments))
         return attachments
 
@@ -240,6 +241,32 @@ class NotebookChatAttachmentTests(TestCase):
         self.assertEqual(prompt.count(PDF_TEXT), 1)
         self.assertIn(f"\n{CV_TEXT}\n</attachment_{boundary}>", prompt)
 
+    def test_files_past_the_chats_inline_budget_go_behind_the_tools(self):
+        # Arrange: the chat's budget holds the text of two files this long.
+        budget = replace(DELIVERY, inline_max_chars_per_conversation=2 * len(PDF_TEXT))
+        files = AgentFileService(delivery_config=budget)
+        second = make_file(self.user, filename="second.pdf", text=PDF_TEXT)
+        third = make_file(self.user, filename="third.pdf", text=PDF_TEXT)
+        for file in (self.file, second):
+            sent = self._submit("Read this", file_ids=[file.id])
+            self._finish(sent, text_turn("Read."), files=files)
+        execution = self._submit("And this", file_ids=[third.id])
+
+        # Act
+        provider = self._finish(execution, text_turn("Listed."), files=files)
+
+        # Assert: the third is only listed; the first two stay in the context.
+        prompt = self._prompt(provider)
+        listed = [line for line in prompt.split("\n") if line.startswith("- ")]
+        self.assertEqual([line.rsplit("): ", 1)[1] for line in listed], [USE_TOOLS])
+        self.assertNotIn(PDF_TEXT, prompt)
+        earlier = [
+            message.content[-1].text
+            for message in provider.calls[0][:-1]
+            if message.role == "user"
+        ]
+        self.assertEqual([text.count(PDF_TEXT) for text in earlier], [1, 1])
+
     def test_the_plan_is_made_once_with_the_models_own_vision(self):
         # Arrange: staff may pick a model; the default tier's own is text-only.
         self.user.is_staff = True
@@ -344,17 +371,18 @@ class NotebookChatAttachmentTests(TestCase):
         self.assertIn("$50,000", passages[0]["text"])
 
     def test_a_full_inline_budget_is_recorded_and_replayed_whole(self):
-        # Arrange: as many full-size files as the default budget takes inline.
+        # Arrange: full-size files and a last one that fill a message's default
+        # inline budget.
         config = DeliveryConfig.from_settings()
-        count = min(
-            config.inline_max_chars_per_message // config.inline_max_chars,
-            AgentFileConfig.from_settings().max_files_per_message,
+        full, rest = divmod(
+            config.inline_max_chars_per_message, config.inline_max_chars
         )
+        sizes = [config.inline_max_chars] * full + [rest] * bool(rest)
+        sizes = sizes[: AgentFileConfig.from_settings().max_files_per_message]
         texts = []
-        for index in range(count):
+        for index, size in enumerate(sizes):
             unit = f"Abschnitt {index}: Größe, 研究, “quoted”.\n"
-            repeats = config.inline_max_chars // len(unit) + 1
-            texts.append((unit * repeats)[: config.inline_max_chars])
+            texts.append((unit * (size // len(unit) + 1))[:size])
         files = [
             make_file(
                 self.user,
