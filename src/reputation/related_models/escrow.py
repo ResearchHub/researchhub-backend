@@ -160,7 +160,7 @@ class Escrow(DefaultModel):
                     f"{escrow.created_by.full_name()} awarded you a bounty for your "
                     f"thread in {title}."
                 )
-                link = f"{unified_document.frontend_view_link()}/conversation"
+                link = f"{unified_document.frontend_view_link()}/bounties"
             else:
                 notification_type = Notification.FUNDRAISE_PAYOUT
                 subject = "Fundraise Payout"

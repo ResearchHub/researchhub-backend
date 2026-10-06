@@ -466,8 +466,7 @@ class Notification(models.Model):
     def _format_comment_user_mention(self):
         action_user = self.action_user
         action_user_name = action_user.first_name
-        base_url = self._create_frontend_doc_link()
-        conversation_url = f"{base_url}/conversation"
+        comment_url = self.item.get_frontend_view_link()
 
         return [
             {
@@ -480,10 +479,10 @@ class Notification(models.Model):
             {
                 "type": "link",
                 "value": "comment ",
-                "link": conversation_url,
+                "link": comment_url,
                 "extra": '["link"]',
             },
-        ], conversation_url
+        ], comment_url
 
     def _format_bounty_payout(self):
         unified_document = self.unified_document
@@ -492,7 +491,7 @@ class Notification(models.Model):
         document = unified_document.get_document()
         doc_title = self._truncate_title(title=document.title)
         base_url = unified_document.frontend_view_link()
-        conversation_url = f"{base_url}/conversation"
+        bounties_url = f"{base_url}/bounties"
 
         return [
             {
@@ -508,7 +507,7 @@ class Notification(models.Model):
             {
                 "type": "link",
                 "value": "thread ",
-                "link": conversation_url,
+                "link": bounties_url,
                 "extra": '["link"]',
             },
             {"type": "text", "value": "in "},
@@ -518,7 +517,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
-        ], conversation_url
+        ], bounties_url
 
     def _format_fundraise_payout(self):
         base_url = self.unified_document.frontend_view_link()

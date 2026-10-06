@@ -25,10 +25,7 @@ from reputation.distributor import Distributor
 from reputation.models import Contribution, SupportFee
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
-from researchhub_comment.constants.rh_comment_thread_types import (
-    COMMUNITY_REVIEW,
-    PEER_REVIEW,
-)
+from researchhub_comment.constants.rh_comment_thread_types import REVIEW_COMMENT_TYPES
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
 
@@ -39,7 +36,6 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
     pagination_class = PageNumberPagination
     ALLOWED_CONTENT_TYPES = ("rhcommentmodel",)
-    REVIEW_COMMENT_TYPES = (PEER_REVIEW, COMMUNITY_REVIEW)
 
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
@@ -155,7 +151,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             unified_doc = comment.unified_document
             notification_type = (
                 Notification.RSC_SUPPORT_ON_DOC
-                if comment.comment_type in self.REVIEW_COMMENT_TYPES
+                if comment.comment_type in REVIEW_COMMENT_TYPES
                 else Notification.RSC_SUPPORT_ON_DIS
             )
 

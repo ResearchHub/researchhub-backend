@@ -26,6 +26,7 @@ from researchhub_comment.constants.rh_comment_content_types import (
 )
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
+    REVIEW_COMMENT_TYPES,
     RH_COMMENT_THREAD_TYPES,
 )
 from researchhub_comment.related_models.rh_comment_thread_model import (
@@ -126,6 +127,11 @@ class RhCommentModel(
     @property
     def unified_document(self):
         return self.thread.unified_document
+
+    def get_frontend_view_link(self) -> str:
+        """Return a link to this comment on its work's reviews or conversation tab."""
+        tab = "reviews" if self.comment_type in REVIEW_COMMENT_TYPES else "conversation"
+        return f"{self.unified_document.frontend_view_link()}/{tab}#comment-{self.id}"
 
     @property
     def plain_text(self):

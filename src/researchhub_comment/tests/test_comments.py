@@ -14,8 +14,14 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee
 from reputation.views.bounty_view import _create_bounty_checks
+from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
+    GENERIC_COMMENT,
+    PEER_REVIEW,
+)
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.tasks import celery_create_mention_notification
+from researchhub_comment.tests.helpers import create_rh_comment
 from review.models import Review
 from user.models import User
 from user.related_models.user_model import FOUNDATION_EMAIL
@@ -369,8 +375,32 @@ class CommentViewTests(APITestCase):
             [recipient.email],
             "You were Mentioned in a Comment",
             f"{creator.first_name} {creator.last_name} mentioned you in their comment",
-            link=f"{self.paper.unified_document.frontend_view_link()}/conversation",
+            link=(
+                f"{self.paper.unified_document.frontend_view_link()}"
+                f"/conversation#comment-{comment.data['id']}"
+            ),
         )
+
+    def test_get_frontend_view_link_opens_the_tab_for_its_comment_type(self) -> None:
+        """Review links open the reviews tab and other comments the conversation."""
+        # Arrange
+        comment = create_rh_comment(paper=self.paper, created_by=self.user_1)
+        base_url = self.paper.unified_document.frontend_view_link()
+        expected_tabs = {
+            GENERIC_COMMENT: "conversation",
+            COMMUNITY_REVIEW: "reviews",
+            PEER_REVIEW: "reviews",
+        }
+
+        for comment_type, tab in expected_tabs.items():
+            with self.subTest(comment_type=comment_type):
+                comment.comment_type = comment_type
+
+                # Act
+                link = comment.get_frontend_view_link()
+
+                # Assert
+                self.assertEqual(link, f"{base_url}/{tab}#comment-{comment.id}")
 
     def test_censored_top_level_comments_excluded_from_list(self):
         """
