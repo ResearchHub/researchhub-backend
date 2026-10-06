@@ -558,13 +558,23 @@ class AttachmentToolset:
         if not all(1 <= page <= last for page in pages):
             return {"error": _page_range_error(file, last)}
         # A page past the room is not rendered: it would only be a placeholder.
-        fitting = pages if room is None else pages[:room]
-        rendered = self._page_images.images(file, fitting)
-        shown = [page for page in fitting if page not in rendered.failed]
+        # One that cannot be rendered leaves its place to the next asked for.
+        want = len(pages) if room is None else min(room, len(pages))
+        shown: list[int] = []
+        failed: list[int] = []
+        images: list[ImageBlock] = []
+        tried = 0
+        while len(shown) < want and tried < len(pages):
+            batch = pages[tried : tried + want - len(shown)]
+            tried += len(batch)
+            rendered = self._page_images.images(file, batch)
+            shown += [page for page in batch if page not in rendered.failed]
+            failed += rendered.failed
+            images += rendered.images
         if not shown:
             return {
                 "error": (
-                    f"{_page_list(fitting)} of attachment {file.id} could not be "
+                    f"{_page_list(pages)} of attachment {file.id} could not be "
                     "shown; work from the file's text"
                 )
             }
@@ -576,13 +586,13 @@ class AttachmentToolset:
             "page_count": file.page_count,
             "pages": shown,
         }
-        if rendered.failed:
-            content["pages_not_shown"] = list(rendered.failed)
-        without_room = pages[len(fitting) :]
+        if failed:
+            content["pages_not_shown"] = failed
+        without_room = pages[tried:]
         if without_room:
             content["pages_without_room"] = without_room
-            content["note"] = _without_room_note(len(fitting), without_room)
-        return ToolOutput(content=content, images=rendered.images)
+            content["note"] = _without_room_note(want, without_room)
+        return ToolOutput(content=content, images=tuple(images))
 
     # -- scope --------------------------------------------------------------
 

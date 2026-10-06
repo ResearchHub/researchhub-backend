@@ -302,6 +302,21 @@ class ViewAttachmentPagesTests(BucketTestCase):
         self.assertIn("could not be shown", failed.content["error"])
         self.assertEqual(shown.images, (_page(self.pdf, 2),))
 
+    def test_a_page_that_cannot_be_rendered_leaves_its_room_to_the_next(self):
+        # Arrange: room for one more page image, and page 1 cannot be rendered.
+        render = FakeRender(failing={1})
+        toolset = self._toolset(render, room=1)
+
+        # Act
+        output = self._view(self.pdf.id, [1, 2, 3], toolset)
+
+        # Assert: page 2 takes the room, and page 3 is not rendered.
+        self.assertEqual(output.content["pages"], [2])
+        self.assertEqual(output.content["pages_not_shown"], [1])
+        self.assertEqual(output.content["pages_without_room"], [3])
+        self.assertEqual(output.images, (_page(self.pdf, 2),))
+        self.assertEqual(render.pages, [1, 2])
+
     def test_only_the_conversations_sent_files_can_be_viewed(self):
         # Arrange
         unsent = self._pdf(1)
