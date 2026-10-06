@@ -33,8 +33,6 @@ RUN python -m compileall -q . \
 
 USER app
 
-VOLUME ["/tmp"]
-
 EXPOSE 8000
 
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
