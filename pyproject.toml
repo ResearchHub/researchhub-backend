@@ -87,6 +87,12 @@ omit = [
     "*/tests/*",
 ]
 
+[tool.coverage.report]
+exclude_also = [
+    # Code that runs only in a process coverage cannot report from.
+    "no cover: start(?s:.)*?no cover: stop",
+]
+
 [tool.ruff]
 target-version = "py313"
 line-length = 88

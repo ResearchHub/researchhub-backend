@@ -4,7 +4,8 @@ import io
 import json
 import random
 import subprocess
-from unittest import TestCase
+import sys
+from unittest import TestCase, skipUnless
 from unittest.mock import patch
 
 import fitz
@@ -17,6 +18,7 @@ from research_ai.services.agent_files.extraction import (
     NO_TEXT_LAYER,
     OCR_NOTE,
     PDF,
+    ParserSandboxError,
     UnreadableFileError,
     extract_text,
     prepare_image,
@@ -177,7 +179,8 @@ class PdfExtractionTests(TestCase):
 
         def run_and_capture(*args, **kwargs):
             result = run(*args, **kwargs)
-            payloads.append(json.loads(result.stdout))
+            kwargs["stdout"].seek(0)
+            payloads.append(json.load(kwargs["stdout"]))
             return result
 
         # Act
@@ -203,6 +206,132 @@ class PdfExtractionTests(TestCase):
         # Act / Assert
         with self.assertRaisesRegex(UnreadableFileError, "could not be read as a PDF"):
             extract_text(b"GIF89a not a pdf", PDF, max_chars=MAX_CHARS)
+
+
+# Loads the module as the parsing process does, confines it, and reports back.
+SANDBOXED = """
+import importlib.util, json, socket, subprocess, sys
+spec = importlib.util.spec_from_file_location("extraction", sys.argv[1])
+extraction = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(extraction)
+
+def read_a_file():
+    with open(sys.argv[1]) as file:
+        file.read(1)
+
+def refused(action):
+    try:
+        action()
+    except (PermissionError, ImportError):
+        return True
+    return False
+
+report = {}
+try:
+    rehearsals = {"idle": lambda: None, "reads": lambda: refused(read_a_file)}
+    imports = extraction._lock_down(rehearsals[sys.argv[2]])
+except OSError as error:
+    report["error"] = str(error)
+else:
+    refused(lambda: __import__("wave"))
+    refused(lambda: __import__("a_module_nobody_installed"))
+    report["imports"] = imports()
+report["file"] = refused(read_a_file)
+report["network"] = refused(socket.socket)
+report["process"] = refused(lambda: subprocess.run(["true"]))
+print(json.dumps(report))
+"""
+
+
+def sandboxed(rehearsal: str) -> dict:
+    """What a process reports once ``_lock_down`` has run in it."""
+    result = subprocess.run(
+        [sys.executable, "-c", SANDBOXED, extraction.__file__, rehearsal],
+        stdout=subprocess.PIPE,
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+class ParsingProcessTests(TestCase):
+    def test_the_parsing_process_gets_none_of_the_workers_environment(self):
+        # Arrange
+        run = subprocess.run
+        environments = []
+
+        def run_and_capture(*args, **kwargs):
+            environments.append(kwargs.get("env"))
+            return run(*args, **kwargs)
+
+        # Act
+        with patch.object(subprocess, "run", side_effect=run_and_capture):
+            extract_text(pdf_bytes("Alpha findings"), PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(environments, [{}])
+
+    def test_more_output_than_the_parsing_process_may_write_is_refused(self):
+        # Arrange
+        data = pdf_bytes("A page whose text alone is longer than the limit")
+
+        # Act / Assert
+        with (
+            patch.object(extraction, "_CHILD_OUTPUT_BYTES", 32),
+            self.assertRaisesRegex(UnreadableFileError, "too complex"),
+        ):
+            extract_text(data, PDF, max_chars=MAX_CHARS)
+
+    def test_a_parsing_process_that_cannot_confine_itself_is_an_error(self):
+        # Arrange
+        unconfined = subprocess.CompletedProcess([], extraction._NO_SANDBOX_EXIT_CODE)
+
+        # Act / Assert
+        with (
+            patch.object(subprocess, "run", return_value=unconfined),
+            self.assertRaises(ParserSandboxError),
+        ):
+            extract_text(pdf_bytes("Alpha findings"), PDF, max_chars=MAX_CHARS)
+
+    def test_a_result_the_sandbox_may_have_changed_is_not_used(self):
+        # Arrange
+        def run(*args, **kwargs):
+            kwargs["stdout"].write(b'{"refused": "importing wave", "pages": []}')
+            return subprocess.CompletedProcess(args, 0)
+
+        # Act / Assert
+        with (
+            patch.object(subprocess, "run", side_effect=run),
+            self.assertLogs(extraction.logger, "WARNING") as logs,
+            self.assertRaisesRegex(UnreadableFileError, "too complex"),
+        ):
+            extract_text(pdf_bytes("Alpha findings"), PDF, max_chars=MAX_CHARS)
+        self.assertIn("importing wave", logs.output[0])
+
+    @skipUnless(sys.platform == "linux", "the sandbox is Linux's seccomp")
+    def test_a_confined_process_reaches_no_file_network_or_other_process(self):
+        # Act
+        report = sandboxed("idle")
+
+        # Assert
+        self.assertTrue(report["file"])
+        self.assertTrue(report["network"])
+        self.assertTrue(report["process"])
+
+    @skipUnless(sys.platform == "linux", "the sandbox is Linux's seccomp")
+    def test_a_confined_process_reports_the_installed_modules_it_could_not_load(self):
+        # Act
+        report = sandboxed("idle")
+
+        # Assert
+        self.assertEqual(report["imports"], ["wave"])
+
+    @skipUnless(sys.platform == "linux", "the sandbox is Linux's seccomp")
+    def test_work_that_goes_differently_once_confined_is_an_error(self):
+        # Act: the rehearsal reads a file, which only works before confinement.
+        report = sandboxed("reads")
+
+        # Assert
+        self.assertIn("another result inside the sandbox", report["error"])
 
 
 class PdfPageCountTests(TestCase):

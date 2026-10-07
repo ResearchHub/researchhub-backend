@@ -9,13 +9,18 @@ and an uploaded image is prepared as one.
 import base64
 import codecs
 import contextlib
+import ctypes
+import errno
 import io
 import json
+import logging
 import math
 import os
+import pkgutil
 import resource
 import subprocess
 import sys
+import tempfile
 import zipfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -25,9 +30,15 @@ import mammoth
 from markdownify import markdownify
 from PIL import Image, ImageOps
 
+logger = logging.getLogger(__name__)
+
 
 class UnreadableFileError(ValueError):
     """The file cannot be read; the message is written for the user."""
+
+
+class ParserSandboxError(RuntimeError):
+    """The parsing process could not confine itself, so it parsed nothing."""
 
 
 @dataclass(frozen=True)
@@ -90,6 +101,55 @@ _MAX_DOCX_XML_BYTES = 64 * 1024 * 1024
 _CHILD_CPU_SECONDS = 60
 _CHILD_MEMORY_BYTES = 1024 * 1024 * 1024
 _CHILD_TIMEOUT_SECONDS = 120
+# The most a child may hand back: several times the largest text or image.
+_CHILD_OUTPUT_BYTES = 16 * 1024 * 1024
+_NO_SANDBOX_EXIT_CODE = 3
+
+# All the child may ask of the kernel once it holds the file: use of the
+# descriptors and memory it has, and exit. No files, sockets or processes.
+_SANDBOX_SYSCALLS = (
+    "read",
+    "write",
+    "writev",
+    "close",
+    "fstat",
+    "lseek",
+    "mmap",
+    "munmap",
+    "mremap",
+    "mprotect",
+    "madvise",
+    "brk",
+    "futex",
+    "rt_sigaction",
+    "rt_sigprocmask",
+    "rt_sigreturn",
+    "sigaltstack",
+    "clock_gettime",
+    "gettimeofday",
+    "getrandom",
+    "getpid",
+    "gettid",
+    "restart_syscall",
+    "exit",
+    "exit_group",
+)
+# Text encodings the parsers look up by name, which loads a module on first use.
+_SANDBOX_CODECS = (
+    "ascii",
+    "latin-1",
+    "utf-8",
+    "utf-16",
+    "utf-16-le",
+    "utf-16-be",
+    "raw_unicode_escape",
+    "unicode_escape",
+    "cp437",
+    "cp1252",
+)
+_SCMP_ACT_ALLOW = 0x7FFF0000
+_SCMP_ACT_ERRNO = 0x00050000
+_SCMP_FLTATR_CTL_TSYNC = 4
 
 # Claude rejects images over 2000 px a side once a request carries more than 20.
 MAX_IMAGE_EDGE_PX = 2000
@@ -309,38 +369,60 @@ def _run_child(
     too_complex = UnreadableFileError(f"This {label} is too complex to read.")
     if timeout is None or timeout > _CHILD_TIMEOUT_SECONDS:
         timeout = _CHILD_TIMEOUT_SECONDS
-    try:
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-I",
-                os.path.abspath(__file__),
-                mode,
-                str(_CHILD_CPU_SECONDS),
-                str(_CHILD_MEMORY_BYTES),
-                json.dumps(options),
-            ],
-            input=data,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            timeout=timeout,
+    # A file, not a pipe: the child's file size limit bounds what it writes.
+    with tempfile.TemporaryFile() as stdout:
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-I",
+                    os.path.abspath(__file__),
+                    mode,
+                    str(_CHILD_CPU_SECONDS),
+                    str(_CHILD_MEMORY_BYTES),
+                    str(_CHILD_OUTPUT_BYTES),
+                    json.dumps(options),
+                ],
+                input=data,
+                stdout=stdout,
+                stderr=subprocess.DEVNULL,
+                timeout=timeout,
+                # None of the worker's secrets reach the process that parses.
+                env={},
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise too_complex from exc
+        stdout.seek(0)
+        written = stdout.read(_CHILD_OUTPUT_BYTES)
+    if result.returncode == _NO_SANDBOX_EXIT_CODE:
+        raise ParserSandboxError(
+            f"the file parser could not confine itself: {written[:500]!r}"
         )
-    except subprocess.TimeoutExpired as exc:
-        raise too_complex from exc
     if result.returncode != 0:
         raise too_complex
-    output = json.loads(result.stdout)
+    output = json.loads(written)
+    if "refused" in output:
+        # Its result may differ from an unconfined read, so it is not used.
+        refused = str(output["refused"])[:200]
+        logger.warning("the sandbox kept the file parser from %r", refused)
+        raise too_complex
     if "error" in output:
         raise UnreadableFileError(output["error"])
     return output
 
 
-def _child_main(mode: str, cpu_seconds: int, memory_bytes: int, options: dict) -> None:
+# no cover: start
+# Down to the stop marker runs only in the child, which gets no environment
+# to start coverage from and, confined, no file to report to.
+def _child_main(
+    mode: str, cpu_seconds: int, memory_bytes: int, output_bytes: int, options: dict
+) -> None:
     """Child-process entry point: file on stdin, JSON result on stdout."""
     # MuPDF prints its errors to stdout; route them to stderr, off the result.
     result = os.fdopen(os.dup(sys.stdout.fileno()), "w")
     os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
     resource.setrlimit(resource.RLIMIT_CPU, (cpu_seconds, cpu_seconds))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (output_bytes, output_bytes))
     # macOS rejects address-space limits; Linux workers enforce them.
     with contextlib.suppress(ValueError, OSError):
         resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
@@ -351,12 +433,132 @@ def _child_main(mode: str, cpu_seconds: int, memory_bytes: int, options: dict) -
         "image": _upload_image,
     }[mode]
     data = sys.stdin.buffer.read()
+    refused: Callable[[], list[str]] = list
+    # macOS has no seccomp; Linux workers parse nothing outside the sandbox.
+    if sys.platform == "linux":
+        try:
+            refused = _lock_down(_rehearsal(mode, work, options))
+        except Exception as exc:
+            with result:
+                json.dump({"sandbox": repr(exc)[:300]}, result)
+            sys.exit(_NO_SANDBOX_EXIT_CODE)
     try:
         output = work(data, **options)
     except UnreadableFileError as exc:
         output = {"error": str(exc)}
+    if modules := refused():
+        output = {"refused": f"importing {', '.join(modules)}"}
     with result:
         json.dump(output, result)
+
+
+def _lock_down(
+    rehearse: Callable[[], object],
+) -> Callable[[], list[str]]:
+    """Leave this process only ``_SANDBOX_SYSCALLS``, for good.
+
+    ``rehearse`` runs before, loading what the work imports on first use, and
+    again after; raises unless it then gives the same result. Returns a call
+    that lists the installed modules the sandbox has since kept from loading.
+    """
+    expected = rehearse()
+    for name in _SANDBOX_CODECS:
+        codecs.lookup(name)
+    installed = sys.stdlib_module_names | {
+        module.name for module in pkgutil.iter_modules()
+    }
+    seccomp = ctypes.CDLL("libseccomp.so.2")
+    seccomp.seccomp_init.restype = ctypes.c_void_p
+    seccomp.seccomp_attr_set.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_uint64]
+    seccomp.seccomp_rule_add_array.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_int,
+        ctypes.c_uint,
+        ctypes.c_void_p,
+    ]
+    seccomp.seccomp_load.argtypes = [ctypes.c_void_p]
+    # Any other syscall fails with EPERM, in every thread.
+    context = seccomp.seccomp_init(ctypes.c_uint32(_SCMP_ACT_ERRNO | errno.EPERM))
+    if not context:
+        raise OSError("seccomp_init failed")
+    failed = seccomp.seccomp_attr_set(context, _SCMP_FLTATR_CTL_TSYNC, 1)
+    for name in _SANDBOX_SYSCALLS:
+        number = seccomp.seccomp_syscall_resolve_name(name.encode())
+        # Negative where this architecture has no such syscall.
+        if number >= 0:
+            failed = failed or seccomp.seccomp_rule_add_array(
+                context, _SCMP_ACT_ALLOW, number, 0, None
+            )
+    if failed or seccomp.seccomp_load(context):
+        raise OSError("the seccomp filter could not be loaded")
+    asked: list[str] = []
+    sys.addaudithook(lambda event, args: event == "import" and asked.append(args[0]))
+    if rehearse() != expected:
+        raise OSError("parsing gives another result inside the sandbox")
+    return lambda: sorted(
+        {
+            name
+            for name in asked
+            if name.partition(".")[0] in installed and name not in sys.modules
+        }
+    )
+
+
+def _rehearsal(mode: str, work: Callable, options: dict) -> Callable[[], object]:
+    """``work`` on small files of ``mode``'s kind, made here."""
+    if mode == "image":
+        samples = [
+            _sample_image(image_format) for image_format in _UPLOAD_IMAGE_FORMATS
+        ]
+        sample_options = {"max_edge_px": _MIN_RENDER_EDGE_PX, "max_bytes": 1024 * 1024}
+    elif mode == "docx":
+        samples, sample_options = [_sample_docx()], {"max_chars": 1000}
+    else:
+        document = fitz.open()
+        document.new_page().insert_text((72, 72), "A page of text")
+        scan = document.new_page()
+        scan.insert_image(scan.rect, stream=_sample_image("PNG"))
+        # A page count above what the file holds, which ``_open_pdf`` lowers.
+        pages = document.xref_get_key(document.pdf_catalog(), "Pages")[1]
+        document.xref_set_key(int(pages.split()[0]), "Count", "1000")
+        samples, sample_options = [document.tobytes()], {"max_chars": 1000}
+        if mode == "render":
+            sample_options = {
+                "page": 2,
+                "dpi": 72,
+                "max_edge_px": _MIN_RENDER_EDGE_PX,
+                "image_format": options["image_format"],
+                "max_bytes": 1024 * 1024,
+            }
+    return lambda: [work(sample, **sample_options) for sample in samples]
+
+
+def _sample_image(image_format: str) -> bytes:
+    """A small image that its EXIF data, where it keeps any, turns on its side."""
+    exif = Image.Exif()
+    exif[0x0112] = 6
+    buffer = io.BytesIO()
+    Image.new("RGBA" if image_format == "PNG" else "RGB", (32, 16), "navy").save(
+        buffer, image_format, exif=exif
+    )
+    return buffer.getvalue()
+
+
+def _sample_docx() -> bytes:
+    namespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    cell = "<w:p><w:r><w:t>A cell</w:t></w:r></w:p>"
+    document = (
+        f'<w:document xmlns:w="{namespace}"><w:body>'
+        f"<w:p><w:r><w:t>A paragraph</w:t></w:r></w:p>"
+        f"<w:tbl><w:tr><w:tc>{cell}</w:tc></w:tr></w:tbl>"
+        "</w:body></w:document>"
+    )
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr("word/document.xml", document)
+    return buffer.getvalue()
 
 
 def _open_pdf(data: bytes) -> fitz.Document:
@@ -605,6 +807,9 @@ def _docx_text(data: bytes, max_chars: int) -> dict:
     return {"text": text[:max_chars], "truncated": len(text) > max_chars}
 
 
+# no cover: stop
+
+
 def _plain_text(data: bytes) -> str:
     if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
         text = data.decode("utf-16", errors="replace")
@@ -618,5 +823,5 @@ def _plain_text(data: bytes) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
-if __name__ == "__main__":
-    _child_main(sys.argv[1], *map(int, sys.argv[2:4]), json.loads(sys.argv[4]))
+if __name__ == "__main__":  # pragma: no cover
+    _child_main(sys.argv[1], *map(int, sys.argv[2:5]), json.loads(sys.argv[5]))

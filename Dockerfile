@@ -28,8 +28,10 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --chown=app:app src ./
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint
 
+# The file parser's sandbox loads libseccomp, which the base image ships.
 RUN python -m compileall -q . \
-    && python manage.py collectstatic --noinput
+    && python manage.py collectstatic --noinput \
+    && python -c "import ctypes; ctypes.CDLL('libseccomp.so.2')"
 
 USER app
 
