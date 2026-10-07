@@ -1,14 +1,19 @@
 """Builders for chat file rows and the formats uploads accept."""
 
+import hashlib
 import io
 import uuid
 import zipfile
 
 import fitz
+from botocore.exceptions import ClientError
+from PIL import Image
 
 from research_ai.models import AgentFile
+from research_ai.services.agent_files.extraction import PageImage, UnreadableFileError
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+SCAN = object()
 
 
 def pdf_bytes(*pages: str, **save_options) -> bytes:
@@ -21,6 +26,38 @@ def pdf_bytes(*pages: str, **save_options) -> bytes:
     data = document.tobytes(**save_options)
     document.close()
     return data
+
+
+def stamped_scan(stamp: str) -> tuple:
+    """A ``pdf_with_scans`` page: a scan with ``stamp`` as its only text."""
+    return SCAN, stamp
+
+
+def pdf_with_scans(*pages) -> bytes:
+    """A PDF whose ``SCAN`` pages hold only an image; other pages hold text."""
+    document = fitz.open()
+    for content in pages:
+        page = document.new_page()
+        content, stamp = content if isinstance(content, tuple) else (content, "")
+        if content is SCAN:
+            pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40), False)
+            pixmap.clear_with(180)
+            page.insert_image(page.rect, pixmap=pixmap)
+            content = stamp
+        if content:
+            page.insert_text((72, 72), content)
+    data = document.tobytes()
+    document.close()
+    return data
+
+
+def image_bytes(
+    size=(40, 30), color="navy", *, mode="RGB", image_format="PNG", **save_options
+) -> bytes:
+    """An image of one colour, as an upload holds it."""
+    buffer = io.BytesIO()
+    Image.new(mode, size, color).save(buffer, image_format, **save_options)
+    return buffer.getvalue()
 
 
 def docx_bytes(
@@ -71,3 +108,80 @@ def make_file(
         text=text,
         **fields,
     )
+
+
+class FakeBucket:
+    """Backs a mocked S3 client with a dict of objects.
+
+    ``listable=False`` answers as S3 does to a role without ``s3:ListBucket``:
+    403 for an object that is not there.
+    """
+
+    def __init__(self, client, *, listable: bool = True):
+        self.objects: dict[str, bytes] = {}
+        self.content_types: dict[str, str] = {}
+        self.listable = listable
+        client.head_object.side_effect = self._head
+        client.get_object.side_effect = self._get
+        client.put_object.side_effect = self._put
+        client.delete_object.side_effect = self._delete
+        client.delete_objects.side_effect = self._delete_many
+
+    def put(self, key: str, data: bytes, content_type: str) -> str:
+        """Store an object; returns its ETag."""
+        self.objects[key] = data
+        self.content_types[key] = content_type
+        return self._etag(key)
+
+    def _etag(self, key: str) -> str:
+        return f'"{hashlib.sha256(self.objects[key]).hexdigest()[:32]}"'
+
+    def _missing(self, operation: str, code: str) -> ClientError:
+        if not self.listable:
+            code = "403" if operation == "HeadObject" else "AccessDenied"
+        return ClientError({"Error": {"Code": code}}, operation)
+
+    def _head(self, **request):
+        key = request["Key"]
+        if key not in self.objects:
+            raise self._missing("HeadObject", "404")
+        return {
+            "ContentLength": len(self.objects[key]),
+            "ContentType": self.content_types[key],
+            "ETag": self._etag(key),
+        }
+
+    def _get(self, **request):
+        key = request["Key"]
+        if key not in self.objects:
+            raise self._missing("GetObject", "NoSuchKey")
+        if request.get("IfMatch", self._etag(key)) != self._etag(key):
+            raise ClientError({"Error": {"Code": "PreconditionFailed"}}, "GetObject")
+        return {"Body": io.BytesIO(self.objects[key])}
+
+    def _put(self, **request):
+        self.put(request["Key"], request["Body"], request["ContentType"])
+        return {}
+
+    def _delete(self, **request):
+        self.objects.pop(request["Key"], None)
+        return {}
+
+    def _delete_many(self, **request):
+        for entry in request["Delete"]["Objects"]:
+            self.objects.pop(entry["Key"], None)
+        return {}
+
+
+class FakeRender:
+    """Stands in for ``render_pdf_page``; ``failing`` pages cannot be rendered."""
+
+    def __init__(self, failing=()):
+        self.failing = set(failing)
+        self.pages = []
+
+    def __call__(self, data, page, **options):
+        self.pages.append(page)
+        if page in self.failing:
+            raise UnreadableFileError("This PDF page could not be rendered.")
+        return PageImage(page, b"jpeg-%d" % page, "image/jpeg", 10, 10)

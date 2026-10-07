@@ -4,39 +4,56 @@
 
 <head>
   <meta charset="UTF-8">
-  <title></title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>{{ subject }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    @media (max-width: 600px) {
+      .canvas { padding: 16px 8px !important; }
+      .card, .footer { width: 100% !important; }
+      .card-inner { padding: 24px 24px 28px !important; }
+      .title { font-size: 22px !important; line-height: 28px !important; }
+      .cta-button { display: block !important; text-align: center !important; }
+    }
+  </style>
 </head>
 {% inlinecss "general_email.css" %}
 
 <body>
-  <div class="email-container">
-    <div class="email-header">
-      <img class="img-logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" alt="ResearchHub" />
-      {% if subject %}
-      <div class="header">
-        {{ subject }}
-      </div>
-      {% endif %}
-    </div>
-    <div class="content">
-      <div class="body"{% if preserve_linebreaks %} style="white-space: pre-line;"{% endif %}>
-        {{ body }}
-      </div>
-      {% if cta_url %}
-      <div class="cta-wrapper">
-        <a class="cta-button" href="{{ cta_url }}">
-          {{ cta_label|default:"View" }}
-        </a>
-      </div>
-      {% endif %}
-    </div>
-    <div class="footer">
-      {% if opt_out %}
-      <a href="{{ opt_out }}">Unsubscribe</a>
-      {% endif %}
-    </div>
-  </div>
+  <table class="canvas" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center">
+        <table class="card" role="presentation" width="560" cellpadding="0" cellspacing="0">
+          <tr>
+            <td class="accent-bar" height="4">&nbsp;</td>
+          </tr>
+          <tr>
+            <td class="card-inner">
+              <img class="logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" alt="ResearchHub" width="121" height="28" />
+              {% if subject %}
+              <h1 class="title">{{ subject }}</h1>
+              {% endif %}
+              <div class="body"{% if preserve_linebreaks %} style="white-space: pre-line;"{% endif %}>{{ body }}</div>
+              {% if cta_url %}
+              <div class="cta-wrapper">
+                <a class="cta-button" href="{{ cta_url }}">{{ cta_label|default:"View" }}</a>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+        </table>
+        <table class="footer" role="presentation" width="560" cellpadding="0" cellspacing="0">
+          <tr>
+            <td>
+              {% if opt_out %}<a href="{{ opt_out }}">Unsubscribe</a> &nbsp;&middot;&nbsp; {% endif %}&copy; {% now "Y" %} ResearchHub
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 
 </html>

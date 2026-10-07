@@ -7,7 +7,12 @@ The bytes go from the browser straight to the private bucket:
    ``file``, to its ``url`` as multipart form data.
 2. ``POST files/<id>/complete/`` once S3 accepts it starts text extraction
    (``PROCESSING``).
-3. Poll ``GET files/<id>/`` until ``READY`` (or ``FAILED`` with ``error``).
+3. Poll ``GET files/<id>/`` until ``READY`` (or ``FAILED`` with ``error``),
+   then send the id in a chat message's ``file_ids``.
+
+``GET files/`` lists the caller's files not yet sent, so a client need not
+remember their ids. ``GET files/limits/`` gives the limits and file types to
+check before uploading.
 
 Files are private to their uploader: another user's file id is a 404. Access
 is gated like the chats themselves.
@@ -46,11 +51,19 @@ def _error_response(error: AgentFileError, status_code: int) -> Response:
     return Response({"detail": str(error), "code": error.code}, status=status_code)
 
 
-class AgentFileCreateView(APIView):
-    """Start an upload."""
+class AgentFileListCreateView(APIView):
+    """List the caller's unsent files, or start an upload."""
 
     permission_classes = AGENT_FILE_PERMISSIONS
     throttle_classes = [AgentFileCreateThrottle]
+
+    def get_throttles(self):
+        # Listing must not spend the upload allowance.
+        return super().get_throttles() if self.request.method == "POST" else []
+
+    def get(self, request):
+        files = AgentFileService().unsent_files(request.user)
+        return Response({"files": [public_file(file) for file in files]})
 
     def post(self, request):
         serializer = AgentFileCreateSerializer(data=request.data)
@@ -76,6 +89,15 @@ class AgentFileCreateView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class AgentFileLimitsView(APIView):
+    """The upload limits and file types in effect, for checks before uploading."""
+
+    permission_classes = AGENT_FILE_PERMISSIONS
+
+    def get(self, request):
+        return Response(AgentFileService().limits())
 
 
 class AgentFileDetailView(APIView):
