@@ -69,6 +69,7 @@ def _price(
 # - OpenRouter live catalog: https://openrouter.ai/api/v1/models
 # - OpenRouter usage cost: https://openrouter.ai/docs/cookbook/administration/usage-accounting
 # - OpenAI GPT-6 models: https://developers.openai.com/api/docs/models
+# OpenRouter rows rechecked against the live catalog 2026-10-06.
 # Prices are keyed by the same normalized ids as model capabilities. Historical
 # ledger rows retain the charge applied when their request completed.
 _CLAUDE_PLATFORM_PRICING = {
@@ -78,6 +79,8 @@ _CLAUDE_PLATFORM_PRICING = {
     "claude-haiku-4-5": _price("1", "5", "0.10", "1.25", "0.01"),
 }
 
+# OpenRouter turns are charged its reported usage.cost; these rows are the
+# fallback and the rates shown to users.
 _OPENROUTER_PRICING = {
     "openai/gpt-5.6-sol": _price(
         "2",
@@ -136,7 +139,9 @@ _OPENROUTER_PRICING = {
     "google/gemini-3.7-flash": _price(
         "0.75", "3.75", "0.075", "0.0416666666666666666667", "0.014"
     ),
-    "google/gemini-3.8-flash": _price("0.75", "3.75", "0.075", "0.04167"),
+    "google/gemini-3.8-flash": _price(
+        "0.75", "3.75", "0.075", "0.0416666666666666666667", "0.014"
+    ),
     "x-ai/grok-4.6": _price(
         "2",
         "6",
@@ -148,9 +153,9 @@ _OPENROUTER_PRICING = {
     ),
     # Use GLM's undiscounted rates; its launch discount expires September 9, 2026.
     "z-ai/glm-5.3-flash": _price("0.15", "0.50", "0.03", "0.15"),
-    "deepseek/deepseek-v4-flash-0731": _price("0.05", "0.16", "0.013", "0.05"),
+    "deepseek/deepseek-v4-flash-0731": _price("0.0055", "1.28", "0.0055", "0.0055"),
     "deepseek/deepseek-v4-pro-0813": _price("0.66", "1.98", "0.022", "0.66"),
-    "moonshotai/kimi-k3": _price("2.55", "12.75", "0.256", "2.55"),
+    "moonshotai/kimi-k3": _price("0.69", "15", "0.23", "0.69"),
     "qwen/qwen3.8-max-0902": _price("2", "6", "0.25", "2.50"),
 }
 

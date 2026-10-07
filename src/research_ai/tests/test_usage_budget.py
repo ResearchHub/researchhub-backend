@@ -190,6 +190,45 @@ class UsageBudgetTests(TestCase):
         self.assertIsNone(raised.exception.status.turn_cap)
         self.assertEqual(raised.exception.status.remaining_microusd, 0)
 
+    def _spend_default_pool(self, user):
+        return record(
+            user,
+            "notebook_chat",
+            "openrouter",
+            "deepseek/deepseek-v4-flash-0731",
+            TurnUsage(provider_cost_microusd=1_000_000_000),
+        )
+
+    def test_spent_default_pool_blocks_only_default_tier_users(self):
+        # Arrange: another default-tier user spends the whole shared pool.
+        self._spend_default_pool(create_random_authenticated_user("budget-pool"))
+        invited = create_random_authenticated_user("budget-pool-invited")
+        Expert.objects.create(email=invited.email, registered_user=invited)
+
+        # Act / Assert
+        with self.assertRaises(UsageLimitExceededError) as raised:
+            check_turn_admission(
+                self.user, self.MODEL, effort="none", thinking="disabled"
+            )
+        self.assertEqual(raised.exception.status.spent_today_microusd, 0)
+        self.assertEqual(raised.exception.status.remaining_microusd, 0)
+        self.assertFalse(check_turn_admission(invited, self.MODEL).exhausted)
+
+    def test_other_tiers_spend_stays_out_of_the_default_pool(self):
+        # Arrange: an invited user spends as much as the default pool holds.
+        invited = create_random_authenticated_user("budget-pool-invited")
+        Expert.objects.create(email=invited.email, registered_user=invited)
+        self._spend_default_pool(invited)
+
+        # Act
+        status = check_turn_admission(
+            self.user, self.MODEL, effort="none", thinking="disabled"
+        )
+
+        # Assert
+        self.assertFalse(status.exhausted)
+        self.assertEqual(status.remaining_microusd, 250_000)
+
     def test_default_tier_rejects_locked_model(self):
         with self.assertRaisesRegex(ValueError, "not allowed"):
             check_turn_admission(
@@ -249,6 +288,26 @@ class AgentLoopBudgetRecorderTests(TestCase):
         # Act / Assert
         with self.assertRaisesMessage(BudgetExceededError, "access is blocked"):
             recorder.before_model_call()
+
+    def test_usage_is_charged_to_the_tier_the_call_was_checked_under(self):
+        # Arrange: a running job still holds the user as a moderator after the
+        # role is revoked.
+        self.user.moderator = True
+        self.user.save(update_fields=["moderator"])
+        get_user_model().objects.filter(pk=self.user.pk).update(moderator=False)
+        recorder = AgentLoopBudgetRecorder(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model_id="deepseek/deepseek-v4-pro-0813",
+        )
+
+        # Act
+        recorder.before_model_call()
+        recorder.record_usage(TurnUsage(input_tokens=100, output_tokens=50))
+
+        # Assert
+        self.assertEqual(LLMUsageEvent.objects.get().tier, "default")
 
     def _execution(self, *, status, expires_at):
         conversation = AgentConversation.objects.create(

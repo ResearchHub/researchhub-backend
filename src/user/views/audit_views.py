@@ -3,6 +3,8 @@ import logging
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.utils.formats import localize
+from django.utils.html import format_html
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination, PageNumberPagination
@@ -26,6 +28,11 @@ from user.serializers import VerdictSerializer
 from utils.models import SoftDeletableModel
 
 logger = logging.getLogger(__name__)
+
+HELP_PAGE_URL = (
+    "https://researchhub.notion.site/researchhub/"
+    "ResearchHub-Help-7291ea62355a43e29112c91d11c21740"
+)
 
 
 class CursorSetPagination(CursorPagination):
@@ -477,9 +484,21 @@ class AuditViewSet(viewsets.GenericViewSet):
             content_type=flag.content_type, object_id=flag.object_id
         )
         email_context = {
-            "user_name": f"{recipient.first_name} {recipient.last_name}",
-            "verdict_choice": verdict.verdict_choice.replace("_", " "),
-            "actions": (action.email_context(),),
+            "subject": "Flagged and Removed Content",
+            "body": format_html(
+                "<p>Dear {} {},</p>"
+                "<p>Content that you have recently uploaded has been flagged and "
+                "removed by a hub editor.</p>"
+                "<p>The following item has been removed for: {}</p>"
+                "{}"
+                '<p>Please review our <a href="{}">help page</a> for a list of our '
+                "community guidelines.</p>",
+                recipient.first_name,
+                recipient.last_name,
+                verdict.verdict_choice.replace("_", " "),
+                self._render_removed_item(action.email_context()),
+                HELP_PAGE_URL,
+            ),
         }
 
         subject = "ResearchHub | Notice of Flagged and Removed Content"
@@ -489,8 +508,40 @@ class AuditViewSet(viewsets.GenericViewSet):
                 recipients,
                 subject,
                 email_context,
-                template="flagged_and_removed_content",
+                template="general_branded_email",
                 sender=f"ResearchHub Digest <digest@{EMAIL_DOMAIN}>",
             ),
             robust=True,
+        )
+
+    @staticmethod
+    def _render_removed_item(action: Action) -> str:
+        """Render the removed item as an author, title, and summary card."""
+        author = action.user.author_profile
+        avatar = (
+            format_html('<img class="author-avatar" src="{0}" alt="{0}" />', image)
+            if (image := author.profile_image)
+            else ""
+        )
+        return format_html(
+            '<div class="content">'
+            '<div class="meta">'
+            '<div class="avatar-wrapper">{}</div>'
+            '<div class="notification-wrapper">'
+            '<div class="notification-title">'
+            '<span class="first-line"><b>{} {}</b> {}:</span>'
+            '<div class="paper">{}</div>'
+            '<div class="timestamp">{}</div>'
+            "</div>"
+            "</div>"
+            "</div>"
+            '<div class="body">{}</div>'
+            "</div>",
+            avatar,
+            author.first_name,
+            author.last_name,
+            action.label,
+            action.title,
+            localize(action.created_date),
+            action.doc_summary,
         )

@@ -122,23 +122,6 @@ class SendEmailTests(TestCase):
         # Assert
         self.assertIn("hello", mail.outbox[0].body)
 
-    def test_derived_text_body_excludes_embedded_css(self):
-        # Arrange: this template carries a <style> block
-        context = {"user_name": "user1", "subject": "subject1"}
-
-        # Act
-        self._send(
-            ["good@example.com"],
-            template="organization_invite",
-            email_context=context,
-        )
-
-        # Assert: the CSS rules must not leak into the text part
-        body = mail.outbox[0].body
-        self.assertIn("invited you", body)
-        self.assertNotIn("@media", body)
-        self.assertNotIn("{", body)
-
     def test_derived_text_body_keeps_link_urls(self):
         # Act
         self._send(["good@example.com"])

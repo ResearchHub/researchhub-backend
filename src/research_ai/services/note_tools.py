@@ -327,7 +327,7 @@ class NoteToolset:
         }
 
     def _read_note(self, input: dict) -> dict:
-        note = self._get_readable_note(input.get("note_id"))
+        note = self.get_readable_note(input.get("note_id"))
         if note is None:
             return {"error": f"note {input.get('note_id')} not found or not accessible"}
         try:
@@ -412,7 +412,7 @@ class NoteToolset:
         return value
 
     def _edit_note(self, input: dict) -> dict:
-        note = self._get_readable_note(input.get("note_id"))
+        note = self.get_readable_note(input.get("note_id"))
         if note is None:
             return {"error": f"note {input.get('note_id')} not found or not accessible"}
 
@@ -527,7 +527,7 @@ class NoteToolset:
         """
         changed = []
         for note_id, seen in _last_seen_versions(messages).items():
-            note = self._get_readable_note(note_id)
+            note = self.get_readable_note(note_id)
             if note is None or note.latest_version_id == seen:
                 continue
             changed.append(
@@ -545,7 +545,7 @@ class NoteToolset:
             "version.]"
         )
 
-    def _get_readable_note(self, note_id) -> Note | None:
+    def get_readable_note(self, note_id) -> Note | None:
         """The note, or None when it does not exist or ``user`` cannot view it."""
         if self._user is None or getattr(self._user, "is_anonymous", False):
             return None
@@ -564,6 +564,21 @@ class NoteToolset:
         if not note.permissions.has_user(self._user):
             return None
         return note
+
+
+def notify_note_updated(note: Note) -> None:
+    """Tell an open notebook about a Details write, which adds no NoteContent.
+
+    Best-effort: an ownerless note has no org room, and the write is committed.
+    """
+    if note.organization_id is None:
+        return
+    try:
+        note.notify_note_updated_title()
+    except Exception:  # noqa: BLE001 - the write is already saved
+        logger.warning(
+            "could not publish note update after a Details change", exc_info=True
+        )
 
 
 _VERSIONED_RESULT_TOOLS = frozenset({READ_NOTE, EDIT_NOTE, CREATE_NOTE})

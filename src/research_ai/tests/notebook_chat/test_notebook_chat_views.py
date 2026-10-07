@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 
 from note.tests.helpers import create_note
 from research_ai.models import AgentExecution
+from research_ai.tests.agent_files.helpers import make_file
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -155,6 +156,36 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertEqual(response.data["conversation_id"], chat_id)
         self.assertEqual(execution.trigger_message.content, "Summarize the note")
+
+    def test_post_message_attaches_the_files_it_names(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        file = make_file(self.owner)
+
+        # Act
+        response, _delay = self._post_message(chat_id, file_ids=[file.id])
+        chat = self.client.get(self._chat_url(chat_id))
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+        (message,) = chat.data["messages"]
+        (attachment,) = message["attachments"]
+        self.assertEqual(attachment["id"], file.id)
+
+    def test_post_files_without_text_starts_a_turn(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        file = make_file(self.owner)
+
+        # Act
+        response, _delay = self._post_message(chat_id, "", file_ids=[file.id])
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+        execution = AgentExecution.objects.get(id=response.data["execution_id"])
+        self.assertEqual(execution.trigger_message.content, "")
 
     @override_settings(
         ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
@@ -344,6 +375,7 @@ class NotebookChatViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, {"message": ["This field may not be blank."]})
 
     def test_post_while_turn_is_running_returns_conflict(self):
         # Arrange
