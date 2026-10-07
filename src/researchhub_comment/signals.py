@@ -99,7 +99,7 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         )
         | Q(grants__applications__preregistration_post=document)
         | Q(grant_contacts__applications__preregistration_post=document)
-    ).distinct()
+    ).exclude(id=author.id).distinct()
 
     recipient_emails = [recipient.email for recipient in recipients]
     notifications = NotificationService()

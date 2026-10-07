@@ -249,10 +249,10 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         )
 
     @patch.object(NotificationService, "_send_notification")
-    def test_notifies_rfp_creator_and_contacts_once_alongside_followers(
+    def test_notifies_rfp_owners_and_followers_once_except_the_author(
         self, mock_send_notification: Mock
     ) -> None:
-        """RFP owners who also follow the proposal get one alert and one email."""
+        """RFP owners and followers get one alert and email, but the author none."""
         # Arrange
         rfp_contact = create_random_default_user("rfp_contact")
         grant = Grant.objects.create(
@@ -264,7 +264,7 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
             description="Test grant",
             status=Grant.OPEN,
         )
-        grant.contacts.add(self.follower2, rfp_contact)
+        grant.contacts.add(self.follower2, rfp_contact, self.author)
         GrantApplication.objects.create(
             grant=grant,
             preregistration_post=self.preregistration,
