@@ -9,7 +9,7 @@ from django.db import connection
 from django.test import TransactionTestCase
 from rest_framework.test import APIClient, APITestCase
 
-from mailing_list.tasks import send_message_email
+from mailing_list.services import EmailService
 from notification.models import Notification
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
@@ -65,9 +65,9 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         ).latest("id")
         self.assertEqual(distribution.distribution_type, "BOUNTY_PAYOUT")
 
-    @patch.object(send_message_email, "delay")
+    @patch.object(EmailService, "send_message_email")
     def test_bounty_payout_notifies_and_emails_recipient(
-        self, mock_delay: Mock
+        self, mock_send_message_email: Mock
     ) -> None:
         """Notify and email the paid-out user once the bounty payout commits."""
         # Arrange
@@ -84,8 +84,10 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
             notification_type=Notification.BOUNTY_PAYOUT
         )
         self.assertEqual(notification.recipient, self.recipient)
-        mock_delay.assert_called_once()
-        self.assertEqual(mock_delay.call_args.args[0], [self.recipient.email])
+        mock_send_message_email.assert_called_once()
+        self.assertEqual(
+            mock_send_message_email.call_args.args[0], [self.recipient.email]
+        )
 
     def test_author_rsc_escrow_payout_is_rejected(self):
         paper = create_paper()

@@ -117,9 +117,9 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         transaction.on_commit(
             lambda: send_message_email.delay(
                 recipient_emails,
-                "Update on Preregistration You're Following",
-                f"{author.first_name} {author.last_name} posted an update to a "
-                "preregistration you're following",
+                "New Preregistration Update",
+                f"{author.first_name} {author.last_name} posted an update to the "
+                f"preregistration {document.title}",
                 link=link,
             ),
             robust=True,

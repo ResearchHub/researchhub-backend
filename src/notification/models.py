@@ -256,7 +256,7 @@ class Notification(models.Model):
         action_user_name = action_user.first_name
         doc_title = self._truncate_title(document.title)
         base_url = self._create_frontend_doc_link()
-        conversation_url = f"{base_url}/conversation"
+        comment_url = self.item.get_frontend_view_link()
 
         return [
             {
@@ -269,20 +269,20 @@ class Notification(models.Model):
             {
                 "type": "link",
                 "value": "thread ",
-                "link": conversation_url,
+                "link": comment_url,
                 "extra": '["link"]',
             },
             {"type": "text", "value": "in "},
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
             {"type": "text", "value": "."},
-        ], conversation_url
+        ], comment_url
 
     def _format_comment_on_comment(self):
         item = self.item
         action_user = self.action_user
         action_user_name = action_user.first_name
         base_url = self._create_frontend_doc_link()
-        conversation_url = f"{base_url}/conversation"
+        comment_url = item.get_frontend_view_link()
         comment_plain_text = item.plain_text
 
         return [
@@ -296,7 +296,7 @@ class Notification(models.Model):
             {
                 "type": "link",
                 "value": "reply ",
-                "link": conversation_url,
+                "link": comment_url,
                 "extra": '["link"]',
             },
             {"type": "text", "value": "to your comment "},
@@ -307,7 +307,7 @@ class Notification(models.Model):
                 "extra": '["link"]',
             },
             {"type": "text", "value": "."},
-        ], conversation_url
+        ], comment_url
 
     def _format_comment_user_mention(self):
         action_user = self.action_user

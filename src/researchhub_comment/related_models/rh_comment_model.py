@@ -129,8 +129,16 @@ class RhCommentModel(
         return self.thread.unified_document
 
     def get_frontend_view_link(self) -> str:
-        """Return a link to this comment on its work's reviews or conversation tab."""
-        tab = "reviews" if self.comment_type in REVIEW_COMMENT_TYPES else "conversation"
+        """Return a link to this comment on its root comment's reviews or
+        conversation tab."""
+        root_comment = self
+        while root_comment.parent:
+            root_comment = root_comment.parent
+        tab = (
+            "reviews"
+            if root_comment.comment_type in REVIEW_COMMENT_TYPES
+            else "conversation"
+        )
         return f"{self.unified_document.frontend_view_link()}/{tab}#comment-{self.id}"
 
     @property

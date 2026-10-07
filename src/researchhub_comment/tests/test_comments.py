@@ -381,10 +381,13 @@ class CommentViewTests(APITestCase):
             ),
         )
 
-    def test_get_frontend_view_link_opens_the_tab_for_its_comment_type(self) -> None:
-        """Review links open the reviews tab and other comments the conversation."""
+    def test_get_frontend_view_link_opens_the_tab_of_the_root_comment(self) -> None:
+        """Replies under reviews open the reviews tab and others the conversation."""
         # Arrange
-        comment = create_rh_comment(paper=self.paper, created_by=self.user_1)
+        root_comment = create_rh_comment(paper=self.paper, created_by=self.user_1)
+        reply = create_rh_comment(
+            paper=self.paper, created_by=self.user_1, parent=root_comment
+        )
         base_url = self.paper.unified_document.frontend_view_link()
         expected_tabs = {
             GENERIC_COMMENT: "conversation",
@@ -394,13 +397,13 @@ class CommentViewTests(APITestCase):
 
         for comment_type, tab in expected_tabs.items():
             with self.subTest(comment_type=comment_type):
-                comment.comment_type = comment_type
+                root_comment.comment_type = comment_type
 
                 # Act
-                link = comment.get_frontend_view_link()
+                link = reply.get_frontend_view_link()
 
                 # Assert
-                self.assertEqual(link, f"{base_url}/{tab}#comment-{comment.id}")
+                self.assertEqual(link, f"{base_url}/{tab}#comment-{reply.id}")
 
     def test_censored_top_level_comments_excluded_from_list(self):
         """

@@ -237,11 +237,11 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         send_email.assert_called_once()
         recipients, subject, message = send_email.call_args.args
         self.assertCountEqual(recipients, [self.follower1.email, self.follower2.email])
-        self.assertEqual(subject, "Update on Preregistration You're Following")
+        self.assertEqual(subject, "New Preregistration Update")
         self.assertEqual(
             message,
             f"{self.author.first_name} {self.author.last_name} posted an update "
-            "to a preregistration you're following",
+            f"to the preregistration {self.preregistration.title}",
         )
         self.assertEqual(
             send_email.call_args.kwargs,
