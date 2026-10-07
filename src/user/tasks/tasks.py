@@ -157,9 +157,8 @@ def _user_file_keys(user: User) -> Iterator[str]:
             yield paper.file.name
 
     for post in user.created_posts.iterator():
-        for file_field in (post.discussion_src, post.eln_src):
-            if file_field:
-                yield file_field.name
+        if post.discussion_src:
+            yield post.discussion_src.name
 
     comments = RhCommentModel.all_objects.filter(created_by=user)
     for comment in comments.iterator():
