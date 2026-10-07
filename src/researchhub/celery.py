@@ -18,23 +18,19 @@ app.autodiscover_tasks()
 
 # Queues
 QUEUE_AGENTS = "agents"
+QUEUE_BOUNTIES = "bounties"
 QUEUE_CACHES = "caches"
+QUEUE_CONTRIBUTIONS = "contributions"
 QUEUE_ELASTIC_SEARCH = "elastic_search"
 QUEUE_EXTERNAL_REPORTING = "external_reporting"
+QUEUE_HUBS = "hubs"
 QUEUE_NOTIFICATION = "notifications"
+QUEUE_PAPER_METADATA = "paper_metadata"
 QUEUE_PAPER_METRICS = "paper_metrics"
-QUEUE_X_METRICS = "x_metrics"
-QUEUE_GITHUB_METRICS = "github_metrics"
-QUEUE_BLUESKY_METRICS = "bluesky_metrics"
 QUEUE_PAPER_MISC = "paper_misc"
 QUEUE_PULL_PAPERS = "pull_papers"
-QUEUE_LOGS = "logs"
 QUEUE_PURCHASES = "purchases"
 QUEUE_REPUTATION = "reputation"
-QUEUE_CONTRIBUTIONS = "contributions"
-QUEUE_PAPER_METADATA = "paper_metadata"
-QUEUE_BOUNTIES = "bounties"
-QUEUE_HUBS = "hubs"
 
 
 # Scheduled tasks
@@ -227,51 +223,6 @@ app.conf.beat_schedule = {
             "priority": 5,
             "queue": QUEUE_AGENTS,
             "expires": 55 * 60,
-        },
-    },
-    # Paper ingestion tasks
-    "paper-fetch-all": {
-        "task": "paper.ingestion.pipeline.fetch_all_papers",
-        "schedule": crontab(hour=1, minute=0),
-        "options": {
-            "priority": 1,
-            "queue": QUEUE_PULL_PAPERS,
-        },
-    },
-    "paper-openalex-enrichment": {
-        "task": "paper.ingestion.tasks.enrich_papers_with_openalex",
-        "kwargs": {"days": 30},
-        "schedule": crontab(hour=4, minute=0),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_PAPER_MISC,
-        },
-    },
-    "paper-github-metrics-update": {
-        "task": "paper.ingestion.tasks.update_recent_papers_with_github_metrics",
-        "kwargs": {"days": 14},
-        "schedule": crontab(hour=7, minute=0, day_of_week="mon"),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_GITHUB_METRICS,
-        },
-    },
-    "paper-bluesky-metrics-update": {
-        "task": "paper.ingestion.tasks.update_recent_papers_with_bluesky_metrics",
-        "kwargs": {"days": 14},
-        "schedule": crontab(hour=10, minute=0, day_of_week="wed"),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_BLUESKY_METRICS,
-        },
-    },
-    "paper-x-metrics-update": {
-        "task": "paper.ingestion.tasks.update_recent_papers_with_x_metrics",
-        "kwargs": {"days": 14},
-        "schedule": crontab(hour=13, minute=0, day_of_week="fri"),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_X_METRICS,
         },
     },
 }

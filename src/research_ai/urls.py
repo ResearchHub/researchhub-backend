@@ -2,9 +2,10 @@ from django.urls import path
 
 from research_ai.views.agent_file_views import (
     AgentFileCompleteView,
-    AgentFileCreateView,
     AgentFileDetailView,
     AgentFileDownloadView,
+    AgentFileLimitsView,
+    AgentFileListCreateView,
 )
 from research_ai.views.assistant_chat_views import (
     AssistantChatCancelView,
@@ -158,7 +159,8 @@ urlpatterns = [
         "assistant/chats/<int:conversation_id>/cancel/",
         AssistantChatCancelView.as_view(),
     ),
-    path("files/", AgentFileCreateView.as_view()),
+    path("files/", AgentFileListCreateView.as_view()),
+    path("files/limits/", AgentFileLimitsView.as_view()),
     path("files/<int:file_id>/", AgentFileDetailView.as_view()),
     path("files/<int:file_id>/complete/", AgentFileCompleteView.as_view()),
     path("files/<int:file_id>/download/", AgentFileDownloadView.as_view()),

@@ -1,4 +1,3 @@
-import math
 from datetime import datetime, time
 
 from django.db.models import Prefetch
@@ -21,6 +20,7 @@ from research_ai.models import (
     SearchExpert,
 )
 from research_ai.services.agent import validate_model_ref
+from research_ai.services.agent_files.config import MAX_FILE_IDS_PER_REQUEST
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.outreach.invited_experts import (
     EDITOR_SORT_FIELDS,
@@ -1036,16 +1036,6 @@ class ModelSelectionField(serializers.CharField):
             raise serializers.ValidationError(str(error))
 
 
-class FiniteFloatField(serializers.FloatField):
-    """A float that rejects NaN and infinities before JSON persistence."""
-
-    def to_internal_value(self, data):
-        value = super().to_internal_value(data)
-        if not math.isfinite(value):
-            raise serializers.ValidationError("A finite number is required.")
-        return value
-
-
 class GenerationOptionsSerializer(serializers.Serializer):
     """Optional model controls shared by agent-generation requests."""
 
@@ -1057,7 +1047,7 @@ class GenerationOptionsSerializer(serializers.Serializer):
         choices=("adaptive", "disabled"),
         required=False,
     )
-    temperature = FiniteFloatField(
+    temperature = serializers.FloatField(
         min_value=0.0,
         max_value=2.0,
         required=False,
@@ -1071,18 +1061,35 @@ class NotebookChatMessageCreateSerializer(GenerationOptionsSerializer):
     The service enforces the configurable ceiling; the max_length here is a
     request-size backstop matching the config default. ``model`` optionally
     selects the model for the first turn from the selectable catalog; the
-    conversation keeps that model for all later turns.
+    conversation keeps that model for all later turns. ``file_ids`` attach the
+    user's processed uploads; the service enforces the per-message limit.
+    ``message`` may be blank only when ``file_ids`` names a file.
     """
 
-    message = serializers.CharField(max_length=20000)
+    message = serializers.CharField(max_length=20000, allow_blank=True)
     model = ModelSelectionField()
+    file_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        required=False,
+        default=list,
+        max_length=MAX_FILE_IDS_PER_REQUEST,
+    )
+
+    def validate(self, attrs):
+        if not attrs["message"] and not attrs["file_ids"]:
+            # The field's own refusal, as before text became optional.
+            raise serializers.ValidationError(
+                {"message": self.fields["message"].error_messages["blank"]}
+            )
+        return attrs
 
 
 class AgentFileCreateSerializer(serializers.Serializer):
     """Request body for starting an upload; the type comes from the extension."""
 
     filename = serializers.CharField(max_length=1024)
-    size_bytes = serializers.IntegerField(min_value=1)
+    # Zero passes here so the service can refuse an empty file with a code.
+    size_bytes = serializers.IntegerField(min_value=0)
     content_type = serializers.CharField(
         max_length=255, required=False, allow_blank=True, default=""
     )

@@ -9,17 +9,24 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from research_ai.models import AgentConversation, AgentFile
+from research_ai.services.agent_files.extraction import SUPPORTED_EXTENSIONS
 from research_ai.services.agent_persistence import AgentConversationService
 from research_ai.tests.agent_files.helpers import make_file
 from research_ai.throttles import AgentFileCreateThrottle
 from utils.test_helpers import AWSMockMixin
 
 FILES_URL = "/api/research_ai/files/"
+LIMITS_URL = f"{FILES_URL}limits/"
 CHATS_URL = "/api/research_ai/assistant/chats/"
 BUCKET = "researchhub-test-private-storage"
+MODEL_SETTINGS = {
+    "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
+    "AWS_REGION_NAME": "us-east-1",
+    "OPENROUTER_API_KEY": "or-test",
+}
 
 
-@override_settings(AWS_PRIVATE_STORAGE_BUCKET_NAME=BUCKET)
+@override_settings(AWS_PRIVATE_STORAGE_BUCKET_NAME=BUCKET, **MODEL_SETTINGS)
 class AgentFileViewTests(AWSMockMixin, APITestCase):
     def setUp(self):
         super().setUp()
@@ -64,6 +71,7 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
 
         for method, url in (
             ("post", FILES_URL),
+            ("get", LIMITS_URL),
             ("get", self._file_url(file.id)),
             ("delete", self._file_url(file.id)),
             ("post", self._file_url(file.id, "complete/")),
@@ -123,6 +131,16 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.data["code"], "unsupported_file_type")
 
+    def test_create_refuses_an_empty_file(self):
+        # Act
+        response = self.client.post(
+            FILES_URL, {"filename": "empty.pdf", "size_bytes": 0}, format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "file_empty")
+
     def test_create_refuses_a_file_over_the_size_limit(self):
         # Act
         response = self.client.post(
@@ -160,11 +178,13 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
                 self.client.post(FILES_URL, payload, format="json").status_code
                 for _ in range(3)
             ]
+            listed = self.client.get(FILES_URL)
             self.client.force_authenticate(self.other)
             other = self.client.post(FILES_URL, payload, format="json")
 
-        # Assert
+        # Assert: listing does not spend the upload allowance.
         self.assertEqual(statuses, [201, 201, 429])
+        self.assertEqual(listed.status_code, 200)
         self.assertEqual(other.status_code, 201)
 
     @override_settings(AWS_PRIVATE_STORAGE_BUCKET_NAME="")
@@ -209,6 +229,82 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
         self.assertIn("took too long", response.data["error"])
         self.mock_aws_client.delete_object.assert_called_once_with(
             Bucket=BUCKET, Key=file.storage_key
+        )
+
+    def test_list_returns_the_callers_unsent_files_oldest_first(self):
+        # Arrange: the highest id is stored first, so only sorting lists it last.
+        chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
+        message = AgentConversationService().add_human_message(
+            AgentConversation.objects.get(id=chat_id), "hi"
+        )
+        newest = make_file(self.owner, id=2**31 - 1, status=AgentFile.Status.UPLOADING)
+        ready = make_file(self.owner)
+        failed = make_file(
+            self.owner, status=AgentFile.Status.FAILED, error="Unreadable."
+        )
+        make_file(self.owner, message=message)
+        make_file(self.other)
+        self.client.delete(self._file_url(make_file(self.owner).id))
+
+        # Act
+        response = self.client.get(FILES_URL)
+
+        # Assert: no sent, removed or foreign file; each as its detail reads.
+        self.assertEqual(response.status_code, 200)
+        files = response.data["files"]
+        self.assertEqual(
+            [file["id"] for file in files], [ready.id, failed.id, newest.id]
+        )
+        self.assertEqual(files[1], self.client.get(self._file_url(failed.id)).data)
+
+    def test_list_fails_a_file_whose_processing_stalled(self):
+        # Arrange
+        make_file(
+            self.owner,
+            status=AgentFile.Status.PROCESSING,
+            processing_started_date=timezone.now() - timedelta(hours=1),
+        )
+
+        # Act
+        response = self.client.get(FILES_URL)
+
+        # Assert
+        (file,) = response.data["files"]
+        self.assertEqual(file["status"], AgentFile.Status.FAILED)
+        self.assertIn("took too long", file["error"])
+
+    @override_settings(
+        RESEARCH_AI_FILE_MAX_BYTES=1024,
+        RESEARCH_AI_FILE_MAX_PER_MESSAGE=2,
+        RESEARCH_AI_FILE_MAX_PER_CONVERSATION=3,
+        RESEARCH_AI_FILE_MAX_UNSENT=4,
+    )
+    def test_limits_publish_the_settings_in_effect_and_the_file_types(self):
+        # Act
+        response = self.client.get(LIMITS_URL)
+
+        # Assert: these keys only, so no internal timeout is published.
+        self.assertEqual(response.status_code, 200)
+        types = response.data.pop("supported_types")
+        self.assertEqual(
+            response.data,
+            {
+                "max_file_bytes": 1024,
+                "max_files_per_message": 2,
+                "max_files_per_conversation": 3,
+                "max_unsent_files": 4,
+            },
+        )
+        self.assertEqual(
+            [kind["extension"] for kind in types], list(SUPPORTED_EXTENSIONS)
+        )
+        self.assertIn(
+            {
+                "extension": ".md",
+                "content_type": "text/markdown",
+                "label": "Markdown file",
+            },
+            types,
         )
 
     def test_files_are_private_to_their_uploader(self):
@@ -281,3 +377,75 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
                 self.assertEqual(response.status_code, 409)
                 self.assertEqual(response.data["code"], "file_unavailable")
         self.mock_aws_client.generate_presigned_url.assert_not_called()
+
+    # -- sending files in a chat -------------------------------------------
+
+    def _send(self, chat_id, **payload):
+        with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
+            return self.client.post(
+                f"{CHATS_URL}{chat_id}/messages/",
+                {"message": "Summarize the attached proposal", **payload},
+                format="json",
+            )
+
+    def test_a_message_carries_its_files_into_the_chat(self):
+        # Arrange
+        chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
+        file = make_file(self.owner, page_count=12, pages_without_text=5)
+
+        # Act
+        sent = self._send(chat_id, file_ids=[file.id])
+        chat = self.client.get(f"{CHATS_URL}{chat_id}/")
+
+        # Assert
+        self.assertEqual(sent.status_code, 202)
+        (message,) = chat.data["messages"]
+        (attachment,) = message["attachments"]
+        self.assertEqual(attachment["id"], file.id)
+        self.assertEqual(attachment["filename"], "grant.pdf")
+        self.assertEqual(attachment["page_count"], 12)
+        self.assertEqual(attachment["pages_without_text"], 5)
+        self.assertEqual(attachment["message_id"], message["id"])
+
+    def test_a_message_with_an_unready_file_is_refused_whole(self):
+        # Arrange
+        chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
+        ready = make_file(self.owner)
+        processing = make_file(self.owner, status=AgentFile.Status.PROCESSING)
+
+        # Act
+        response = self._send(chat_id, file_ids=[ready.id, processing.id])
+        chat = self.client.get(f"{CHATS_URL}{chat_id}/")
+
+        # Assert: nothing was recorded, so the user can simply resend.
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "attachment_not_ready")
+        self.assertEqual(chat.data["messages"], [])
+        self.assertEqual(chat.data["executions"], [])
+        ready.refresh_from_db()
+        self.assertIsNone(ready.message_id)
+
+    @override_settings(RESEARCH_AI_FILE_MAX_PER_MESSAGE=1000)
+    def test_a_message_with_the_published_file_limit_is_not_malformed(self):
+        # Arrange
+        chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
+        published = self.client.get(LIMITS_URL).data["max_files_per_message"]
+
+        # Act
+        response = self._send(chat_id, file_ids=list(range(1, published + 1)))
+
+        # Assert: refused by the chat's own cap, not as a field error.
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data.get("code"), "too_many_attachments")
+
+    def test_another_users_file_cannot_be_sent(self):
+        # Arrange
+        chat_id = self.client.post(CHATS_URL, {}, format="json").data["conversation_id"]
+        foreign = make_file(self.other)
+
+        # Act
+        response = self._send(chat_id, file_ids=[foreign.id])
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "attachment_unavailable")

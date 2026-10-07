@@ -6,6 +6,8 @@ DEFAULT_OPEN_WEIGHT_MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
 BUDGETS_ENFORCED = True
 MAX_IN_FLIGHT_JOBS_PER_USER = 5
 DEFAULT_DAILY_BUDGET_MICROUSD = 250_000
+# Shared by every default-tier user combined, on top of the per-user budget.
+DEFAULT_POOL_DAILY_BUDGET_MICROUSD = 1_000_000_000
 INVITED_DAILY_BUDGET_MICROUSD = 10_000_000
 PRIVILEGED_DAILY_BUDGET_MICROUSD = 100_000_000
 
@@ -19,10 +21,15 @@ class TierPolicy:
     default_model_ref: str | None
     max_effort: str | None = None
     allowed_thinking_modes: tuple[str, ...] | None = None
+    pool_daily_budget_microusd: int | None = None
 
     @property
     def is_budgeted(self) -> bool:
-        return self.daily_budget_microusd is not None or self.daily_turn_cap is not None
+        return (
+            self.daily_budget_microusd is not None
+            or self.daily_turn_cap is not None
+            or self.pool_daily_budget_microusd is not None
+        )
 
 
 def tier_policies() -> dict[str, TierPolicy]:
@@ -35,6 +42,7 @@ def tier_policies() -> dict[str, TierPolicy]:
         default_model_ref=DEFAULT_OPEN_WEIGHT_MODEL,
         max_effort="none",
         allowed_thinking_modes=("disabled",),
+        pool_daily_budget_microusd=DEFAULT_POOL_DAILY_BUDGET_MICROUSD,
     )
     invited = TierPolicy(
         name="invited",
