@@ -49,7 +49,7 @@ DOCX = FileKind(
 )
 _MARKDOWN = FileKind("text", "text/markdown", "Markdown file")
 _JPEG = FileKind("image", "image/jpeg", "JPEG image")
-_KINDS_BY_EXTENSION = {
+KINDS_BY_EXTENSION = {
     ".pdf": PDF,
     ".docx": DOCX,
     ".txt": FileKind("text", "text/plain", "text file"),
@@ -65,9 +65,9 @@ _KINDS_BY_EXTENSION = {
     ".webp": FileKind("image", "image/webp", "WebP image"),
 }
 _KINDS_BY_CONTENT_TYPE = {
-    kind.content_type: kind for kind in _KINDS_BY_EXTENSION.values()
+    kind.content_type: kind for kind in KINDS_BY_EXTENSION.values()
 }
-SUPPORTED_EXTENSIONS = tuple(_KINDS_BY_EXTENSION)
+SUPPORTED_EXTENSIONS = tuple(KINDS_BY_EXTENSION)
 
 # Written under the ``[Page N]`` marker of a page with content but no text.
 NO_TEXT_LAYER = "[This page has no text layer; it may be a scan or a figure.]"
@@ -139,7 +139,7 @@ def resolve_kind(filename: str, content_type: str = "") -> FileKind | None:
     """The kind a file uploads as: by extension, else by its declared MIME type."""
     extension = os.path.splitext(filename)[1].lower()
     if extension:
-        return _KINDS_BY_EXTENSION.get(extension)
+        return KINDS_BY_EXTENSION.get(extension)
     return kind_for_content_type(content_type.split(";")[0].strip().lower())
 
 

@@ -8,6 +8,9 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
+# Request-size backstop on a message's ``file_ids``, whatever the settings say.
+MAX_FILE_IDS_PER_REQUEST = 50
+
 _SETTING_OVERRIDES = {
     "max_file_bytes": "RESEARCH_AI_FILE_MAX_BYTES",
     "max_text_chars": "RESEARCH_AI_FILE_MAX_TEXT_CHARS",
