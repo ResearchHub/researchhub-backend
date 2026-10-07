@@ -5,6 +5,7 @@ from unittest.mock import Mock
 from botocore.exceptions import ClientError
 
 from researchhub.services.private_storage_service import (
+    ObjectsNotDeletedError,
     PresignedPost,
     PrivateStorageNotConfiguredError,
     PrivateStorageService,
@@ -131,6 +132,53 @@ class PrivateStorageServiceTests(TestCase):
             ExpiresIn=300,
         )
 
+    def test_write_stores_the_bytes_under_their_type(self):
+        # Act
+        self.service.write("uploads/a/pages/1.jpg", b"jpeg", content_type="image/jpeg")
+
+        # Assert
+        self.client.put_object.assert_called_once_with(
+            Bucket=BUCKET,
+            Key="uploads/a/pages/1.jpg",
+            Body=b"jpeg",
+            ContentType="image/jpeg",
+        )
+
+    def test_delete_many_sends_as_many_keys_as_one_request_takes(self):
+        # Arrange
+        self.client.delete_objects.return_value = {}
+        keys = [f"uploads/a/pages/{page}.jpg" for page in range(1, 2002)]
+
+        # Act
+        self.service.delete_many(keys)
+
+        # Assert
+        sent = [
+            [entry["Key"] for entry in request.kwargs["Delete"]["Objects"]]
+            for request in self.client.delete_objects.call_args_list
+        ]
+        self.assertEqual([len(batch) for batch in sent], [1000, 1000, 1])
+        self.assertEqual([key for batch in sent for key in batch], keys)
+        for request in self.client.delete_objects.call_args_list:
+            self.assertEqual(request.kwargs["Bucket"], BUCKET)
+
+    def test_delete_many_of_nothing_sends_nothing(self):
+        # Act
+        self.service.delete_many([])
+
+        # Assert
+        self.client.delete_objects.assert_not_called()
+
+    def test_delete_many_raises_when_a_key_is_not_deleted(self):
+        # Arrange: S3 answers 200 and lists the keys it kept.
+        self.client.delete_objects.return_value = {
+            "Errors": [{"Key": "uploads/a/pages/2.jpg", "Code": "AccessDenied"}]
+        }
+
+        # Act / Assert
+        with self.assertRaises(ObjectsNotDeletedError):
+            self.service.delete_many(["uploads/a/pages/1.jpg", "uploads/a/pages/2.jpg"])
+
     def test_an_unset_bucket_is_not_configured(self):
         # Arrange
         service = PrivateStorageService(client=self.client, bucket="")
@@ -139,4 +187,7 @@ class PrivateStorageServiceTests(TestCase):
         self.assertFalse(service.configured)
         with self.assertRaises(PrivateStorageNotConfiguredError):
             service.delete("uploads/a.pdf")
+        with self.assertRaises(PrivateStorageNotConfiguredError):
+            service.delete_many(["uploads/a.pdf"])
         self.client.delete_object.assert_not_called()
+        self.client.delete_objects.assert_not_called()

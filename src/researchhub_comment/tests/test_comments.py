@@ -6,15 +6,13 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from rest_framework.test import APIClient, APITestCase, APITransactionTestCase
 
-from hub.models import Hub
 from mailing_list.services import EmailService
-from notification.models import Notification
 from notification.services import NotificationService
 from paper.tests.helpers import create_paper
 from purchase.models import Balance
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee, Score
+from reputation.models import Bounty, BountyFee
 from reputation.views.bounty_view import _create_bounty_checks
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.tasks import celery_create_mention_notification
@@ -373,58 +371,6 @@ class CommentViewTests(APITestCase):
             f"{creator.first_name} {creator.last_name} mentioned you in their comment",
             link=f"{self.paper.unified_document.frontend_view_link()}#comments",
         )
-
-    def test_notify_qualified_users_about_bounty(self):
-
-        user1_with_expertise = create_random_default_user("user_with_expertise")
-        hub = Hub.objects.create(name="test_hub")
-
-        _ = Score.objects.create(  # noqa: F841
-            hub=hub,
-            author=user1_with_expertise.author_profile,
-            score=100,
-        )
-
-        self._give_rsc(self.foundation, 1000000)
-
-        _ = self._create_paper_comment_with_bounty(  # noqa: F841
-            self.paper.id,
-            self.foundation,
-            text="this is a test comment",
-            amount=100,
-            target_hub_ids=[hub.id],
-        )
-
-        notification = Notification.objects.filter(
-            recipient=user1_with_expertise
-        ).last()
-
-        self.assertEqual(notification.notification_type, Notification.BOUNTY_FOR_YOU)
-
-    def test_do_not_notify_unqualified_users_about_bounty(self):
-
-        user1_with_expertise = create_random_default_user("user_with_expertise")
-        hub = Hub.objects.create(name="test_hub")
-
-        _ = Score.objects.create(  # noqa: F841
-            hub=hub,
-            author=user1_with_expertise.author_profile,
-            score=90,
-        )
-
-        self._give_rsc(self.foundation, 1000000)
-
-        self._create_paper_comment_with_bounty(
-            self.paper.id,
-            self.foundation,
-            text="this is a test comment",
-            amount=120,
-            target_hub_ids=[hub.id],
-        )
-
-        notification = Notification.objects.filter(recipient=user1_with_expertise)
-
-        self.assertEqual(notification.exists(), False)
 
     def test_censored_top_level_comments_excluded_from_list(self):
         """

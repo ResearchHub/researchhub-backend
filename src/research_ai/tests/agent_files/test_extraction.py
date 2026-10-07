@@ -1,23 +1,37 @@
+import base64
 import codecs
+import io
 import json
+import random
 import subprocess
 from unittest import TestCase
 from unittest.mock import patch
 
 import fitz
+from PIL import Image
 
 from research_ai.services.agent_files import extraction
 from research_ai.services.agent_files.extraction import (
     DOCX,
+    IMAGE_UNREAD,
     NO_TEXT_LAYER,
     OCR_NOTE,
     PDF,
     UnreadableFileError,
     extract_text,
+    prepare_image,
     render_pdf_page,
     resolve_kind,
 )
-from research_ai.tests.agent_files.helpers import docx_bytes, paragraph, pdf_bytes
+from research_ai.tests.agent_files.helpers import (
+    SCAN,
+    docx_bytes,
+    image_bytes,
+    paragraph,
+    pdf_bytes,
+    pdf_with_scans,
+    stamped_scan,
+)
 
 DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006"
 RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -25,20 +39,38 @@ PACKAGE_NS = "http://schemas.openxmlformats.org/package/2006"
 
 TEXT = resolve_kind("notes.txt")
 MAX_CHARS = 10_000
-SCAN = object()
+STAMP = "Downloaded from an archive on 5 March 2019"
 
 
-def pdf_with_scans(*pages) -> bytes:
-    """Like ``pdf_bytes``, but a ``SCAN`` page holds only an image."""
+def page_of_text() -> bytes:
+    """A PDF page full of text, whose render is far larger than a blank page's."""
     document = fitz.open()
-    for content in pages:
-        page = document.new_page()
-        if content is SCAN:
-            pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40), False)
-            pixmap.clear_with(180)
-            page.insert_image(page.rect, pixmap=pixmap)
-        elif content:
-            page.insert_text((72, 72), content)
+    page = document.new_page()
+    page.insert_textbox(fitz.Rect(54, 54, 541, 788), "finding " * 600, fontsize=9)
+    data = document.tobytes()
+    document.close()
+    return data
+
+
+def pdf_claiming(
+    count: int, *pages: str, cycle: bool = False, inline: bool = False
+) -> bytes:
+    """``pdf_bytes(*pages)`` with its page tree's /Count forged to ``count``.
+
+    ``cycle`` also lists the tree's root among its own pages, which keeps MuPDF
+    from correcting the count. ``inline`` writes the tree into the catalog,
+    where the count cannot be lowered.
+    """
+    document = fitz.open(stream=pdf_bytes(*pages), filetype="pdf")
+    catalog = document.pdf_catalog()
+    root = int(document.xref_get_key(catalog, "Pages")[1].split()[0])
+    kids = document.xref_get_key(root, "Kids")[1]
+    if cycle:
+        document.xref_set_key(root, "Kids", f"{kids[:-1]} {root} 0 R]")
+    document.xref_set_key(root, "Count", str(count))
+    if inline:
+        tree = f"<</Type/Pages/Kids{kids}/Count {count}>>"
+        document.xref_set_key(catalog, "Pages", tree)
     data = document.tobytes()
     document.close()
     return data
@@ -51,6 +83,9 @@ class ResolveKindTests(TestCase):
         self.assertEqual(resolve_kind("cv.docx", "application/octet-stream"), DOCX)
         self.assertEqual(resolve_kind("notes.md").content_type, "text/markdown")
         self.assertEqual(resolve_kind("paper.tex").extractor, "text")
+        self.assertEqual(resolve_kind("Figure 2.JPG").content_type, "image/jpeg")
+        self.assertTrue(resolve_kind("gel.webp").is_image)
+        self.assertFalse(PDF.is_image)
 
     def test_unsupported_extensions_are_refused_whatever_the_declared_type(self):
         # Act / Assert
@@ -95,13 +130,17 @@ class PdfExtractionTests(TestCase):
         self.assertTrue(extracted.truncated)
         self.assertEqual(extracted.page_count, 3)
 
-    def test_a_pdf_without_a_text_layer_is_reported_as_a_scan(self):
+    def test_a_pdf_of_blank_pages_is_refused(self):
         # Arrange
         data = pdf_bytes("", "")
+        asked = []
 
         # Act / Assert
-        with self.assertRaisesRegex(UnreadableFileError, "no selectable text"):
+        with self.assertRaisesRegex(UnreadableFileError, "pages are blank"):
             extract_text(data, PDF, max_chars=MAX_CHARS)
+        with self.assertRaisesRegex(UnreadableFileError, "pages are blank"):
+            extract_text(data, PDF, max_chars=MAX_CHARS, recover_pages=asked.append)
+        self.assertEqual(asked, [])
 
     def test_a_password_protected_pdf_is_refused(self):
         # Arrange
@@ -166,6 +205,62 @@ class PdfExtractionTests(TestCase):
             extract_text(b"GIF89a not a pdf", PDF, max_chars=MAX_CHARS)
 
 
+class PdfPageCountTests(TestCase):
+    def test_a_forged_page_count_gives_way_to_the_pages_that_exist(self):
+        # Arrange
+        data = pdf_claiming(2**31 - 1, "Alpha findings", "Beta methods", "Gamma")
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.page_count, 3)
+        self.assertFalse(extracted.truncated)
+        self.assertTrue(extracted.text.endswith("[Page 3]\nGamma"))
+
+    def test_pages_are_counted_by_loading_them_where_mupdf_keeps_a_forged_count(self):
+        # Arrange: the text limit is met on page 2, before the tree's cycle.
+        data = pdf_claiming(2500, "Alpha findings", "Beta methods", "Gamma", cycle=True)
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=20)
+
+        # Assert
+        self.assertEqual(extracted.page_count, 3)
+        self.assertTrue(extracted.truncated)
+
+    def test_a_page_past_the_real_end_of_a_forged_pdf_is_refused(self):
+        # Arrange
+        data = pdf_claiming(2**31 - 1, "Alpha findings", "Beta methods")
+
+        # Act
+        last = render_pdf_page(data, 2, dpi=72)
+
+        # Assert
+        self.assertEqual((last.width, last.height), (595, 842))
+        with self.assertRaisesRegex(UnreadableFileError, "has no page 3"):
+            render_pdf_page(data, 3)
+
+    def test_a_forged_page_count_that_cannot_be_lowered_is_refused(self):
+        # Arrange
+        data = pdf_claiming(2**31 - 1, "Alpha findings", "Beta methods", inline=True)
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "could not be read as a PDF"):
+            extract_text(data, PDF, max_chars=MAX_CHARS)
+
+    def test_only_pages_left_unread_flag_a_text_limit_met_at_a_pages_end(self):
+        # Act
+        # Run in this process: the parent's page markers would pass the limit.
+        unread = extraction._pdf_pages(pdf_bytes("Alpha", "Beta", "Gamma"), 5)
+        whole = extraction._pdf_pages(pdf_bytes("Alpha"), 5)
+
+        # Assert
+        self.assertEqual(unread["pages"], ["Alpha"])
+        self.assertEqual((unread["page_count"], unread["truncated"]), (3, True))
+        self.assertEqual((whole["page_count"], whole["truncated"]), (1, False))
+
+
 class PdfPagesWithoutTextTests(TestCase):
     def test_a_scanned_page_is_marked_and_reported(self):
         # Arrange
@@ -194,15 +289,37 @@ class PdfPagesWithoutTextTests(TestCase):
         self.assertEqual(extracted.text, "[Page 1]\nAlpha findings\n\n[Page 2]\n")
         self.assertEqual(extracted.pages_without_text, ())
 
-    def test_a_fully_scanned_pdf_is_still_refused_without_recovered_text(self):
+    def test_a_fully_scanned_pdf_keeps_only_its_page_markers(self):
         # Arrange
         data = pdf_with_scans(SCAN, SCAN)
 
-        # Act / Assert
-        with self.assertRaisesRegex(UnreadableFileError, "no selectable text"):
-            extract_text(data, PDF, max_chars=MAX_CHARS)
-        with self.assertRaisesRegex(UnreadableFileError, "no selectable text"):
-            extract_text(data, PDF, max_chars=MAX_CHARS, recover_pages=lambda pages: {})
+        # Act
+        unaided = extract_text(data, PDF, max_chars=MAX_CHARS)
+        unrecovered = extract_text(
+            data, PDF, max_chars=MAX_CHARS, recover_pages=lambda pages: {}
+        )
+
+        # Assert
+        for extracted in (unaided, unrecovered):
+            self.assertEqual(
+                extracted.text,
+                f"[Page 1]\n{NO_TEXT_LAYER}\n\n[Page 2]\n{NO_TEXT_LAYER}",
+            )
+            self.assertEqual(extracted.page_count, 2)
+            self.assertEqual(extracted.pages_without_text, (1, 2))
+            self.assertEqual(extracted.ocr_pages, ())
+            self.assertFalse(extracted.truncated)
+
+    def test_one_scanned_page_among_blank_ones_is_enough_to_keep_a_pdf(self):
+        # Arrange
+        data = pdf_with_scans("", SCAN)
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(extracted.text, f"[Page 1]\n\n\n[Page 2]\n{NO_TEXT_LAYER}")
+        self.assertEqual(extracted.pages_without_text, (2,))
 
     def test_recovered_text_fills_only_the_pages_without_a_text_layer(self):
         # Arrange
@@ -273,6 +390,84 @@ class PdfPagesWithoutTextTests(TestCase):
         # Assert
         self.assertEqual(asked, [])
 
+    def test_a_scan_under_a_stamp_keeps_the_stamp_and_is_marked(self):
+        # Arrange
+        data = pdf_with_scans("Alpha findings", stamped_scan(STAMP))
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS)
+
+        # Assert
+        self.assertEqual(
+            extracted.text,
+            f"[Page 1]\nAlpha findings\n\n[Page 2]\n{STAMP}\n{IMAGE_UNREAD}",
+        )
+        self.assertEqual(extracted.pages_without_text, (2,))
+
+    def test_recovered_text_replaces_the_stamp_on_a_scan(self):
+        # Arrange
+        data = pdf_with_scans("Alpha findings", stamped_scan(STAMP), SCAN)
+        asked = []
+
+        def recover(pages):
+            asked.append(list(pages))
+            return {2: f"Scanned methods\n{STAMP}", 3: "Scanned results"}
+
+        # Act
+        extracted = extract_text(data, PDF, max_chars=MAX_CHARS, recover_pages=recover)
+
+        # Assert
+        self.assertEqual(asked, [[2, 3]])
+        self.assertEqual(
+            extracted.text,
+            "[Page 1]\nAlpha findings"
+            f"\n\n[Page 2]\n{OCR_NOTE}\nScanned methods\n{STAMP}"
+            f"\n\n[Page 3]\n{OCR_NOTE}\nScanned results",
+        )
+        self.assertEqual(extracted.ocr_pages, (2, 3))
+        self.assertEqual(extracted.pages_without_text, ())
+
+    def test_a_page_of_text_with_an_image_is_not_taken_for_a_scan(self):
+        # Arrange
+        pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 40, 40), False)
+        document = fitz.open()
+        # A full page of text over a background image.
+        background = document.new_page()
+        background.insert_image(background.rect, pixmap=pixmap)
+        background.insert_textbox(fitz.Rect(72, 72, 540, 720), "finding " * 100)
+        # A caption beside a small figure.
+        figure = document.new_page()
+        figure.insert_image(fitz.Rect(72, 100, 272, 300), pixmap=pixmap)
+        figure.insert_text((72, 72), "Figure 1: Yield by year")
+        data = document.tobytes()
+        document.close()
+        asked = []
+
+        # Act
+        extracted = extract_text(
+            data, PDF, max_chars=MAX_CHARS, recover_pages=asked.append
+        )
+
+        # Assert
+        self.assertEqual(asked, [])
+        self.assertNotIn(IMAGE_UNREAD, extracted.text)
+        self.assertEqual(extracted.pages_without_text, ())
+
+    def test_a_page_whose_images_cannot_be_listed_keeps_its_text(self):
+        # Arrange
+        data = pdf_with_scans(stamped_scan(STAMP))
+
+        # Act
+        # Run in this process: a patch does not reach the parsing child.
+        with patch.object(
+            fitz.Page, "get_image_info", side_effect=RuntimeError("damaged image")
+        ):
+            output = extraction._pdf_pages(data, MAX_CHARS)
+
+        # Assert
+        self.assertEqual(output["pages"], [STAMP])
+        self.assertEqual(output["mostly_image"], [])
+
 
 class PdfPageRenderingTests(TestCase):
     def test_a_page_renders_as_a_jpeg_at_the_requested_resolution(self):
@@ -312,17 +507,54 @@ class PdfPageRenderingTests(TestCase):
         self.assertEqual(max(image.width, image.height), 1000)
         self.assertLessEqual(max(unbounded.width, unbounded.height), 4000)
 
-    def test_a_page_is_scaled_down_until_it_fits_the_byte_limit(self):
+    def test_a_page_within_the_byte_limit_is_left_at_full_size(self):
         # Arrange
-        data = pdf_bytes("Alpha findings " * 5)
+        data = page_of_text()
         full = render_pdf_page(data, 1)
 
         # Act
-        image = render_pdf_page(data, 1, max_bytes=len(full.data) // 3)
+        image = render_pdf_page(data, 1, max_bytes=len(full.data))
 
         # Assert
-        self.assertLessEqual(len(image.data), len(full.data) // 3)
+        self.assertEqual(image, full)
+
+    def test_a_page_just_over_the_byte_limit_keeps_most_of_its_resolution(self):
+        # Arrange
+        data = page_of_text()
+        full = render_pdf_page(data, 1)
+        limit = len(full.data) * 95 // 100
+
+        # Act
+        image = render_pdf_page(data, 1, max_bytes=limit)
+
+        # Assert
+        self.assertLessEqual(len(image.data), limit)
         self.assertLess(image.width, full.width)
+        self.assertGreater(image.width, 0.85 * full.width)
+
+    def test_a_page_far_over_the_byte_limit_fits_within_a_few_renders(self):
+        # Arrange
+        data = page_of_text()
+        limit = len(render_pdf_page(data, 1).data) // 10
+
+        # Act
+        # Run in this process: a patch does not reach the rendering child.
+        with patch.object(
+            fitz.Page, "get_pixmap", autospec=True, side_effect=fitz.Page.get_pixmap
+        ) as render:
+            output = extraction._pdf_page_image(data, 1, 150, 2000, "jpeg", limit)
+
+        # Assert
+        self.assertLessEqual(len(base64.b64decode(output["image"])), limit)
+        self.assertLessEqual(render.call_count, 4)
+
+    def test_a_page_that_cannot_fit_the_byte_limit_is_refused(self):
+        # Arrange
+        data = page_of_text()
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "too detailed"):
+            render_pdf_page(data, 1, max_bytes=500)
 
     def test_a_page_the_pdf_does_not_have_is_refused(self):
         # Arrange
@@ -358,6 +590,25 @@ class PdfPageRenderingTests(TestCase):
         ):
             render_pdf_page(data, 1)
 
+    def test_rendering_stops_at_a_shorter_time_limit_when_given_one(self):
+        # Arrange
+        data = pdf_bytes("Alpha findings")
+
+        # Act / Assert
+        with self.assertRaisesRegex(UnreadableFileError, "too complex"):
+            render_pdf_page(data, 1, timeout_seconds=0.001)
+
+    def test_a_time_limit_cannot_extend_the_parsing_limits(self):
+        # Arrange
+        data = pdf_bytes("Alpha findings")
+
+        # Act / Assert
+        with (
+            patch.object(extraction, "_CHILD_TIMEOUT_SECONDS", 0.001),
+            self.assertRaisesRegex(UnreadableFileError, "too complex"),
+        ):
+            render_pdf_page(data, 1, timeout_seconds=60)
+
     def test_invalid_arguments_are_rejected_before_any_work(self):
         # Arrange
         data = pdf_bytes("Alpha findings")
@@ -372,6 +623,126 @@ class PdfPageRenderingTests(TestCase):
                 with self.assertRaises(ValueError):
                     render_pdf_page(data, **arguments)
         run.assert_not_called()
+
+
+def _pixel(image, at=(0, 0)) -> tuple:
+    with Image.open(io.BytesIO(image.data)) as stored:
+        return stored.convert("RGB").getpixel(at)
+
+
+class UploadedImageTests(TestCase):
+    def _assert_color(self, pixel, expected):
+        """Lossy formats shift a colour by a few levels."""
+        for channel, level in zip(pixel, expected, strict=True):
+            self.assertAlmostEqual(channel, level, delta=8)
+
+    def test_an_image_becomes_a_jpeg_no_side_over_the_edge_limit(self):
+        # Arrange
+        data = image_bytes((400, 100))
+
+        # Act
+        image = prepare_image(data, max_edge_px=200)
+        as_it_is = prepare_image(data)
+
+        # Assert
+        self.assertEqual((image.page, image.media_type), (1, "image/jpeg"))
+        self.assertEqual((image.width, image.height), (200, 50))
+        with Image.open(io.BytesIO(image.data)) as stored:
+            self.assertEqual((stored.format, stored.size), ("JPEG", (200, 50)))
+        # A small image is not enlarged.
+        self.assertEqual((as_it_is.width, as_it_is.height), (400, 100))
+
+    def test_each_supported_format_is_read_whatever_its_extension_said(self):
+        for image_format in ("PNG", "JPEG", "GIF", "WEBP"):
+            with self.subTest(image_format=image_format):
+                # Arrange
+                data = image_bytes(color=(200, 30, 30), image_format=image_format)
+
+                # Act
+                image = prepare_image(data)
+
+                # Assert
+                self._assert_color(_pixel(image), (200, 30, 30))
+
+    def test_a_file_that_is_not_one_of_those_images_is_refused(self):
+        cases = {
+            "text": b"Specific aims",
+            "bitmap": image_bytes(image_format="BMP"),
+            "cut short": image_bytes((300, 300))[:200],
+        }
+        for name, data in cases.items():
+            # Act / Assert
+            with self.subTest(name), self.assertRaises(UnreadableFileError) as raised:
+                prepare_image(data)
+            self.assertIn("could not be read as an image", str(raised.exception))
+
+    def test_a_photo_taken_sideways_is_turned_upright(self):
+        # Arrange: EXIF orientation 6 asks for a quarter turn.
+        exif = Image.Exif()
+        exif[0x0112] = 6
+        data = image_bytes((40, 20), image_format="JPEG", exif=exif)
+
+        # Act
+        image = prepare_image(data)
+
+        # Assert
+        self.assertEqual((image.width, image.height), (20, 40))
+
+    def test_transparency_shows_as_white(self):
+        # Arrange: black where it is opaque, as a figure's lines are.
+        clear = image_bytes(color=(0, 0, 0, 0), mode="RGBA")
+        palette = image_bytes(color=0, mode="P", image_format="GIF", transparency=0)
+
+        for data in (clear, palette):
+            # Act
+            image = prepare_image(data)
+
+            # Assert
+            self._assert_color(_pixel(image), (255, 255, 255))
+
+    def test_sixteen_bit_greys_keep_their_levels(self):
+        # Arrange: mid grey, which a plain conversion to 8 bits turns white.
+        data = image_bytes(color=32768, mode="I;16")
+
+        # Act
+        image = prepare_image(data)
+
+        # Assert
+        self._assert_color(_pixel(image), (127, 127, 127))
+
+    def test_an_image_over_the_byte_limit_is_scaled_down_to_fit(self):
+        # Arrange: noise, which a JPEG cannot compress away.
+        noise = Image.frombytes("RGB", (600, 600), random.Random(0).randbytes(1080000))
+        buffer = io.BytesIO()
+        noise.save(buffer, "PNG")
+        data = buffer.getvalue()
+        full = prepare_image(data)
+        limit = len(full.data) // 3
+
+        # Act
+        image = prepare_image(data, max_bytes=limit)
+
+        # Assert
+        self.assertLessEqual(len(image.data), limit)
+        self.assertLess(image.width, full.width)
+        self.assertEqual(image.width, image.height)
+        with self.assertRaises(UnreadableFileError) as raised:
+            prepare_image(data, max_bytes=100)
+        self.assertIn("too detailed", str(raised.exception))
+
+    def test_only_a_jpeg_may_hold_more_pixels_than_are_decoded(self):
+        # Arrange: 81 megapixels; a JPEG decodes at a fraction of its size.
+        png = image_bytes((9000, 9000), 0, mode="1")
+        jpeg = image_bytes((9000, 9000), 128, mode="L", image_format="JPEG")
+
+        # Act
+        image = prepare_image(jpeg)
+        with self.assertRaises(UnreadableFileError) as raised:
+            prepare_image(png)
+
+        # Assert
+        self.assertEqual((image.width, image.height), (2000, 2000))
+        self.assertIn("too large to read", str(raised.exception))
 
 
 class DocxExtractionTests(TestCase):
