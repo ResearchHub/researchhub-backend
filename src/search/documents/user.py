@@ -48,7 +48,13 @@ class UserDocument(BaseDocument):
     is_verified = es_fields.BooleanField()
     is_suspended = es_fields.BooleanField()
 
-    author_profile = es_fields.ObjectField()
+    author_profile = es_fields.ObjectField(
+        properties={
+            "id": es_fields.IntegerField(),
+            "headline": es_fields.TextField(),
+            "profile_image": es_fields.TextField(),
+        }
+    )
 
     class Index:
         name = "user"
