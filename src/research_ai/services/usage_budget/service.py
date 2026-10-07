@@ -377,11 +377,12 @@ def record(
     usage: TurnUsage,
     *,
     execution=None,
+    tier: str | None = None,
 ) -> LLMUsageEvent:
     return LLMUsageEvent.objects.create(
         user=user,
         feature=feature,
-        tier=resolve_ai_tier(user).name,
+        tier=tier if tier is not None else resolve_ai_tier(user).name,
         provider=provider,
         model=model_id,
         input_tokens=usage.input_tokens,
@@ -394,8 +395,11 @@ def record(
     )
 
 
-def ensure_budget_available(user) -> None:
-    """Between-call guard used by budget-aware modern agent-loop recorders."""
+def ensure_budget_available(user) -> str:
+    """Between-call guard used by budget-aware modern agent-loop recorders.
+
+    Returns the tier the call was checked under, read from a reloaded user.
+    """
     user_id = getattr(user, "pk", None)
     if user_id is not None:
         manager = getattr(type(user), "all_objects", type(user)._default_manager)
@@ -408,7 +412,8 @@ def ensure_budget_available(user) -> None:
     if policy.name == "blocked":
         raise BudgetExceededError("Research AI access is blocked")
     if not policy.is_budgeted or not BUDGETS_ENFORCED:
-        return
+        return policy.name
     status = budget_status(user)
     if status.exhausted:
         raise BudgetExceededError("Daily Research AI usage limit exceeded")
+    return policy.name

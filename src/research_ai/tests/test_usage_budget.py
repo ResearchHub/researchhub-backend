@@ -289,6 +289,26 @@ class AgentLoopBudgetRecorderTests(TestCase):
         with self.assertRaisesMessage(BudgetExceededError, "access is blocked"):
             recorder.before_model_call()
 
+    def test_usage_is_charged_to_the_tier_the_call_was_checked_under(self):
+        # Arrange: a running job still holds the user as a moderator after the
+        # role is revoked.
+        self.user.moderator = True
+        self.user.save(update_fields=["moderator"])
+        get_user_model().objects.filter(pk=self.user.pk).update(moderator=False)
+        recorder = AgentLoopBudgetRecorder(
+            user=self.user,
+            feature="notebook_chat",
+            provider="openrouter",
+            model_id="deepseek/deepseek-v4-pro-0813",
+        )
+
+        # Act
+        recorder.before_model_call()
+        recorder.record_usage(TurnUsage(input_tokens=100, output_tokens=50))
+
+        # Assert
+        self.assertEqual(LLMUsageEvent.objects.get().tier, "default")
+
     def _execution(self, *, status, expires_at):
         conversation = AgentConversation.objects.create(
             user=self.user,
