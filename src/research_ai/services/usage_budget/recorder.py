@@ -47,6 +47,8 @@ class AgentLoopBudgetRecorder:
         )
         self._reservation_targets = tuple(target for target in targets if target)
         self._heartbeat = heartbeat
+        # ``self.user`` can be stale; charge the tier the last check reloaded.
+        self._checked_tier = None
         # Losing a usage row would silently reopen budget that was actually
         # spent, so accounting writes are required even without a transcript.
         self.requires_durable_usage = True
@@ -74,7 +76,7 @@ class AgentLoopBudgetRecorder:
                 retryable=False,
             )
         if self.user is not None:
-            ensure_budget_available(self.user)
+            self._checked_tier = ensure_budget_available(self.user)
         # A lapsed lease may already have admitted another job for this user.
         if self._lease_lost():
             raise InterruptedError("usage reservation lease was lost")
@@ -95,6 +97,7 @@ class AgentLoopBudgetRecorder:
                 self.model_id,
                 usage,
                 execution=self.execution,
+                tier=self._checked_tier,
             )
         callback = getattr(self._recorder, "record_usage", None)
         if callback is not None:

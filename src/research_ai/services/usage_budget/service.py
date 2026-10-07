@@ -1,10 +1,12 @@
 """Tier resolution, accounting, and admission for Research AI spend."""
 
+import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import BigIntegerField, Count, Q, Sum
 from django.db.models.functions import Coalesce
@@ -36,6 +38,11 @@ from research_ai.services.usage_budget.config import (
     tier_policies,
 )
 
+logger = logging.getLogger(__name__)
+
+# Summing a whole tier's day is too heavy to repeat before every model call.
+POOL_SPEND_CACHE_SECONDS = 30
+
 
 class ModelNotAllowedError(ValueError):
     code = "model_not_allowed"
@@ -61,12 +68,17 @@ class BudgetStatus:
     turns_used: int
     turn_cap: int | None
     resets_at: datetime
+    # What is left of the budget the tier's users share; None without one.
+    pool_remaining_microusd: int | None = None
 
     @property
     def remaining_microusd(self) -> int | None:
         if self.daily_budget_microusd is None:
             return None
-        return max(0, self.daily_budget_microusd - self.spent_today_microusd)
+        remaining = max(0, self.daily_budget_microusd - self.spent_today_microusd)
+        if self.pool_remaining_microusd is not None:
+            remaining = min(remaining, self.pool_remaining_microusd)
+        return remaining
 
     @property
     def exhausted(self) -> bool:
@@ -75,7 +87,11 @@ class BudgetStatus:
             and self.spent_today_microusd >= self.daily_budget_microusd
         )
         cap_hit = self.turn_cap is not None and self.turns_used >= self.turn_cap
-        return budget_hit or cap_hit
+        pool_hit = (
+            self.pool_remaining_microusd is not None
+            and self.pool_remaining_microusd <= 0
+        )
+        return budget_hit or cap_hit or pool_hit
 
     @staticmethod
     def _usd(value: int | None) -> str | None:
@@ -131,6 +147,32 @@ def _utc_window(now: datetime | None = None) -> tuple[datetime, datetime]:
     return start, start + timedelta(days=1)
 
 
+def _pool_remaining_microusd(
+    policy: TierPolicy, start: datetime, reset: datetime
+) -> int | None:
+    """Return what is left today of the budget ``policy``'s users share."""
+    budget = policy.pool_daily_budget_microusd
+    if budget is None:
+        return None
+    key = f"research_ai:pool_spend:{policy.name}:{start:%Y-%m-%d}"
+    spent = cache.get(key)
+    if spent is None:
+        spent = LLMUsageEvent.objects.filter(
+            tier=policy.name, created_date__gte=start, created_date__lt=reset
+        ).aggregate(
+            spent=Coalesce(Sum("cost_microusd"), 0, output_field=BigIntegerField())
+        )["spent"]
+        cache.set(key, spent, POOL_SPEND_CACHE_SECONDS)
+        if spent >= budget:
+            logger.warning(
+                "Research AI %s tier spent its shared daily budget: %s of %s microusd",
+                policy.name,
+                spent,
+                budget,
+            )
+    return max(0, budget - spent)
+
+
 def budget_status(user, *, now: datetime | None = None) -> BudgetStatus:
     policy = resolve_ai_tier(user)
     start, reset = _utc_window(now)
@@ -147,6 +189,7 @@ def budget_status(user, *, now: datetime | None = None) -> BudgetStatus:
         turns_used=int(usage["turns"] or 0),
         turn_cap=policy.daily_turn_cap,
         resets_at=reset,
+        pool_remaining_microusd=_pool_remaining_microusd(policy, start, reset),
     )
 
 
@@ -297,7 +340,9 @@ def atomic_turn_admission(
     this context. That row is the reservation observed by the next admission.
     The user row lock serializes admission so simultaneous requests cannot
     exceed the job limit. Soft budget enforcement can overshoot by the
-    provider calls already in flight across the admitted jobs.
+    provider calls already in flight across the admitted jobs; a tier's
+    shared budget is also read from a cache up to
+    ``POOL_SPEND_CACHE_SECONDS`` old.
     """
     with transaction.atomic():
         locked_user = type(user)._default_manager.select_for_update().get(pk=user.pk)
@@ -332,10 +377,12 @@ def record(
     usage: TurnUsage,
     *,
     execution=None,
+    tier: str | None = None,
 ) -> LLMUsageEvent:
     return LLMUsageEvent.objects.create(
         user=user,
         feature=feature,
+        tier=tier if tier is not None else resolve_ai_tier(user).name,
         provider=provider,
         model=model_id,
         input_tokens=usage.input_tokens,
@@ -348,8 +395,11 @@ def record(
     )
 
 
-def ensure_budget_available(user) -> None:
-    """Between-call guard used by budget-aware modern agent-loop recorders."""
+def ensure_budget_available(user) -> str:
+    """Between-call guard used by budget-aware modern agent-loop recorders.
+
+    Returns the tier the call was checked under, read from a reloaded user.
+    """
     user_id = getattr(user, "pk", None)
     if user_id is not None:
         manager = getattr(type(user), "all_objects", type(user)._default_manager)
@@ -362,7 +412,8 @@ def ensure_budget_available(user) -> None:
     if policy.name == "blocked":
         raise BudgetExceededError("Research AI access is blocked")
     if not policy.is_budgeted or not BUDGETS_ENFORCED:
-        return
+        return policy.name
     status = budget_status(user)
     if status.exhausted:
         raise BudgetExceededError("Daily Research AI usage limit exceeded")
+    return policy.name
