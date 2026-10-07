@@ -7,7 +7,7 @@ DEFAULT_TIER_MODEL = "claude_platform:claude-opus-5-5"
 LEGACY_DEFAULT_TIER_MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
 BUDGETS_ENFORCED = True
 MAX_IN_FLIGHT_JOBS_PER_USER = 5
-DEFAULT_DAILY_BUDGET_MICROUSD = 250_000
+DEFAULT_DAILY_BUDGET_MICROUSD = 1_000_000
 # Shared by every default-tier user combined, on top of the per-user budget.
 DEFAULT_POOL_DAILY_BUDGET_MICROUSD = 1_000_000_000
 INVITED_DAILY_BUDGET_MICROUSD = 10_000_000
