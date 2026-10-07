@@ -92,14 +92,18 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         return
 
     author = comment.created_by
-    recipients = User.objects.filter(
-        Q(
-            following__content_type=ContentType.objects.get_for_model(document),
-            following__object_id=document.id,
+    recipients = (
+        User.objects.filter(
+            Q(
+                following__content_type=ContentType.objects.get_for_model(document),
+                following__object_id=document.id,
+            )
+            | Q(grants__applications__preregistration_post=document)
+            | Q(grant_contacts__applications__preregistration_post=document)
         )
-        | Q(grants__applications__preregistration_post=document)
-        | Q(grant_contacts__applications__preregistration_post=document)
-    ).exclude(id=author.id).distinct()
+        .exclude(id=author.id)
+        .distinct()
+    )
 
     recipient_emails = [recipient.email for recipient in recipients]
     notifications = NotificationService()
