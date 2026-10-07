@@ -2,11 +2,12 @@
 
 Public surface:
 
-- Neutral types: ``Message``, ``TextBlock``, ``ThinkingBlock``,
+- Neutral types: ``Message``, ``TextBlock``, ``ImageBlock``, ``ThinkingBlock``,
   ``ServerToolBlock``, ``ToolUseBlock``, ``ToolResultBlock``, ``AssistantTurn``,
   ``TurnUsage``, ``StopReason``, and the ``serialize_messages`` /
   ``deserialize_messages`` helpers.
-- Tools: ``Tool``, ``Toolset``.
+- Tools: ``Tool``, ``ToolOutput``, ``Toolset``.
+- Images: ``ImageLoader``, ``ImageUnavailableError``.
 - Providers: ``LLMProvider`` (ABC), ``BedrockProvider``,
   ``ClaudePlatformProvider``, ``OpenRouterProvider``, and the settings-driven
   resolvers ``resolve_provider`` / ``generator_model_ref`` /
@@ -31,6 +32,7 @@ from research_ai.services.agent.errors import (
     IterationLimitError,
     ProviderError,
 )
+from research_ai.services.agent.images import ImageLoader, ImageUnavailableError
 from research_ai.services.agent.loop import Agent, AgentResult
 from research_ai.services.agent.model_catalog import (
     ModelOption,
@@ -48,9 +50,10 @@ from research_ai.services.agent.providers.registry import (
     split_model_ref,
 )
 from research_ai.services.agent.recorder import AgentRecorder
-from research_ai.services.agent.tools import Tool, Toolset
+from research_ai.services.agent.tools import Tool, ToolOutput, Toolset
 from research_ai.services.agent.types import (
     AssistantTurn,
+    ImageBlock,
     Message,
     ServerToolBlock,
     StopReason,
@@ -73,6 +76,9 @@ __all__ = [
     "BedrockProvider",
     "BudgetExceededError",
     "ClaudePlatformProvider",
+    "ImageBlock",
+    "ImageLoader",
+    "ImageUnavailableError",
     "IncompleteTurnError",
     "IterationLimitError",
     "LLMProvider",
@@ -85,6 +91,7 @@ __all__ = [
     "TextBlock",
     "ThinkingBlock",
     "Tool",
+    "ToolOutput",
     "ToolResultBlock",
     "ToolUseBlock",
     "Toolset",

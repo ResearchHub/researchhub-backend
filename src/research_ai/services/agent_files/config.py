@@ -8,9 +8,14 @@ from dataclasses import dataclass
 
 from django.conf import settings
 
+# Request-size backstop on a message's ``file_ids``, whatever the settings say.
+MAX_FILE_IDS_PER_REQUEST = 50
+
 _SETTING_OVERRIDES = {
     "max_file_bytes": "RESEARCH_AI_FILE_MAX_BYTES",
     "max_text_chars": "RESEARCH_AI_FILE_MAX_TEXT_CHARS",
+    "max_files_per_message": "RESEARCH_AI_FILE_MAX_PER_MESSAGE",
+    "max_files_per_conversation": "RESEARCH_AI_FILE_MAX_PER_CONVERSATION",
     "max_unsent_files": "RESEARCH_AI_FILE_MAX_UNSENT",
     "upload_url_ttl_seconds": "RESEARCH_AI_FILE_UPLOAD_URL_TTL_SECONDS",
     "download_url_ttl_seconds": "RESEARCH_AI_FILE_DOWNLOAD_URL_TTL_SECONDS",
@@ -26,6 +31,11 @@ class AgentFileConfig:
 
     # About 125K tokens: an agent pages through it, never loads it whole.
     max_text_chars: int = 500_000
+
+    max_files_per_message: int = 5
+
+    # Bounds what one search over every attachment loads into the worker.
+    max_files_per_conversation: int = 20
 
     # Uploads not yet sent with a message, per user; bounds abandoned storage.
     max_unsent_files: int = 20
