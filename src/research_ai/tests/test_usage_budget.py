@@ -190,6 +190,45 @@ class UsageBudgetTests(TestCase):
         self.assertIsNone(raised.exception.status.turn_cap)
         self.assertEqual(raised.exception.status.remaining_microusd, 0)
 
+    def _spend_default_pool(self, user):
+        return record(
+            user,
+            "notebook_chat",
+            "openrouter",
+            "deepseek/deepseek-v4-flash-0731",
+            TurnUsage(provider_cost_microusd=1_000_000_000),
+        )
+
+    def test_spent_default_pool_blocks_only_default_tier_users(self):
+        # Arrange: another default-tier user spends the whole shared pool.
+        self._spend_default_pool(create_random_authenticated_user("budget-pool"))
+        invited = create_random_authenticated_user("budget-pool-invited")
+        Expert.objects.create(email=invited.email, registered_user=invited)
+
+        # Act / Assert
+        with self.assertRaises(UsageLimitExceededError) as raised:
+            check_turn_admission(
+                self.user, self.MODEL, effort="none", thinking="disabled"
+            )
+        self.assertEqual(raised.exception.status.spent_today_microusd, 0)
+        self.assertEqual(raised.exception.status.remaining_microusd, 0)
+        self.assertFalse(check_turn_admission(invited, self.MODEL).exhausted)
+
+    def test_other_tiers_spend_stays_out_of_the_default_pool(self):
+        # Arrange: an invited user spends as much as the default pool holds.
+        invited = create_random_authenticated_user("budget-pool-invited")
+        Expert.objects.create(email=invited.email, registered_user=invited)
+        self._spend_default_pool(invited)
+
+        # Act
+        status = check_turn_admission(
+            self.user, self.MODEL, effort="none", thinking="disabled"
+        )
+
+        # Assert
+        self.assertFalse(status.exhausted)
+        self.assertEqual(status.remaining_microusd, 250_000)
+
     def test_default_tier_rejects_locked_model(self):
         with self.assertRaisesRegex(ValueError, "not allowed"):
             check_turn_admission(
