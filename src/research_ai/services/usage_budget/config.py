@@ -2,10 +2,12 @@
 
 from dataclasses import dataclass, replace
 
-DEFAULT_OPEN_WEIGHT_MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
+DEFAULT_TIER_MODEL = "claude_platform:claude-opus-5-5"
+# No longer the default; default-tier chats already pinned to it keep running.
+LEGACY_DEFAULT_TIER_MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
 BUDGETS_ENFORCED = True
 MAX_IN_FLIGHT_JOBS_PER_USER = 5
-DEFAULT_DAILY_BUDGET_MICROUSD = 250_000
+DEFAULT_DAILY_BUDGET_MICROUSD = 1_000_000
 # Shared by every default-tier user combined, on top of the per-user budget.
 DEFAULT_POOL_DAILY_BUDGET_MICROUSD = 1_000_000_000
 INVITED_DAILY_BUDGET_MICROUSD = 10_000_000
@@ -38,10 +40,11 @@ def tier_policies() -> dict[str, TierPolicy]:
         name="default",
         daily_budget_microusd=DEFAULT_DAILY_BUDGET_MICROUSD,
         daily_turn_cap=None,
-        allowed_model_refs=(DEFAULT_OPEN_WEIGHT_MODEL,),
-        default_model_ref=DEFAULT_OPEN_WEIGHT_MODEL,
-        max_effort="none",
-        allowed_thinking_modes=("disabled",),
+        allowed_model_refs=(DEFAULT_TIER_MODEL, LEGACY_DEFAULT_TIER_MODEL),
+        default_model_ref=DEFAULT_TIER_MODEL,
+        # Opus 5.5's lowest effort. Thinking is left to each model: Opus 5.5
+        # only thinks adaptively, and the legacy model runs with effort "none".
+        max_effort="low",
         pool_daily_budget_microusd=DEFAULT_POOL_DAILY_BUDGET_MICROUSD,
     )
     invited = TierPolicy(

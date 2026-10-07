@@ -142,6 +142,7 @@ _CLAUDE_MODELS = {
     "claude-sonnet-5": _model(_CLAUDE_ADAPTIVE, 128_000),
 }
 
+# No longer in the picker; retained for conversations pinned to these models.
 _OPENROUTER_MODELS = {
     "anthropic/claude-opus-5": _model(_OPENROUTER_REASONING, 128_000),
     "anthropic/claude-sonnet-5": _model(_OPENROUTER_REASONING, 128_000),
@@ -150,7 +151,6 @@ _OPENROUTER_MODELS = {
     "openai/gpt-5.6-luna": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-6-sol": _model(_OPENROUTER_GPT6_CHAT_TOOLS, 128_000),
     "openai/gpt-6-luna": _model(_OPENROUTER_GPT6_CHAT_TOOLS, 128_000),
-    # No longer selectable, but retained for conversations pinned before removal.
     "google/gemini-3.1-pro-preview": _model(_OPENROUTER_GEMINI, 65_536),
     "google/gemini-3.7-flash": _model(_OPENROUTER_GEMINI, 65_536),
     "google/gemini-3.8-flash": _model(_OPENROUTER_GEMINI, 65_536),
