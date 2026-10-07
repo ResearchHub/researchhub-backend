@@ -4,6 +4,7 @@ Objects there have no public address: browsers upload and download them only
 through short-lived presigned requests issued here.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from urllib.parse import quote
 
@@ -12,11 +13,17 @@ from django.conf import settings
 
 from utils import aws as aws_utils
 
-_MISSING_OBJECT_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
+MISSING_OBJECT_CODES = frozenset({"404", "NoSuchKey", "NotFound"})
+# S3 takes at most this many keys in one DeleteObjects request.
+_DELETE_BATCH = 1000
 
 
 class PrivateStorageNotConfiguredError(RuntimeError):
     """``AWS_PRIVATE_STORAGE_BUCKET_NAME`` is unset in this deployment."""
+
+
+class ObjectsNotDeletedError(RuntimeError):
+    """S3 answered a multi-key delete but reported keys it did not delete."""
 
 
 @dataclass(frozen=True)
@@ -36,7 +43,7 @@ class StoredObject:
 
 
 class PrivateStorageService:
-    """Presigned uploads/downloads and server-side reads for the private bucket."""
+    """Presigned uploads/downloads and server-side access for the private bucket."""
 
     def __init__(self, *, client=None, bucket: str | None = None):
         self._client = client
@@ -73,11 +80,15 @@ class PrivateStorageService:
         return PresignedPost(url=response["url"], fields=dict(response["fields"]))
 
     def head(self, key: str) -> StoredObject | None:
-        """The stored object's metadata, or ``None`` when nothing is at ``key``."""
+        """The stored object's metadata, or ``None`` when nothing is at ``key``.
+
+        A role without ``s3:ListBucket`` gets a 403 for a missing object, which
+        raises here.
+        """
         try:
             response = self._s3().head_object(Bucket=self.bucket, Key=key)
         except ClientError as error:
-            if error.response.get("Error", {}).get("Code") in _MISSING_OBJECT_CODES:
+            if error.response.get("Error", {}).get("Code") in MISSING_OBJECT_CODES:
                 return None
             raise
         return StoredObject(
@@ -118,8 +129,33 @@ class PrivateStorageService:
             ExpiresIn=expires_in,
         )
 
+    def write(self, key: str, data: bytes, *, content_type: str) -> None:
+        """Store ``data`` at ``key``, replacing any object already there."""
+        self._s3().put_object(
+            Bucket=self.bucket, Key=key, Body=data, ContentType=content_type
+        )
+
     def delete(self, key: str) -> None:
         self._s3().delete_object(Bucket=self.bucket, Key=key)
+
+    def delete_many(self, keys: Sequence[str]) -> None:
+        """Delete every key; one with no object counts as deleted.
+
+        Raises ``ObjectsNotDeletedError`` when S3 reports a key it kept.
+        """
+        for start in range(0, len(keys), _DELETE_BATCH):
+            batch = keys[start : start + _DELETE_BATCH]
+            response = self._s3().delete_objects(
+                Bucket=self.bucket,
+                Delete={"Objects": [{"Key": key} for key in batch], "Quiet": True},
+            )
+            errors = response.get("Errors") or []
+            if errors:
+                first = errors[0]
+                raise ObjectsNotDeletedError(
+                    f"{len(errors)} objects not deleted; first: "
+                    f"{first.get('Key')}: {first.get('Code')}"
+                )
 
     def _bucket_name(self) -> str:
         if self._bucket is not None:

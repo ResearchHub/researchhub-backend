@@ -21,6 +21,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from research_ai.services.agent.types import ImageBlock
+
 if TYPE_CHECKING:
     from research_ai.services.agent.providers.base import LLMProvider
 
@@ -32,9 +34,21 @@ logger = logging.getLogger(__name__)
 # that forgets: without it an unbounded result floods the context, costs a turn's
 # budget, and outgrows the row it has to be stored in to resume the run.
 MAX_TOOL_RESULT_BYTES = 128 * 1024
+# Backstop on the images one result shows the model; each costs up to ~5K tokens.
+MAX_TOOL_RESULT_IMAGES = 20
 
-# Handler signature: receives the model's parsed tool input, returns a dict.
-ToolHandler = Callable[[dict], dict]
+
+@dataclass(frozen=True)
+class ToolOutput:
+    """A tool result that also shows the model images."""
+
+    content: dict
+    images: tuple[ImageBlock, ...] = ()
+
+
+# Handler signature: receives the model's parsed tool input, returns a dict, or
+# a ``ToolOutput`` when the result carries images.
+ToolHandler = Callable[[dict], "dict | ToolOutput"]
 
 
 @dataclass
@@ -89,13 +103,18 @@ class Toolset:
         return list(self._tools.values())
 
     def dispatch(self, name: str, input: dict) -> tuple[dict, bool]:
+        """Run a tool call; ``call`` without the result's images."""
+        output, stop = self.call(name, input)
+        return output.content, stop
+
+    def call(self, name: str, input: dict) -> tuple[ToolOutput, bool]:
         """Run a tool call.
 
-        Returns ``(result, stop)``. Unknown tool ->
+        Returns ``(output, stop)``. Unknown tool ->
         ``({"error": "unknown tool: ..."}, False)``. A handler that raises is
         caught and logged -> ``({"error": str(exc)}, False)``. A terminal tool
         returns ``stop=True`` after a non-error result so the loop ends after
-        its result is delivered.
+        its result is delivered. An error result carries no images.
 
         ``InterruptedError`` is the exception: it says the *run* should stop, not
         that the tool failed, so handing it back as a retryable error would have
@@ -104,7 +123,7 @@ class Toolset:
         """
         tool = self._tools.get(name)
         if tool is None:
-            return {"error": f"unknown tool: {name}"}, False
+            return _error(f"unknown tool: {name}")
         try:
             result = tool.handler(input or {})
         except InterruptedError:
@@ -114,36 +133,51 @@ class Toolset:
             # raise): keep the traceback, and never hand the model an empty
             # error string (some exceptions str() to "").
             logger.warning("tool %r failed", name, exc_info=True)
-            return {"error": str(exc) or type(exc).__name__}, False
+            return _error(str(exc) or type(exc).__name__)
+        images: tuple[ImageBlock, ...] = ()
+        if isinstance(result, ToolOutput):
+            result, images = result.content, tuple(result.images)
         if not isinstance(result, dict):
             logger.warning(
                 "tool %r returned %s instead of dict", name, type(result).__name__
             )
-            return {
-                "error": (
-                    f"tool {name!r} returned {type(result).__name__}; expected dict"
-                )
-            }, False
+            return _error(
+                f"tool {name!r} returned {type(result).__name__}; expected dict"
+            )
         try:
             encoded = json.dumps(result, allow_nan=False)
         except (TypeError, ValueError, RecursionError):
             logger.warning("tool %r returned invalid JSON", name, exc_info=True)
-            return {"error": f"tool {name!r} returned invalid JSON"}, False
+            return _error(f"tool {name!r} returned invalid JSON")
         size = len(encoded.encode("utf-8"))
         if size > MAX_TOOL_RESULT_BYTES:
             # Reported to the model, not truncated for it: it can narrow the
             # query or page through the result, which a silent slice of someone
             # else's JSON would deny it.
             logger.warning("tool %r returned %d bytes, over the limit", name, size)
-            return {
-                "error": (
-                    f"tool {name!r} returned {size} bytes, over the "
-                    f"{MAX_TOOL_RESULT_BYTES} byte limit; request less at a time"
-                )
-            }, False
-        is_error = isinstance(result, dict) and "error" in result
-        return result, tool.is_terminal and not is_error
+            return _error(
+                f"tool {name!r} returned {size} bytes, over the "
+                f"{MAX_TOOL_RESULT_BYTES} byte limit; request less at a time"
+            )
+        if not all(isinstance(image, ImageBlock) for image in images):
+            logger.warning("tool %r returned images that are not ImageBlocks", name)
+            return _error(f"tool {name!r} returned invalid images")
+        if len(images) > MAX_TOOL_RESULT_IMAGES:
+            logger.warning("tool %r returned %d images", name, len(images))
+            return _error(
+                f"tool {name!r} returned {len(images)} images, over the "
+                f"{MAX_TOOL_RESULT_IMAGES} image limit; request fewer at a time"
+            )
+        is_error = "error" in result
+        return (
+            ToolOutput(content=result, images=() if is_error else images),
+            tool.is_terminal and not is_error,
+        )
 
     def render_specs(self, provider: "LLMProvider") -> Any:
         """Render this toolset to ``provider``'s wire format."""
         return provider.render_tools(self.tools)
+
+
+def _error(message: str) -> tuple[ToolOutput, bool]:
+    return ToolOutput(content={"error": message}), False

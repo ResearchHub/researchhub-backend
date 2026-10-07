@@ -7,7 +7,10 @@ message verbatim, so there is no user-prompt builder here.
 """
 
 from research_ai.prompts._loader import load_template
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 
 _SELECTED_RFP_CAPABILITY = """## The selected RFP
 
@@ -22,15 +25,33 @@ null to clear it), and say which RFP the note now applies to. Selecting is the
 user's decision: confirm which one they mean rather than picking a search
 result for them, and never set an RFP as a side effect of research."""
 
+_RFP_DETAILS_CAPABILITY = """## The RFP's Details
+
+This note is an RFP draft. Besides the body you edit with edit_note, it has a
+Details form the RFP is published with: funding amount (always USD),
+organization, short description, contacts, and whether applications are private
+or public. Call read_rfp_details to see what is filled in, and update_rfp_details
+to set the values the user gives you; it changes only the fields you pass.
+
+Publishing requires an amount and a description, and an RFP normally names at
+least one contact, so tell the user which of those are still empty. Never
+invent an amount, an organization, or a contact. Contacts are ResearchHub
+users identified by user id: the only id you know without being told is the
+current user's, which read_rfp_details returns. You cannot publish the RFP;
+the user reviews the Details and publishes it themself."""
+
+_CAPABILITY_BY_DOCUMENT_TYPE = {
+    GRANT: _RFP_DETAILS_CAPABILITY,
+    PREREGISTRATION: _SELECTED_RFP_CAPABILITY,
+}
+
 
 def build_notebook_chat_system_prompt(note) -> str:
     """The system prompt for a conversation attached to ``note``."""
     template = load_template("notebook_chat_system.txt")
-    selected_rfp_capability = (
-        _SELECTED_RFP_CAPABILITY if note.document_type == PREREGISTRATION else ""
-    )
+    capability = _CAPABILITY_BY_DOCUMENT_TYPE.get(note.document_type, "")
     return (
         template.replace("{{NOTE_ID}}", str(note.id))
         .replace("{{NOTE_TITLE}}", str(note.title or "Untitled"))
-        .replace("{{SELECTED_RFP_CAPABILITY}}", selected_rfp_capability)
+        .replace("{{DOCUMENT_TYPE_CAPABILITY}}", capability)
     )

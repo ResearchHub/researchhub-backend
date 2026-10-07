@@ -14,6 +14,8 @@ class LLMUsageEvent(DefaultModel):
         related_name="research_ai_usage_events",
     )
     feature = models.CharField(max_length=64, db_index=True)
+    # The user's Research AI tier when the call was charged.
+    tier = models.CharField(max_length=32, blank=True, db_default="")
     provider = models.CharField(max_length=64)
     model = models.CharField(max_length=255)
     input_tokens = models.PositiveBigIntegerField(null=True, blank=True)
@@ -34,4 +36,5 @@ class LLMUsageEvent(DefaultModel):
         db_table = "research_ai_llm_usage_event"
         indexes = [
             models.Index(fields=["user", "created_date"], name="ra_usage_user_date"),
+            models.Index(fields=["tier", "created_date"], name="ra_usage_tier_date"),
         ]

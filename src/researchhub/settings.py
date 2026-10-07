@@ -268,14 +268,12 @@ if USE_DEBUG_TOOLBAR:
     ]
 
 if USE_SILK:
-    INSTALLED_APPS += ["silk", "dbbackup"]
+    INSTALLED_APPS += ["silk"]
 
     MIDDLEWARE += [
         "silk.middleware.SilkyMiddleware",
     ]
 
-    DBBACKUP_STORAGE = "django.core.files.storage.FileSystemStorage"
-    DBBACKUP_STORAGE_OPTIONS = {"location": "backups"}
     SILKY_META = True
     SILKY_ANALYZE_QUERIES = True
     SILKY_EXPLAIN_FLAGS = {"format": "JSON", "costs": True}
@@ -513,6 +511,13 @@ ANTHROPIC_AWS_WORKSPACE_ID = os.environ.get(
 OPENROUTER_API_KEY = os.environ.get(
     "OPENROUTER_API_KEY",
     getattr(keys, "OPENROUTER_API_KEY", ""),
+)
+
+# Mistral OCR (research_ai chat files). Optional: when set, scanned PDF pages
+# are read by OCR; without it they are only marked as having no text layer.
+MISTRAL_API_KEY = os.environ.get(
+    "MISTRAL_API_KEY",
+    getattr(keys, "MISTRAL_API_KEY", ""),
 )
 
 # Which provider the research_ai agent core generates with: "claude_platform"
@@ -823,11 +828,6 @@ TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", keys.TURNSTILE_SEC
 # Amplitude
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
 
-if STAGING or PRODUCTION:
-    GDAL_LIBRARY_PATH = "/home/ec2-user/miniconda3/lib/libgdal.so"
-
-# Killswitch Variables
-SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
 EXPERT_FINDER_OUTREACH_ENABLED = (
     os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
 )
