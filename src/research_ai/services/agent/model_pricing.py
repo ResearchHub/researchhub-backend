@@ -8,7 +8,7 @@ from research_ai.services.agent.providers.registry import split_model_ref
 from research_ai.services.agent.types import TurnUsage
 
 # A fixed reference keeps displayed multipliers stable when the catalog changes.
-COST_MULTIPLIER_BASE_MODEL = "openrouter:x-ai/grok-4.6"
+COST_MULTIPLIER_BASE_MODEL = "claude_platform:claude-opus-5-5"
 
 
 @dataclass(frozen=True)

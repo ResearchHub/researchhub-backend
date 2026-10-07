@@ -233,7 +233,7 @@ class UsageBudgetTests(TestCase):
         with self.assertRaisesRegex(ValueError, "not allowed"):
             check_turn_admission(
                 self.user,
-                "claude_platform:claude-opus-5-5",
+                "openrouter:openai/gpt-6-sol",
             )
 
 
