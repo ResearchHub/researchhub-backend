@@ -19,6 +19,7 @@ metadata) exactly as boto3 does, so a deployment only needs the IAM permissions
 plus its Claude workspace id (``ANTHROPIC_AWS_WORKSPACE_ID``).
 """
 
+import base64
 import json
 import logging
 import time
@@ -32,12 +33,18 @@ from anthropic import AnthropicAWS
 from django.conf import settings
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.images import (
+    ImageLoader,
+    RequestImages,
+    image_placeholder,
+)
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
     Block,
+    ImageBlock,
     Message,
     ProviderStreamEvent,
     ServerToolBlock,
@@ -103,6 +110,12 @@ WEB_SEARCH_TOOL_TYPE = "web_search_20260209"
 WEB_SEARCH_TOOL_NAME = "web_search"
 WEB_SEARCH_MAX_USES = 6
 
+# The API caps an image at 10 MB; base64 adds a third, so this holds either way.
+MAX_IMAGE_BYTES = 10 * 1024 * 1024 * 3 // 4
+# The API rejects a request over 32 MB. Base64 adds a third to this, and the
+# rest is left for the conversation's text.
+MAX_REQUEST_IMAGE_BYTES = 18 * 1024 * 1024
+
 
 # Messages API ``stop_reason`` -> neutral ``StopReason``. ``refusal`` is a
 # successful HTTP 200 whose content is empty or partial (Opus 5 ships elevated
@@ -142,7 +155,7 @@ _SERVER_TOOL_BLOCK_TYPES = (
 # replay state and must be sent back exactly as received. The tools+system
 # breakpoint is unaffected, and the prefix cached on the previous turn is still
 # read.
-_CACHEABLE_BLOCK_TYPES = ("text", "tool_result")
+_CACHEABLE_BLOCK_TYPES = ("text", "image", "tool_result")
 
 _PROVIDER_STATE_KEY = "anthropic"
 
@@ -349,9 +362,11 @@ class ClaudePlatformProvider(LLMProvider):
         web_search: bool = False,
         effort: str | None = None,
         thinking: str | None = None,
+        image_loader: ImageLoader | None = None,
     ):
         self.model_id = model_id or MODEL_ID
         self._client = client if client is not None else _build_client()
+        self.image_loader = image_loader
         self.prompt_caching = PROMPT_CACHING
         self.effort = EFFORT if effort is None else effort
         self.thinking = THINKING if thinking is None else thinking
@@ -687,8 +702,15 @@ class ClaudePlatformProvider(LLMProvider):
     def _render_messages(
         self, messages: list[Message], *, cache_last: bool = False
     ) -> list[dict]:
+        images = RequestImages(
+            messages,
+            loader=self.image_loader,
+            vision=model_capabilities("claude_platform", self.model_id).vision,
+            max_image_bytes=MAX_IMAGE_BYTES,
+            max_request_bytes=MAX_REQUEST_IMAGE_BYTES,
+        )
         rendered = [
-            {"role": m.role, "content": [self._render_block(b) for b in m.content]}
+            {"role": m.role, "content": self._render_content(m.content, images)}
             for m in messages
         ]
         if (
@@ -707,7 +729,33 @@ class ClaudePlatformProvider(LLMProvider):
                 last["cache_control"] = {"type": "ephemeral"}
         return rendered
 
-    def _render_block(self, block: Any) -> dict:
+    def _render_content(self, blocks: list[Block], images: RequestImages) -> list[dict]:
+        rendered: list[dict] = []
+        for block in blocks:
+            if isinstance(block, ImageBlock):
+                rendered.extend(self._render_image(block, images))
+            else:
+                rendered.append(self._render_block(block, images))
+        return rendered
+
+    def _render_image(self, block: ImageBlock, images: RequestImages) -> list[dict]:
+        """The image after its label, or its placeholder as text."""
+        data = images.load(block)
+        if data is None:
+            return [{"type": "text", "text": image_placeholder(block)}]
+        image = {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": block.media_type,
+                "data": base64.b64encode(data).decode("ascii"),
+            },
+        }
+        if block.label:
+            return [{"type": "text", "text": block.label}, image]
+        return [image]
+
+    def _render_block(self, block: Any, images: RequestImages) -> dict:
         if isinstance(block, TextBlock):
             if block.data is not None:
                 # Citation-bearing assistant text contains encrypted replay
@@ -754,6 +802,15 @@ class ClaudePlatformProvider(LLMProvider):
                 "tool_use_id": block.tool_use_id,
                 "content": content,
             }
+            if block.images:
+                tool_result["content"] = [
+                    {"type": "text", "text": content},
+                    *(
+                        part
+                        for image in block.images
+                        for part in self._render_image(image, images)
+                    ),
+                ]
             if block.is_error:
                 tool_result["is_error"] = True
             return tool_result

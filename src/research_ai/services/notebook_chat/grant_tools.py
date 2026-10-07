@@ -12,6 +12,7 @@ from purchase.models import Grant
 from purchase.services.grant_search_service import GrantSearchService
 from research_ai.constants import BASE_FRONTEND_URL
 from research_ai.services.agent import Tool, Toolset
+from research_ai.services.note_tools import notify_note_updated
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 
 logger = logging.getLogger(__name__)
@@ -444,7 +445,7 @@ class SelectedRFPToolset:
                 select_grant(note=note, grant=grant)
             except GrantSelectionError as exc:
                 return {"error": str(exc)}
-            self._notify_note_updated(note)
+            notify_note_updated(note)
             return {
                 "note_id": note.id,
                 "selected_rfp": _grant_terms(grant) if grant is not None else None,
@@ -487,24 +488,6 @@ class SelectedRFPToolset:
         if grant is None:
             return None, {"error": f"grant {grant_id} not found or not accessible"}
         return grant, None
-
-    @staticmethod
-    def _notify_note_updated(note) -> None:
-        """Nudge the notebook so an open client sees the new selection.
-
-        The note API pushes this when a PATCH renames a note, and a selection
-        writes no NoteContent, so without it nothing tells an open notebook the
-        RFP changed. An ownerless note has no org room to push to, and a failing
-        channel layer must not undo a write that already committed.
-        """
-        if note.organization_id is None:
-            return
-        try:
-            note.notify_note_updated_title()
-        except Exception:  # noqa: BLE001 - the selection is already saved
-            logger.warning(
-                "could not publish note update after an RFP selection", exc_info=True
-            )
 
     def _readable_note(self) -> Note | None:
         """This toolset's note, or ``None`` when the user cannot reach it."""

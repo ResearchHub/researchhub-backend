@@ -21,8 +21,8 @@ case "${1:-api}" in
   flower)
     set -- celery \
       --app researchhub flower \
-      --port 5555 \
-      --url_prefix flower
+      --port=5555 \
+      --url_prefix=flower
     ;;
 
   worker)
@@ -33,7 +33,7 @@ case "${1:-api}" in
       worker \
       --concurrency "$concurrency" \
       --events \
-      --hostname "${CELERY_WORKER_NAME:-worker}" \
+      --hostname "${CELERY_WORKER_NAME:-worker}@%h" \
       --loglevel INFO \
       --pool "${CELERY_POOL:-prefork}" \
       --prefetch-multiplier 1 \

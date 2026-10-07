@@ -7,6 +7,7 @@ generator and the judge roster alike. It reuses the already-installed
 agent types to/from the Chat Completions shape.
 """
 
+import base64
 import json
 import logging
 import time
@@ -19,12 +20,18 @@ from django.conf import settings
 from openai import OpenAI
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.images import (
+    ImageLoader,
+    RequestImages,
+    image_placeholder,
+)
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
     Block,
+    ImageBlock,
     Message,
     StopReason,
     TextBlock,
@@ -55,6 +62,17 @@ MAX_OUTPUT_TOKENS = 32_768
 # default aligned with the Claude Platform adapter so switching providers does
 # not silently change the workflow's reasoning depth. ``""`` omits the option.
 EFFORT = "low"
+
+# Upstream image caps differ and are not all published; this is the tightest
+# known one (5 MB in base64).
+MAX_IMAGE_BYTES = 5 * 1024 * 1024 * 3 // 4
+# Likewise for a whole request: Bedrock's 20 MB, less the third base64 adds
+# and room for the conversation's text.
+MAX_REQUEST_IMAGE_BYTES = 10 * 1024 * 1024
+
+# Shown before a tool result's images, which travel in a user message after
+# every result of the turn; a model may not see ids, so it gets the position too.
+_TOOL_IMAGES_NOTE = "[Images returned by tool result {position} above (id {id}).]\n"
 
 # Opus 4.7+, Fable, and OpenAI reasoning models reject sampling params
 # (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
@@ -146,8 +164,10 @@ class OpenRouterProvider(LLMProvider):
         model_id: str | None = None,
         effort: str | None = None,
         thinking: str | None = None,
+        image_loader: ImageLoader | None = None,
     ):
         self.model_id = model_id or MODEL_ID
+        self.image_loader = image_loader
         capabilities = model_capabilities("openrouter", self.model_id)
         if effort is not None:
             self.effort = effort
@@ -256,33 +276,81 @@ class OpenRouterProvider(LLMProvider):
         self, system_prompt: str, messages: list[Message]
     ) -> list[dict]:
         rendered: list[dict] = [{"role": "system", "content": system_prompt}]
+        images = RequestImages(
+            messages,
+            loader=self.image_loader,
+            vision=model_capabilities("openrouter", self.model_id).vision,
+            max_image_bytes=MAX_IMAGE_BYTES,
+            max_request_bytes=MAX_REQUEST_IMAGE_BYTES,
+        )
         for message in messages:
             if message.role == "assistant":
                 rendered.append(self._render_assistant(message))
-                continue
-            # User-side turns: each tool result becomes its own ``tool`` message
-            # keyed by ``tool_call_id`` (the id-correlation invariant), emitted
-            # before any plain text so they directly follow the assistant
-            # message that issued the calls, as the wire format requires.
-            texts: list[str] = []
-            for block in message.content:
-                if isinstance(block, ToolResultBlock):
-                    # No error flag on tool messages in this wire format; the
-                    # error payload inside ``content`` is what the model sees.
-                    rendered.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": block.tool_use_id,
-                            "content": json.dumps(block.content),
-                        }
-                    )
-                elif isinstance(block, TextBlock):
-                    texts.append(block.text)
-                else:
-                    raise TypeError(f"unrenderable user block: {block!r}")
-            if texts:
-                rendered.append({"role": "user", "content": "".join(texts)})
+            else:
+                rendered.extend(self._render_user(message, images))
         return rendered
+
+    def _render_user(self, message: Message, images: RequestImages) -> list[dict]:
+        # User-side turns: each tool result becomes its own ``tool`` message
+        # keyed by ``tool_call_id`` (the id-correlation invariant), emitted
+        # before any plain text so they directly follow the assistant
+        # message that issued the calls, as the wire format requires.
+        results = sum(isinstance(block, ToolResultBlock) for block in message.content)
+        tool_messages: list[dict] = []
+        parts: list[dict] = []
+        for block in message.content:
+            if isinstance(block, ToolResultBlock):
+                # No error flag on tool messages in this wire format; the
+                # error payload inside ``content`` is what the model sees.
+                tool_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": block.tool_use_id,
+                        "content": json.dumps(block.content),
+                    }
+                )
+                position = f"{len(tool_messages)} of {results}"
+                parts.extend(self._tool_image_parts(block, images, position))
+            elif isinstance(block, TextBlock):
+                parts.append({"type": "text", "text": block.text})
+            elif isinstance(block, ImageBlock):
+                parts.extend(self._image_parts(block, images))
+            else:
+                raise TypeError(f"unrenderable user block: {block!r}")
+        if not parts:
+            return tool_messages
+        content: str | list[dict] = parts
+        if all(part["type"] == "text" for part in parts):
+            # Text-only turns stay a plain string, as before images existed.
+            content = "".join(part["text"] for part in parts)
+        return [*tool_messages, {"role": "user", "content": content}]
+
+    def _tool_image_parts(
+        self, block: ToolResultBlock, images: RequestImages, position: str
+    ) -> list[dict]:
+        # Upstreams differ on images in tool messages, so a result's images
+        # follow in the user message instead.
+        if not block.images:
+            return []
+        note = _TOOL_IMAGES_NOTE.format(position=position, id=block.tool_use_id)
+        parts = [{"type": "text", "text": note}]
+        for image in block.images:
+            parts.extend(self._image_parts(image, images))
+        return parts
+
+    def _image_parts(self, block: ImageBlock, images: RequestImages) -> list[dict]:
+        """The image after its label, or its placeholder as text."""
+        data = images.load(block)
+        if data is None:
+            return [{"type": "text", "text": f"{image_placeholder(block)}\n"}]
+        encoded = base64.b64encode(data).decode("ascii")
+        image = {
+            "type": "image_url",
+            "image_url": {"url": f"data:{block.media_type};base64,{encoded}"},
+        }
+        if block.label:
+            return [{"type": "text", "text": block.label}, image]
+        return [image]
 
     def _render_assistant(self, message: Message) -> dict:
         texts: list[str] = []

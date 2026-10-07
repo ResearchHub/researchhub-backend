@@ -9,6 +9,7 @@ from research_ai.services.agent.providers import bedrock
 from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
+    ImageBlock,
     Message,
     StopReason,
     TextBlock,
@@ -17,6 +18,7 @@ from research_ai.services.agent.types import (
     ToolUseBlock,
     TurnUsage,
 )
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG
 
 
 class FakeConverseClient:
@@ -31,10 +33,10 @@ class FakeConverseClient:
         return self._responses.pop(0)
 
 
-def _build_provider(responses=None):
+def _build_provider(responses=None, model_id="test-model", **kwargs):
     """Build a BedrockProvider with a fake client so no AWS client is constructed."""
     return BedrockProvider(
-        client=FakeConverseClient(responses or []), model_id="test-model"
+        client=FakeConverseClient(responses or []), model_id=model_id, **kwargs
     )
 
 
@@ -122,6 +124,163 @@ class RenderMessagesTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(rendered[0]["content"][0], {"reasoningContent": payload})
+
+
+class RenderImageTests(SimpleTestCase):
+    PAGE = ImageBlock(ref="files/1/p1.jpg", media_type="image/jpeg", label="Page 1")
+    CHART = ImageBlock(ref="files/1/chart.png", media_type="image/png")
+    IMAGES = {"files/1/p1.jpg": JPEG, "files/1/chart.png": PNG}
+
+    def _provider(self, model_id="us.anthropic.claude-opus-5"):
+        return _build_provider(model_id=model_id, image_loader=self.IMAGES.__getitem__)
+
+    def test_user_images_render_as_raw_bytes_after_their_label(self):
+        # Arrange
+        messages = [
+            Message(role="user", content=[self.PAGE, TextBlock(text="what is this?")])
+        ]
+
+        # Act
+        rendered = self._provider()._render_messages(messages)
+
+        # Assert
+        self.assertEqual(
+            rendered[0]["content"],
+            [
+                {"text": "Page 1"},
+                {"image": {"format": "jpeg", "source": {"bytes": JPEG}}},
+                {"text": "what is this?"},
+            ],
+        )
+
+    def test_tool_result_images_render_inside_the_result(self):
+        # Arrange
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(
+                        tool_use_id="t1", content={"page": 1}, images=(self.CHART,)
+                    )
+                ],
+            )
+        ]
+
+        # Act
+        rendered = self._provider()._render_messages(messages)
+
+        # Assert
+        self.assertEqual(
+            rendered[0]["content"],
+            [
+                {
+                    "toolResult": {
+                        "toolUseId": "t1",
+                        "content": [
+                            {"json": {"page": 1}},
+                            {
+                                "image": {
+                                    "format": "png",
+                                    "source": {"bytes": PNG},
+                                }
+                            },
+                        ],
+                    }
+                }
+            ],
+        )
+
+    def test_a_model_not_known_to_take_images_gets_placeholders(self):
+        # Arrange
+        messages = [
+            Message(role="user", content=[self.PAGE, TextBlock(text="what is this?")])
+        ]
+
+        # Act
+        rendered = self._provider(model_id="us.meta.llama4")._render_messages(messages)
+
+        # Assert
+        self.assertEqual(
+            rendered[0]["content"],
+            [{"text": "[Image not shown: Page 1]"}, {"text": "what is this?"}],
+        )
+
+    def test_an_image_over_the_bedrock_limit_is_not_sent(self):
+        # Arrange
+        provider = _build_provider(
+            model_id="us.anthropic.claude-opus-5",
+            image_loader=lambda ref: PNG + b"x" * bedrock.MAX_IMAGE_BYTES,
+        )
+        messages = [Message(role="user", content=[self.CHART])]
+
+        # Act
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
+            rendered = provider._render_messages(messages)
+
+        # Assert
+        self.assertEqual(rendered[0]["content"], [{"text": "[Image not shown]"}])
+
+    def test_a_message_sends_no_more_images_than_bedrock_allows(self):
+        # Arrange
+        pages = [self.CHART] * (bedrock.MAX_MESSAGE_IMAGES + 1)
+        messages = [Message(role="user", content=[*pages, TextBlock(text="compare")])]
+
+        # Act
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
+            rendered = self._provider()._render_messages(messages)
+
+        # Assert
+        content = rendered[0]["content"]
+        self.assertEqual(
+            sum("image" in part for part in content), bedrock.MAX_MESSAGE_IMAGES
+        )
+        self.assertEqual(
+            content[-2:], [{"text": "[Image not shown]"}, {"text": "compare"}]
+        )
+
+    def test_tool_results_in_one_message_share_its_image_limit(self):
+        # Arrange
+        per_result = bedrock.MAX_MESSAGE_IMAGES - 1
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(
+                        tool_use_id=tool_use_id,
+                        content={},
+                        images=(self.CHART,) * per_result,
+                    )
+                    for tool_use_id in ("t1", "t2")
+                ],
+            )
+        ]
+
+        # Act
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
+            rendered = self._provider()._render_messages(messages)
+
+        # Assert
+        first, second = (
+            part["toolResult"]["content"] for part in rendered[0]["content"]
+        )
+        self.assertEqual(sum("image" in part for part in first), per_result)
+        self.assertEqual(sum("image" in part for part in second), 1)
+        self.assertEqual(second[2:], [{"text": "[Image not shown]"}] * (per_result - 1))
+
+    def test_the_image_limit_applies_to_each_message_separately(self):
+        # Arrange
+        full = Message(role="user", content=[self.CHART] * bedrock.MAX_MESSAGE_IMAGES)
+        reply = Message(role="assistant", content=[TextBlock(text="ok")])
+
+        # Act
+        rendered = self._provider()._render_messages([full, reply, full])
+
+        # Assert
+        for message in (rendered[0], rendered[2]):
+            self.assertEqual(
+                sum("image" in part for part in message["content"]),
+                bedrock.MAX_MESSAGE_IMAGES,
+            )
 
 
 class CompleteAndParseTests(SimpleTestCase):

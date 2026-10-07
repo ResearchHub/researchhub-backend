@@ -1,5 +1,6 @@
 """Unit tests for the Claude Platform on AWS provider adapter (no network)."""
 
+import base64
 from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -31,10 +32,12 @@ from anthropic.types.refusal_stop_details import RefusalStopDetails
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
+from research_ai.services.agent.images import ImageUnavailableError
 from research_ai.services.agent.providers import claude_platform
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
+    ImageBlock,
     Message,
     ServerToolBlock,
     StopReason,
@@ -49,6 +52,7 @@ from research_ai.services.agent.types import (
     ToolUseStreamStart,
     TurnUsage,
 )
+from research_ai.tests.agent.image_test_helpers import JPEG, PNG
 
 
 class _FakeStream:
@@ -332,6 +336,137 @@ class RenderMessagesTests(SimpleTestCase):
         # Act / Assert
         with self.assertRaisesRegex(ProviderError, "not valid JSON"):
             provider._render_messages(messages)
+
+
+class RenderImageTests(SimpleTestCase):
+    PAGE = ImageBlock(ref="files/1/p1.jpg", media_type="image/jpeg", label="Page 1")
+    CHART = ImageBlock(ref="files/1/chart.png", media_type="image/png")
+    IMAGES = {"files/1/p1.jpg": JPEG, "files/1/chart.png": PNG}
+
+    def _provider(self, **kwargs):
+        return _build_provider(image_loader=self.IMAGES.__getitem__, **kwargs)
+
+    def test_user_images_render_as_base64_blocks_after_their_label(self):
+        # Arrange
+        messages = [
+            Message(
+                role="user",
+                content=[self.PAGE, self.CHART, TextBlock(text="compare these")],
+            )
+        ]
+
+        # Act
+        rendered = self._provider()._render_messages(messages)
+
+        # Assert
+        self.assertEqual(
+            rendered[0]["content"],
+            [
+                {"type": "text", "text": "Page 1"},
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/jpeg",
+                        "data": base64.b64encode(JPEG).decode(),
+                    },
+                },
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": base64.b64encode(PNG).decode(),
+                    },
+                },
+                {"type": "text", "text": "compare these"},
+            ],
+        )
+
+    def test_tool_result_images_render_inside_the_result(self):
+        # Arrange
+        messages = [
+            Message(
+                role="user",
+                content=[
+                    ToolResultBlock(
+                        tool_use_id="t1", content={"page": 1}, images=(self.CHART,)
+                    )
+                ],
+            )
+        ]
+
+        # Act
+        rendered = self._provider()._render_messages(messages, cache_last=True)
+
+        # Assert
+        self.assertEqual(
+            rendered[0]["content"],
+            [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "t1",
+                    "content": [
+                        {"type": "text", "text": '{"page": 1}'},
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": base64.b64encode(PNG).decode(),
+                            },
+                        },
+                    ],
+                    "cache_control": {"type": "ephemeral"},
+                }
+            ],
+        )
+
+    def test_a_trailing_image_takes_the_cache_breakpoint(self):
+        # Arrange
+        messages = [Message(role="user", content=[self.CHART])]
+
+        # Act
+        rendered = self._provider()._render_messages(messages, cache_last=True)
+
+        # Assert
+        self.assertEqual(
+            rendered[0]["content"][-1]["cache_control"], {"type": "ephemeral"}
+        )
+
+    def test_an_image_that_cannot_be_sent_renders_as_its_placeholder(self):
+        # Arrange
+        gone = ImageBlock(ref="files/9/gone.png", media_type="image/png", label="p9")
+
+        def loader(ref):
+            raise ImageUnavailableError(ref)
+
+        messages = [
+            Message(role="user", content=[gone, TextBlock(text="what is this?")]),
+            Message(
+                role="user",
+                content=[ToolResultBlock(tool_use_id="t1", content={}, images=(gone,))],
+            ),
+        ]
+
+        # Act
+        with self.assertLogs("research_ai.services.agent.images", "WARNING"):
+            with_loader = _build_provider(image_loader=loader)._render_messages(
+                messages
+            )
+            without_loader = _build_provider()._render_messages(messages)
+
+        # Assert
+        placeholder = {"type": "text", "text": "[Image not shown: p9]"}
+        for rendered in (with_loader, without_loader):
+            self.assertEqual(
+                rendered[0]["content"],
+                [placeholder, {"type": "text", "text": "what is this?"}],
+            )
+            self.assertEqual(
+                rendered[1]["content"][0]["content"],
+                [{"type": "text", "text": "{}"}, placeholder],
+            )
 
 
 class CompleteAndParseTests(SimpleTestCase):

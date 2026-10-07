@@ -22,6 +22,8 @@ class ModelCapabilities:
     # The model's output ceiling: a ``max_tokens`` above it is rejected
     # outright. ``None`` means unreviewed, not unlimited.
     max_output_tokens: int | None = None
+    # Whether the model accepts image input; without it images go as text.
+    vision: bool = False
 
     def as_dict(self) -> dict:
         # The model-picker payload: the controls a caller may choose.
@@ -88,13 +90,16 @@ _OPENROUTER_OPEN_WEIGHT = ModelCapabilities(
 )
 
 
-def _model(controls: ModelCapabilities, max_output_tokens: int) -> ModelCapabilities:
-    """One model: a shared control set plus that model's own output ceiling."""
+def _model(
+    controls: ModelCapabilities, max_output_tokens: int, *, vision: bool = True
+) -> ModelCapabilities:
+    """One model: a shared control set plus that model's own ceiling and vision."""
     return ModelCapabilities(
         effort=controls.effort,
         thinking=controls.thinking,
         temperature=controls.temperature,
         max_output_tokens=max_output_tokens,
+        vision=vision,
     )
 
 
@@ -120,7 +125,8 @@ def _normalized(model_id: str) -> str:
 
 # One entry per model: its bare id, its controls, and the output ceiling its
 # own docs state. A model absent here is unreviewed; adapters refuse to serve
-# it rather than borrow another model's numbers.
+# it rather than borrow another model's numbers. Every Claude model takes image
+# input; on OpenRouter the listing's ``input_modalities`` decide (2026-10-01).
 _CLAUDE_MODELS = {
     "claude-haiku-4-5": _model(_TEMPERATURE, 64_000),
     "claude-sonnet-4-5": _model(_TEMPERATURE, 64_000),
@@ -150,8 +156,12 @@ _OPENROUTER_MODELS = {
     "google/gemini-3.8-flash": _model(_OPENROUTER_GEMINI, 65_536),
     "x-ai/grok-4.6": _model(_OPENROUTER_GROK, 450_000),
     "z-ai/glm-5.3-flash": _model(_OPENROUTER_MANDATORY_REASONING, 131_072),
-    "deepseek/deepseek-v4-flash-0731": _model(_OPENROUTER_OPEN_WEIGHT, 393_216),
-    "deepseek/deepseek-v4-pro-0813": _model(_OPENROUTER_OPEN_WEIGHT, 384_000),
+    "deepseek/deepseek-v4-flash-0731": _model(
+        _OPENROUTER_OPEN_WEIGHT, 393_216, vision=False
+    ),
+    "deepseek/deepseek-v4-pro-0813": _model(
+        _OPENROUTER_OPEN_WEIGHT, 384_000, vision=False
+    ),
     "moonshotai/kimi-k3": _model(_OPENROUTER_OPEN_WEIGHT, 943_718),
     "qwen/qwen3.8-max-0902": _model(_OPENROUTER_QWEN_MANDATORY_REASONING, 131_072),
 }
@@ -161,6 +171,8 @@ _OPENROUTER_MODELS = {
 _BEDROCK_MODELS = {
     "claude-haiku-4-5": _model(_TEMPERATURE, 64_000),
     "claude-sonnet-4-5": _model(_TEMPERATURE, 64_000),
+    # The adapter's default; listed so it is sent images.
+    "claude-opus-5": _model(ModelCapabilities(), 128_000),
 }
 
 _PROVIDER_MODELS = {

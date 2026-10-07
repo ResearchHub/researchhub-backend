@@ -2,24 +2,20 @@
 
 CELERY_QUEUES := \
 	agents \
-	bluesky_metrics \
 	bounties \
 	caches \
 	contributions \
 	default \
 	elastic_search \
 	external_reporting \
-	github_metrics \
 	hubs \
-	logs \
 	notifications \
 	paper_metadata \
 	paper_metrics \
 	paper_misc \
 	pull_papers \
 	purchases \
-	reputation \
-	x_metrics
+	reputation
 
 DOCKER_IMAGE ?= researchhub-backend:local
 DOCKER_PLATFORM ?= linux/arm64

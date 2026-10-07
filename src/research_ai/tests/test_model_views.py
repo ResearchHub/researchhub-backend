@@ -88,6 +88,7 @@ class AvailableModelsViewTests(APITestCase):
                     "multiplier",
                     "provider",
                     "ref",
+                    "vision",
                 ],
             )
 
@@ -109,3 +110,15 @@ class AvailableModelsViewTests(APITestCase):
                 "multiplier_is_estimate": True,
             },
         )
+
+    def test_each_model_says_whether_it_accepts_images(self):
+        # Arrange
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.get(URL)
+
+        # Assert
+        vision = {model["ref"]: model["vision"] for model in response.json()["models"]}
+        self.assertIs(vision["claude_platform:claude-opus-5-5"], True)
+        self.assertIs(vision["openrouter:deepseek/deepseek-v4-flash-0731"], False)

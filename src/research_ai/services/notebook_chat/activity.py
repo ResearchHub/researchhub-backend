@@ -4,18 +4,19 @@ A curated projection of :func:`conversation_activity_events` into fixed public
 shapes. Tool calls carry tool, label, status and timestamps, plus the
 enrichments the frontend renders: the note version an edit produced, so an open
 editor knows to reload, the id and title of a note the turn created so the
-client can link to it, a human detail line (the search query or author searched
-for), and title/url ``sources`` for citations. Sources come from every tool that
-yields citable items -- web search and the scholarly tools alike -- in one
-shape, so the frontend renders one citation list. Narration events carry the
-prose the model wrote between tool calls, which is what turns a slow turn from a
-spinner into a readable account of what the agent is doing. Thinking events
-carry readable reasoning text while dropping provider signatures and encrypted
-state.
+client can link to it, a human detail line (the search query, author, or
+attached file), and title/url ``sources`` for citations. Sources come from
+every tool that yields citable items -- web search and the scholarly tools
+alike -- in one shape, so the frontend renders one citation list. Narration
+events carry the prose the model wrote between tool calls, which is what turns
+a slow turn from a spinner into a readable account of what the agent is doing.
+Thinking events carry readable reasoning text while dropping provider
+signatures and encrypted state.
 
 Whole tool argument and result payloads never pass through. Code execution
 adds an explicitly selected, bounded code/stdout preview; provider error text,
-encrypted state, note documents, and paper full texts stay private.
+encrypted state, note documents, paper full texts, and attached-file text stay
+private.
 
 Alongside the feed, :func:`execution_phase` reduces the same events to a single
 coarse "what is it doing right now" for a live turn, so a client has something
@@ -31,6 +32,11 @@ from research_ai.services.agent_persistence.activity import (
     ToolCallEvent,
 )
 from research_ai.services.note_tools import CREATE_NOTE, EDIT_NOTE, READ_NOTE
+from research_ai.services.notebook_chat.attachment_tools import (
+    READ_ATTACHMENT,
+    SEARCH_ATTACHMENT,
+    VIEW_ATTACHMENT_PAGES,
+)
 from research_ai.services.notebook_chat.code_execution import (
     CODE_EXECUTION_TOOLS,
     public_code_execution,
@@ -43,6 +49,10 @@ from research_ai.services.notebook_chat.grant_tools import (
 )
 from research_ai.services.notebook_chat.researcher_profile_tools import (
     GET_RESEARCHER_PROFILE,
+)
+from research_ai.services.notebook_chat.rfp_details_tools import (
+    READ_RFP_DETAILS,
+    UPDATE_RFP_DETAILS,
 )
 from research_ai.services.researcher_profile.openalex_tools import (
     GET_WORK_ABSTRACT,
@@ -66,6 +76,8 @@ _LABELS = {
     GET_GRANT_DETAILS: "Read grant details",
     READ_SELECTED_RFP: "Read the selected RFP",
     SET_SELECTED_RFP: "Selected an RFP",
+    READ_RFP_DETAILS: "Read the RFP details",
+    UPDATE_RFP_DETAILS: "Updated the RFP details",
     SEARCH_INSTITUTIONS: "Searched institutions",
     SEARCH_AUTHORS: "Searched scholarly authors",
     GET_AUTHOR: "Looked up an author",
@@ -74,6 +86,9 @@ _LABELS = {
     GET_WORK_ABSTRACT: "Read a paper abstract",
     SEARCH_WORK_FULLTEXT: "Searched a paper",
     GET_RESEARCHER_PROFILE: "Read your researcher profile",
+    READ_ATTACHMENT: "Read an attached file",
+    SEARCH_ATTACHMENT: "Searched attached files",
+    VIEW_ATTACHMENT_PAGES: "Looked at pages of an attached file",
 }
 # What each tool is doing while the call is still open, for the live phase.
 # Distinct from _LABELS, which reads as a completed step.
@@ -87,6 +102,8 @@ _ACTIVE_LABELS = {
     GET_GRANT_DETAILS: "Reading grant details",
     READ_SELECTED_RFP: "Reading the selected RFP",
     SET_SELECTED_RFP: "Selecting an RFP",
+    READ_RFP_DETAILS: "Reading the RFP details",
+    UPDATE_RFP_DETAILS: "Updating the RFP details",
     SEARCH_INSTITUTIONS: "Searching institutions",
     SEARCH_AUTHORS: "Searching scholarly authors",
     GET_AUTHOR: "Looking up an author",
@@ -95,6 +112,9 @@ _ACTIVE_LABELS = {
     GET_WORK_ABSTRACT: "Reading a paper abstract",
     SEARCH_WORK_FULLTEXT: "Searching a paper",
     GET_RESEARCHER_PROFILE: "Reading your researcher profile",
+    READ_ATTACHMENT: "Reading an attached file",
+    SEARCH_ATTACHMENT: "Searching attached files",
+    VIEW_ATTACHMENT_PAGES: "Looking at pages of an attached file",
 }
 # What the model is doing while it is still writing a tool call's arguments.
 # Only tools whose arguments are substantial work in themselves need copy
@@ -112,6 +132,13 @@ _DETAIL_INPUT_FIELDS = {
     SEARCH_INSTITUTIONS: "query",
     SEARCH_AUTHORS: "name",
     SEARCH_WORK_FULLTEXT: "query",
+    SEARCH_ATTACHMENT: "query",
+}
+# Tools whose event detail is a name only their result carries.
+_DETAIL_RESULT_FIELDS = {
+    GET_AUTHOR: "display_name",
+    READ_ATTACHMENT: "filename",
+    VIEW_ATTACHMENT_PAGES: "filename",
 }
 _MAX_DETAIL_CHARS = 200
 _MAX_SOURCES = 5
@@ -304,10 +331,10 @@ def _detail(event: ToolCallEvent) -> str | None:
     field = _DETAIL_INPUT_FIELDS.get(event.tool)
     if field is not None:
         value = event.input.get(field)
-    elif event.tool == GET_AUTHOR and event.completed and not event.is_error:
-        # The input is an opaque OpenAlex id; the resolved author's name is
-        # the human-meaningful part, and it only exists in the result.
-        value = (event.result or {}).get("display_name")
+    elif event.tool in _DETAIL_RESULT_FIELDS and event.completed and not event.is_error:
+        # The input is an opaque id (an OpenAlex author, an attachment); the
+        # human-meaningful name only exists in the result.
+        value = (event.result or {}).get(_DETAIL_RESULT_FIELDS[event.tool])
     else:
         return None
     if not isinstance(value, str) or not value.strip():
