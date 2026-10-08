@@ -31,6 +31,7 @@ from research_ai.services.expert_finder.region_filter import (
 from research_ai.services.expert_finder.work_email_lookup import (
     bind_emails_to_authors,
     lookup_work_emails,
+    lookup_work_emails_for_page,
     normalize_doi,
 )
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
@@ -374,21 +375,34 @@ class ExpertFinderOpenAlexToolset:
             return {"error": f"works search failed: {exc}"}
 
         payload = []
-        easy_author_ids: list[str] = []
+        email_jobs: list[tuple[str | None, list | None]] = []
         for entity in raw_works or []:
             bare = normalize_openalex_id(entity.get("id")).lower()
             if bare and bare in self._exclude_work_id_set:
                 continue
-            card = self._work_card_with_authors(entity)
-            if card is None:
+            built = self._work_card_with_authors(entity)
+            if built is None:
                 continue
-            for author in card.get("authors") or []:
+            card, doi, authorships = built
+            payload.append(card)
+            email_jobs.append((doi, authorships))
+            if len(payload) >= max_results:
+                break
+
+        hits_by_work = lookup_work_emails_for_page(
+            email_jobs,
+            lookup_fn=self._work_email_lookup_fn,
+        )
+        easy_author_ids: list[str] = []
+        for card, email_hits in zip(payload, hits_by_work, strict=True):
+            authors = bind_emails_to_authors(card.get("authors") or [], email_hits)
+            for author in authors:
+                author["chase_priority"] = self._chase_priority(author)
                 author_id = normalize_openalex_id(author.get("openalex_author_id"))
                 if author_id and author.get("chase_priority") in _EASY_CHASE_PRIORITIES:
                     easy_author_ids.append(author_id)
-            payload.append(card)
-            if len(payload) >= max_results:
-                break
+            card["authors"] = authors
+
         # Chase gate tracks easy authors only (corresponding / leads / email hits).
         self._replace_author_batch(easy_author_ids)
         return {
@@ -399,8 +413,14 @@ class ExpertFinderOpenAlexToolset:
             "batch": self.batch_chase_status(),
         }
 
-    def _work_card_with_authors(self, entity: dict) -> dict | None:
-        """Compact work + authorships; records work/author grounding."""
+    def _work_card_with_authors(
+        self, entity: dict
+    ) -> tuple[dict, str | None, list] | None:
+        """Compact work + authorships; records work/author grounding.
+
+        Email attachment happens at page level (see ``search_works``) so remote
+        DOI lookups are parallelized and time-bounded.
+        """
         work = Work.from_openalex(entity)
         if work is None:
             return None
@@ -424,22 +444,18 @@ class ExpertFinderOpenAlexToolset:
             authorships, openalex_work_id=openalex_work_id or None
         )
 
-        doi = normalize_doi(entity.get("doi") or data.get("source_url"))
-        email_hits = self._work_email_lookup_fn(doi=doi, authorships=authorships)
-        authors = bind_emails_to_authors(authors, email_hits)
-        for author in authors:
-            author["chase_priority"] = self._chase_priority(author)
-
-        return {
+        doi = normalize_doi(entity.get("doi") or data.get("source_url")) or None
+        card = {
             "title": data["title"],
             "publication_date": data["publication_date"],
             "publication_year": data["publication_year"],
             "source_url": data["source_url"],
-            "doi": doi or None,
+            "doi": doi,
             "openalex_work_id": openalex_work_id or None,
             "is_oa": data["is_oa"],
             "authors": authors,
         }
+        return card, doi, authorships
 
     def _select_authors(
         self, authorships: list, *, openalex_work_id: str | None = None

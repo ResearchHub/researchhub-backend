@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import logging
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor, wait
+from contextlib import suppress
 from urllib.parse import quote
 
 from utils.retryable_requests import retryable_requests_session
@@ -16,6 +19,9 @@ from utils.retryable_requests import retryable_requests_session
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = 8
+_PAGE_REMOTE_WORKERS = 4
+_PAGE_REMOTE_REQUEST_TIMEOUT = 3
+_PAGE_REMOTE_OVERALL_TIMEOUT = 12
 _EMAIL_RE = re.compile(
     r"(?i)\b([a-z0-9][a-z0-9._%+\-]{0,63}@[a-z0-9][a-z0-9.\-]{1,250}\.[a-z]{2,24})\b"
 )
@@ -87,6 +93,7 @@ def lookup_work_emails(
     doi: str | None,
     authorships: list | None = None,
     session=None,
+    timeout: float | None = None,
 ) -> list[dict]:
     """OpenAlex first; Europe PMC / Crossref only when OpenAlex has no email."""
     hits = emails_from_openalex_authorships(authorships)
@@ -97,20 +104,122 @@ def lookup_work_emails(
     if not bare_doi:
         return []
 
+    return _remote_emails_for_doi(bare_doi, session=session, timeout=timeout)
+
+
+def lookup_work_emails_for_page(
+    jobs: list[tuple[str | None, list | None]],
+    *,
+    lookup_fn=None,
+) -> list[list[dict]]:
+    """Resolve emails for one ``search_works`` page without serial remote stalls.
+
+    OpenAlex affiliation parse runs synchronously for every job. Remote DOI
+    lookups (Europe PMC / Crossref) run only when OpenAlex is empty, in
+    parallel, with a short per-request timeout and a page-level overall cap.
+    Custom ``lookup_fn`` (tests) is called in parallel for every job.
+    """
+    if not jobs:
+        return []
+    if lookup_fn is not None and lookup_fn is not lookup_work_emails:
+        return _map_lookup_fn(jobs, lookup_fn=lookup_fn)
+
+    results: list[list[dict]] = [[] for _ in jobs]
+    remote_idxs: list[int] = []
+    for i, (doi, authorships) in enumerate(jobs):
+        hits = emails_from_openalex_authorships(authorships)
+        if hits:
+            results[i] = _dedupe_hits(hits)
+            continue
+        if normalize_doi(doi):
+            remote_idxs.append(i)
+    if not remote_idxs:
+        return results
+
+    deadline = time.monotonic() + _PAGE_REMOTE_OVERALL_TIMEOUT
+    workers = min(_PAGE_REMOTE_WORKERS, len(remote_idxs))
+    pool = ThreadPoolExecutor(max_workers=workers)
+    try:
+        future_map = {
+            pool.submit(
+                _remote_emails_for_doi,
+                normalize_doi(jobs[i][0]),
+                timeout=_PAGE_REMOTE_REQUEST_TIMEOUT,
+            ): i
+            for i in remote_idxs
+        }
+        remaining = max(0.0, deadline - time.monotonic())
+        done, not_done = wait(future_map.keys(), timeout=remaining)
+        for fut in done:
+            idx = future_map[fut]
+            try:
+                results[idx] = fut.result()
+            except Exception as exc:  # noqa: BLE001
+                logger.info("page email lookup failed idx=%s err=%s", idx, exc)
+                results[idx] = []
+        for fut in not_done:
+            idx = future_map[fut]
+            results[idx] = []
+            logger.info(
+                "page email lookup timed out doi=%s",
+                normalize_doi(jobs[idx][0]),
+            )
+    finally:
+        # Do not block the tool call on straggling HTTP after the page deadline.
+        pool.shutdown(wait=False, cancel_futures=True)
+    return results
+
+
+def _map_lookup_fn(
+    jobs: list[tuple[str | None, list | None]],
+    *,
+    lookup_fn,
+) -> list[list[dict]]:
+    """Parallelize an injected per-work lookup (tests / overrides)."""
+    results: list[list[dict]] = [[] for _ in jobs]
+    deadline = time.monotonic() + _PAGE_REMOTE_OVERALL_TIMEOUT
+    workers = min(_PAGE_REMOTE_WORKERS, len(jobs))
+    pool = ThreadPoolExecutor(max_workers=workers)
+    try:
+        future_map = {
+            pool.submit(lookup_fn, doi=doi, authorships=authorships): i
+            for i, (doi, authorships) in enumerate(jobs)
+        }
+        remaining = max(0.0, deadline - time.monotonic())
+        done, not_done = wait(future_map.keys(), timeout=remaining)
+        for fut in done:
+            idx = future_map[fut]
+            try:
+                results[idx] = list(fut.result() or [])
+            except Exception as exc:  # noqa: BLE001
+                logger.info("injected email lookup failed idx=%s err=%s", idx, exc)
+                results[idx] = []
+        for fut in not_done:
+            results[future_map[fut]] = []
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    return results
+
+
+def _remote_emails_for_doi(
+    doi: str,
+    *,
+    session=None,
+    timeout: float | None = None,
+) -> list[dict]:
+    request_timeout = _TIMEOUT if timeout is None else timeout
     own_session = session is None
     http = session or retryable_requests_session(total_retries=1, backoff_factor=0.2)
     try:
-        hits.extend(_europe_pmc_emails(bare_doi, session=http))
+        hits = _europe_pmc_emails(doi, session=http, timeout=request_timeout)
         if hits:
             return _dedupe_hits(hits)
-        hits.extend(_crossref_emails(bare_doi, session=http))
+        hits = _crossref_emails(doi, session=http, timeout=request_timeout)
+        return _dedupe_hits(hits)
     finally:
         if own_session:
-            try:
+            with suppress(Exception):
                 http.close()
-            except Exception:  # noqa: BLE001
-                pass
-    return _dedupe_hits(hits)
 
 
 def bind_emails_to_authors(
@@ -121,7 +230,8 @@ def bind_emails_to_authors(
     if not authors or not email_hits:
         return authors
     by_id: dict[str, str] = {}
-    by_last: dict[str, str] = {}
+    by_full: dict[str, str] = {}
+    last_to_emails: dict[str, set[str]] = {}
     unbound: list[str] = []
     for hit in email_hits:
         email = _normalize_email(hit.get("email"))
@@ -132,11 +242,26 @@ def bind_emails_to_authors(
             bare = author_id.rsplit("/", 1)[-1]
             by_id[bare] = email
             by_id[author_id] = email
+        full = _full_name(hit.get("display_name"))
+        if full and full not in by_full:
+            by_full[full] = email
         last = _last_name(hit.get("display_name"))
-        if last and last not in by_last:
-            by_last[last] = email
+        if last:
+            last_to_emails.setdefault(last, set()).add(email)
         if hit.get("is_corresponding") and email not in unbound:
             unbound.append(email)
+
+    # Surname fallback only when one email claims that surname across hits.
+    by_last = {
+        last: next(iter(emails))
+        for last, emails in last_to_emails.items()
+        if len(emails) == 1
+    }
+    author_last_counts: dict[str, int] = {}
+    for author in authors:
+        last = _last_name(author.get("display_name"))
+        if last:
+            author_last_counts[last] = author_last_counts.get(last, 0) + 1
 
     corresponding_ids = {
         _bare_id(a.get("openalex_author_id"))
@@ -153,13 +278,22 @@ def bind_emails_to_authors(
             str(author.get("openalex_author_id") or "").lower()
         )
         if not email:
+            full = _full_name(author.get("display_name"))
+            email = by_full.get(full) if full else None
+        if not email:
             last = _last_name(author.get("display_name"))
-            email = by_last.get(last) if last else None
+            # Surname alone is unsafe when multiple coauthors share it.
+            if last and author_last_counts.get(last) == 1:
+                email = by_last.get(last)
         if not email and author.get("is_corresponding") and len(unbound) == 1:
             email = unbound[0]
-        if not email and len(email_hits) == 1 and len(corresponding_ids) == 1:
-            if bare in corresponding_ids:
-                email = _normalize_email(email_hits[0].get("email"))
+        if (
+            not email
+            and len(email_hits) == 1
+            and len(corresponding_ids) == 1
+            and bare in corresponding_ids
+        ):
+            email = _normalize_email(email_hits[0].get("email"))
         if email:
             author["metadata_email"] = email
             author["metadata_email_source"] = next(
@@ -173,7 +307,7 @@ def bind_emails_to_authors(
     return authors
 
 
-def _europe_pmc_emails(doi: str, *, session) -> list[dict]:
+def _europe_pmc_emails(doi: str, *, session, timeout: float = _TIMEOUT) -> list[dict]:
     try:
         response = session.get(
             _EUROPE_PMC_URL,
@@ -183,7 +317,7 @@ def _europe_pmc_emails(doi: str, *, session) -> list[dict]:
                 "format": "json",
                 "pageSize": 1,
             },
-            timeout=_TIMEOUT,
+            timeout=timeout,
         )
         if response.status_code >= 400:
             return []
@@ -231,13 +365,13 @@ def _europe_pmc_emails(doi: str, *, session) -> list[dict]:
     return out
 
 
-def _crossref_emails(doi: str, *, session) -> list[dict]:
+def _crossref_emails(doi: str, *, session, timeout: float = _TIMEOUT) -> list[dict]:
     try:
         response = session.get(
             _CROSSREF_URL.format(doi=quote(doi, safe="/")),
             params={"mailto": _CROSSREF_MAILTO},
             headers={"Accept": "application/json"},
-            timeout=_TIMEOUT,
+            timeout=timeout,
         )
         if response.status_code >= 400:
             return []
@@ -313,6 +447,10 @@ def _looks_like_person_email(email: str) -> bool:
     if domain in {"example.com", "email.com", "domain.com", "sentry.io"}:
         return False
     return True
+
+
+def _full_name(display_name: str | None) -> str:
+    return " ".join(str(display_name or "").strip().split()).casefold()
 
 
 def _last_name(display_name: str | None) -> str:
