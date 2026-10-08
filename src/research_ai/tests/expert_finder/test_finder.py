@@ -332,6 +332,68 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
             None,
         )
 
+    @override_settings(PRODUCTION=False, TESTING=False)
+    @patch(
+        "research_ai.services.expert_finder.finder.upload_report_to_storage",
+        return_value="https://x/r",
+    )
+    @patch(
+        "research_ai.services.expert_finder.finder.generate_csv_file",
+        return_value=b"c",
+    )
+    @patch(
+        "research_ai.services.expert_finder.finder.generate_pdf_report",
+        return_value=b"p",
+    )
+    @patch("research_ai.services.expert_finder.finder.run_gpt_expert_finder")
+    @patch("research_ai.services.expert_finder.finder.run_expert_finder_agent")
+    def test_content_filtered_falls_back_to_gpt(
+        self, mock_agent, mock_gpt, _pdf, _csv, _up
+    ):
+        # Arrange
+        mock_agent.return_value = {
+            "experts": [],
+            "errors": [
+                "agent: Provider stopped without completing "
+                "the agent run: content_filtered"
+            ],
+            "author_work_ids": {},
+            "content_filtered": True,
+        }
+        mock_gpt.return_value = {
+            "experts": [
+                {
+                    "email": "gpt@ox.ac.uk",
+                    "first_name": "G",
+                    "last_name": "Pt",
+                    "academic_title": "Prof",
+                    "affiliation": "Oxford",
+                    "expertise": "Y",
+                    "notes": "N",
+                    "sources": [],
+                }
+            ],
+            "errors": [],
+            "llm_model": "openai:gpt-5.4-mini",
+        }
+
+        # Act
+        r = run_expert_finder_search(
+            str(self.search.id),
+            "sensitive topic query",
+            {
+                "expert_count": 1,
+                "expertise_level": [ExpertiseLevel.ALL_LEVELS],
+                "region": Region.ALL_REGIONS,
+            },
+        )
+
+        # Assert
+        self.assertEqual(r["status"], ExpertSearch.Status.COMPLETED)
+        self.assertEqual(r["llm_model"], "openai:gpt-5.4-mini")
+        mock_gpt.assert_called_once()
+        self.assertTrue(Expert.objects.filter(email="gpt_test@ox.ac.uk").exists())
+
 
 class PriorDocumentExpertExclusionTests(TestCase):
     def setUp(self):

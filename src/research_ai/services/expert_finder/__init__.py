@@ -11,7 +11,9 @@
 - ``web_search_tools`` -- Brave contact ``web_search`` for the agent path.
 - ``work_email_lookup`` -- affiliation emails from OpenAlex, with Europe PMC /
   Crossref only when OpenAlex has none (no HTML scrape).
-- ``openai_finder`` -- legacy OpenAI Responses path (unused by the live finder).
+- ``gpt_fallback`` -- GPT + web search + SES gate when the agent is
+  ``content_filtered``.
+- ``openai_finder`` -- OpenAI Responses client used by ``gpt_fallback``.
 - ``openalex_tools`` -- works-first OpenAlex tools (``search_works`` + author
   lookup) with author/work grounding for the agent path.
 - ``email_validation`` -- expert-finder email gate (role-local rejection,

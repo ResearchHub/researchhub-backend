@@ -21,6 +21,10 @@ from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.agent.providers.registry import generator_model_ref
 from research_ai.services.expert_finder.agent_runner import run_expert_finder_agent
 from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.gpt_fallback import (
+    agent_result_is_content_filtered,
+    run_gpt_expert_finder,
+)
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.expert_finder.progress import ProgressService, TaskType
 from research_ai.services.expert_finder.report_generator import (
@@ -538,6 +542,47 @@ class ExpertFinderService:
 
             publish_progress("Validating grounded expert recommendations...", 58)
             batch = list(agent_result.get("experts") or [])
+            author_work_ids = agent_result.get("author_work_ids")
+            discovery_errors = list(agent_result.get("errors") or [])
+
+            # Claude/Bedrock refusal: fall back to GPT.
+            if not batch and agent_result_is_content_filtered(agent_result):
+                publish_progress(
+                    "Agent content filter blocked this topic; "
+                    "falling back to GPT expert search...",
+                    35,
+                )
+                try:
+                    gpt_result = run_gpt_expert_finder(
+                        query=query,
+                        expert_count=target_expert_count,
+                        expertise_level=expertise_level,
+                        region_filter=region_filter,
+                        state_filter=state_filter,
+                        excluded_expert_names=excluded_names,
+                        additional_context=additional_context,
+                        is_pdf=is_pdf,
+                    )
+                except Exception as e:
+                    return fail_return(
+                        f"Agent was content-filtered and GPT fallback failed: {e}"[
+                            :2000
+                        ],
+                        current_step="GPT fallback failed",
+                        exc=e,
+                        extra={"agent_errors": discovery_errors[:20]},
+                    )
+                batch = list(gpt_result.get("experts") or [])
+                author_work_ids = {}
+                discovery_errors.extend(gpt_result.get("errors") or [])
+                llm_model = gpt_result.get("llm_model") or llm_model
+                logger.info(
+                    "expert finder search_id=%s used GPT fallback after "
+                    "content_filtered experts=%s",
+                    search_id,
+                    len(batch),
+                )
+
             n_before = len(batch)
             kept: list[dict[str, Any]] = []
             for row in batch:
@@ -556,7 +601,6 @@ class ExpertFinderService:
             )[:target_expert_count]
 
             if len(experts_rows) == 0:
-                agent_errors = agent_result.get("errors") or []
                 if all_filtered_by_exclusion:
                     umsg = (
                         "Every recommendation matched an email already linked to "
@@ -569,8 +613,8 @@ class ExpertFinderService:
                     "No expert recommendations were returned. The agent did not "
                     "yield at least one grounded expert with a validated email."
                 )
-                if agent_errors:
-                    detail = "; ".join(str(e) for e in agent_errors)
+                if discovery_errors:
+                    detail = "; ".join(str(e) for e in discovery_errors)
                     umsg = (
                         umsg + " Agent details:\n\n" + detail[:MAX_ERROR_MESSAGE_LENGTH]
                     )
@@ -580,7 +624,7 @@ class ExpertFinderService:
                     store_full_response_error=umsg[:MAX_ERROR_MESSAGE_LENGTH],
                     extra={
                         "target_expert_count": target_expert_count,
-                        "agent_error_count": len(agent_errors),
+                        "agent_error_count": len(discovery_errors),
                     },
                 )
 
@@ -608,7 +652,7 @@ class ExpertFinderService:
             persist_seen_work_ids(
                 _work_ids_for_saved_experts(
                     experts_rows,
-                    agent_result.get("author_work_ids"),
+                    author_work_ids,
                 )
             )
 

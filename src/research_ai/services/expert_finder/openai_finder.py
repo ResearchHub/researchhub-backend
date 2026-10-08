@@ -9,7 +9,7 @@ OPENAI_EXPERT_FINDER_MODEL = "gpt-5.4-mini"
 
 
 class OpenAIExpertFinderService:
-    """Call OpenAI for expert-finder table output (markdown)."""
+    """Call OpenAI for expert-finder JSON output (Responses API + web search)."""
 
     def __init__(self):
         api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
@@ -33,9 +33,9 @@ class OpenAIExpertFinderService:
         addresses via web search.
 
         Returns:
-            The model's assistant message as plain text. Callers should treat this as
-            a single markdown document whose main payload is a pipe table of experts
-            (columns such as name, title, affiliation, expertise, email, notes).
+            The model's assistant message as plain text. Callers should parse this
+            as a JSON object with an ``experts`` array
+            (see ``ExpertFinderJson`` / ``expert_finder_system.txt``).
 
         Raises:
             RuntimeError: If API key is missing or the API call fails.

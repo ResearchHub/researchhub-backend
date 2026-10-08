@@ -26,7 +26,12 @@ from research_ai.services.agent import (
     Toolset,
     resolve_provider,
 )
-from research_ai.services.agent.errors import BudgetExceededError, IterationLimitError
+from research_ai.services.agent.errors import (
+    BudgetExceededError,
+    IncompleteTurnError,
+    IterationLimitError,
+)
+from research_ai.services.agent.types import StopReason
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.email_validation import (
     EmailValidateToolset,
@@ -560,6 +565,7 @@ def run_expert_finder_agent(
     iteration-limit and other agent failures are recorded in ``errors``.
     """
     errors: list[str] = []
+    content_filtered = False
     target = max(0, int(expert_count))
     iterations = (
         max_iterations
@@ -603,6 +609,14 @@ def run_expert_finder_agent(
         )
     except BudgetExceededError:
         raise
+    except IncompleteTurnError as exc:
+        logger.warning(
+            "expert-finder agent incomplete turn stop_reason=%s",
+            exc.stop_reason,
+        )
+        errors.append(f"agent: {exc}")
+        if exc.stop_reason == StopReason.CONTENT_FILTERED.value:
+            content_filtered = True
     except IterationLimitError as exc:
         agent_iterations = getattr(exc, "iterations", iterations) or iterations
         logger.warning(
@@ -617,6 +631,8 @@ def run_expert_finder_agent(
     except Exception as exc:  # noqa: BLE001 - agent run is best-effort
         logger.exception("expert-finder agent failed")
         errors.append(f"agent: {exc}")
+        if "content_filtered" in str(exc).lower():
+            content_filtered = True
 
     accepted = list(toolset.accepted_experts)
     author_work_ids = toolset.openalex.author_work_ids_snapshot()
@@ -631,10 +647,12 @@ def run_expert_finder_agent(
             "experts": [],
             "errors": errors,
             "author_work_ids": author_work_ids,
+            "content_filtered": content_filtered,
         }
 
     return {
         "experts": accepted,
         "errors": errors,
         "author_work_ids": author_work_ids,
+        "content_filtered": content_filtered,
     }
