@@ -77,9 +77,16 @@ _MAX_TITLE_CHARS = 255
 _CREATABLE_NOTE_TYPES = (PREREGISTRATION, GRANT)
 
 _BLOCK_FORMAT = (
-    "Blocks use a compact Tiptap form: a bare string at block level is a "
-    "plain paragraph; inside a block's `content`, a bare string is unmarked "
-    "text; attributes equal to the editor default are omitted. "
+    "Blocks use a compact Tiptap form: a bare string directly in the "
+    "top-level blocks array is a plain paragraph. Inside a node's `content`, "
+    "a bare string is unmarked inline text, never a paragraph. Nested "
+    "paragraphs must keep explicit paragraph objects. In bulletList and "
+    "orderedList, every listItem must start with a paragraph; never put "
+    "bare strings directly in listItem.content. Example: "
+    '{"type": "bulletList", "content": [{"type": "listItem", '
+    '"content": [{"type": "paragraph", "content": ["Bullet text"]}]}]}. '
+    "Use the same listItem structure for orderedList. Attributes equal to "
+    "the editor default are omitted. "
     "Reference URLs must be clickable: use text nodes with "
     'marks: [{"type": "link", "attrs": {"href": "https://..."}}]. '
     "Do not write Markdown link syntax into note text."
