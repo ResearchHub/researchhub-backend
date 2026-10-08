@@ -129,7 +129,7 @@ class ModelPricingTests(SimpleTestCase):
     def test_baseline_model_is_one_x(self):
         # Arrange / Act / Assert
         self.assertEqual(
-            cost_multiplier("openrouter:x-ai/grok-4.6"),
+            cost_multiplier("claude_platform:claude-opus-5-5"),
             Decimal("1.0"),
         )
 
@@ -137,7 +137,7 @@ class ModelPricingTests(SimpleTestCase):
         # Arrange / Act / Assert
         self.assertEqual(
             cost_multiplier("openrouter:deepseek/deepseek-v4-pro-0813"),
-            Decimal("0.33"),
+            Decimal("0.11"),
         )
 
     def test_low_cost_model_multiplier_does_not_round_to_zero(self):
@@ -145,7 +145,7 @@ class ModelPricingTests(SimpleTestCase):
         multiplier = cost_multiplier("openrouter:deepseek/deepseek-v4-flash-0731")
 
         # Assert
-        self.assertEqual(multiplier, Decimal("0.16"))
+        self.assertEqual(multiplier, Decimal("0.05"))
 
     def test_new_cheaper_model_does_not_change_existing_multipliers(self):
         # Arrange
@@ -156,4 +156,4 @@ class ModelPricingTests(SimpleTestCase):
             multiplier = cost_multiplier("openrouter:deepseek/deepseek-v4-pro-0813")
 
         # Assert
-        self.assertEqual(multiplier, Decimal("0.33"))
+        self.assertEqual(multiplier, Decimal("0.11"))

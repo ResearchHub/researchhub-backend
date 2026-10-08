@@ -25,6 +25,7 @@ from reputation.distributor import Distributor
 from reputation.models import Contribution, SupportFee
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
+from researchhub_comment.constants.rh_comment_thread_types import REVIEW_COMMENT_TYPES
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
 
@@ -34,7 +35,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
     serializer_class = PurchaseSerializer
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
     pagination_class = PageNumberPagination
-    ALLOWED_CONTENT_TYPES = ("rhcommentmodel", "researchhubpost")
+    ALLOWED_CONTENT_TYPES = ("rhcommentmodel",)
 
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
@@ -50,8 +51,6 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         purchase_type = data["purchase_type"]
         content_type_str = data["content_type"]
         object_id = data["object_id"]
-        transfer_rsc = False
-        recipient = None
 
         if user.probable_spammer:
             raise PermissionDenied("Account under review. Please contact support.")
@@ -146,23 +145,17 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             purchase.group = purchase.get_aggregate_group()
             purchase.save()
 
-            item = purchase.item
+            comment = purchase.item
             context = {"purchase_minimal_serialization": True, "exclude_stats": True}
-            notification_type = Notification.RSC_SUPPORT_ON_DOC
+            recipient = comment.created_by
+            unified_doc = comment.unified_document
+            notification_type = (
+                Notification.RSC_SUPPORT_ON_DOC
+                if comment.comment_type in REVIEW_COMMENT_TYPES
+                else Notification.RSC_SUPPORT_ON_DIS
+            )
 
-            #  transfer_rsc is set each time just in case we want
-            #  to disable rsc transfer for a specific item
-            if content_type_str == "rhcommentmodel":
-                transfer_rsc = True
-                recipient = item.created_by
-                unified_doc = item.unified_document
-                notification_type = Notification.RSC_SUPPORT_ON_DIS
-            elif content_type_str == "researchhubpost":
-                transfer_rsc = True
-                recipient = item.created_by
-                unified_doc = item.unified_document
-
-            if transfer_rsc and recipient and recipient != user:
+            if recipient and recipient != user:
                 distribution = create_purchase_distribution(user, amount)
                 distributor = Distributor(
                     distribution, recipient, purchase, time.time(), user
@@ -209,4 +202,5 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             action_user=creator,
             item=purchase,
             unified_document=unified_doc,
+            extra={"amount": purchase.amount},
         )
