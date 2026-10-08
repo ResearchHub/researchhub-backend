@@ -115,6 +115,8 @@ class NotebookChatAttachmentTests(TestCase):
         self.file = make_file(self.user, text=PDF_TEXT, page_count=2)
 
     def _submit(self, text, *, conversation=None, **kwargs):
+        # Text delivery is under test, so no page images unless a test asks.
+        kwargs.setdefault("model_ref", TEXT_ONLY_MODEL)
         with (
             patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
             self.captureOnCommitCallbacks(execute=True),
@@ -272,7 +274,7 @@ class NotebookChatAttachmentTests(TestCase):
         self.assertEqual([text.count(PDF_TEXT) for text in earlier], [1, 1])
 
     def test_the_plan_is_made_once_with_the_models_own_vision(self):
-        # Arrange: staff may pick a model; the default tier's own is text-only.
+        # Arrange: staff may pick any supported model.
         self.user.is_staff = True
         self.user.save(update_fields=["is_staff"])
         cases = [

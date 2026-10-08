@@ -1,9 +1,15 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
+from notification.models import Notification
 from paper.tests.helpers import create_paper
 from purchase.models import Balance, Purchase, RscExchangeRate
 from reputation.models import BountyFee, Escrow, SupportFee
+from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
+    GENERIC_COMMENT,
+    PEER_REVIEW,
+)
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
 from user.tests.helpers import (
@@ -27,7 +33,7 @@ class PurchaseViewTests(APITestCase):
     def test_list_purchases(self):
         purchaser = create_random_authenticated_user("rep_user")
         poster = create_random_authenticated_user("rep_user")
-        post = create_post(created_by=poster)
+        comment = create_rh_comment(created_by=poster)
 
         tip_amount = 100
 
@@ -38,7 +44,7 @@ class PurchaseViewTests(APITestCase):
         )
 
         response = self._post_support_response(
-            purchaser, post.id, "researchhubpost", tip_amount
+            purchaser, comment.id, "rhcommentmodel", tip_amount
         )
         self.assertContains(response, "id", status_code=201)
 
@@ -50,7 +56,7 @@ class PurchaseViewTests(APITestCase):
     def test_list_purchases_cannot_list_other_users_purchases(self):
         purchaser = create_random_authenticated_user("rep_user")
         poster = create_random_authenticated_user("rep_user")
-        post = create_post(created_by=poster)
+        comment = create_rh_comment(created_by=poster)
 
         tip_amount = 100
 
@@ -61,7 +67,7 @@ class PurchaseViewTests(APITestCase):
         )
 
         response = self._post_support_response(
-            purchaser, post.id, "researchhubpost", tip_amount
+            purchaser, comment.id, "rhcommentmodel", tip_amount
         )
         self.assertContains(response, "id", status_code=201)
 
@@ -83,50 +89,6 @@ class PurchaseViewTests(APITestCase):
         response = self._post_support_response(user, paper.id, "paper", amount)
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count(), 0)
-
-    def test_support_post_distribution(self):
-        user = create_random_authenticated_user("rep_user")
-        poster = create_random_authenticated_user("rep_user")
-        post = create_post(created_by=poster)
-
-        tip_amount = 100
-        fee_amount = 3  # latest `SupportFee` is 3% RH, 0% DAO as of 2024-01-19
-
-        # give the user 10,000 RSC
-        distribution_ct = ContentType.objects.get(model="distribution")
-        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
-
-        response = self._post_support_response(
-            user, post.id, "researchhubpost", tip_amount
-        )
-        self.assertContains(response, "id", status_code=201)
-        purchase_id = response.data["id"]
-        # fee and balance deducted from user
-        fee_balance_entry = Balance.objects.filter(
-            user=user,
-            content_type=ContentType.objects.get_for_model(SupportFee),
-        )
-        self.assertTrue(fee_balance_entry.exists())
-        balance_fee_amount = float(fee_balance_entry.first().amount)
-        self.assertEqual(balance_fee_amount, float(-fee_amount))
-        amount_balance_entry = Balance.objects.filter(
-            user=user,
-            content_type=ContentType.objects.get(model="purchase"),
-            object_id=purchase_id,
-        )
-        self.assertTrue(amount_balance_entry.exists())
-        tip_balance_amount = float(amount_balance_entry.first().amount)
-        self.assertEqual(tip_balance_amount, float(-tip_amount))
-        # balance added to poster
-        poster_balance_entry = Balance.objects.filter(
-            user=poster,
-            content_type=ContentType.objects.get(model="distribution"),
-        )
-        self.assertTrue(poster_balance_entry.exists())
-        poster_balance_amount = float(
-            poster_balance_entry.latest("created_date").amount
-        )
-        self.assertEqual(poster_balance_amount, float(tip_amount))
 
     def test_support_comment_distribution(self):
         user = create_random_authenticated_user("rep_user")
@@ -173,6 +135,36 @@ class PurchaseViewTests(APITestCase):
         )
         self.assertEqual(poster_balance_amount, float(tip_amount))
 
+    def test_support_notifies_reviews_and_comments_with_their_own_types(self) -> None:
+        """Tips on peer reviews and on comments send separate notification types."""
+        # Arrange
+        user = create_random_authenticated_user("tipper")
+        poster = create_random_authenticated_user("poster")
+        distribution_ct = ContentType.objects.get(model="distribution")
+        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
+        expected_types = {
+            GENERIC_COMMENT: Notification.RSC_SUPPORT_ON_DIS,
+            COMMUNITY_REVIEW: Notification.RSC_SUPPORT_ON_DOC,
+            PEER_REVIEW: Notification.RSC_SUPPORT_ON_DOC,
+        }
+
+        for comment_type, notification_type in expected_types.items():
+            with self.subTest(comment_type=comment_type):
+                comment = create_rh_comment(created_by=poster)
+                comment.comment_type = comment_type
+                comment.save()
+
+                # Act
+                self._post_support_response(user, comment.id, "rhcommentmodel", 100)
+
+                # Assert
+                self.assertEqual(
+                    Notification.objects.filter(recipient=poster)
+                    .latest("id")
+                    .notification_type,
+                    notification_type,
+                )
+
     def _post_support_response(self, user, object_id, content_type, amount=10):
         url = "/api/purchase/"
         self.client.force_authenticate(user)
@@ -190,7 +182,7 @@ class PurchaseViewTests(APITestCase):
     def test_invalid_purchase_method_is_rejected(self):
         purchaser = create_random_authenticated_user("purchaser")
         poster = create_random_authenticated_user("poster")
-        post = create_post(created_by=poster)
+        comment = create_rh_comment(created_by=poster)
         tip_amount = 100
 
         distribution_ct = ContentType.objects.get(model="distribution")
@@ -203,8 +195,8 @@ class PurchaseViewTests(APITestCase):
             "/api/purchase/",
             {
                 "amount": tip_amount,
-                "content_type": "researchhubpost",
-                "object_id": post.id,
+                "content_type": "rhcommentmodel",
+                "object_id": comment.id,
                 "purchase_method": "ON_CHAIN",
                 "purchase_type": "BOOST",
             },
@@ -220,7 +212,7 @@ class PurchaseViewTests(APITestCase):
     def test_probable_spammer_cannot_support(self):
         user = create_random_authenticated_user("spammer_user")
         poster = create_random_authenticated_user("poster_user")
-        post = create_post(created_by=poster)
+        comment = create_rh_comment(created_by=poster)
 
         # Set user as probable spammer
         user.probable_spammer = True
@@ -230,7 +222,7 @@ class PurchaseViewTests(APITestCase):
         distribution_ct = ContentType.objects.get(model="distribution")
         Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
 
-        response = self._post_support_response(user, post.id, "researchhubpost", 100)
+        response = self._post_support_response(user, comment.id, "rhcommentmodel", 100)
 
         self.assertEqual(response.status_code, 403)
 

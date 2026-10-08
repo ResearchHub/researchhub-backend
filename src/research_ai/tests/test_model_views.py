@@ -52,10 +52,12 @@ class AvailableModelsViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            response.json()["default"],
-            "openrouter:deepseek/deepseek-v4-flash-0731",
-        )
+        data = response.json()
+        self.assertEqual(data["default"], "claude_platform:claude-opus-5-5")
+        (opus,) = data["models"]
+        self.assertTrue(opus["allowed"])
+        self.assertEqual(opus["capabilities"]["effort"], ["low"])
+        self.assertEqual(opus["capabilities"]["thinking"], ["adaptive"])
 
     def test_lists_models_and_the_default(self):
         # Arrange
@@ -69,13 +71,7 @@ class AvailableModelsViewTests(APITestCase):
         data = response.json()
         self.assertEqual(data["default"], "claude_platform:claude-opus-5-5")
         refs = [model["ref"] for model in data["models"]]
-        self.assertIn("claude_platform:claude-opus-5-5", refs)
-        self.assertIn("openrouter:openai/gpt-6-sol", refs)
-        self.assertIn("openrouter:openai/gpt-6-luna", refs)
-        self.assertIn("openrouter:openai/gpt-5.6-terra", refs)
-        self.assertNotIn("claude_platform:claude-opus-5", refs)
-        self.assertNotIn("openrouter:openai/gpt-5.6-sol", refs)
-        self.assertNotIn("openrouter:openai/gpt-5.6-luna", refs)
+        self.assertEqual(refs, ["claude_platform:claude-opus-5-5"])
         for model in data["models"]:
             self.assertEqual(
                 sorted(model),
@@ -100,12 +96,12 @@ class AvailableModelsViewTests(APITestCase):
         self.assertIn("low", opus["capabilities"]["effort"])
         self.assertEqual(opus["capabilities"]["thinking"], ["adaptive"])
         self.assertFalse(opus["capabilities"]["temperature"])
-        self.assertEqual(opus["multiplier"], "3.00")
+        self.assertEqual(opus["multiplier"], "1.00")
         self.assertEqual(opus["credit_rates"]["input_per_million_tokens"], "4000")
         self.assertEqual(
             data["credit_pricing"],
             {
-                "multiplier_base_model": "openrouter:x-ai/grok-4.6",
+                "multiplier_base_model": "claude_platform:claude-opus-5-5",
                 "multiplier_basis": "equal_input_output_tokens",
                 "multiplier_is_estimate": True,
             },
@@ -121,4 +117,3 @@ class AvailableModelsViewTests(APITestCase):
         # Assert
         vision = {model["ref"]: model["vision"] for model in response.json()["models"]}
         self.assertIs(vision["claude_platform:claude-opus-5-5"], True)
-        self.assertIs(vision["openrouter:deepseek/deepseek-v4-flash-0731"], False)

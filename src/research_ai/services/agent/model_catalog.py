@@ -3,14 +3,12 @@
 The notebook assistant and proposal drafting accept a curated allowlist of
 provider-prefixed model refs (the registry's ``[<provider>:]<model id>``
 grammar), so request input can never route to an arbitrary model id. The
-picker lists current models; older supported models remain valid for existing
-conversations and explicit model refs without appearing in that list.
+picker lists Claude Opus 5.5 alone; older supported models remain valid for
+existing conversations and explicit model refs without appearing in that list.
 
-The catalog lists each model once, on the provider that serves it best:
-Anthropic models through Claude Platform (first-party features -- native web
-search, adaptive thinking, prompt caching) and every other family through
-OpenRouter. Bedrock refs are equally valid entries; they are just not listed,
-since they would duplicate the Anthropic entries under a second name.
+Opus 5.5 is served through Claude Platform for its first-party features
+(native web search, adaptive thinking, prompt caching). The hidden refs span
+Claude Platform, OpenRouter, and Bedrock.
 
 The catalog is not credential-gated. Provider keys are configured on the
 Celery workers that execute turns, not on the API process that serves this
@@ -60,61 +58,6 @@ _CATALOG: tuple[ModelOption, ...] = (
         label="Claude Opus 5.5",
         description="Anthropic's newer model for long-running research and drafting.",
     ),
-    ModelOption(
-        ref=f"{CLAUDE_PLATFORM}:claude-sonnet-5",
-        label="Claude Sonnet 5",
-        description="Anthropic's balanced model; near-flagship quality, faster.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:openai/gpt-6-sol",
-        label="GPT-6 Sol",
-        description="OpenAI's model for complex agent workflows.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:openai/gpt-6-luna",
-        label="GPT-6 Luna",
-        description="OpenAI's fast model for focused, high-volume work.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:openai/gpt-5.6-terra",
-        label="GPT-5.6 Terra",
-        description="OpenAI's balanced model for everyday research and drafting.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:google/gemini-3.8-flash",
-        label="Gemini 3.8 Flash",
-        description="Google's fast, low-cost model.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:x-ai/grok-4.6",
-        label="Grok 4.6",
-        description="xAI's frontier model.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:z-ai/glm-5.3-flash",
-        label="GLM 5.3 Flash",
-        description="Z.ai's fast, cost-efficient open-weight model.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:deepseek/deepseek-v4-flash-0731",
-        label="DeepSeek V4 Flash",
-        description="DeepSeek's fast, cost-efficient open-weight model.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:deepseek/deepseek-v4-pro-0813",
-        label="DeepSeek V4 Pro",
-        description="DeepSeek's frontier open-weight model.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:moonshotai/kimi-k3",
-        label="Kimi K3",
-        description="Moonshot's frontier open-weight model.",
-    ),
-    ModelOption(
-        ref=f"{OPENROUTER}:qwen/qwen3.8-max-0902",
-        label="Qwen3.8 Max (0902)",
-        description="Qwen's long-context model for research and multi-tool work.",
-    ),
 )
 
 # Keep older refs supported, while preventing provider defaults from
@@ -122,10 +65,21 @@ _CATALOG: tuple[ModelOption, ...] = (
 _HIDDEN_REFS = frozenset(
     {
         f"{CLAUDE_PLATFORM}:claude-opus-5",
+        f"{CLAUDE_PLATFORM}:claude-sonnet-5",
         "bedrock:us.anthropic.claude-opus-5",
         f"{OPENROUTER}:anthropic/claude-opus-5",
+        f"{OPENROUTER}:openai/gpt-6-sol",
+        f"{OPENROUTER}:openai/gpt-6-luna",
         f"{OPENROUTER}:openai/gpt-5.6-sol",
+        f"{OPENROUTER}:openai/gpt-5.6-terra",
         f"{OPENROUTER}:openai/gpt-5.6-luna",
+        f"{OPENROUTER}:google/gemini-3.8-flash",
+        f"{OPENROUTER}:x-ai/grok-4.6",
+        f"{OPENROUTER}:z-ai/glm-5.3-flash",
+        f"{OPENROUTER}:deepseek/deepseek-v4-flash-0731",
+        f"{OPENROUTER}:deepseek/deepseek-v4-pro-0813",
+        f"{OPENROUTER}:moonshotai/kimi-k3",
+        f"{OPENROUTER}:qwen/qwen3.8-max-0902",
     }
 )
 

@@ -179,167 +179,55 @@ class Notification(models.Model):
                 "link": document_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], document_url
 
-    def _format_thread_on_doc(self):
-        document = self.unified_document.get_document()
-        action_user = self.action_user
-        action_user_name = action_user.first_name
-        doc_title = self._truncate_title(document.title)
-        base_url = self._create_frontend_doc_link()
-        comments_url = f"{base_url}#comments"
-
-        return [
-            {
-                "type": "link",
-                "value": f"{action_user_name}",
-                "extra": '["bold", "link"]',
-                "link": action_user.frontend_view_link(),
-            },
-            {"type": "text", "value": "created a "},
-            {
-                "type": "link",
-                "value": "thread ",
-                "link": comments_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "in "},
-            {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
-        ], comments_url
-
-    def _format_comment_on_thread(self):
-        item = self.item
-        action_user = self.action_user
-        action_user_name = action_user.first_name
-        base_url = self._create_frontend_doc_link()
-        comments_url = f"{base_url}#comments"
-        comment_plain_text = item.plain_text
-
-        return [
-            {
-                "type": "link",
-                "value": f"{action_user_name}",
-                "extra": '["bold", "link"]',
-                "link": action_user.frontend_view_link(),
-            },
-            {"type": "text", "value": "left a "},
-            {
-                "type": "link",
-                "value": "comment ",
-                "link": comments_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "in your thread "},
-            {
-                "type": "link",
-                "value": comment_plain_text,
-                "link": base_url,
-                "extra": '["link"]',
-            },
-        ], comments_url
-
-    def _format_reply_on_thread(self):
-        item = self.item
-        action_user = self.action_user
-        action_user_name = action_user.first_name
-        base_url = self._create_frontend_doc_link()
-        comments_url = f"{base_url}#comments"
-        reply_plain_text = item.plain_text
-
-        return [
-            {
-                "type": "link",
-                "value": f"{action_user_name}",
-                "extra": '["bold", "link"]',
-                "link": action_user.frontend_view_link(),
-            },
-            {"type": "text", "value": "left a "},
-            {
-                "type": "link",
-                "value": "reply ",
-                "link": comments_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "in your comment "},
-            {
-                "type": "link",
-                "value": reply_plain_text,
-                "link": base_url,
-                "extra": '["link"]',
-            },
-        ], comments_url
-
-    def _format_rsc_withdrawal_complete(self):
-        withdrawal = self.item
-        rsc_amount = withdrawal.amount
-        transaction_hash = withdrawal.transaction_hash
-        url = f"https://goerli.etherscan.io/tx/{transaction_hash}"
-
-        return [
-            {
-                "type": "text",
-                "value": "Your withdrawal of ",
-            },
-            {
-                "type": "text",
-                "value": f"{rsc_amount} RSC",
-                "extra": '["bold"]',
-            },
-            {
-                "type": "text",
-                "value": "has now been completed!\n",
-            },
-            {"type": "text", "value": "View the transaction at\n"},
-            {"type": "link", "value": url, "link": url, "extra": '["link"]'},
-        ], None
-
     def _format_rsc_support_on_doc(self):
-        purchase = self.item
-        unified_document = self.unified_document
         action_user = self.action_user
         action_user_name = action_user.first_name
-        base_url = self._create_frontend_doc_link()
+        reviews_url = f"{self._create_frontend_doc_link()}/reviews"
 
         return [
             {"type": "text", "value": "Congratulations! 🎉 Your "},
             {
                 "type": "link",
-                "value": f"{unified_document.document_type.lower()} ",
-                "link": base_url,
+                "value": "peer review ",
+                "link": reviews_url,
                 "extra": '["link"]',
             },
-            {"type": "text", "value": f"has been awarded {purchase.amount} RSC by "},
+            {"type": "text", "value": "has been supported by "},
             {
                 "type": "link",
                 "value": action_user_name,
                 "extra": '["bold", "link"]',
                 "link": action_user.frontend_view_link(),
             },
-        ], base_url
+            {"type": "text", "value": "."},
+        ], reviews_url
 
     def _format_rsc_support_on_dis(self):
-        purchase = self.item
         action_user = self.action_user
         action_user_name = action_user.first_name
         base_url = self._create_frontend_doc_link()
-        comments_url = f"{base_url}#comments"
+        conversation_url = f"{base_url}/conversation"
 
         return [
             {"type": "text", "value": "Congratulations! 🎉 Your "},
             {
                 "type": "link",
                 "value": "comment ",
-                "link": comments_url,
+                "link": conversation_url,
                 "extra": '["link"]',
             },
-            {"type": "text", "value": f"has been awarded {purchase.amount} RSC by "},
+            {"type": "text", "value": "has been supported by "},
             {
                 "type": "link",
                 "value": action_user_name,
                 "extra": '["bold", "link"]',
                 "link": action_user.frontend_view_link(),
             },
-        ], comments_url
+            {"type": "text", "value": "."},
+        ], conversation_url
 
     def _format_flagged_content_verdict(self):
         verdict = self.item
@@ -358,84 +246,17 @@ class Notification(models.Model):
                 "value": f"{model_name} for {verdict_choice} in ",
             },
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
+            {"type": "text", "value": "."},
         ], None
 
-    def _format_bounty_expiring_soon(self):
-        bounty = self.item
-        unified_document = bounty.unified_document
-        document = unified_document.get_document()
-        doc_title = self._truncate_title(document.title)
-        base_url = unified_document.frontend_view_link()
-
-        return [
-            {"type": "text", "value": "Your bounty is expiring in "},
-            {"type": "text", "value": "24 hours. ", "extra": '["bold"]'},
-            {"type": "text", "value": "Please award it to the best answer. "},
-            {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
-        ], base_url
-
-    def _format_bounty_hub_expiring_soon(self):
-        bounty = self.item
-        unified_document = bounty.unified_document
-        document = unified_document.get_document()
-        doc_title = self._truncate_title(document.title)
-        base_url = unified_document.frontend_view_link()
-
-        return [
-            {"type": "text", "value": "A "},
-            {
-                "type": "text",
-                "value": f"{bounty.amount:.0f} RSC ",
-                "extra": '["bold", "rsc_color"]',
-            },
-            {"type": "text", "value": "bounty for "},
-            {
-                "type": "link",
-                "value": f"{doc_title} ",
-                "link": base_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "is expiring soon. "},
-            {
-                "type": "text",
-                "value": "Answer before the bounty expires!",
-            },
-        ], base_url
-
-    def _format_dis_on_bounty(self):
-        bounty = self.item
-        action_user = self.action_user
-        action_user_name = action_user.first_name
-        bounty_item = bounty.item
-        unified_document = bounty.unified_document
-        base_url = unified_document.frontend_view_link()
-        comments_url = f"{base_url}#comments"
-
-        return [
-            {
-                "type": "link",
-                "value": f"{action_user_name}",
-                "extra": '["bold", "link"]',
-                "link": action_user.frontend_view_link(),
-            },
-            {"type": "text", "value": "left a "},
-            {
-                "type": "link",
-                "value": f"{bounty_item._meta.model_name} ",
-                "link": comments_url,
-                "extra": '["link"]',
-            },
-            {"type": "text", "value": "on your "},
-            {"type": "link", "value": "bounty", "link": base_url, "extra": '["link"]'},
-        ], comments_url
-
-    def _format_comment(self):
+    def _format_comment(self) -> tuple[list[dict[str, str]], str]:
+        """Format a new top-level comment on a document as a new thread."""
         document = self.unified_document.get_document()
         action_user = self.action_user
         action_user_name = action_user.first_name
         doc_title = self._truncate_title(document.title)
         base_url = self._create_frontend_doc_link()
-        comments_url = f"{base_url}/#comments"
+        comment_url = self.item.get_frontend_view_link()
 
         return [
             {
@@ -448,19 +269,20 @@ class Notification(models.Model):
             {
                 "type": "link",
                 "value": "thread ",
-                "link": comments_url,
+                "link": comment_url,
                 "extra": '["link"]',
             },
             {"type": "text", "value": "in "},
             {"type": "link", "value": doc_title, "link": base_url, "extra": '["link"]'},
-        ], comments_url
+            {"type": "text", "value": "."},
+        ], comment_url
 
     def _format_comment_on_comment(self):
         item = self.item
         action_user = self.action_user
         action_user_name = action_user.first_name
         base_url = self._create_frontend_doc_link()
-        comments_url = f"{base_url}#comments"
+        comment_url = item.get_frontend_view_link()
         comment_plain_text = item.plain_text
 
         return [
@@ -474,7 +296,7 @@ class Notification(models.Model):
             {
                 "type": "link",
                 "value": "reply ",
-                "link": comments_url,
+                "link": comment_url,
                 "extra": '["link"]',
             },
             {"type": "text", "value": "to your comment "},
@@ -484,13 +306,13 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
-        ], comments_url
+            {"type": "text", "value": "."},
+        ], comment_url
 
     def _format_comment_user_mention(self):
         action_user = self.action_user
         action_user_name = action_user.first_name
-        base_url = self._create_frontend_doc_link()
-        comments_url = f"{base_url}#comments"
+        comment_url = self.item.get_frontend_view_link()
 
         return [
             {
@@ -502,11 +324,12 @@ class Notification(models.Model):
             {"type": "text", "value": "mentioned you in a "},
             {
                 "type": "link",
-                "value": "comment ",
-                "link": comments_url,
+                "value": "comment",
+                "link": comment_url,
                 "extra": '["link"]',
             },
-        ], comments_url
+            {"type": "text", "value": "."},
+        ], comment_url
 
     def _format_bounty_payout(self):
         unified_document = self.unified_document
@@ -515,20 +338,7 @@ class Notification(models.Model):
         document = unified_document.get_document()
         doc_title = self._truncate_title(title=document.title)
         base_url = unified_document.frontend_view_link()
-        comments_url = f"{base_url}#comments"
-
-        amount = self.extra.get("amount") if self.extra else None
-        if amount:
-            try:
-                amount = round(float(amount), 2)
-            except (ValueError, TypeError):
-                amount = None
-
-        amount_text = (
-            f"awarded you {amount} RSC for your "
-            if amount
-            else "awarded you RSC for your "
-        )
+        bounties_url = f"{base_url}/bounties"
 
         return [
             {
@@ -539,12 +349,12 @@ class Notification(models.Model):
             },
             {
                 "type": "text",
-                "value": amount_text,
+                "value": "awarded you a bounty for your ",
             },
             {
                 "type": "link",
                 "value": "thread ",
-                "link": comments_url,
+                "link": bounties_url,
                 "extra": '["link"]',
             },
             {"type": "text", "value": "in "},
@@ -554,16 +364,11 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
-        ], comments_url
+            {"type": "text", "value": "."},
+        ], bounties_url
 
     def _format_fundraise_payout(self):
-        item = self.item
-        amount = item.amount_paid
-        unified_document = self.unified_document
-        base_url = unified_document.frontend_view_link()
-
-        # round to 2 decimal places
-        amount = round(amount, 2)
+        base_url = self.unified_document.frontend_view_link()
 
         return [
             {"type": "text", "value": "Congratulations! 🎉 Your "},
@@ -575,7 +380,7 @@ class Notification(models.Model):
             },
             {
                 "type": "text",
-                "value": f" has been fulfilled and you have received {amount} RSC",
+                "value": " has been fulfilled and paid out to you.",
             },
         ], base_url
 
@@ -607,6 +412,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], base_url
 
     def _format_preregistration_update_reminder(self):
@@ -623,6 +429,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], base_url
 
     def _format_funding_credits_reminder(self):
@@ -630,21 +437,12 @@ class Notification(models.Model):
 
         base_url = f"{BASE_FRONTEND_URL}/fund"
 
-        amount = self.extra.get("amount") if self.extra else None
-        if amount is not None:
-            try:
-                amount = round(float(amount), 2)
-            except (ValueError, TypeError):
-                amount = None
-
-        amount_text = (
-            f"You have {amount} RSC in funding credits. "
-            if amount is not None
-            else "You have unspent funding credits. "
-        )
-
         return [
-            {"type": "text", "value": amount_text, "extra": '["bold"]'},
+            {
+                "type": "text",
+                "value": "You have unspent funding credits. ",
+                "extra": '["bold"]',
+            },
             {"type": "text", "value": "Put them to work by "},
             {
                 "type": "link",
@@ -685,6 +483,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], base_url
 
     def _format_proposal_peer_review(self) -> tuple[list, str | None]:
@@ -713,6 +512,7 @@ class Notification(models.Model):
                 "link": base_url,
                 "extra": '["link"]',
             },
+            {"type": "text", "value": "."},
         ], base_url
 
     def _format_content_approved(self) -> tuple[list, str | None]:
