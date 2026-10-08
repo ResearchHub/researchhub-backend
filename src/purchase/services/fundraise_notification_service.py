@@ -3,7 +3,7 @@ from django.db.models import Q, QuerySet
 from mailing_list.services import EmailService
 from notification.models import Notification
 from notification.services import NotificationService
-from purchase.models import Purchase, UsdFundraiseContribution
+from purchase.models import Purchase, RscExchangeRate, UsdFundraiseContribution
 from purchase.related_models.constants.currency import USD
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import User
@@ -28,16 +28,20 @@ class FundraiseNotificationService:
                 "user", "fundraise__unified_document"
             ).get(id=contribution_id)
             fundraise = contribution.fundraise
+            usd_amount = contribution.amount_cents / 100
+            rsc_amount = str(RscExchangeRate.usd_to_rsc(usd_amount))
         else:
             contribution = Purchase.objects.select_related("user").get(
                 id=contribution_id
             )
             fundraise = contribution.item
+            rsc_amount = contribution.amount
 
         proposal = fundraise.unified_document.get_document()
         self._notify_recipients(
             Notification.FUNDRAISE_CONTRIBUTION,
             contribution,
+            rsc_amount,
             proposal,
             recipients=User.objects.filter(
                 Q(id=proposal.created_by_id)
@@ -58,6 +62,7 @@ class FundraiseNotificationService:
         self._notify_recipients(
             Notification.FUNDING_POOL_CONTRIBUTION,
             purchase,
+            purchase.amount,
             grant.unified_document.get_document(),
             recipients=User.objects.filter(
                 Q(id=grant.created_by_id) | Q(grant_contacts=grant)
@@ -70,12 +75,13 @@ class FundraiseNotificationService:
         self,
         notification_type: str,
         contribution: Purchase | UsdFundraiseContribution,
+        rsc_amount: str,
         post: ResearchhubPost,
         recipients: QuerySet[User],
         subject: str,
         message: str,
     ) -> None:
-        """Send in-app and email alerts once to each recipient."""
+        """Send each recipient an in-app alert with the RSC amount and one email."""
         document = post.unified_document
         recipients = list(recipients)
         for recipient in recipients:
@@ -85,6 +91,7 @@ class FundraiseNotificationService:
                 action_user=contribution.user,
                 item=contribution,
                 unified_document=document,
+                extra={"amount": rsc_amount},
             )
 
         self._emails.send_message_email(

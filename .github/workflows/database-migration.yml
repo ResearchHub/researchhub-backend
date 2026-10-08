@@ -90,7 +90,7 @@ jobs:
 
       - name: Render task definition with the image to deploy
         id: render
-        uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1.9.0
+        uses: aws-actions/amazon-ecs-render-task-definition@8d79160660ad39c402a16e5fc7cd2a32e8f7d6b7 # v1.9.1
         with:
           task-definition-family: ${{ steps.config.outputs.family }}
           container-name: ${{ env.CONTAINER_NAME }}
