@@ -187,6 +187,37 @@ class SubmitAccumulateTests(SimpleTestCase):
         self.assertEqual(result["still_needed"], 0)
         self.assertTrue(agent_tools._submit_tool.is_terminal)
 
+    def test_on_experts_found_fires_with_increasing_kept_count(self):
+        # Arrange
+        self.oa._record_author("https://openalex.org/A888", "Bob Other")
+        found: list[int] = []
+        agent_tools = ExpertFinderAgentToolset(
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=2,
+            on_experts_found=found.append,
+        )
+        toolset = agent_tools.as_toolset()
+
+        # Act
+        toolset.dispatch(SUBMIT_EXPERTS, {"experts": [_expert_row()]})
+        toolset.dispatch(
+            SUBMIT_EXPERTS,
+            {
+                "experts": [
+                    _expert_row(
+                        author_id="https://openalex.org/A888",
+                        email="bob@ox.ac.uk",
+                        first_name="Bob",
+                        last_name="Other",
+                    )
+                ]
+            },
+        )
+
+        # Assert
+        self.assertEqual(found, [1, 2])
+
     def test_out_of_region_does_not_count_toward_target(self):
         # Arrange
         agent_tools = ExpertFinderAgentToolset(

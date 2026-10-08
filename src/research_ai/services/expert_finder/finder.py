@@ -24,9 +24,9 @@ from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.agent.providers.registry import generator_model_ref
 from research_ai.services.expert_finder.agent_runner import run_expert_finder_agent
 from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.events import ExpertFinderEventPublisher
 from research_ai.services.expert_finder.gpt_finder import run_gpt_expert_finder
 from research_ai.services.expert_finder.persist import ExpertPersist
-from research_ai.services.expert_finder.progress import ProgressService, TaskType
 from research_ai.services.expert_finder.report_generator import (
     expert_to_report_row,
     generate_csv_file,
@@ -283,8 +283,8 @@ def _seen_work_ids_from_prior_document_searches(
 
 
 class ExpertFinderService:
-    def __init__(self):
-        self.progress_service = ProgressService()
+    def __init__(self, event_publisher: ExpertFinderEventPublisher | None = None):
+        self.event_publisher = event_publisher or ExpertFinderEventPublisher()
 
     @staticmethod
     def _expert_row_suggests_deceased(row: dict[str, Any]) -> bool:
@@ -363,31 +363,47 @@ class ExpertFinderService:
             )
         except ExpertSearch.DoesNotExist:
             unified_document_id = None
-        progress_service = self.progress_service
+        publisher = self.event_publisher
         llm_model = generator_model_ref()
         # Mutate a copy so callers keep their original dict identity-safe.
         config = deepcopy(config) if isinstance(config, dict) else {}
+
+        def publish_experts_found(count: int) -> None:
+            publisher.publish_experts_found(expert_search_id, count)
 
         def publish_progress(
             message: str,
             percent: int,
             status: str = ExpertSearch.Status.PROCESSING,
+            *,
+            expert_count: int | None = None,
+            error: str | None = None,
         ):
             status_val = status.value if hasattr(status, "value") else status
-            progress_service.publish_progress_sync(
-                TaskType.EXPERTS,
-                search_id,
-                {
-                    "status": status_val,
-                    "progress": percent,
-                    "currentStep": message,
-                    "type": (
-                        "progress"
-                        if status_val == ExpertSearch.Status.PROCESSING
-                        else status_val
-                    ),
-                },
-            )
+            if status_val == ExpertSearch.Status.FAILED:
+                publisher.publish_failed(
+                    expert_search_id,
+                    status=status_val,
+                    progress=percent,
+                    current_step=message,
+                    error=error or message,
+                )
+            elif status_val == ExpertSearch.Status.COMPLETED:
+                publisher.publish_finished(
+                    expert_search_id,
+                    status=status_val,
+                    progress=percent,
+                    current_step=message,
+                    expert_count=expert_count if expert_count is not None else 0,
+                    error=error,
+                )
+            else:
+                publisher.publish_progress(
+                    expert_search_id,
+                    status=status_val,
+                    progress=percent,
+                    current_step=message,
+                )
             if progress_callback:
                 progress_callback(search_id, percent, message)
 
@@ -435,7 +451,13 @@ class ExpertFinderService:
             )
 
             if append and existing_count > 0:
-                publish_progress(msg, 100, status=ExpertSearch.Status.COMPLETED)
+                publish_progress(
+                    msg,
+                    100,
+                    status=ExpertSearch.Status.COMPLETED,
+                    expert_count=existing_count,
+                    error=err,
+                )
                 return {
                     "search_id": search_id,
                     "status": ExpertSearch.Status.COMPLETED,
@@ -450,7 +472,7 @@ class ExpertFinderService:
                     "append": True,
                     "appended_count": 0,
                 }
-            publish_progress(msg, 0, status=ExpertSearch.Status.FAILED)
+            publish_progress(msg, 0, status=ExpertSearch.Status.FAILED, error=err)
             return {
                 "search_id": search_id,
                 "status": ExpertSearch.Status.FAILED,
@@ -523,9 +545,9 @@ class ExpertFinderService:
             if engine == ExpertFinderEngine.BASIC:
                 publish_progress(
                     (
-                        "Finding more experts via GPT search..."
+                        "Finding more experts via basic search..."
                         if append
-                        else "Finding experts via GPT search..."
+                        else "Finding experts via basic search..."
                     ),
                     28,
                 )
@@ -542,14 +564,16 @@ class ExpertFinderService:
                     )
                 except Exception as e:
                     return fail_return(
-                        f"GPT expert search failed: {e}"[:2000],
-                        current_step="GPT search failed",
+                        f"Basic expert search failed: {e}"[:2000],
+                        current_step="Basic search failed",
                         exc=e,
                     )
                 batch = list(gpt_result.get("experts") or [])
                 author_work_ids = {}
                 discovery_errors = list(gpt_result.get("errors") or [])
                 llm_model = gpt_result.get("llm_model") or llm_model
+                if batch:
+                    publish_experts_found(len(batch))
             else:
                 publish_progress(
                     (
@@ -569,6 +593,7 @@ class ExpertFinderService:
                         excluded_expert_names=excluded_names,
                         additional_context=additional_context,
                         exclude_work_ids=exclude_work_ids or None,
+                        on_experts_found=publish_experts_found,
                     )
                 except BudgetExceededError:
                     raise
@@ -613,10 +638,10 @@ class ExpertFinderService:
 
                 if engine == ExpertFinderEngine.BASIC:
                     umsg = (
-                        "No expert recommendations were returned. GPT search "
+                        "No expert recommendations were returned. Basic search "
                         "did not yield at least one expert with a validated email."
                     )
-                    step = "No experts after GPT search"
+                    step = "No experts after basic search"
                 else:
                     umsg = (
                         "No expert recommendations were returned. The agent did "
@@ -667,6 +692,7 @@ class ExpertFinderService:
             )
 
             experts = load_experts_for_expert_search(expert_search_id)
+            publish_experts_found(len(experts))
             publish_progress("Enriching expert profile links...", 72)
             try:
                 # Enrich only the batch just added when appending.
@@ -699,7 +725,10 @@ class ExpertFinderService:
                 "appended_count": replace_count if append else len(experts),
             }
             publish_progress(
-                "Expert search complete!", 100, status=ExpertSearch.Status.COMPLETED
+                "Expert search complete!",
+                100,
+                status=ExpertSearch.Status.COMPLETED,
+                expert_count=len(experts),
             )
             logger.info(
                 "expert finder search_id=%s completed experts=%s persist=%s append=%s",
@@ -716,7 +745,7 @@ class ExpertFinderService:
             logger.exception(error_message)
             if not data_persisted and not append:
                 clear_expert_search_links(expert_search_id)
-            publish_progress(str(e), 0, status=ExpertSearch.Status.FAILED)
+            publish_progress(str(e), 0, status=ExpertSearch.Status.FAILED, error=str(e))
             raise
 
 

@@ -693,7 +693,7 @@ class ExpertSearchSubmitResponseSerializer(serializers.Serializer):
     search_id = serializers.IntegerField()
     status = serializers.CharField()
     message = serializers.CharField()
-    sse_url = serializers.URLField(allow_null=True)
+    ws_url = serializers.URLField(allow_null=True)
 
 
 class GenerateEmailRequestSerializer(serializers.Serializer):

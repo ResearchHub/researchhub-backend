@@ -1,9 +1,6 @@
-import json
-
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import Max, Prefetch
-from django.http import StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -46,7 +43,6 @@ from research_ai.services.expert_finder.find_more_service import (
 )
 from research_ai.services.expert_finder.finder import get_document_content
 from research_ai.services.expert_finder.persist import ExpertPersist
-from research_ai.services.expert_finder.progress import ProgressService, TaskType
 from research_ai.services.outreach.invited_experts import (
     get_expert_finder_experts_list,
     get_invited_expert_editors_overview,
@@ -59,11 +55,13 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from user.permissions import IsModerator, UserIsEditor
 
 
-def _get_sse_url(request, search_id):
+def _get_ws_url(request, search_id):
+    """Absolute WebSocket URL for one expert search's live progress channel."""
     if not request:
         return None
-    base = request.build_absolute_uri("/").rstrip("/")
-    return base + "/api/research_ai/expert-finder/progress/" + search_id + "/"
+    host = request.get_host()
+    scheme = "wss" if request.is_secure() else "ws"
+    return f"{scheme}://{host}/ws/expert-finder/searches/{search_id}/"
 
 
 def _search_prefetch():
@@ -177,13 +175,13 @@ class ExpertSearchListCreateView(APIView):
             additional_context=additional_context or None,
         )
 
-        sse_url = _get_sse_url(request, str(search_id))
+        ws_url = _get_ws_url(request, search_id)
         return Response(
             {
                 "search_id": search_id,
                 "status": ExpertSearch.Status.PROCESSING,
                 "message": "Expert search submitted for processing",
-                "sse_url": sse_url,
+                "ws_url": ws_url,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -357,13 +355,13 @@ class ExpertSearchFindMoreView(APIView):
             )
 
         expert_search = queued.expert_search
-        sse_url = _get_sse_url(request, str(expert_search.id))
+        ws_url = _get_ws_url(request, expert_search.id)
         return Response(
             {
                 "search_id": expert_search.id,
                 "status": ExpertSearch.Status.PROCESSING,
                 "message": "Find-more expert search submitted for processing",
-                "sse_url": sse_url,
+                "ws_url": ws_url,
                 "expert_count": queued.expert_count,
                 "append": True,
             },
@@ -643,118 +641,3 @@ class ExpertSearchWorkView(APIView):
             unified_doc, context={"request": request}
         )
         return Response({"work": work})
-
-
-def _final_progress_payload(search):
-    """Build SSE progress payload from ExpertSearch for completed/failed state."""
-    return {
-        "status": search.status,
-        "progress": search.progress,
-        "currentStep": search.current_step or "",
-        "task_type": "experts",
-        "task_id": str(search.id),
-    }
-
-
-def _sse_event_stream(search_id):
-    progress_service = ProgressService()
-    try:
-        search_id_int = int(search_id)
-    except (ValueError, TypeError):
-        search_id_int = None
-
-    yield "event: connected\n"
-    payload = {
-        "status": "connected",
-        "task_type": "experts",
-        "task_id": search_id,
-    }
-    yield "data: " + json.dumps(payload) + "\n\n"
-
-    if search_id_int is not None:
-        try:
-            search = ExpertSearch.objects.filter(id=search_id_int).first()
-            if search and search.status in (
-                ExpertSearch.Status.COMPLETED,
-                ExpertSearch.Status.FAILED,
-            ):
-                final = _final_progress_payload(search)
-                if search.error_message:
-                    final["error"] = search.error_message
-                yield "event: progress\n"
-                yield "data: " + json.dumps(final) + "\n\n"
-                yield "event: complete\n"
-                yield "data: " + json.dumps({"status": "stream_complete"}) + "\n\n"
-                return
-        except Exception:
-            pass
-
-    none_count = 0
-    db_check_interval = 10
-
-    for progress_data in progress_service.subscribe_to_progress_sync(
-        TaskType.EXPERTS,
-        search_id,
-    ):
-        if progress_data is None:
-            none_count += 1
-            if none_count >= db_check_interval and search_id_int is not None:
-                none_count = 0
-                try:
-                    search = ExpertSearch.objects.filter(id=search_id_int).first()
-                    if search and search.status in (
-                        ExpertSearch.Status.COMPLETED,
-                        ExpertSearch.Status.FAILED,
-                    ):
-                        final = _final_progress_payload(search)
-                        if search.error_message:
-                            final["error"] = search.error_message
-                        yield "event: progress\n"
-                        yield "data: " + json.dumps(final) + "\n\n"
-                        yield "event: complete\n"
-                        yield (
-                            "data: "
-                            + json.dumps({"status": "stream_complete"})
-                            + "\n\n"
-                        )
-                        return
-                except (ValueError, Exception):
-                    pass
-            continue
-
-        none_count = 0
-        data_json = json.dumps(progress_data)
-        yield "event: progress\n"
-        yield "data: " + data_json + "\n\n"
-        if progress_data.get("status") in (
-            ExpertSearch.Status.COMPLETED,
-            ExpertSearch.Status.FAILED,
-        ):
-            yield "event: complete\n"
-            yield "data: " + json.dumps({"status": "stream_complete"}) + "\n\n"
-            return
-
-
-class ExpertSearchProgressStreamView(APIView):
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
-
-    def get(self, request, search_id):
-        try:
-            ExpertSearch.objects.select_related("created_by").get(id=search_id)
-        except ExpertSearch.DoesNotExist:
-            return Response(
-                {"detail": "Expert search not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        response = StreamingHttpResponse(
-            _sse_event_stream(str(search_id)),
-            content_type="text/event-stream",
-        )
-        response["Cache-Control"] = "no-cache"
-        response["Connection"] = "keep-alive"
-        response["X-Accel-Buffering"] = "no"
-        return response
