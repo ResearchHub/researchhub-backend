@@ -13,14 +13,25 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
+from math import ceil
 
 from orcid.identifiers import normalize_orcid
-from research_ai.constants import EXPERT_FINDER_DEFAULT_STATE, Region
+from research_ai.constants import (
+    EXPERT_FINDER_BATCH_CHASE_RATIO,
+    EXPERT_FINDER_DEFAULT_STATE,
+    Region,
+)
 from research_ai.services.agent import Tool, Toolset
 from research_ai.services.expert_finder.region_filter import (
     affiliation_mentions_state,
     author_matches_region,
+    country_codes_for_region,
     institution_country_codes,
+)
+from research_ai.services.expert_finder.work_email_lookup import (
+    bind_emails_to_authors,
+    lookup_work_emails,
+    normalize_doi,
 )
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from utils.openalex import OpenAlex, Work, normalize_openalex_id
@@ -38,9 +49,12 @@ _REUSED_AUTHOR_TOOLS = frozenset(
 )
 
 _DEFAULT_PUBLICATION_YEARS = 5
-_MAX_WORKS_PER_CALL = 25
-_MAX_AUTHORS_PER_WORK = 20
-_MAX_MIDDLE_AUTHORS = 5
+_MAX_WORKS_PER_CALL = 10
+_DEFAULT_WORKS_PER_CALL = 10
+# Prefer corresponding + first/last; keep middle coauthors small.
+_MAX_AUTHORS_PER_WORK = 8
+_MAX_MIDDLE_AUTHORS = 2
+_EASY_CHASE_PRIORITIES = frozenset({"high", "medium"})
 
 
 class ExpertFinderOpenAlexToolset:
@@ -60,12 +74,14 @@ class ExpertFinderOpenAlexToolset:
         region_filter: str = Region.ALL_REGIONS,
         state_filter: str = EXPERT_FINDER_DEFAULT_STATE,
         exclude_work_ids: list[str] | None = None,
+        work_email_lookup_fn=None,
     ):
         self._oa = client or OpenAlex()
         self._profile = openalex_toolset or OpenAlexToolset(client=self._oa)
         self._default_publication_years = default_publication_years
         self.region_filter = region_filter or Region.ALL_REGIONS
         self.state_filter = state_filter or EXPERT_FINDER_DEFAULT_STATE
+        self._work_email_lookup_fn = work_email_lookup_fn or lookup_work_emails
         self._exclude_work_ids = [
             normalize_openalex_id(wid)
             for wid in (exclude_work_ids or [])
@@ -78,6 +94,11 @@ class ExpertFinderOpenAlexToolset:
         self.returned_authors: dict[str, str] = {}
         # Bare OpenAlex author id -> raw author entity (for region grounding).
         self.returned_author_records: dict[str, dict] = {}
+        # bare lowercase author id → OpenAlex work ids they appeared on (search_works).
+        self.author_work_ids: dict[str, list[str]] = {}
+        # Current discovery batch: must email-chase a fraction before paging.
+        self.batch_author_ids: set[str] = set()
+        self.chased_author_ids: set[str] = set()
 
     def collected_work_ids(self) -> list[str]:
         """Bare OpenAlex work ids seen via ``search_works`` / author works this run."""
@@ -96,18 +117,76 @@ class ExpertFinderOpenAlexToolset:
             out.append(bare)
         return out
 
+    def work_ids_for_authors(self, author_ids: list[str] | None) -> list[str]:
+        """Work ids linked to the given authors during this run (deduped)."""
+        out: list[str] = []
+        seen: set[str] = set()
+        for author_id in author_ids or []:
+            bare = normalize_openalex_id(author_id).lower()
+            if not bare:
+                continue
+            for work_id in self.author_work_ids.get(bare) or []:
+                key = work_id.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(work_id)
+        return out
+
+    def author_work_ids_snapshot(self) -> dict[str, list[str]]:
+        """Copy of author => work ids for finder-side filtering after persist."""
+        return {
+            author_id: list(work_ids)
+            for author_id, work_ids in self.author_work_ids.items()
+        }
+
+    def mark_author_chased(self, openalex_author_id: str | None) -> bool:
+        """Record that we attempted email contact for a batch author."""
+        bare = normalize_openalex_id(openalex_author_id).lower()
+        if not bare or bare not in self.batch_author_ids:
+            return False
+        self.chased_author_ids.add(bare)
+        return True
+
+    def batch_chase_status(self) -> dict:
+        """Progress on email-chasing the current ``search_works`` author batch."""
+        batch_n = len(self.batch_author_ids)
+        chased_n = len(self.chased_author_ids & self.batch_author_ids)
+        required = ceil(batch_n * EXPERT_FINDER_BATCH_CHASE_RATIO) if batch_n else 0
+        ratio = (chased_n / batch_n) if batch_n else 1.0
+        return {
+            "batch_authors": batch_n,
+            "chased_authors": chased_n,
+            "required_chased": required,
+            "required_ratio": EXPERT_FINDER_BATCH_CHASE_RATIO,
+            "chase_ratio": round(ratio, 3),
+            "ready_for_more_works": chased_n >= required,
+        }
+
+    def _replace_author_batch(self, author_ids: list[str]) -> None:
+        """Start a new chase batch from the authors on a search_works page."""
+        self.batch_author_ids = {
+            bare
+            for bare in (normalize_openalex_id(aid).lower() for aid in author_ids)
+            if bare
+        }
+        self.chased_author_ids = set()
+
     def build_tools(self) -> list[Tool]:
         """EF ``search_works`` plus reused author/institution tools."""
+        ratio_pct = int(EXPERT_FINDER_BATCH_CHASE_RATIO * 100)
         tools: list[Tool] = [
             Tool(
                 name="search_works",
                 description=(
                     "Search OpenAlex works by free-text query, restricted to a "
                     "publication-date window (default: last "
-                    f"{self._default_publication_years} years). Returns compact "
-                    "work cards with authorships. Follow next_cursor for more "
-                    "pages. Only authors returned here (or via get_author / "
-                    "search_authors) may be submitted later."
+                    f"{self._default_publication_years} years). Returns a small "
+                    "page of work cards with authorships (may include "
+                    "metadata_email and chase_priority). After each page, "
+                    f"email-chase at least {ratio_pct}% of easy authors "
+                    "(chase_priority high/medium) via email_validate and/or "
+                    "web_search with openalex_author_id before calling again."
                 ),
                 input_schema={
                     "type": "object",
@@ -131,7 +210,8 @@ class ExpertFinderOpenAlexToolset:
                             "maximum": _MAX_WORKS_PER_CALL,
                             "description": (
                                 "Works per page "
-                                f"(default 10, maximum {_MAX_WORKS_PER_CALL})."
+                                f"(default {_DEFAULT_WORKS_PER_CALL}, "
+                                f"maximum {_MAX_WORKS_PER_CALL})."
                             ),
                         },
                         "cursor": {
@@ -247,10 +327,29 @@ class ExpertFinderOpenAlexToolset:
         query = str((args or {}).get("query") or "").strip()
         if not query:
             return {"error": "query is required"}
+
+        batch_status = self.batch_chase_status()
+        if batch_status["batch_authors"] and not batch_status["ready_for_more_works"]:
+            still = max(
+                0, batch_status["required_chased"] - batch_status["chased_authors"]
+            )
+            ratio_pct = int(EXPERT_FINDER_BATCH_CHASE_RATIO * 100)
+            return {
+                "error": (
+                    f"Email-chase at least {ratio_pct}% of the current author "
+                    f"batch before another search_works "
+                    f"(chased {batch_status['chased_authors']}/"
+                    f"{batch_status['batch_authors']}; need "
+                    f"{batch_status['required_chased']}, {still} more). "
+                    "Call web_search with openalex_author_id for each author."
+                ),
+                "batch": batch_status,
+            }
+
         try:
             max_results = OpenAlexToolset._bounded_integer(
                 (args or {}).get("max_results"),
-                default=10,
+                default=_DEFAULT_WORKS_PER_CALL,
                 minimum=1,
                 maximum=_MAX_WORKS_PER_CALL,
             )
@@ -275,6 +374,7 @@ class ExpertFinderOpenAlexToolset:
             return {"error": f"works search failed: {exc}"}
 
         payload = []
+        easy_author_ids: list[str] = []
         for entity in raw_works or []:
             bare = normalize_openalex_id(entity.get("id")).lower()
             if bare and bare in self._exclude_work_id_set:
@@ -282,14 +382,21 @@ class ExpertFinderOpenAlexToolset:
             card = self._work_card_with_authors(entity)
             if card is None:
                 continue
+            for author in card.get("authors") or []:
+                author_id = normalize_openalex_id(author.get("openalex_author_id"))
+                if author_id and author.get("chase_priority") in _EASY_CHASE_PRIORITIES:
+                    easy_author_ids.append(author_id)
             payload.append(card)
             if len(payload) >= max_results:
                 break
+        # Chase gate tracks easy authors only (corresponding / leads / email hits).
+        self._replace_author_batch(easy_author_ids)
         return {
             "works": payload,
             "from_publication_date": from_pub,
             "next_cursor": next_cursor,
             "has_more": bool(next_cursor),
+            "batch": self.batch_chase_status(),
         }
 
     def _work_card_with_authors(self, entity: dict) -> dict | None:
@@ -313,25 +420,35 @@ class ExpertFinderOpenAlexToolset:
                     self.returned_works[oa_url] = record
 
         authorships = entity.get("authorships") or []
-        authors = self._select_authors(authorships)
+        authors = self._select_authors(
+            authorships, openalex_work_id=openalex_work_id or None
+        )
+
+        doi = normalize_doi(entity.get("doi") or data.get("source_url"))
+        email_hits = self._work_email_lookup_fn(doi=doi, authorships=authorships)
+        authors = bind_emails_to_authors(authors, email_hits)
+        for author in authors:
+            author["chase_priority"] = self._chase_priority(author)
 
         return {
             "title": data["title"],
             "publication_date": data["publication_date"],
             "publication_year": data["publication_year"],
             "source_url": data["source_url"],
+            "doi": doi or None,
             "openalex_work_id": openalex_work_id or None,
             "is_oa": data["is_oa"],
             "authors": authors,
         }
 
-    def _select_authors(self, authorships: list) -> list[dict]:
+    def _select_authors(
+        self, authorships: list, *, openalex_work_id: str | None = None
+    ) -> list[dict]:
         """Select authors for a work card, capped at ``_MAX_AUTHORS_PER_WORK``.
 
-        Prefer first/last leads, then up to ``_MAX_MIDDLE_AUTHORS`` middle
-        coauthors (in list order). Only selected authors are grounded.
-        When OpenAlex omits ``author_position`` tags, the
-        first and last list entries are treated as leads.
+        Prefer corresponding authors and first/last leads, then a small middle
+        slice. Only selected authors are grounded. When OpenAlex omits
+        ``author_position`` tags, the first and last list entries are leads.
         """
         cards: list[dict] = []
         for authorship in authorships:
@@ -345,7 +462,10 @@ class ExpertFinderOpenAlexToolset:
         first: list[dict] = []
         middle: list[dict] = []
         last: list[dict] = []
+        corresponding: list[dict] = []
         for card in cards:
+            if card.get("is_corresponding"):
+                corresponding.append(card)
             pos = card.get("author_position")
             if pos == "first":
                 first.append(card)
@@ -360,12 +480,17 @@ class ExpertFinderOpenAlexToolset:
             middle = cards[1:-1] if len(cards) > 2 else []
 
         middle_pick = middle[:_MAX_MIDDLE_AUTHORS]
-        lead_budget = max(0, _MAX_AUTHORS_PER_WORK - len(middle_pick))
+        # Reserve slots for corresponding + leads before filling with middle.
+        reserved = min(len(corresponding) + 2, _MAX_AUTHORS_PER_WORK)
+        middle_pick = middle_pick[: max(0, _MAX_AUTHORS_PER_WORK - reserved)]
+        lead_budget = max(
+            0, _MAX_AUTHORS_PER_WORK - len(middle_pick) - len(corresponding)
+        )
         first_take, last_take = self._allocate_lead_slots(first, last, lead_budget)
 
         ordered: list[dict] = []
         seen: set[str] = set()
-        for card in [*first_take, *middle_pick, *last_take]:
+        for card in [*corresponding, *first_take, *middle_pick, *last_take]:
             bare = self._record_author(
                 card.get("openalex_author_id"),
                 card.get("display_name"),
@@ -373,10 +498,38 @@ class ExpertFinderOpenAlexToolset:
             if not bare or bare in seen:
                 continue
             seen.add(bare)
+            self._link_author_to_work(bare, openalex_work_id)
             ordered.append(card)
             if len(ordered) >= _MAX_AUTHORS_PER_WORK:
                 break
         return ordered
+
+    @staticmethod
+    def _chase_priority(author: dict) -> str:
+        """high/medium = worth email-chasing; low = skip unless stuck."""
+        if author.get("metadata_email") or author.get("is_corresponding"):
+            return "high"
+        pos = author.get("author_position")
+        has_inst = bool(author.get("institutions"))
+        has_orcid = bool(author.get("orcid"))
+        if pos in {"first", "last"}:
+            return "high" if (has_inst or has_orcid) else "medium"
+        if has_orcid and has_inst:
+            return "medium"
+        return "low"
+
+    def _link_author_to_work(
+        self, author_bare_id: str, openalex_work_id: str | None
+    ) -> None:
+        """Remember that ``author_bare_id`` appeared on ``openalex_work_id``."""
+        bare = str(author_bare_id or "").strip().lower()
+        work_id = normalize_openalex_id(openalex_work_id)
+        if not bare or not work_id:
+            return
+        bucket = self.author_work_ids.setdefault(bare, [])
+        if any(existing.lower() == work_id.lower() for existing in bucket):
+            return
+        bucket.append(work_id)
 
     @staticmethod
     def _allocate_lead_slots(
@@ -394,23 +547,38 @@ class ExpertFinderOpenAlexToolset:
             return first[:budget], []
         return [], last[:budget]
 
-    @staticmethod
-    def _authorship_card(authorship: dict | None) -> dict | None:
+    def _authorship_card(self, authorship: dict | None) -> dict | None:
         authorship = authorship or {}
         author = authorship.get("author") or {}
         author_id = normalize_openalex_id(author.get("id"))
         if not author_id:
             return None
         institutions: list[str] = []
+        country_codes: set[str] = set()
         for inst in authorship.get("institutions") or []:
-            name = str((inst or {}).get("display_name") or "").strip()
+            inst = inst or {}
+            name = str(inst.get("display_name") or "").strip()
             if name and name not in institutions:
                 institutions.append(name)
+            code = str(inst.get("country_code") or "").strip().upper()
+            if code:
+                country_codes.add(code)
+        orcid = str(author.get("orcid") or "").strip() or None
+        matches_region = None
+        if self.region_filter == Region.NON_US:
+            matches_region = bool(country_codes) and "US" not in country_codes
+        else:
+            region_codes = country_codes_for_region(self.region_filter)
+            if region_codes is not None:
+                matches_region = bool(country_codes & region_codes)
         return {
             "openalex_author_id": author.get("id") or author_id,
             "display_name": str(author.get("display_name") or "").strip() or None,
             "author_position": authorship.get("author_position") or None,
+            "is_corresponding": bool(authorship.get("is_corresponding")),
+            "orcid": orcid,
             "institutions": institutions,
+            "matches_region": matches_region,
         }
 
     def _wrap_for_author_grounding(self, tool: Tool) -> Tool:

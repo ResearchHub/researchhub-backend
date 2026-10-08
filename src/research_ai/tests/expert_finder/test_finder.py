@@ -16,6 +16,7 @@ from research_ai.services.expert_finder.finder import (
     _merge_seen_work_ids,
     _names_and_emails_from_prior_document_searches,
     _seen_work_ids_from_prior_document_searches,
+    _work_ids_for_saved_experts,
     get_document_content,
     run_expert_finder_search,
 )
@@ -300,7 +301,7 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
                 }
             ],
             "errors": [],
-            "seen_openalex_work_ids": ["W111"],
+            "author_work_ids": {"a123": ["W111"]},
         }
 
         # Act
@@ -442,6 +443,23 @@ class PriorDocumentExpertExclusionTests(TestCase):
 
 
 class SeenWorkIdHelpersTests(TestCase):
+    def test_work_ids_for_saved_experts_only_uses_persisted_authors(self):
+        # Arrange / Act
+        work_ids = _work_ids_for_saved_experts(
+            [
+                {"openalex_author_id": "https://openalex.org/A1"},
+                {"openalex_author_id": "A2"},
+            ],
+            {
+                "a1": ["W10", "W11"],
+                "a2": ["W11", "W12"],
+                "a3": ["W99"],  # not saved
+            },
+        )
+
+        # Assert
+        self.assertEqual(work_ids, ["W10", "W11", "W12"])
+
     def test_merge_seen_work_ids_newest_first_and_caps(self):
         # Arrange
         from research_ai.constants import EXPERT_FINDER_SEEN_WORK_IDS_CAP

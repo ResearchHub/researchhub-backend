@@ -231,6 +231,30 @@ def _merge_seen_work_ids(*batches: list[str]) -> list[str]:
     return out
 
 
+def _work_ids_for_saved_experts(
+    experts: list[dict[str, Any]] | None,
+    author_work_ids: dict[str, list[str]] | None,
+) -> list[str]:
+    """OpenAlex work ids linked to experts that were actually saved."""
+    mapping = author_work_ids if isinstance(author_work_ids, dict) else {}
+    out: list[str] = []
+    seen: set[str] = set()
+    for row in experts or []:
+        if not isinstance(row, dict):
+            continue
+        bare = normalize_openalex_id(row.get("openalex_author_id")).lower()
+        if not bare:
+            continue
+        for work_id in mapping.get(bare) or []:
+            wid = normalize_openalex_id(work_id)
+            key = wid.lower()
+            if not wid or key in seen:
+                continue
+            seen.add(key)
+            out.append(wid)
+    return out
+
+
 def _seen_work_ids_from_prior_document_searches(
     unified_document_id: int | None,
     *,
@@ -512,8 +536,6 @@ class ExpertFinderService:
                     exc=e,
                 )
 
-            persist_seen_work_ids(agent_result.get("seen_openalex_work_ids"))
-
             publish_progress("Validating grounded expert recommendations...", 58)
             batch = list(agent_result.get("experts") or [])
             n_before = len(batch)
@@ -582,6 +604,13 @@ class ExpertFinderService:
                     exc=e,
                 )
             data_persisted = True
+            # Exclude only works linked to experts that were actually saved.
+            persist_seen_work_ids(
+                _work_ids_for_saved_experts(
+                    experts_rows,
+                    agent_result.get("author_work_ids"),
+                )
+            )
 
             experts = load_experts_for_expert_search(expert_search_id)
             publish_progress("Enriching expert profile links...", 72)

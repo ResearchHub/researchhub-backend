@@ -174,10 +174,12 @@ def build_agent_system_prompt(
     excluded_expert_names: list[str] | None = None,
 ) -> str:
     """System prompt for the expert-finder agent loop."""
+    web_budget = expert_finder_web_search_budget(expert_count)
     return (
         _SYSTEM_PROMPT + f"\n\nTarget up to {expert_count} experts "
         f"({_expertise_levels_display(expertise_level)}; "
-        f"region={get_choice_label(region_filter, Region)})."
+        f"region={get_choice_label(region_filter, Region)}). "
+        f"Web search budget {web_budget} this run."
         + _expertise_instruction(expertise_level)
         + _region_instruction(region_filter, state_filter)
         + build_excluded_experts_instruction(excluded_expert_names or [])
@@ -401,9 +403,11 @@ class ExpertFinderAgentToolset:
         self.web_search = web_search_toolset or ExpertFinderWebSearchToolset(
             client=web_search_client,
             max_searches=search_budget,
+            on_author_chased=self.openalex.mark_author_chased,
         )
         self.email_validate = email_validate_toolset or EmailValidateToolset(
             service=email_validation,
+            on_author_chased=self.openalex.mark_author_chased,
         )
         self._email_validation = self.email_validate.service
         self._region_filter = region_filter or Region.ALL_REGIONS
@@ -504,6 +508,8 @@ class ExpertFinderAgentToolset:
         )
         self.gate_errors.extend(gate_errors)
         added = self._merge_kept(batch_kept)
+        for row in batch_kept:
+            self.openalex.mark_author_chased(row.get("openalex_author_id"))
         kept_count = len(self.accepted_experts)
         still_needed = max(0, self._expert_count - kept_count)
         filled = still_needed == 0
@@ -549,7 +555,7 @@ def run_expert_finder_agent(
 ) -> dict[str, Any]:
     """Run the expert-finder agent and return grounded expert rows.
 
-    Returns ``{"experts": [...], "errors": [...], "seen_openalex_work_ids": [...]}``.
+    Returns ``{"experts", "errors", "author_work_ids"}``.
     Budget exhaustion propagates so the owning Celery task can stop cleanly;
     iteration-limit and other agent failures are recorded in ``errors``.
     """
@@ -598,23 +604,25 @@ def run_expert_finder_agent(
     except BudgetExceededError:
         raise
     except IterationLimitError as exc:
+        agent_iterations = getattr(exc, "iterations", iterations) or iterations
         logger.warning(
             "expert-finder agent hit iteration limit (%s)",
-            getattr(exc, "iterations", iterations),
+            agent_iterations,
         )
         errors.append(
             "agent: iteration budget exhausted before target "
-            f"({getattr(exc, 'iterations', iterations)} turns; "
+            f"({agent_iterations} turns; "
             f"kept {len(toolset.accepted_experts)})"
         )
     except Exception as exc:  # noqa: BLE001 - agent run is best-effort
         logger.exception("expert-finder agent failed")
         errors.append(f"agent: {exc}")
 
-    seen_work_ids = toolset.openalex.collected_work_ids()
+    accepted = list(toolset.accepted_experts)
+    author_work_ids = toolset.openalex.author_work_ids_snapshot()
     errors.extend(toolset.gate_errors)
 
-    if not toolset.accepted_experts:
+    if not accepted:
         if not toolset.submit_called and not any(
             "iteration budget exhausted" in e for e in errors
         ):
@@ -622,11 +630,11 @@ def run_expert_finder_agent(
         return {
             "experts": [],
             "errors": errors,
-            "seen_openalex_work_ids": seen_work_ids,
+            "author_work_ids": author_work_ids,
         }
 
     return {
-        "experts": list(toolset.accepted_experts),
+        "experts": accepted,
         "errors": errors,
-        "seen_openalex_work_ids": seen_work_ids,
+        "author_work_ids": author_work_ids,
     }
