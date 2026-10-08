@@ -1464,6 +1464,66 @@ class NoteTests(APITestCase):
         self.assertEqual(data["count"], 2)
         self.assertEqual(len(one_published), all_drafts_queries)
 
+    def _make_post_pending_and_private(self, note_id: int) -> ResearchhubPost:
+        post = ResearchhubPost.objects.get(note_id=note_id)
+        ResearchhubUnifiedDocument.objects.filter(id=post.unified_document_id).update(
+            is_public=False, status=ResearchhubUnifiedDocument.PENDING
+        )
+        return post
+
+    def _publish_pending_private_note(self, title: str) -> ResearchhubPost:
+        note = self._create_org_note(title)
+        self._publish_note(note["id"])
+        return self._make_post_pending_and_private(note["id"])
+
+    def _set_moderator(self, moderator: bool) -> None:
+        self.user.moderator = moderator
+        self.user.save(update_fields=["moderator"])
+
+    def test_get_organization_notes_private_posts_cost_no_query_per_note(self):
+        # Arrange: a non-moderator viewer, so every pending private post needs
+        # a visibility check. Count the same notes as drafts first; the next
+        # request resets the query log.
+        notes = [self._create_org_note(f"Note {i}") for i in range(3)]
+        self._set_moderator(False)
+        with CaptureQueriesContext(connection) as all_drafts:
+            self._get_organization_notes()
+        all_drafts_queries = len(all_drafts)
+        self._set_moderator(True)
+        for note in notes:
+            self._publish_note(note["id"])
+            self._make_post_pending_and_private(note["id"])
+        self._set_moderator(False)
+
+        # Act
+        with CaptureQueriesContext(connection) as all_private:
+            data = self._get_organization_notes()
+
+        # Assert
+        self.assertEqual(data["count"], 3)
+        self.assertEqual(len(all_private), all_drafts_queries)
+
+    def test_get_organization_notes_redacts_a_post_the_viewer_cannot_see(self):
+        # Arrange: one pending post is the viewer's own, the other another
+        # user's; moderation has not cleared, so only the author may see it.
+        own = self._publish_pending_private_note("Own pending note")
+        other = self._publish_pending_private_note("Other pending note")
+        other_user = get_user_model().objects.create_user(
+            username="other@researchhub_test.com",
+            password=uuid.uuid4().hex,
+            email="other@researchhub_test.com",
+        )
+        ResearchhubPost.objects.filter(id=other.id).update(created_by=other_user)
+        self._set_moderator(False)
+
+        # Act
+        data = self._get_organization_notes()
+
+        # Assert
+        posts = {note["post"]["id"]: note["post"] for note in data["results"]}
+        self.assertEqual(posts[own.id], {"id": own.id, "slug": own.slug})
+        self.assertEqual(posts[other.id], {"id": other.id, "is_public": False})
+
     def test_get_organization_notes_filter_by_several_types(self):
         # Arrange
         self._create_org_note("Grant note", document_type="GRANT")

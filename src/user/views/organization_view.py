@@ -19,6 +19,7 @@ from researchhub.pagination import MediumPageLimitPagination
 from researchhub_access_group.constants import ADMIN, MEMBER, NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_access_group.permissions import IsOrganizationAdmin, IsOrganizationUser
+from researchhub_document.models import ResearchhubPost
 from user.models import Organization, User
 from user.serializers import (
     DynamicOrganizationSerializer,
@@ -390,8 +391,15 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         notes = notes.select_related("post__unified_document").prefetch_related(
             "unified_document__permissions",
         )
-        context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)
+        context = self._get_org_notes_context()
+        # Resolve which posts on the page the viewer may see in one query,
+        # instead of one visibility query per private or pending post.
+        context["visible_post_ids"] = set(
+            ResearchhubPost.objects.filter(note__in=[note.id for note in page])
+            .visible_to(user)
+            .values_list("id", flat=True)
+        )
         serializer_data = DynamicNoteSerializer(
             page,
             _include_fields=[
