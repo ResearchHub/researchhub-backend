@@ -180,6 +180,7 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
         notification = self.notifications.get()
         self.assertEqual(notification.recipient, self.creator)
         self.assertEqual(notification.item, contribution)
+        self.assertEqual(Decimal(notification.extra["amount"]), Decimal(200))
         self.assertIn(message, "".join(part["value"] for part in notification.body))
         self.channel_layer.group_send.assert_awaited_once()
 
