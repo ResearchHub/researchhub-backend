@@ -130,10 +130,10 @@ class UsageBudgetTests(TestCase):
         self.assertEqual(event.cost_microusd, 1_650)
         self.assertEqual(status.spent_today_microusd, 1_650)
         self.assertEqual(status.turns_used, 1)
-        self.assertEqual(status.remaining_microusd, 248_350)
+        self.assertEqual(status.remaining_microusd, 998_350)
         self.assertEqual(
             status.as_dict()["credits"],
-            {"daily_limit": "250", "used": "1.65", "remaining": "248.35"},
+            {"daily_limit": "1000", "used": "1.65", "remaining": "998.35"},
         )
 
     def test_admission_allows_many_cheap_calls_for_each_tier(self):
@@ -179,7 +179,7 @@ class UsageBudgetTests(TestCase):
             feature="notebook_chat",
             provider="openrouter",
             model="deepseek/deepseek-v4-flash-0731",
-            cost_microusd=250_000,
+            cost_microusd=1_000_000,
         )
 
         # Act / Assert
@@ -227,13 +227,13 @@ class UsageBudgetTests(TestCase):
 
         # Assert
         self.assertFalse(status.exhausted)
-        self.assertEqual(status.remaining_microusd, 250_000)
+        self.assertEqual(status.remaining_microusd, 1_000_000)
 
     def test_default_tier_rejects_locked_model(self):
         with self.assertRaisesRegex(ValueError, "not allowed"):
             check_turn_admission(
                 self.user,
-                "claude_platform:claude-opus-5-5",
+                "openrouter:openai/gpt-6-sol",
             )
 
 
@@ -352,7 +352,7 @@ class AgentLoopBudgetRecorderTests(TestCase):
             feature="notebook_chat",
             provider="openrouter",
             model="deepseek/deepseek-v4-pro-0813",
-            cost_microusd=249_999,
+            cost_microusd=999_999,
         )
         execution = self._execution(
             status=AgentExecution.Status.RUNNING,
@@ -487,7 +487,7 @@ class AtomicAdmissionTests(TransactionTestCase):
             feature="notebook_chat",
             provider="openrouter",
             model="deepseek/deepseek-v4-flash-0731",
-            cost_microusd=250_000,
+            cost_microusd=1_000_000,
         )
 
         # Act / Assert
@@ -719,5 +719,5 @@ class UsageBudgetAPITests(TestCase):
         self.assertEqual(response.json()["tier"], "default")
         self.assertEqual(
             response.json()["credits"],
-            {"daily_limit": "250", "used": "0", "remaining": "250"},
+            {"daily_limit": "1000", "used": "0", "remaining": "1000"},
         )

@@ -291,6 +291,28 @@ class NotebookChatViewTests(APITestCase):
         self.assertIn("model cannot be changed", response.data["detail"])
         self.assertEqual(AgentExecution.objects.count(), 1)
 
+    def test_a_chat_on_the_former_default_model_continues_on_it(self):
+        # Arrange: a default-tier chat from before the tier moved to Opus 5.5.
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        AgentExecution.objects.create(
+            conversation_id=chat_id,
+            status=AgentExecution.Status.SUCCEEDED,
+            attempt=1,
+            provider="openrouter",
+            model="openrouter:deepseek/deepseek-v4-flash-0731",
+            configuration={"effort": "none", "thinking": "disabled"},
+        )
+
+        # Act
+        response, _delay = self._post_message(chat_id)
+
+        # Assert
+        self.assertEqual(response.status_code, 202)
+        execution = AgentExecution.objects.get(id=response.data["execution_id"])
+        self.assertEqual(execution.model, "openrouter:deepseek/deepseek-v4-flash-0731")
+        self.assertEqual(execution.configuration["effort"], "none")
+
     def test_post_message_as_viewer_is_allowed(self):
         # Arrange: viewers can chat; the edit tool refuses writes for them.
         self.client.force_authenticate(self.viewer)
@@ -550,7 +572,7 @@ class NotebookChatViewTests(APITestCase):
         )
         self.assertIsNotNone(response.data["messages"][0]["created_date"])
         self.assertEqual(len(response.data["executions"]), 1)
-        self.assertEqual(response.data["executions"][0]["effort"], "none")
+        self.assertEqual(response.data["executions"][0]["effort"], "low")
         self.assertEqual(
             response.data["executions"][0]["status"],
             AgentExecution.Status.PENDING,
