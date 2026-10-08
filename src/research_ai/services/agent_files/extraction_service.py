@@ -1,4 +1,7 @@
-"""Text extraction, with OCR for uploaded images and PDF pages that are scans."""
+"""Text extraction, with OCR for uploaded images and PDF pages that are scans.
+
+A Word document's images come out with its text, sized as page images are.
+"""
 
 import logging
 import time
@@ -21,6 +24,7 @@ from research_ai.services.agent_files.extraction import (
     render_pdf_page,
 )
 from research_ai.services.agent_files.ocr import OcrError, PageOcr
+from research_ai.services.agent_files.page_images import PageRenderConfig
 
 logger = logging.getLogger(__name__)
 
@@ -65,27 +69,42 @@ class TextExtractionService:
     """Extracts a file's text, reading by OCR images and the PDF pages that are scans.
 
     ``ocr`` is the engine; without one those pages are only marked and an
-    image has no text.
+    image has no text. ``image_config`` sizes the images kept from a Word
+    document.
     """
 
-    def __init__(self, *, ocr: PageOcr | None = None, config: OcrConfig | None = None):
+    def __init__(
+        self,
+        *,
+        ocr: PageOcr | None = None,
+        config: OcrConfig | None = None,
+        image_config: PageRenderConfig | None = None,
+    ):
         self.ocr = ocr
         self._config = config
+        self._image_config = image_config
 
     @property
     def config(self) -> OcrConfig:
         return self._config or OcrConfig.from_settings()
+
+    @property
+    def image_config(self) -> PageRenderConfig:
+        return self._image_config or PageRenderConfig.from_settings()
 
     def extract(self, data: bytes, kind: FileKind, *, max_chars: int) -> ExtractedText:
         """Text of the file, cut at ``max_chars``. Raises ``UnreadableFileError``."""
         if kind.is_image:
             return self._image_text(data, max_chars)
         ocr = self.ocr is not None and kind == PDF
+        images = self.image_config
         return extract_text(
             data,
             kind,
             max_chars=max_chars,
             recover_pages=partial(self._ocr_pages, data) if ocr else None,
+            image_max_edge_px=images.max_edge_px,
+            image_max_bytes=images.max_bytes,
         )
 
     def _image_text(self, data: bytes, max_chars: int) -> ExtractedText:

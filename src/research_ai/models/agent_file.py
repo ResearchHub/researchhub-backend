@@ -85,6 +85,14 @@ class AgentFile(DefaultModel):
             "was recorded."
         ),
     )
+    embedded_image_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        db_comment=(
+            "Images kept from a Word document and stored beside it; null for "
+            "other formats and files processed before this was recorded."
+        ),
+    )
 
     class Meta:
         db_table = "research_ai_agent_file"

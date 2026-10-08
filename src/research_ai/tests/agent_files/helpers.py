@@ -13,6 +13,9 @@ from research_ai.models import AgentFile
 from research_ai.services.agent_files.extraction import PageImage, UnreadableFileError
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006"
+RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+PACKAGE_NS = "http://schemas.openxmlformats.org/package/2006"
 SCAN = object()
 
 
@@ -83,6 +86,45 @@ def docx_bytes(
 
 def paragraph(text: str) -> str:
     return f"<w:p><w:r><w:t>{text}</w:t></w:r></w:p>"
+
+
+def picture(relationship_id: str, *, linked: bool = False) -> str:
+    """A run showing the image ``picture_parts`` gives that relationship id."""
+    return (
+        "<w:r><w:drawing>"
+        f"<wp:inline xmlns:wp='{DRAWING_NS}/wordprocessingDrawing'>"
+        f"<a:graphic xmlns:a='{DRAWING_NS}/main'><a:graphicData>"
+        f"<pic:pic xmlns:pic='{DRAWING_NS}/picture'><pic:blipFill>"
+        f"<a:blip xmlns:r='{RELATIONSHIPS_NS}' "
+        f"r:{'link' if linked else 'embed'}='{relationship_id}'/>"
+        "</pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline>"
+        "</w:drawing></w:r>"
+    )
+
+
+def picture_parts(
+    images: dict[str, bytes], *, links: dict[str, str] | None = None
+) -> dict[str, str | bytes]:
+    """``docx_bytes`` parts for images by relationship id.
+
+    ``links`` maps an id to the address of an image kept outside the file.
+    """
+    relationships = [
+        f"<Relationship Id='{relationship_id}' Type='{RELATIONSHIPS_NS}/image' "
+        f"Target='media/{relationship_id}'/>"
+        for relationship_id in images
+    ] + [
+        f"<Relationship Id='{relationship_id}' Type='{RELATIONSHIPS_NS}/image' "
+        f"Target='{address}' TargetMode='External'/>"
+        for relationship_id, address in (links or {}).items()
+    ]
+    return {
+        "word/_rels/document.xml.rels": (
+            f"<Relationships xmlns='{PACKAGE_NS}/relationships'>"
+            f"{''.join(relationships)}</Relationships>"
+        ),
+        **{f"word/media/{name}": data for name, data in images.items()},
+    }
 
 
 def make_file(

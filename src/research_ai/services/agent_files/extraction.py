@@ -3,12 +3,13 @@
 Every supported document reduces to one string: PDF pages via PyMuPDF, each
 introduced by a ``[Page N]`` marker the agent can cite; Word documents as
 Markdown via mammoth; text formats by decoding. PDF pages also render to images,
-and an uploaded image is prepared as one.
+an uploaded image is prepared as one, and so are the images in a Word document.
 """
 
 import base64
 import codecs
 import contextlib
+import hashlib
 import io
 import json
 import math
@@ -22,6 +23,7 @@ from dataclasses import dataclass
 
 import fitz
 import mammoth
+from mammoth import html as mammoth_html
 from markdownify import markdownify
 from PIL import Image, ImageOps
 
@@ -76,6 +78,10 @@ IMAGE_UNREAD = "[Most of this page is an image; any text in it was not read.]"
 OCR_NOTE = "[Text on this page was read by OCR and may contain errors.]"
 # Written above the text OCR read in an uploaded image.
 IMAGE_OCR_NOTE = "[Text in this image was read by OCR and may contain errors.]"
+# Written where a Word document has an image; N counts the images kept from it.
+EMBEDDED_IMAGE_MARKER = "[Image {number}]"
+# Written where it has one that is not kept: its format, its size, or one too many.
+EMBEDDED_IMAGE_NOT_SHOWN = "[An image here could not be shown.]"
 
 # A scan under a download stamp or page number: little text over a large image.
 _SCAN_MAX_TEXT_CHARS = 500
@@ -109,6 +115,14 @@ _UPLOAD_IMAGE_FORMATS = ("JPEG", "PNG", "GIF", "WEBP")
 # Pixels the child decodes at most: with transparency, 256 MB of its memory.
 _MAX_UPLOAD_IMAGE_PIXELS = 64_000_000
 
+# Images kept from one Word document: as many as a chat has room to show.
+MAX_EMBEDDED_IMAGES = 20
+# Narrower than this on its shorter side, an image is an icon, bullet or rule.
+_MIN_EMBEDDED_IMAGE_EDGE_PX = 32
+# An archive member can inflate far past the upload size cap.
+_MAX_EMBEDDED_IMAGE_BYTES = 32 * 1024 * 1024
+_NOT_AN_IMAGE = "This file could not be read as an image."
+
 # Text for the PDF pages it is called with (1-based); pages it omits stay marked.
 PageRecovery = Callable[[Sequence[int]], Mapping[int, str]]
 
@@ -124,6 +138,8 @@ class ExtractedText:
     pages_without_text: tuple[int, ...] = ()
     # 1-based PDF pages whose text came from ``recover_pages``.
     ocr_pages: tuple[int, ...] = ()
+    # A Word document's images, numbered as the ``[Image N]`` markers in its text.
+    embedded_images: tuple["PageImage", ...] = ()
 
 
 @dataclass(frozen=True)
@@ -159,14 +175,18 @@ def extract_text(
     *,
     max_chars: int,
     recover_pages: PageRecovery | None = None,
+    image_max_edge_px: int = MAX_IMAGE_EDGE_PX,
+    image_max_bytes: int = 3 * 1024 * 1024,
 ) -> ExtractedText:
     """Text of the document, cut at ``max_chars``. Raises ``UnreadableFileError``.
 
     ``recover_pages`` supplies text for PDF pages that have no text layer or
-    are mostly an image. An uploaded image goes through ``prepare_image``.
+    are mostly an image. A Word document's images come back as JPEGs within
+    the ``image_`` limits. An uploaded image goes through ``prepare_image``.
     """
     pages_without_text: tuple[int, ...] = ()
     ocr_pages: tuple[int, ...] = ()
+    embedded_images: tuple[PageImage, ...] = ()
     if kind.extractor == "text":
         text, page_count, truncated = _plain_text(data), None, False
     elif kind.extractor == "pdf":
@@ -176,8 +196,19 @@ def extract_text(
             output["pages"], output["mostly_image"], recover_pages
         )
     else:
-        output = _run_child(kind.extractor, data, label=kind.label, max_chars=max_chars)
+        output = _run_child(
+            kind.extractor,
+            data,
+            label=kind.label,
+            max_chars=max_chars,
+            max_edge_px=min(image_max_edge_px, _MAX_RENDER_EDGE_PX),
+            max_bytes=image_max_bytes,
+        )
         text, page_count, truncated = output["text"], None, output["truncated"]
+        embedded_images = tuple(
+            _page_image(number, image)
+            for number, image in enumerate(output["images"], start=1)
+        )
     # Postgres text columns cannot hold NUL.
     text = text.replace("\x00", "")
     if len(text) > max_chars:
@@ -192,6 +223,7 @@ def extract_text(
         truncated=truncated,
         pages_without_text=pages_without_text,
         ocr_pages=ocr_pages,
+        embedded_images=embedded_images,
     )
 
 
@@ -225,13 +257,7 @@ def render_pdf_page(
         image_format=image_format,
         max_bytes=max_bytes,
     )
-    return PageImage(
-        page=page,
-        data=base64.b64decode(output["image"]),
-        media_type=_IMAGE_MEDIA_TYPES[image_format],
-        width=output["width"],
-        height=output["height"],
-    )
+    return _page_image(page, output, image_format)
 
 
 def prepare_image(
@@ -254,10 +280,14 @@ def prepare_image(
         max_edge_px=min(max_edge_px, _MAX_RENDER_EDGE_PX),
         max_bytes=max_bytes,
     )
+    return _page_image(1, output)
+
+
+def _page_image(page: int, output: dict, image_format: str = "jpeg") -> PageImage:
     return PageImage(
-        page=1,
+        page=page,
         data=base64.b64decode(output["image"]),
-        media_type=_IMAGE_MEDIA_TYPES["jpeg"],
+        media_type=_IMAGE_MEDIA_TYPES[image_format],
         width=output["width"],
         height=output["height"],
     )
@@ -512,18 +542,26 @@ def _fit_step(size: int, max_bytes: int) -> float:
 
 
 def _upload_image(data: bytes, max_edge_px: int, max_bytes: int) -> dict:
-    not_an_image = UnreadableFileError("This file could not be read as an image.")
+    return _as_jpeg(_open_image(data, max_edge_px), max_edge_px, max_bytes)
+
+
+def _open_image(data: bytes, max_edge_px: int) -> Image.Image:
+    """The image ``data`` holds, identified but not yet decoded."""
     # Checked below instead, once a JPEG is set to decode at a fraction of its size.
     Image.MAX_IMAGE_PIXELS = None
     try:
         source = Image.open(io.BytesIO(data), formats=_UPLOAD_IMAGE_FORMATS)
         source.draft("RGB", (max_edge_px, max_edge_px))
     except Exception as exc:  # whatever Pillow raises for bytes it cannot identify
-        raise not_an_image from exc
+        raise UnreadableFileError(_NOT_AN_IMAGE) from exc
     if source.width * source.height > _MAX_UPLOAD_IMAGE_PIXELS:
         raise UnreadableFileError(
             "This image is too large to read. Upload a smaller copy of it."
         )
+    return source
+
+
+def _as_jpeg(source: Image.Image, max_edge_px: int, max_bytes: int) -> dict:
     try:
         image = _upright_rgb(source, max_edge_px)
         while True:
@@ -541,7 +579,7 @@ def _upload_image(data: bytes, max_edge_px: int, max_bytes: int) -> dict:
     except MemoryError:
         raise
     except Exception as exc:  # a damaged or cut-short file fails as it is decoded
-        raise not_an_image from exc
+        raise UnreadableFileError(_NOT_AN_IMAGE) from exc
     if len(encoded) > max_bytes:
         raise UnreadableFileError("This image is too detailed to read.")
     return {
@@ -571,7 +609,49 @@ def _upright_rgb(image: Image.Image, max_edge_px: int) -> Image.Image:
     return opaque
 
 
-def _docx_text(data: bytes, max_chars: int) -> dict:
+class _EmbeddedImages:
+    """A Word document's images as mammoth meets them, each kept once as a JPEG."""
+
+    def __init__(self, max_edge_px: int, max_bytes: int):
+        self.kept: list[dict] = []
+        self._max_edge_px = max_edge_px
+        self._max_bytes = max_bytes
+        # By content: an image the document uses twice is one image.
+        self._markers: dict[bytes, str] = {}
+
+    def convert(self, image) -> list:
+        """What stands in the text for ``image``: its marker, or nothing."""
+        try:
+            # A linked image fails here: mammoth opens nothing outside the file.
+            with image.open() as stream:
+                data = stream.read(_MAX_EMBEDDED_IMAGE_BYTES + 1)
+        except Exception:  # so does a missing or damaged archive member
+            return [mammoth_html.text(f" {EMBEDDED_IMAGE_NOT_SHOWN} ")]
+        digest = hashlib.sha256(data).digest()
+        if digest not in self._markers:
+            self._markers[digest] = self._keep(data)
+        marker = self._markers[digest]
+        return [mammoth_html.text(f" {marker} ")] if marker else []
+
+    def _keep(self, data: bytes) -> str:
+        """Keep the image if it can be shown; its marker, or none for an icon."""
+        if len(data) > _MAX_EMBEDDED_IMAGE_BYTES:
+            return EMBEDDED_IMAGE_NOT_SHOWN
+        try:
+            source = _open_image(data, self._max_edge_px)
+            if min(source.size) < _MIN_EMBEDDED_IMAGE_EDGE_PX:
+                return ""
+            if len(self.kept) >= MAX_EMBEDDED_IMAGES:
+                return EMBEDDED_IMAGE_NOT_SHOWN
+            self.kept.append(_as_jpeg(source, self._max_edge_px, self._max_bytes))
+        except (UnreadableFileError, MemoryError):
+            # One image must not cost the document its text.
+            return EMBEDDED_IMAGE_NOT_SHOWN
+        return EMBEDDED_IMAGE_MARKER.format(number=len(self.kept))
+
+
+def _docx_text(data: bytes, max_chars: int, max_edge_px: int, max_bytes: int) -> dict:
+    images = _EmbeddedImages(max_edge_px, max_bytes)
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             xml_bytes = sum(
@@ -584,8 +664,7 @@ def _docx_text(data: bytes, max_chars: int) -> dict:
         html = mammoth.convert_to_html(
             io.BytesIO(data),
             include_embedded_style_map=False,
-            # Images carry no text; leaving them unopened also skips their bytes.
-            convert_image=lambda image: [],
+            convert_image=images.convert,
         ).value
         text = markdownify(
             html,
@@ -602,7 +681,11 @@ def _docx_text(data: bytes, max_chars: int) -> dict:
             "This file could not be read as a Word document (.docx)."
         ) from exc
     # Cut here so no more than max_chars reaches the unlimited parent.
-    return {"text": text[:max_chars], "truncated": len(text) > max_chars}
+    return {
+        "text": text[:max_chars],
+        "truncated": len(text) > max_chars,
+        "images": images.kept,
+    }
 
 
 def _plain_text(data: bytes) -> str:

@@ -11,7 +11,7 @@ from research_ai.services.agent.images import MANY_IMAGES, RequestImages
 from research_ai.services.agent.providers import bedrock
 from research_ai.services.agent.types import ImageBlock, Message
 from research_ai.services.agent_files import AgentFileService
-from research_ai.services.agent_files.extraction import UnreadableFileError
+from research_ai.services.agent_files.extraction import DOCX, UnreadableFileError
 from research_ai.services.agent_files.image_loader import PrivateStorageImageLoader
 from research_ai.services.agent_files.page_images import (
     MAX_PAGE,
@@ -102,6 +102,17 @@ class PageImageServiceTests(AWSMockTestCase):
         file.save(update_fields=["etag"])
         return file
 
+    def _word(self, images: int) -> AgentFile:
+        """A READY Word file sent in the chat, with that many images kept from it."""
+        return make_file(
+            self.user,
+            message=self.message,
+            filename="plan.docx",
+            content_type=DOCX.content_type,
+            text="Figure 1",
+            embedded_image_count=images,
+        )
+
     def _prefix(self, file) -> str:
         return file.storage_key.rsplit("/", 1)[0]
 
@@ -147,6 +158,25 @@ class PageImageServiceTests(AWSMockTestCase):
             self.assertEqual((stored.format, stored.size), ("JPEG", (100, 50)))
         with self.assertRaises(ValueError):
             service.images(file, [2])
+
+    def test_a_word_files_images_are_read_as_stored_and_never_made(self):
+        # Arrange: processing stored the first of its two images; the second is gone.
+        file = self._word(2)
+        ref = f"{self._prefix(file)}/pages/1.jpg"
+        self.bucket.put(ref, image_bytes(image_format="JPEG"), "image/jpeg")
+        render = FakeRender()
+
+        # Act
+        result = PageImageService(render=render).images(file, [1, 2])
+
+        # Assert
+        self.assertEqual(
+            result.images, (ImageBlock(ref, "image/jpeg", "plan.docx, image 1"),)
+        )
+        self.assertEqual(result.failed, (2,))
+        self.assertEqual(render.pages, [])
+        self.mock_aws_client.get_object.assert_not_called()
+        self.mock_aws_client.put_object.assert_not_called()
 
     def test_a_stored_page_is_reused_not_rendered_again(self):
         # Arrange
@@ -413,6 +443,11 @@ class PageImageServiceTests(AWSMockTestCase):
         self.assertEqual(page_image_keys(file), [image.ref for image in result.images])
         # A PDF can claim pages it does not have.
         self.assertEqual(len(page_image_keys(claimed)), MAX_PAGE)
+        word = self._word(2)
+        self.assertEqual(
+            page_image_keys(word),
+            [f"{self._prefix(word)}/pages/{number}.jpg" for number in (1, 2)],
+        )
 
     def test_purge_deletes_page_images_without_listing_the_bucket(self):
         # Arrange
