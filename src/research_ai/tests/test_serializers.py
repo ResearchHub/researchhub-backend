@@ -28,12 +28,15 @@ from user.tests.helpers import create_random_authenticated_user
 
 class ExpertSearchConfigSerializerTests(TestCase):
     def test_defaults_other_fields_when_expert_count_provided(self):
+        from research_ai.constants import ExpertFinderEngine
+
         ser = ExpertSearchConfigSerializer(data={"expert_count": 10})
         self.assertTrue(ser.is_valid())
         data = ser.validated_data
         self.assertEqual(data["expert_count"], 10)
         self.assertEqual(data["expertise_level"], [ExpertiseLevel.ALL_LEVELS])
         self.assertEqual(data["region"], Region.ALL_REGIONS)
+        self.assertEqual(data["engine"], ExpertFinderEngine.ADVANCED)
         self.assertNotIn("gender", data)
 
     def test_expert_count_required(self):
@@ -97,6 +100,8 @@ class ExpertSearchConfigSerializerTests(TestCase):
         self.assertNotIn("gender", ser.fields)
 
     def test_expert_count_bounds(self):
+        from research_ai.constants import ExpertFinderEngine
+
         ser = ExpertSearchConfigSerializer(data={"expert_count": 5})
         self.assertTrue(ser.is_valid())
         ser = ExpertSearchConfigSerializer(data={"expert_count": 25})
@@ -106,20 +111,75 @@ class ExpertSearchConfigSerializerTests(TestCase):
         ser = ExpertSearchConfigSerializer(data={"expert_count": 26})
         self.assertFalse(ser.is_valid())
 
+        ser = ExpertSearchConfigSerializer(
+            data={"expert_count": 100, "engine": ExpertFinderEngine.BASIC}
+        )
+        self.assertTrue(ser.is_valid())
+        ser = ExpertSearchConfigSerializer(
+            data={"expert_count": 101, "engine": ExpertFinderEngine.BASIC}
+        )
+        self.assertFalse(ser.is_valid())
+        ser = ExpertSearchConfigSerializer(
+            data={"expert_count": 26, "engine": ExpertFinderEngine.ADVANCED}
+        )
+        self.assertFalse(ser.is_valid())
+
+    def test_engine_basic_and_advanced(self):
+        from research_ai.constants import ExpertFinderEngine
+
+        ser = ExpertSearchConfigSerializer(
+            data={"expert_count": 10, "engine": ExpertFinderEngine.BASIC}
+        )
+        self.assertTrue(ser.is_valid())
+        self.assertEqual(ser.validated_data["engine"], ExpertFinderEngine.BASIC)
+        ser = ExpertSearchConfigSerializer(data={"expert_count": 10, "engine": "nope"})
+        self.assertFalse(ser.is_valid())
+
 
 class ExpertSearchFindMoreSerializerTests(TestCase):
     def test_expert_count_required_and_bounds(self):
+        from research_ai.constants import ExpertFinderEngine
         from research_ai.serializers import ExpertSearchFindMoreSerializer
 
         # Arrange / Act / Assert
         ser = ExpertSearchFindMoreSerializer(data={})
         self.assertFalse(ser.is_valid())
         self.assertIn("expert_count", ser.errors)
-        ser = ExpertSearchFindMoreSerializer(data={"expert_count": 25})
+        ser = ExpertSearchFindMoreSerializer(
+            data={"expert_count": 25},
+            context={"engine": ExpertFinderEngine.ADVANCED},
+        )
         self.assertTrue(ser.is_valid())
         ser = ExpertSearchFindMoreSerializer(data={"expert_count": 4})
         self.assertFalse(ser.is_valid())
-        ser = ExpertSearchFindMoreSerializer(data={"expert_count": 26})
+        ser = ExpertSearchFindMoreSerializer(
+            data={"expert_count": 26},
+            context={"engine": ExpertFinderEngine.ADVANCED},
+        )
+        self.assertFalse(ser.is_valid())
+        ser = ExpertSearchFindMoreSerializer(
+            data={"expert_count": 100},
+            context={"engine": ExpertFinderEngine.BASIC},
+        )
+        self.assertTrue(ser.is_valid())
+
+    def test_optional_engine_switches_count_cap(self):
+        from research_ai.constants import ExpertFinderEngine
+        from research_ai.serializers import ExpertSearchFindMoreSerializer
+
+        # Existing advanced search, but request switches to basic → allow 100.
+        ser = ExpertSearchFindMoreSerializer(
+            data={"expert_count": 100, "engine": ExpertFinderEngine.BASIC},
+            context={"engine": ExpertFinderEngine.ADVANCED},
+        )
+        self.assertTrue(ser.is_valid())
+        self.assertEqual(ser.validated_data["engine"], ExpertFinderEngine.BASIC)
+
+        # Omit engine → cap from existing advanced config.
+        ser = ExpertSearchFindMoreSerializer(
+            data={"expert_count": 26},
+            context={"engine": ExpertFinderEngine.ADVANCED},
+        )
         self.assertFalse(ser.is_valid())
 
 

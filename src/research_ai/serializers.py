@@ -6,10 +6,15 @@ from rest_framework import serializers
 
 from paper.serializers import PaperSerializer
 from research_ai.constants import (
+    EXPERT_FINDER_DEFAULT_ENGINE,
     EXPERT_FINDER_DEFAULT_STATE,
+    EXPERT_FINDER_MIN_EXPERT_COUNT,
     EmailTemplateType,
+    ExpertFinderEngine,
     ExpertiseLevel,
     Region,
+    expert_finder_max_expert_count,
+    normalize_expert_finder_engine,
 )
 from research_ai.models import (
     EmailTemplate,
@@ -66,7 +71,7 @@ def _apply_generate_template_rules(attrs, initial_data):
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
-    expert_count = serializers.IntegerField(min_value=5, max_value=25)
+    expert_count = serializers.IntegerField(min_value=EXPERT_FINDER_MIN_EXPERT_COUNT)
     expertise_level = serializers.ListField(
         child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
         required=False,
@@ -78,6 +83,11 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
         default=Region.ALL_REGIONS,
     )
     state = serializers.CharField(default=EXPERT_FINDER_DEFAULT_STATE)
+    engine = serializers.ChoiceField(
+        choices=ExpertFinderEngine.choices,
+        required=False,
+        default=EXPERT_FINDER_DEFAULT_ENGINE,
+    )
 
     def validate(self, attrs):
         expertise_level = attrs.get("expertise_level") or []
@@ -92,6 +102,21 @@ class ExpertSearchConfigSerializer(serializers.Serializer):
             attrs["expertise_level"] = list(expertise_level)
         attrs["region"] = attrs.get("region") or Region.ALL_REGIONS
         attrs["state"] = attrs.get("state", EXPERT_FINDER_DEFAULT_STATE)
+        engine = normalize_expert_finder_engine(
+            attrs.get("engine") or EXPERT_FINDER_DEFAULT_ENGINE
+        )
+        attrs["engine"] = engine
+        max_count = expert_finder_max_expert_count(engine)
+        expert_count = attrs.get("expert_count")
+        if expert_count is not None and expert_count > max_count:
+            raise serializers.ValidationError(
+                {
+                    "expert_count": (
+                        f"Ensure this value is less than or equal to {max_count} "
+                        f"for engine={engine}."
+                    )
+                }
+            )
         return attrs
 
 
@@ -115,12 +140,37 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
 class ExpertSearchFindMoreSerializer(serializers.Serializer):
     """POST body for ``/expert-finder/searches/<id>/find-more/``."""
 
-    expert_count = serializers.IntegerField(min_value=5, max_value=25)
+    expert_count = serializers.IntegerField(min_value=EXPERT_FINDER_MIN_EXPERT_COUNT)
+    engine = serializers.ChoiceField(
+        choices=ExpertFinderEngine.choices,
+        required=False,
+    )
     additional_context = serializers.CharField(
         required=False,
         allow_blank=True,
         max_length=ADDITIONAL_CONTEXT_MAX_LENGTH,
     )
+
+    def validate(self, attrs):
+        if "engine" in attrs:
+            attrs["engine"] = normalize_expert_finder_engine(attrs.get("engine"))
+            engine = attrs["engine"]
+        else:
+            engine = normalize_expert_finder_engine(
+                self.context.get("engine") or EXPERT_FINDER_DEFAULT_ENGINE
+            )
+        max_count = expert_finder_max_expert_count(engine)
+        expert_count = attrs.get("expert_count")
+        if expert_count is not None and expert_count > max_count:
+            raise serializers.ValidationError(
+                {
+                    "expert_count": (
+                        f"Ensure this value is less than or equal to {max_count} "
+                        f"for engine={engine}."
+                    )
+                }
+            )
+        return attrs
 
 
 class ExpertCurrentDocumentOutreachSerializer(serializers.Serializer):

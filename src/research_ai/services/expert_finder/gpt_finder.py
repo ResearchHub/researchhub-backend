@@ -1,7 +1,3 @@
-"""GPT end-to-end expert search used when the Claude agent is content-filtered."""
-
-from __future__ import annotations
-
 import logging
 from typing import Any
 
@@ -61,7 +57,7 @@ def run_gpt_expert_finder(
     )
 
     logger.info(
-        "GPT expert-finder fallback starting model=%s target=%s",
+        "GPT expert-finder starting model=%s target=%s",
         openai.model_id,
         target,
     )
@@ -75,7 +71,7 @@ def run_gpt_expert_finder(
     errors.extend(drops)
     if drops:
         logger.info(
-            "GPT fallback SES gate dropped %s of %s experts",
+            "GPT expert search SES gate dropped %s of %s experts",
             len(drops),
             len(batch),
         )
@@ -85,15 +81,3 @@ def run_gpt_expert_finder(
         "errors": errors,
         "llm_model": f"openai:{openai.model_id}",
     }
-
-
-def agent_result_is_content_filtered(agent_result: dict | None) -> bool:
-    """True when the agent run stopped due to provider content filtering."""
-    if not isinstance(agent_result, dict):
-        return False
-    if agent_result.get("content_filtered"):
-        return True
-    return any(
-        "content_filtered" in str(err).lower()
-        for err in (agent_result.get("errors") or [])
-    )

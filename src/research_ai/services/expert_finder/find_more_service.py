@@ -9,6 +9,10 @@ from typing import Any
 
 from django.db import transaction
 
+from research_ai.constants import (
+    EXPERT_FINDER_ENGINE_CONFIG_KEY,
+    normalize_expert_finder_engine,
+)
 from research_ai.models import ExpertSearch
 
 logger = logging.getLogger(__name__)
@@ -71,6 +75,7 @@ class FindMoreService:
         *,
         expert_count: int,
         additional_context: str | None = None,
+        engine: str | None = None,
     ) -> FindMoreQueued:
         with transaction.atomic():
             try:
@@ -95,6 +100,10 @@ class FindMoreService:
 
             config = dict(prior_config)
             config["expert_count"] = expert_count
+            if engine is not None:
+                config[EXPERT_FINDER_ENGINE_CONFIG_KEY] = (
+                    normalize_expert_finder_engine(engine)
+                )
             if additional_context is not None:
                 ctx = (additional_context or "").strip()
                 expert_search.additional_context = ctx

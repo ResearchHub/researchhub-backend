@@ -1,40 +1,15 @@
-"""Unit tests for GPT content_filtered fallback + SES gate."""
+"""Unit tests for GPT basic-engine search + SES gate."""
 
 from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
 
-from research_ai.services.expert_finder.gpt_fallback import (
-    agent_result_is_content_filtered,
-    run_gpt_expert_finder,
-)
-
-
-class AgentContentFilteredHelperTests(SimpleTestCase):
-    def test_flag_and_error_string(self):
-        # Arrange / Act / Assert
-        self.assertTrue(
-            agent_result_is_content_filtered({"content_filtered": True, "errors": []})
-        )
-        self.assertTrue(
-            agent_result_is_content_filtered(
-                {
-                    "content_filtered": False,
-                    "errors": [
-                        "agent: Provider stopped without completing "
-                        "the agent run: content_filtered"
-                    ],
-                }
-            )
-        )
-        self.assertFalse(
-            agent_result_is_content_filtered({"errors": ["agent: did not submit"]})
-        )
+from research_ai.services.expert_finder.gpt_finder import run_gpt_expert_finder
 
 
 class RunGptExpertFinderTests(SimpleTestCase):
-    @patch("research_ai.services.expert_finder.gpt_fallback.EmailValidationService")
-    @patch("research_ai.services.expert_finder.gpt_fallback.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder.gpt_finder.EmailValidationService")
+    @patch("research_ai.services.expert_finder.gpt_finder.OpenAIExpertFinderService")
     def test_parses_json_and_applies_ses_gate(self, mock_openai_cls, mock_email_cls):
         # Arrange
         openai = MagicMock()
@@ -78,8 +53,8 @@ class RunGptExpertFinderTests(SimpleTestCase):
         email_svc.gate_submitted_experts.assert_called_once()
         openai.invoke.assert_called_once()
 
-    @patch("research_ai.services.expert_finder.gpt_fallback.EmailValidationService")
-    @patch("research_ai.services.expert_finder.gpt_fallback.OpenAIExpertFinderService")
+    @patch("research_ai.services.expert_finder.gpt_finder.EmailValidationService")
+    @patch("research_ai.services.expert_finder.gpt_finder.OpenAIExpertFinderService")
     def test_ses_drops_invalid_emails(self, mock_openai_cls, mock_email_cls):
         # Arrange
         openai = MagicMock()

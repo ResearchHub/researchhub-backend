@@ -276,9 +276,10 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         "research_ai.services.expert_finder.finder.generate_pdf_report",
         return_value=b"p",
     )
+    @patch("research_ai.services.expert_finder.finder.run_gpt_expert_finder")
     @patch("research_ai.services.expert_finder.finder.run_expert_finder_agent")
     def test_run_success_persists_and_returns_completed(
-        self, mock_agent, _pdf, _csv, _up
+        self, mock_agent, mock_gpt, _pdf, _csv, _up
     ):
         # Arrange
         mock_agent.return_value = {
@@ -327,6 +328,7 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         self.assertTrue(Expert.objects.filter(email="u_test@mit.edu").exists())
         self.assertFalse(Expert.objects.filter(email="u@mit.edu").exists())
         mock_agent.assert_called_once()
+        mock_gpt.assert_not_called()
         self.assertEqual(
             mock_agent.call_args.kwargs.get("exclude_work_ids"),
             None,
@@ -345,30 +347,21 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         "research_ai.services.expert_finder.finder.generate_pdf_report",
         return_value=b"p",
     )
-    @patch("research_ai.services.expert_finder.finder.run_gpt_expert_finder")
     @patch("research_ai.services.expert_finder.finder.run_expert_finder_agent")
-    def test_content_filtered_falls_back_to_gpt(
-        self, mock_agent, mock_gpt, _pdf, _csv, _up
-    ):
+    @patch("research_ai.services.expert_finder.finder.run_gpt_expert_finder")
+    def test_basic_engine_uses_gpt_only(self, mock_gpt, mock_agent, _pdf, _csv, _up):
         # Arrange
-        mock_agent.return_value = {
-            "experts": [],
-            "errors": [
-                "agent: Provider stopped without completing "
-                "the agent run: content_filtered"
-            ],
-            "author_work_ids": {},
-            "content_filtered": True,
-        }
+        from research_ai.constants import ExpertFinderEngine
+
         mock_gpt.return_value = {
             "experts": [
                 {
-                    "email": "gpt@ox.ac.uk",
-                    "first_name": "G",
-                    "last_name": "Pt",
+                    "email": "basic@mit.edu",
+                    "first_name": "B",
+                    "last_name": "Asic",
                     "academic_title": "Prof",
-                    "affiliation": "Oxford",
-                    "expertise": "Y",
+                    "affiliation": "MIT",
+                    "expertise": "X",
                     "notes": "N",
                     "sources": [],
                 }
@@ -380,11 +373,12 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         # Act
         r = run_expert_finder_search(
             str(self.search.id),
-            "sensitive topic query",
+            "query",
             {
                 "expert_count": 1,
                 "expertise_level": [ExpertiseLevel.ALL_LEVELS],
                 "region": Region.ALL_REGIONS,
+                "engine": ExpertFinderEngine.BASIC,
             },
         )
 
@@ -392,7 +386,55 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
         self.assertEqual(r["status"], ExpertSearch.Status.COMPLETED)
         self.assertEqual(r["llm_model"], "openai:gpt-5.4-mini")
         mock_gpt.assert_called_once()
-        self.assertTrue(Expert.objects.filter(email="gpt_test@ox.ac.uk").exists())
+        mock_agent.assert_not_called()
+        self.assertTrue(Expert.objects.filter(email="basic_test@mit.edu").exists())
+
+    @override_settings(PRODUCTION=False, TESTING=False)
+    @patch(
+        "research_ai.services.expert_finder.finder.upload_report_to_storage",
+        return_value="https://x/r",
+    )
+    @patch(
+        "research_ai.services.expert_finder.finder.generate_csv_file",
+        return_value=b"c",
+    )
+    @patch(
+        "research_ai.services.expert_finder.finder.generate_pdf_report",
+        return_value=b"p",
+    )
+    @patch("research_ai.services.expert_finder.finder.run_gpt_expert_finder")
+    @patch("research_ai.services.expert_finder.finder.run_expert_finder_agent")
+    def test_advanced_content_filtered_does_not_call_gpt(
+        self, mock_agent, mock_gpt, _pdf, _csv, _up
+    ):
+        # Arrange
+        from research_ai.constants import ExpertFinderEngine
+
+        mock_agent.return_value = {
+            "experts": [],
+            "errors": [
+                "agent: Provider stopped without completing "
+                "the agent run: content_filtered"
+            ],
+            "author_work_ids": {},
+            "content_filtered": True,
+        }
+
+        # Act
+        r = run_expert_finder_search(
+            str(self.search.id),
+            "sensitive topic query",
+            {
+                "expert_count": 1,
+                "expertise_level": [ExpertiseLevel.ALL_LEVELS],
+                "region": Region.ALL_REGIONS,
+                "engine": ExpertFinderEngine.ADVANCED,
+            },
+        )
+
+        # Assert: no automatic GPT fallback; caller can find-more with basic.
+        self.assertEqual(r["status"], ExpertSearch.Status.FAILED)
+        mock_gpt.assert_not_called()
 
 
 class PriorDocumentExpertExclusionTests(TestCase):

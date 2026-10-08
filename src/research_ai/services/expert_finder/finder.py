@@ -10,21 +10,21 @@ from django.core.validators import EmailValidator
 
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
+    EXPERT_FINDER_ENGINE_CONFIG_KEY,
     EXPERT_FINDER_SEEN_WORK_IDS_CAP,
     EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY,
     MAX_PDF_SIZE_BYTES,
+    ExpertFinderEngine,
     ExpertiseLevel,
     Region,
+    normalize_expert_finder_engine,
 )
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.agent.providers.registry import generator_model_ref
 from research_ai.services.expert_finder.agent_runner import run_expert_finder_agent
 from research_ai.services.expert_finder.display import ExpertDisplay
-from research_ai.services.expert_finder.gpt_fallback import (
-    agent_result_is_content_filtered,
-    run_gpt_expert_finder,
-)
+from research_ai.services.expert_finder.gpt_finder import run_gpt_expert_finder
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.expert_finder.progress import ProgressService, TaskType
 from research_ai.services.expert_finder.report_generator import (
@@ -508,49 +508,26 @@ class ExpertFinderService:
                 expertise_level = [ExpertiseLevel.ALL_LEVELS]
             region_filter = config.get("region", Region.ALL_REGIONS)
             state_filter = config.get("state", EXPERT_FINDER_DEFAULT_STATE)
+            engine = normalize_expert_finder_engine(
+                config.get(EXPERT_FINDER_ENGINE_CONFIG_KEY)
+            )
+            config[EXPERT_FINDER_ENGINE_CONFIG_KEY] = engine
             excluded_names = self._capped_excluded_names(
                 [n for n in search_id_names if n]
             )
 
-            publish_progress(
-                (
-                    "Finding more experts via agent search..."
-                    if append
-                    else "Finding experts via agent search..."
-                ),
-                28,
-            )
-            try:
-                agent_result = run_expert_finder_agent(
-                    query=query,
-                    expert_count=target_expert_count,
-                    expertise_level=expertise_level,
-                    region_filter=region_filter,
-                    state_filter=state_filter,
-                    excluded_expert_names=excluded_names,
-                    additional_context=additional_context,
-                    exclude_work_ids=exclude_work_ids or None,
-                )
-            except BudgetExceededError:
-                raise
-            except Exception as e:
-                return fail_return(
-                    f"Expert agent search failed: {e}"[:2000],
-                    current_step="Agent search failed",
-                    exc=e,
-                )
+            batch: list[dict[str, Any]] = []
+            author_work_ids: dict | None = {}
+            discovery_errors: list[str] = []
 
-            publish_progress("Validating grounded expert recommendations...", 58)
-            batch = list(agent_result.get("experts") or [])
-            author_work_ids = agent_result.get("author_work_ids")
-            discovery_errors = list(agent_result.get("errors") or [])
-
-            # Claude/Bedrock refusal: fall back to GPT.
-            if not batch and agent_result_is_content_filtered(agent_result):
+            if engine == ExpertFinderEngine.BASIC:
                 publish_progress(
-                    "Agent content filter blocked this topic; "
-                    "falling back to GPT expert search...",
-                    35,
+                    (
+                        "Finding more experts via GPT search..."
+                        if append
+                        else "Finding experts via GPT search..."
+                    ),
+                    28,
                 )
                 try:
                     gpt_result = run_gpt_expert_finder(
@@ -565,23 +542,48 @@ class ExpertFinderService:
                     )
                 except Exception as e:
                     return fail_return(
-                        f"Agent was content-filtered and GPT fallback failed: {e}"[
-                            :2000
-                        ],
-                        current_step="GPT fallback failed",
+                        f"GPT expert search failed: {e}"[:2000],
+                        current_step="GPT search failed",
                         exc=e,
-                        extra={"agent_errors": discovery_errors[:20]},
                     )
                 batch = list(gpt_result.get("experts") or [])
                 author_work_ids = {}
-                discovery_errors.extend(gpt_result.get("errors") or [])
+                discovery_errors = list(gpt_result.get("errors") or [])
                 llm_model = gpt_result.get("llm_model") or llm_model
-                logger.info(
-                    "expert finder search_id=%s used GPT fallback after "
-                    "content_filtered experts=%s",
-                    search_id,
-                    len(batch),
+            else:
+                publish_progress(
+                    (
+                        "Finding more experts via agent search..."
+                        if append
+                        else "Finding experts via agent search..."
+                    ),
+                    28,
                 )
+                try:
+                    agent_result = run_expert_finder_agent(
+                        query=query,
+                        expert_count=target_expert_count,
+                        expertise_level=expertise_level,
+                        region_filter=region_filter,
+                        state_filter=state_filter,
+                        excluded_expert_names=excluded_names,
+                        additional_context=additional_context,
+                        exclude_work_ids=exclude_work_ids or None,
+                    )
+                except BudgetExceededError:
+                    raise
+                except Exception as e:
+                    return fail_return(
+                        f"Expert agent search failed: {e}"[:2000],
+                        current_step="Agent search failed",
+                        exc=e,
+                    )
+
+                batch = list(agent_result.get("experts") or [])
+                author_work_ids = agent_result.get("author_work_ids")
+                discovery_errors = list(agent_result.get("errors") or [])
+
+            publish_progress("Validating expert recommendations...", 58)
 
             n_before = len(batch)
             kept: list[dict[str, Any]] = []
@@ -609,22 +611,30 @@ class ExpertFinderService:
                     )
                     return fail_return(umsg, current_step="All experts excluded")
 
-                umsg = (
-                    "No expert recommendations were returned. The agent did not "
-                    "yield at least one grounded expert with a validated email."
-                )
+                if engine == ExpertFinderEngine.BASIC:
+                    umsg = (
+                        "No expert recommendations were returned. GPT search "
+                        "did not yield at least one expert with a validated email."
+                    )
+                    step = "No experts after GPT search"
+                else:
+                    umsg = (
+                        "No expert recommendations were returned. The agent did "
+                        "not yield at least one grounded expert with a "
+                        "validated email."
+                    )
+                    step = "No experts after agent search"
                 if discovery_errors:
                     detail = "; ".join(str(e) for e in discovery_errors)
-                    umsg = (
-                        umsg + " Agent details:\n\n" + detail[:MAX_ERROR_MESSAGE_LENGTH]
-                    )
+                    umsg = umsg + " Details:\n\n" + detail[:MAX_ERROR_MESSAGE_LENGTH]
                 return fail_return(
                     umsg,
-                    current_step="No experts after agent search",
+                    current_step=step,
                     store_full_response_error=umsg[:MAX_ERROR_MESSAGE_LENGTH],
                     extra={
                         "target_expert_count": target_expert_count,
-                        "agent_error_count": len(discovery_errors),
+                        "discovery_error_count": len(discovery_errors),
+                        "engine": engine,
                     },
                 )
 
