@@ -138,6 +138,8 @@ jobs:
 
   deploy-api:
     needs: [package, migrate]
+    # FIXME: Only deploy to production API until fully deprecated
+    if: github.event.inputs.deploy_env == 'prod'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
@@ -194,6 +196,8 @@ jobs:
 
   deploy-workers:
     needs: [package, deploy-api]
+    # FIXME: Only deploy to production worker until fully deprecated
+    if: github.event.inputs.deploy_env == 'prod'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:

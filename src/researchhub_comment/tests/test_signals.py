@@ -6,6 +6,8 @@ from django.test import TestCase
 
 from notification.models import Notification
 from notification.services import NotificationService
+from purchase.models import Grant, GrantApplication
+from purchase.related_models.constants.currency import USD
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.related_models.distribution import Distribution as DistributionModel
@@ -235,15 +237,68 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         send_email.assert_called_once()
         recipients, subject, message = send_email.call_args.args
         self.assertCountEqual(recipients, [self.follower1.email, self.follower2.email])
-        self.assertEqual(subject, "Update on Preregistration You're Following")
+        self.assertEqual(subject, "New Preregistration Update")
         self.assertEqual(
             message,
             f"{self.author.first_name} {self.author.last_name} posted an update "
-            "to a preregistration you're following",
+            f"to the preregistration {self.preregistration.title}",
         )
         self.assertEqual(
             send_email.call_args.kwargs,
             {"link": self.preregistration_unified_doc.frontend_view_link()},
+        )
+
+    @patch.object(NotificationService, "_send_notification")
+    def test_notifies_rfp_owners_and_followers_once_except_the_author(
+        self, mock_send_notification: Mock
+    ) -> None:
+        """RFP owners and followers get one alert and email, but the author none."""
+        # Arrange
+        rfp_contact = create_random_default_user("rfp_contact")
+        grant = Grant.objects.create(
+            created_by=self.follower1,
+            unified_document=self.discussion_unified_doc,
+            amount=Decimal("10000.00"),
+            currency=USD,
+            organization="Test Org",
+            description="Test grant",
+            status=Grant.OPEN,
+        )
+        grant.contacts.add(self.follower2, rfp_contact, self.author)
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=self.preregistration,
+            applicant=self.author,
+        )
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=AUTHOR_UPDATE,
+            content_object=self.preregistration,
+            created_by=self.author,
+        )
+
+        # Act
+        with (
+            patch("researchhub_comment.signals.send_message_email.delay") as send_email,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            RhCommentModel.objects.create(
+                thread=thread,
+                created_by=self.author,
+                comment_content_json={"text": "This is an author update"},
+                comment_type=AUTHOR_UPDATE,
+            )
+
+        # Assert
+        self.assertCountEqual(
+            Notification.objects.filter(
+                notification_type=Notification.PREREGISTRATION_UPDATE
+            ).values_list("recipient_id", flat=True),
+            [self.follower1.id, self.follower2.id, rfp_contact.id],
+        )
+        send_email.assert_called_once()
+        self.assertCountEqual(
+            send_email.call_args.args[0],
+            [self.follower1.email, self.follower2.email, rfp_contact.email],
         )
 
     def test_signal_handles_update_operations(self):

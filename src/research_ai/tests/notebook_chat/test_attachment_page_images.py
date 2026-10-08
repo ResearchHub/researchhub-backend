@@ -59,7 +59,7 @@ SETTINGS = {
     "AWS_PRIVATE_STORAGE_BUCKET_NAME": BUCKET,
 }
 VISION_MODEL = "claude_platform:claude-sonnet-5"
-# The default tier's model.
+# The default tier may still pick its former model.
 TEXT_ONLY_MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
 PDF_TEXT = "[Page 1]\nAim 1: map enhancers.\n\n[Page 2]\nFigure 2 shows the screen."
 # A PDF of up to two pages is sent as images; a message carries four pages.
@@ -460,7 +460,7 @@ class ChatTurnTestCase(BucketTestCase):
         )
 
     def _pick_models(self):
-        """Staff may pick a model; the default tier's own is text-only."""
+        """Staff may pick any supported model."""
         self.user.is_staff = True
         self.user.save(update_fields=["is_staff"])
 
@@ -568,9 +568,11 @@ class NotebookChatPageImageTests(ChatTurnTestCase):
         self.assertNotIn(f'id="{gel.id}"', prompt)
 
     def test_a_text_only_model_is_told_it_cannot_see_an_uploaded_image(self):
-        # Arrange: the default tier's model takes no images.
+        # Arrange
         gel = self._image()
-        execution = self._submit("What does this show?", file_ids=[gel.id])
+        execution = self._submit(
+            "What does this show?", model_ref=TEXT_ONLY_MODEL, file_ids=[gel.id]
+        )
 
         # Act
         provider = self._finish(execution, text_turn("I cannot view it."))
@@ -604,10 +606,12 @@ class NotebookChatPageImageTests(ChatTurnTestCase):
         self.mock_aws_client.put_object.assert_not_called()
 
     def test_a_text_only_model_gets_no_images_and_no_page_tool(self):
-        # Arrange: the default tier's model takes no images.
+        # Arrange
         grant = self._pdf(2)
         long = self._pdf(3, filename="plan.pdf")
-        execution = self._submit("Describe them", file_ids=[grant.id, long.id])
+        execution = self._submit(
+            "Describe them", model_ref=TEXT_ONLY_MODEL, file_ids=[grant.id, long.id]
+        )
 
         # Act
         provider = self._finish(
@@ -988,9 +992,11 @@ class ConversationPageImageBudgetTests(ChatTurnTestCase):
         self.assertNotIn(PDF_TEXT, message.content[-1].text)
 
     def test_a_text_only_model_is_told_nothing_about_room_for_images(self):
-        # Arrange: the default tier's model, in a chat with no room for images.
+        # Arrange: a chat with no room for images.
         grant = self._pdf(2)
-        execution = self._submit("Describe it", file_ids=[grant.id])
+        execution = self._submit(
+            "Describe it", model_ref=TEXT_ONLY_MODEL, file_ids=[grant.id]
+        )
 
         # Act
         provider = self._finish(

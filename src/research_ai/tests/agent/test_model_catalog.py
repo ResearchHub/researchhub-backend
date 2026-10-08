@@ -12,6 +12,7 @@ from research_ai.services.agent.model_capabilities import (
 from research_ai.services.agent.model_catalog import (
     available_models,
     default_model_ref,
+    supported_model_refs,
     validate_model_ref,
 )
 from research_ai.services.agent.model_pricing import model_pricing
@@ -80,15 +81,8 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertEqual(unreviewed, [])
 
     def test_openrouter_gpt_advertises_reasoning_but_not_temperature(self):
-        # Arrange
-        option = next(
-            option
-            for option in available_models()
-            if option.ref == "openrouter:openai/gpt-5.6-terra"
-        )
-
         # Act
-        capabilities = option.capabilities
+        capabilities = model_capabilities("openrouter", "openai/gpt-5.6-terra")
 
         # Assert
         self.assertIn("high", capabilities.effort)
@@ -104,15 +98,13 @@ class AvailableModelsTests(SimpleTestCase):
             "openrouter:qwen/qwen3.8-max-0902": ("adaptive",),
         }
 
-        # Act
-        options = {option.ref: option for option in available_models()}
-
-        # Assert
+        # Act / Assert
         for ref, thinking in expected.items():
             with self.subTest(ref=ref):
+                capabilities = model_capabilities(*split_model_ref(ref))
                 self.assertEqual(validate_model_ref(ref), ref)
-                self.assertEqual(options[ref].capabilities.thinking, thinking)
-                self.assertIsNotNone(options[ref].capabilities.max_output_tokens)
+                self.assertEqual(capabilities.thinking, thinking)
+                self.assertIsNotNone(capabilities.max_output_tokens)
 
     def test_gpt6_chat_completions_controls_are_tool_compatible(self):
         # Arrange / Act / Assert
@@ -133,19 +125,32 @@ class AvailableModelsTests(SimpleTestCase):
         # Arrange
         retired = (
             "claude_platform:claude-opus-5",
+            "claude_platform:claude-sonnet-5",
+            "openrouter:openai/gpt-6-sol",
+            "openrouter:openai/gpt-6-luna",
             "openrouter:openai/gpt-5.6-sol",
+            "openrouter:openai/gpt-5.6-terra",
             "openrouter:openai/gpt-5.6-luna",
+            "openrouter:google/gemini-3.8-flash",
+            "openrouter:x-ai/grok-4.6",
+            "openrouter:z-ai/glm-5.3-flash",
+            "openrouter:deepseek/deepseek-v4-flash-0731",
+            "openrouter:deepseek/deepseek-v4-pro-0813",
+            "openrouter:moonshotai/kimi-k3",
+            "openrouter:qwen/qwen3.8-max-0902",
         )
 
         # Act
-        refs = {option.ref for option in available_models()}
+        refs = [option.ref for option in available_models()]
 
-        # Assert
-        self.assertIn("openrouter:openai/gpt-5.6-terra", refs)
+        # Assert: a pinned chat needs its model accepted and its ceiling known.
+        self.assertEqual(refs, ["claude_platform:claude-opus-5-5"])
         for ref in retired:
             with self.subTest(ref=ref):
-                self.assertNotIn(ref, refs)
                 self.assertEqual(validate_model_ref(ref), ref)
+                self.assertIsNotNone(
+                    model_capabilities(*split_model_ref(ref)).max_output_tokens
+                )
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
     def test_retired_bedrock_default_is_not_reinserted(self):
@@ -244,8 +249,8 @@ class ValidateModelRefTests(SimpleTestCase):
     def test_catalog_ref_is_returned_canonical(self):
         # Act / Assert
         self.assertEqual(
-            validate_model_ref("claude_platform:claude-sonnet-5"),
-            "claude_platform:claude-sonnet-5",
+            validate_model_ref("claude_platform:claude-opus-5-5"),
+            "claude_platform:claude-opus-5-5",
         )
 
     def test_bare_ref_canonicalizes_onto_generator_provider(self):
@@ -282,10 +287,11 @@ class ValidateGenerationOptionsTests(SimpleTestCase):
 
 
 class VisionCapabilityTests(SimpleTestCase):
-    def test_picker_models_report_whether_they_take_images(self):
+    def test_supported_models_report_whether_they_take_images(self):
         # Act
         vision = {
-            option.ref: option.capabilities.vision for option in model_catalog._CATALOG
+            ref: model_capabilities(*split_model_ref(ref)).vision
+            for ref in supported_model_refs()
         }
 
         # Assert: only the DeepSeek models are text-only.
