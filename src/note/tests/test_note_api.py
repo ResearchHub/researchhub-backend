@@ -1,8 +1,12 @@
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from invite.related_models.note_invitation import NoteInvitation
@@ -12,7 +16,7 @@ from purchase.models import Fundraise, Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
-from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,
@@ -59,6 +63,42 @@ class NoteTests(APITestCase):
             short_title="Kindness RFP",
             status=status,
         )
+
+    def _create_org_note(self, title: str, document_type: str | None = None) -> dict:
+        data = {
+            "grouping": "WORKSPACE",
+            "organization_slug": self.org["slug"],
+            "title": title,
+        }
+        if document_type:
+            data["document_type"] = document_type
+        response = self.client.post("/api/note/", data)
+        self.assertEqual(response.status_code, 200)
+        return response.data
+
+    def _publish_note(self, note_id: int) -> None:
+        response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.user.id,
+                "full_src": "Test post content",
+                "is_public": True,
+                "note_id": note_id,
+                "renderable_text": (
+                    "Test post content that is sufficiently long for validation"
+                ),
+                "title": "Test post title that is sufficiently long",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def _get_organization_notes(self, query: str = ""):
+        response = self.client.get(
+            f"/api/organization/{self.org['slug']}/get_organization_notes/{query}"
+        )
+        self.assertEqual(response.status_code, 200)
+        return response.data
 
     def test_user_can_list_created_notes(self):
         # Arrange
@@ -1385,6 +1425,149 @@ class NoteTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["title"], "Draft grant")
+
+    def test_get_organization_notes_lists_a_slim_post(self):
+        # Arrange
+        draft = self._create_org_note("Draft note")
+        published = self._create_org_note("Published note")
+        self._publish_note(published["id"])
+        post = ResearchhubPost.objects.get(note_id=published["id"])
+
+        # Act
+        data = self._get_organization_notes()
+
+        # Assert
+        results = {note["id"]: note for note in data["results"]}
+        self.assertEqual(
+            results[published["id"]]["post"], {"id": post.id, "slug": post.slug}
+        )
+        self.assertIsNone(results[draft["id"]]["post"])
+
+    def test_get_organization_notes_post_costs_no_query_per_note(self):
+        # Arrange: count before the next request resets the query log. The
+        # post is approved, so serializing it needs no visibility check.
+        self._create_org_note("Draft note")
+        note = self._create_org_note("Soon published note")
+        with CaptureQueriesContext(connection) as all_drafts:
+            self._get_organization_notes()
+        all_drafts_queries = len(all_drafts)
+        self._publish_note(note["id"])
+        ResearchhubUnifiedDocument.objects.filter(posts__note_id=note["id"]).update(
+            status=ResearchhubUnifiedDocument.APPROVED
+        )
+
+        # Act
+        with CaptureQueriesContext(connection) as one_published:
+            data = self._get_organization_notes()
+
+        # Assert
+        self.assertEqual(data["count"], 2)
+        self.assertEqual(len(one_published), all_drafts_queries)
+
+    def _make_post_pending_and_private(self, note_id: int) -> ResearchhubPost:
+        post = ResearchhubPost.objects.get(note_id=note_id)
+        ResearchhubUnifiedDocument.objects.filter(id=post.unified_document_id).update(
+            is_public=False, status=ResearchhubUnifiedDocument.PENDING
+        )
+        return post
+
+    def _publish_pending_private_note(self, title: str) -> ResearchhubPost:
+        note = self._create_org_note(title)
+        self._publish_note(note["id"])
+        return self._make_post_pending_and_private(note["id"])
+
+    def _set_moderator(self, moderator: bool) -> None:
+        self.user.moderator = moderator
+        self.user.save(update_fields=["moderator"])
+
+    def test_get_organization_notes_private_posts_cost_no_query_per_note(self):
+        # Arrange: a non-moderator viewer, so every pending private post needs
+        # a visibility check. Count the same notes as drafts first; the next
+        # request resets the query log.
+        notes = [self._create_org_note(f"Note {i}") for i in range(3)]
+        self._set_moderator(False)
+        with CaptureQueriesContext(connection) as all_drafts:
+            self._get_organization_notes()
+        all_drafts_queries = len(all_drafts)
+        self._set_moderator(True)
+        for note in notes:
+            self._publish_note(note["id"])
+            self._make_post_pending_and_private(note["id"])
+        self._set_moderator(False)
+
+        # Act
+        with CaptureQueriesContext(connection) as all_private:
+            data = self._get_organization_notes()
+
+        # Assert
+        self.assertEqual(data["count"], 3)
+        self.assertEqual(len(all_private), all_drafts_queries)
+
+    def test_get_organization_notes_redacts_a_post_the_viewer_cannot_see(self):
+        # Arrange: one pending post is the viewer's own, the other another
+        # user's; moderation has not cleared, so only the author may see it.
+        own = self._publish_pending_private_note("Own pending note")
+        other = self._publish_pending_private_note("Other pending note")
+        other_user = get_user_model().objects.create_user(
+            username="other@researchhub_test.com",
+            password=uuid.uuid4().hex,
+            email="other@researchhub_test.com",
+        )
+        ResearchhubPost.objects.filter(id=other.id).update(created_by=other_user)
+        self._set_moderator(False)
+
+        # Act
+        data = self._get_organization_notes()
+
+        # Assert
+        posts = {note["post"]["id"]: note["post"] for note in data["results"]}
+        self.assertEqual(posts[own.id], {"id": own.id, "slug": own.slug})
+        self.assertEqual(posts[other.id], {"id": other.id, "is_public": False})
+
+    def test_get_organization_notes_filter_by_several_types(self):
+        # Arrange
+        self._create_org_note("Grant note", document_type="GRANT")
+        self._create_org_note("Preregistration note", document_type="PREREGISTRATION")
+        self._create_org_note("Untyped note")
+
+        # Act
+        data = self._get_organization_notes("?type=preregistration,,GRANT,")
+
+        # Assert
+        self.assertEqual(data["count"], 2)
+        self.assertEqual(
+            {note["title"] for note in data["results"]},
+            {"Grant note", "Preregistration note"},
+        )
+
+    def test_get_organization_notes_ordering(self):
+        # Arrange: the older note was edited last.
+        older = self._create_org_note("Older note")
+        newer = self._create_org_note("Newer note")
+        now = timezone.now()
+        Note.objects.filter(id=older["id"]).update(
+            created_date=now - timedelta(days=2), updated_date=now
+        )
+        Note.objects.filter(id=newer["id"]).update(
+            created_date=now - timedelta(days=1),
+            updated_date=now - timedelta(days=1),
+        )
+        expected = {
+            "": ["Newer note", "Older note"],
+            "?ordering=-updated_date": ["Older note", "Newer note"],
+            "?ordering=updated_date": ["Newer note", "Older note"],
+            "?ordering=-created_date": ["Newer note", "Older note"],
+            "?ordering=created_date": ["Older note", "Newer note"],
+            "?ordering=title": ["Newer note", "Older note"],
+        }
+
+        for query, titles in expected.items():
+            with self.subTest(query=query):
+                # Act
+                data = self._get_organization_notes(query)
+
+                # Assert
+                self.assertEqual([note["title"] for note in data["results"]], titles)
 
     def test_note_with_grant_applications_serialization(self):
         # Create applicant user (must be verified to create preregistration post)

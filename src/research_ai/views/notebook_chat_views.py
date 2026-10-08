@@ -93,7 +93,7 @@ class NotebookChatListCreateView(APIView):
 
 
 class NotebookChatDetailView(APIView):
-    """Read or rename one chat.
+    """Read, rename or delete one chat.
 
     ``?activity=live`` is the polling form: it recomputes the activity feed
     only for turns the client may not yet hold settled -- active ones, and
@@ -133,6 +133,22 @@ class NotebookChatDetailView(APIView):
         return Response(
             {"conversation_id": conversation.id, "title": conversation.title}
         )
+
+    def delete(self, request, note_id, conversation_id):
+        """Remove the chat; the note stays. 409 while a turn is running."""
+        note = _get_viewable_note_or_404(note_id, request.user)
+        service = NotebookChatService()
+        conversation = _get_conversation_or_404(
+            service, note, request.user, conversation_id
+        )
+        try:
+            service.delete_conversation(conversation)
+        except AgentConversationBusyError:
+            return Response(
+                {"detail": "The assistant is still working on this conversation."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class NotebookChatMessageView(APIView):

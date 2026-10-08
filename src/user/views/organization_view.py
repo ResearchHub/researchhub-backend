@@ -19,6 +19,7 @@ from researchhub.pagination import MediumPageLimitPagination
 from researchhub_access_group.constants import ADMIN, MEMBER, NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_access_group.permissions import IsOrganizationAdmin, IsOrganizationUser
+from researchhub_document.models import ResearchhubPost
 from user.models import Organization, User
 from user.serializers import (
     DynamicOrganizationSerializer,
@@ -26,6 +27,13 @@ from user.serializers import (
     OrganizationSerializer,
 )
 from user.utils import get_user_organizations
+
+ORG_NOTES_ORDERINGS = (
+    "-created_date",
+    "created_date",
+    "-updated_date",
+    "updated_date",
+)
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
@@ -360,7 +368,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 )
             )
             .distinct()
-            .order_by("-created_date")
+            .order_by(self._get_org_notes_ordering(request))
         )
 
         status = request.query_params.get("status", "").upper()
@@ -369,15 +377,29 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         elif status == "PUBLISHED":
             notes = notes.filter(post__isnull=False)
 
-        note_type = request.query_params.get("type", "").upper()
-        if note_type:
-            notes = notes.filter(document_type=note_type)
+        # One type or several, comma-separated: ?type=PREREGISTRATION,GRANT
+        note_types = [
+            note_type.strip().upper()
+            for note_type in request.query_params.get("type", "").split(",")
+            if note_type.strip()
+        ]
+        if note_types:
+            notes = notes.filter(document_type__in=note_types)
 
-        notes = notes.prefetch_related(
+        # The post's unified document is what DynamicPostSerializer checks
+        # before serializing it, so join both rather than query per note.
+        notes = notes.select_related("post__unified_document").prefetch_related(
             "unified_document__permissions",
         )
-        context = self._get_org_notes_context()
         page = self.paginate_queryset(notes)
+        context = self._get_org_notes_context()
+        # Resolve which posts on the page the viewer may see in one query,
+        # instead of one visibility query per private or pending post.
+        context["visible_post_ids"] = set(
+            ResearchhubPost.objects.filter(note__in=[note.id for note in page])
+            .visible_to(user)
+            .values_list("id", flat=True)
+        )
         serializer_data = DynamicNoteSerializer(
             page,
             _include_fields=[
@@ -386,6 +408,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 "document_type",
                 "id",
                 "organization",
+                "post",
                 "title",
                 "updated_date",
             ],
@@ -394,8 +417,17 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         ).data
         return self.get_paginated_response(serializer_data)
 
+    def _get_org_notes_ordering(self, request):
+        ordering = request.query_params.get("ordering", "")
+        if ordering in ORG_NOTES_ORDERINGS:
+            return ordering
+        return "-created_date"
+
     def _get_org_notes_context(self):
         context = {
+            # The post serializer redacts posts the viewer cannot see, so it
+            # needs the viewer.
+            "request": self.request,
             "nte_dns_get_organization": {
                 "_include_fields": [
                     "cover_image",
@@ -403,7 +435,9 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                     "name",
                     "slug",
                 ]
-            }
+            },
+            # Enough to tell a published note from a draft and link to it.
+            "nte_dns_get_post": {"_include_fields": ["id", "slug"]},
         }
         return context
 

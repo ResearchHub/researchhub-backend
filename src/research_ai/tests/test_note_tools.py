@@ -1,16 +1,18 @@
 import json
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from note.models import NoteContent
+from note.models import Note, NoteContent
 from note.tests.helpers import create_note, without_editor_shape
 from research_ai.services.agent.types import Message, ToolResultBlock, ToolUseBlock
 from research_ai.services.note_tools import (
     CREATE_NOTE,
     EDIT_NOTE,
     READ_NOTE,
+    RENAME_NOTE,
     NoteToolset,
 )
 from researchhub_access_group.constants import ADMIN, VIEWER
@@ -629,6 +631,75 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(stored[2]["content"], [{"type": "text", "text": "Appended"}])
         self.assertEqual(len(stored), 3)
         self.assertEqual(result["block_count"], 3)
+
+    # -- rename -------------------------------------------------------------
+
+    def test_rename_note_saves_the_title_and_notifies_the_notebook(self):
+        # Arrange: an org-owned note, so an open notebook has a room to hear.
+        self.note.organization = self.owner.organization
+        self.note.save(update_fields=["organization"])
+
+        # Act
+        with patch.object(Note, "notify_note_updated_title") as notify:
+            result, _ = self.toolset.dispatch(
+                RENAME_NOTE,
+                {"note_id": self.note.id, "title": "  Kindness   at work "},
+            )
+
+        # Assert
+        self.assertEqual(result, {"note_id": self.note.id, "title": "Kindness at work"})
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.title, "Kindness at work")
+        notify.assert_called_once_with()
+
+    def test_rename_note_rejects_a_blank_or_too_long_title(self):
+        for title in (None, "", "   ", 42, "x" * 256):
+            with self.subTest(title=title):
+                # Act
+                result, _ = self.toolset.dispatch(
+                    RENAME_NOTE, {"note_id": self.note.id, "title": title}
+                )
+
+                # Assert
+                self.assertIn("title must be", result["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.title, "Some random post title")
+
+    def test_rename_note_refuses_a_note_it_cannot_edit(self):
+        # Arrange: a second note the owner administers, outside the scope.
+        other_note, _content = create_note(self.owner, organization=None)
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=other_note.unified_document.id,
+            user=self.owner,
+        )
+        scoped = NoteToolset(user=self.owner, note_ids={self.note.id}).as_toolset()
+        viewer = NoteToolset(user=self.viewer).as_toolset()
+        outsider = NoteToolset(user=self.outsider).as_toolset()
+        rename = {"note_id": self.note.id, "title": "Renamed"}
+
+        # Act
+        out_of_scope, _ = scoped.dispatch(
+            RENAME_NOTE, {"note_id": other_note.id, "title": "Renamed"}
+        )
+        by_viewer, _ = viewer.dispatch(RENAME_NOTE, rename)
+        by_outsider, _ = outsider.dispatch(RENAME_NOTE, rename)
+
+        # Assert: out of scope reads exactly like inaccessible.
+        self.assertEqual(
+            out_of_scope,
+            {"error": f"note {other_note.id} not found or not accessible"},
+        )
+        self.assertEqual(
+            by_outsider,
+            {"error": f"note {self.note.id} not found or not accessible"},
+        )
+        self.assertIn("no edit permission", by_viewer["error"])
+        self.note.refresh_from_db()
+        other_note.refresh_from_db()
+        self.assertEqual(self.note.title, "Some random post title")
+        self.assertEqual(other_note.title, "Some random post title")
 
     # -- changed notes --------------------------------------------------------
 
