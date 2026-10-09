@@ -1,5 +1,4 @@
 import json
-import logging
 
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
@@ -11,7 +10,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from research_ai.constants import ExpertiseLevel, Gender, Region
+from research_ai.constants import (
+    ExpertiseLevel,
+    Region,
+)
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
@@ -19,6 +21,7 @@ from research_ai.serializers import (
     ExpertFinderListItemSerializer,
     ExpertSearchCreateSerializer,
     ExpertSearchDetailSerializer,
+    ExpertSearchFindMoreSerializer,
     ExpertSearchListItemSerializer,
     ExpertSerializer,
     ExpertUpdateSerializer,
@@ -30,6 +33,13 @@ from research_ai.serializers import (
     ManualExpertCreateSerializer,
     _get_user_with_author_payload,
     resolve_work_for_unified_document,
+)
+from research_ai.services.expert_finder.find_more_service import (
+    FindMoreAlreadyRunningError,
+    FindMoreEnqueueError,
+    FindMoreInvalidStateError,
+    FindMoreSearchNotFoundError,
+    FindMoreService,
 )
 from research_ai.services.expert_finder.finder import get_document_content
 from research_ai.services.expert_finder.persist import ExpertPersist
@@ -44,8 +54,6 @@ from research_ai.services.outreach.invited_experts import (
 from research_ai.tasks import run_expert_finder_search
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.permissions import IsModerator, UserIsEditor
-
-logger = logging.getLogger(__name__)
 
 
 def _get_sse_url(request, search_id):
@@ -110,16 +118,15 @@ class ExpertSearchListCreateView(APIView):
         additional_context = (data.get("additional_context") or "").strip()
         search_name = (data.get("name") or "").strip()
         input_type = data["input_type"]
-        config = data.get("config") or {}
+        config = data["config"]
 
         search_config = {
-            "expert_count": config.get("expert_count", 10),
+            "expert_count": config["expert_count"],
             "expertise_level": config.get(
                 "expertise_level", [ExpertiseLevel.ALL_LEVELS]
             ),
             "region": config.get("region", Region.ALL_REGIONS),
             "state": config.get("state", "All States"),
-            "gender": config.get("gender", Gender.ALL_GENDERS),
         }
 
         try:
@@ -281,6 +288,64 @@ class ExpertSearchAddExpertView(APIView):
         return Response(
             ExpertSerializer(expert).data,
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ExpertSearchFindMoreView(APIView):
+    """POST ``/expert-finder/searches/<search_id>/find-more/`` — append more experts.
+
+    Re-runs the finder agent and appends new ``SearchExpert`` rows.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def post(self, request, search_id):
+        ser = ExpertSearchFindMoreSerializer(data=request.data or {})
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        try:
+            queued = FindMoreService().queue(
+                search_id,
+                expert_count=data["expert_count"],
+                additional_context=data.get("additional_context"),
+            )
+        except FindMoreSearchNotFoundError:
+            return Response(
+                {"detail": "Expert search not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except FindMoreAlreadyRunningError:
+            return Response(
+                {"detail": "Expert search is already running."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except FindMoreInvalidStateError:
+            return Response(
+                {"detail": "Expert search cannot find more in its current state."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except FindMoreEnqueueError:
+            return Response(
+                {"detail": "Could not queue find-more expert search."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        expert_search = queued.expert_search
+        sse_url = _get_sse_url(request, str(expert_search.id))
+        return Response(
+            {
+                "search_id": expert_search.id,
+                "status": ExpertSearch.Status.PROCESSING,
+                "message": "Find-more expert search submitted for processing",
+                "sse_url": sse_url,
+                "expert_count": queued.expert_count,
+                "append": True,
+            },
+            status=status.HTTP_202_ACCEPTED,
         )
 
 
