@@ -399,6 +399,7 @@ ORCID_CLIENT_SECRET = os.environ.get(
 ORCID_REDIRECT_URL = os.environ.get(
     "ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", "")
 )
+
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 

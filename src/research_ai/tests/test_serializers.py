@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, PropertyMock
 
 from django.test import TestCase
 
-from research_ai.constants import ExpertiseLevel, Gender, Region
+from research_ai.constants import ExpertiseLevel, Region
 from research_ai.models import (
     EmailTemplate,
     Expert,
@@ -27,17 +27,25 @@ from user.tests.helpers import create_random_authenticated_user
 
 
 class ExpertSearchConfigSerializerTests(TestCase):
-    def test_default_values(self):
-        ser = ExpertSearchConfigSerializer(data={})
+    def test_defaults_other_fields_when_expert_count_provided(self):
+        ser = ExpertSearchConfigSerializer(data={"expert_count": 10})
         self.assertTrue(ser.is_valid())
         data = ser.validated_data
         self.assertEqual(data["expert_count"], 10)
         self.assertEqual(data["expertise_level"], [ExpertiseLevel.ALL_LEVELS])
         self.assertEqual(data["region"], Region.ALL_REGIONS)
-        self.assertEqual(data["gender"], Gender.ALL_GENDERS)
+        self.assertNotIn("engine", data)
+        self.assertNotIn("gender", data)
+
+    def test_expert_count_required(self):
+        ser = ExpertSearchConfigSerializer(data={})
+        self.assertFalse(ser.is_valid())
+        self.assertIn("expert_count", ser.errors)
 
     def test_expertise_level_empty_array_defaults_to_all_levels(self):
-        ser = ExpertSearchConfigSerializer(data={"expertise_level": []})
+        ser = ExpertSearchConfigSerializer(
+            data={"expert_count": 10, "expertise_level": []}
+        )
         self.assertTrue(ser.is_valid())
         self.assertEqual(
             ser.validated_data["expertise_level"], [ExpertiseLevel.ALL_LEVELS]
@@ -46,10 +54,11 @@ class ExpertSearchConfigSerializerTests(TestCase):
     def test_expertise_level_array(self):
         ser = ExpertSearchConfigSerializer(
             data={
+                "expert_count": 10,
                 "expertise_level": [
                     ExpertiseLevel.EARLY_CAREER,
                     ExpertiseLevel.MID_CAREER,
-                ]
+                ],
             }
         )
         self.assertTrue(ser.is_valid())
@@ -61,7 +70,10 @@ class ExpertSearchConfigSerializerTests(TestCase):
     def test_expertise_level_list(self):
         """expertise_level accepts a list of choices."""
         ser = ExpertSearchConfigSerializer(
-            data={"expertise_level": [ExpertiseLevel.TOP_EXPERT]}
+            data={
+                "expert_count": 10,
+                "expertise_level": [ExpertiseLevel.TOP_EXPERT],
+            }
         )
         self.assertTrue(ser.is_valid())
         self.assertEqual(
@@ -69,12 +81,12 @@ class ExpertSearchConfigSerializerTests(TestCase):
         )
 
     def test_config_snake_case(self):
-        """API uses snake_case only (expert_count, expertise_level, gender)."""
+        """API uses snake_case; unknown keys like gender are ignored."""
         ser = ExpertSearchConfigSerializer(
             data={
                 "expert_count": 15,
                 "expertise_level": [ExpertiseLevel.EARLY_CAREER],
-                "gender": Gender.FEMALE,
+                "gender": "female",
             }
         )
         self.assertTrue(ser.is_valid())
@@ -82,16 +94,37 @@ class ExpertSearchConfigSerializerTests(TestCase):
         self.assertEqual(
             ser.validated_data["expertise_level"], [ExpertiseLevel.EARLY_CAREER]
         )
-        self.assertEqual(ser.validated_data["gender"], Gender.FEMALE)
+        self.assertNotIn("gender", ser.validated_data)
+        self.assertNotIn("gender", ser.fields)
 
     def test_expert_count_bounds(self):
         ser = ExpertSearchConfigSerializer(data={"expert_count": 5})
         self.assertTrue(ser.is_valid())
-        ser = ExpertSearchConfigSerializer(data={"expert_count": 100})
+        ser = ExpertSearchConfigSerializer(data={"expert_count": 25})
         self.assertTrue(ser.is_valid())
         ser = ExpertSearchConfigSerializer(data={"expert_count": 4})
         self.assertFalse(ser.is_valid())
-        ser = ExpertSearchConfigSerializer(data={"expert_count": 101})
+        ser = ExpertSearchConfigSerializer(data={"expert_count": 26})
+        self.assertFalse(ser.is_valid())
+        ser = ExpertSearchConfigSerializer(data={"expert_count": 100})
+        self.assertFalse(ser.is_valid())
+
+
+class ExpertSearchFindMoreSerializerTests(TestCase):
+    def test_expert_count_required_and_bounds(self):
+        from research_ai.serializers import ExpertSearchFindMoreSerializer
+
+        # Arrange / Act / Assert
+        ser = ExpertSearchFindMoreSerializer(data={})
+        self.assertFalse(ser.is_valid())
+        self.assertIn("expert_count", ser.errors)
+        ser = ExpertSearchFindMoreSerializer(data={"expert_count": 25})
+        self.assertTrue(ser.is_valid())
+        ser = ExpertSearchFindMoreSerializer(data={"expert_count": 4})
+        self.assertFalse(ser.is_valid())
+        ser = ExpertSearchFindMoreSerializer(data={"expert_count": 26})
+        self.assertFalse(ser.is_valid())
+        ser = ExpertSearchFindMoreSerializer(data={"expert_count": 100})
         self.assertFalse(ser.is_valid())
 
 
@@ -101,17 +134,32 @@ class ExpertSearchCreateSerializerTests(TestCase):
             data={
                 "unified_document_id": 1,
                 "input_type": "abstract",
+                "config": {"expert_count": 10},
             }
         )
         self.assertTrue(ser.is_valid())
 
+    def test_requires_config_expert_count(self):
+        ser = ExpertSearchCreateSerializer(
+            data={
+                "unified_document_id": 1,
+                "input_type": "abstract",
+            }
+        )
+        self.assertFalse(ser.is_valid())
+        self.assertIn("config", ser.errors)
+
     def test_requires_input_type_with_unified_document(self):
-        ser = ExpertSearchCreateSerializer(data={"unified_document_id": 1})
+        ser = ExpertSearchCreateSerializer(
+            data={"unified_document_id": 1, "config": {"expert_count": 10}}
+        )
         self.assertFalse(ser.is_valid())
         self.assertIn("input_type", ser.errors)
 
     def test_requires_unified_document_id(self):
-        ser = ExpertSearchCreateSerializer(data={"input_type": "abstract"})
+        ser = ExpertSearchCreateSerializer(
+            data={"input_type": "abstract", "config": {"expert_count": 10}}
+        )
         self.assertFalse(ser.is_valid())
         self.assertIn("unified_document_id", ser.errors)
 
@@ -120,6 +168,7 @@ class ExpertSearchCreateSerializerTests(TestCase):
             data={
                 "unified_document_id": 1,
                 "input_type": "abstract",
+                "config": {"expert_count": 10},
                 "additional_context": "x" * (ADDITIONAL_CONTEXT_MAX_LENGTH + 1),
             }
         )

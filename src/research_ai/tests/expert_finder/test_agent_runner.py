@@ -1,0 +1,672 @@
+"""Key-path tests for the expert-finder agent runner.
+
+Covers the critical success and failure flows: tool composition, grounded
+submit, OpenAlex/email gates, and Brave web search. Edge cases live elsewhere.
+"""
+
+from unittest.mock import MagicMock, patch
+
+from django.test import SimpleTestCase
+
+from mailing_list.services.email_insights_service import (
+    CONFIDENCE_HIGH,
+    CONFIDENCE_LOW,
+)
+from research_ai.constants import ExpertiseLevel, Region
+from research_ai.services.agent.providers.base import LLMProvider
+from research_ai.services.agent.types import (
+    AssistantTurn,
+    StopReason,
+    TextBlock,
+    ToolUseBlock,
+)
+from research_ai.services.expert_finder.agent_runner import (
+    SUBMIT_EXPERTS,
+    ExpertFinderAgentToolset,
+    ground_submitted_experts,
+    run_expert_finder_agent,
+)
+from research_ai.services.expert_finder.email_validation import EmailValidationService
+from research_ai.services.expert_finder.openalex_tools import (
+    ExpertFinderOpenAlexToolset,
+)
+from research_ai.services.expert_finder.web_search_tools import (
+    WEB_SEARCH,
+    ExpertFinderWebSearchToolset,
+)
+
+
+def _tool_turn(index, name, tool_input):
+    return AssistantTurn(
+        text_blocks=[],
+        tool_calls=[ToolUseBlock(id=f"t{index}", name=name, input=tool_input)],
+        stop_reason=StopReason.TOOL_USE,
+    )
+
+
+def _text_turn(text):
+    return AssistantTurn(
+        text_blocks=[TextBlock(text=text)],
+        tool_calls=[],
+        stop_reason=StopReason.END_TURN,
+    )
+
+
+class FakeProvider(LLMProvider):
+    def __init__(self, turns):
+        self._turns = list(turns)
+
+    def render_tools(self, tools):
+        return {"tools": [tool.name for tool in tools]}
+
+    def complete(self, *, system_prompt, messages, rendered_tools, **kwargs):
+        return self._turns.pop(0)
+
+
+def _scripted_provider(calls, *, final_text=None):
+    turns = [_tool_turn(i, name, inp) for i, (name, inp) in enumerate(calls)]
+    if final_text is not None:
+        turns.append(_text_turn(final_text))
+    return FakeProvider(turns)
+
+
+def _insights(*, mailbox_exists=CONFIDENCE_HIGH):
+    return {
+        "MailboxValidation": {
+            "IsValid": {"ConfidenceVerdict": CONFIDENCE_HIGH},
+            "Evaluations": {
+                "HasValidSyntax": {"ConfidenceVerdict": CONFIDENCE_HIGH},
+                "HasValidDnsRecords": {"ConfidenceVerdict": CONFIDENCE_HIGH},
+                "MailboxExists": {"ConfidenceVerdict": mailbox_exists},
+                "IsDisposable": {"ConfidenceVerdict": CONFIDENCE_LOW},
+                "IsRoleAddress": {"ConfidenceVerdict": CONFIDENCE_LOW},
+                "IsRandomInput": {"ConfidenceVerdict": CONFIDENCE_LOW},
+            },
+        }
+    }
+
+
+def _expert_row(
+    *,
+    author_id="https://openalex.org/A999",
+    email="ada@mit.edu",
+    first_name="Ada",
+    last_name="Expert",
+):
+    return {
+        "openalex_author_id": author_id,
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": email,
+        "affiliation": "MIT",
+        "expertise": "CRISPR",
+        "notes": "Relevant recent work.",
+        "sources": [{"text": "Faculty page", "url": "https://mit.edu/ada"}],
+    }
+
+
+class ToolCompositionTests(SimpleTestCase):
+    def test_composes_discovery_contact_and_submit(self):
+        # Arrange / Act
+        tools = ExpertFinderAgentToolset().build_tools()
+        names = {tool.name for tool in tools}
+        terminal = {tool.name for tool in tools if tool.is_terminal}
+        # Assert — submit starts non-terminal; becomes terminal at target
+        self.assertTrue(
+            {
+                "search_works",
+                "get_author",
+                WEB_SEARCH,
+                "email_validate",
+                SUBMIT_EXPERTS,
+            }.issubset(names)
+        )
+        self.assertEqual(terminal, set())
+
+
+class SubmitAccumulateTests(SimpleTestCase):
+    def setUp(self):
+        self.oa = ExpertFinderOpenAlexToolset(client=MagicMock())
+        self.oa._record_author("https://openalex.org/A999", "Ada Expert")
+        self.oa.returned_author_records["a999"] = {
+            "id": "https://openalex.org/A999",
+            "last_known_institutions": [{"display_name": "MIT", "country_code": "US"}],
+        }
+        self.ses = MagicMock()
+        self.ses.get_email_address_insights.return_value = _insights()
+        self.email = EmailValidationService(client=self.ses)
+
+    def test_underfill_submit_is_not_terminal(self):
+        # Arrange
+        agent_tools = ExpertFinderAgentToolset(
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=2,
+        )
+        toolset = agent_tools.as_toolset()
+        # Act
+        result, stop = toolset.dispatch(SUBMIT_EXPERTS, {"experts": [_expert_row()]})
+        # Assert
+        self.assertFalse(stop)
+        self.assertFalse(result["accepted"])
+        self.assertEqual(result["kept_count"], 1)
+        self.assertEqual(result["still_needed"], 1)
+        self.assertEqual(result["target_count"], 2)
+        self.assertIn("https://openalex.org/A999", result["kept_openalex_author_ids"])
+        self.assertEqual(len(agent_tools.accepted_experts), 1)
+        self.assertFalse(agent_tools._submit_tool.is_terminal)
+
+    def test_second_submit_reaches_target_and_stops(self):
+        # Arrange
+        self.oa._record_author("https://openalex.org/A888", "Bob Other")
+        agent_tools = ExpertFinderAgentToolset(
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=2,
+        )
+        toolset = agent_tools.as_toolset()
+        toolset.dispatch(SUBMIT_EXPERTS, {"experts": [_expert_row()]})
+        # Act
+        result, stop = toolset.dispatch(
+            SUBMIT_EXPERTS,
+            {
+                "experts": [
+                    _expert_row(
+                        author_id="https://openalex.org/A888",
+                        email="bob@ox.ac.uk",
+                        first_name="Bob",
+                        last_name="Other",
+                    )
+                ]
+            },
+        )
+        # Assert
+        self.assertTrue(stop)
+        self.assertTrue(result["accepted"])
+        self.assertEqual(result["kept_count"], 2)
+        self.assertEqual(result["still_needed"], 0)
+        self.assertTrue(agent_tools._submit_tool.is_terminal)
+
+    def test_on_experts_found_fires_with_increasing_kept_count(self):
+        # Arrange
+        self.oa._record_author("https://openalex.org/A888", "Bob Other")
+        found: list[int] = []
+        agent_tools = ExpertFinderAgentToolset(
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=2,
+            on_experts_found=found.append,
+        )
+        toolset = agent_tools.as_toolset()
+
+        # Act
+        toolset.dispatch(SUBMIT_EXPERTS, {"experts": [_expert_row()]})
+        toolset.dispatch(
+            SUBMIT_EXPERTS,
+            {
+                "experts": [
+                    _expert_row(
+                        author_id="https://openalex.org/A888",
+                        email="bob@ox.ac.uk",
+                        first_name="Bob",
+                        last_name="Other",
+                    )
+                ]
+            },
+        )
+
+        # Assert
+        self.assertEqual(found, [1, 2])
+
+    def test_out_of_region_does_not_count_toward_target(self):
+        # Arrange
+        agent_tools = ExpertFinderAgentToolset(
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=2,
+            region_filter=Region.NON_US,
+        )
+        toolset = agent_tools.as_toolset()
+        # Act
+        result, stop = toolset.dispatch(SUBMIT_EXPERTS, {"experts": [_expert_row()]})
+        # Assert
+        self.assertFalse(stop)
+        self.assertEqual(result["kept_count"], 0)
+        self.assertEqual(result["still_needed"], 2)
+        self.assertTrue(any("outside region" in r for r in result["drop_reasons"]))
+        self.assertEqual(agent_tools.accepted_experts, [])
+
+
+class GroundSubmittedExpertsTests(SimpleTestCase):
+    def setUp(self):
+        self.oa = ExpertFinderOpenAlexToolset(client=MagicMock())
+        self.oa._record_author("https://openalex.org/A999", "Ada Expert")
+        self.ses = MagicMock()
+        self.ses.get_email_address_insights.return_value = _insights()
+        self.email = EmailValidationService(client=self.ses)
+
+    def test_keeps_grounded_validated_expert(self):
+        # Arrange / Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+        )
+        # Assert
+        self.assertEqual(errors, [])
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0]["email"], "ada@mit.edu")
+        self.assertEqual(
+            kept[0]["sources"][0],
+            {"text": "OpenAlex", "url": "https://openalex.org/A999"},
+        )
+
+    def test_injects_orcid_from_openalex_record(self):
+        # Arrange
+        self.oa.returned_author_records["a999"] = {
+            "id": "https://openalex.org/A999",
+            "orcid": "https://orcid.org/0000-0002-1825-0097",
+        }
+        # Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+        )
+        # Assert
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            kept[0]["sources"],
+            [
+                {"text": "OpenAlex", "url": "https://openalex.org/A999"},
+                {"text": "Faculty page", "url": "https://mit.edu/ada"},
+                {"text": "ORCID", "url": "https://orcid.org/0000-0002-1825-0097"},
+            ],
+        )
+
+    def test_drops_ungrounded_openalex_id(self):
+        # Arrange / Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row(author_id="https://openalex.org/A000")],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+        )
+        # Assert
+        self.assertEqual(kept, [])
+        self.assertTrue(any("ungrounded" in e for e in errors))
+        self.ses.get_email_address_insights.assert_not_called()
+
+    def test_drops_identity_mismatch_for_grounded_id(self):
+        # Arrange: Alice's OpenAlex id with Carol's name/email must not bind.
+        row = _expert_row(email="carol@uni.edu")
+        row["first_name"] = "Carol"
+        row["last_name"] = "Other"
+        # Act
+        kept, errors = ground_submitted_experts(
+            [row],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+        )
+        # Assert
+        self.assertEqual(kept, [])
+        self.assertTrue(any("identity mismatch" in e for e in errors))
+        self.ses.get_email_address_insights.assert_not_called()
+
+    def test_drops_duplicate_openalex_id_after_email_gate(self):
+        # Arrange: same grounded author, two accepted emails. First row wins.
+        first = _expert_row(email="ada@mit.edu")
+        second = _expert_row(
+            author_id="A999",
+            email="ada.expert@broadinstitute.org",
+        )
+        # Act
+        kept, errors = ground_submitted_experts(
+            [first, second],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+        )
+        # Assert
+        self.assertEqual([row["email"] for row in kept], ["ada@mit.edu"])
+        self.assertTrue(any("duplicate openalex_author_id" in e for e in errors))
+
+    def test_drops_invalid_email(self):
+        # Arrange
+        self.ses.get_email_address_insights.return_value = _insights(
+            mailbox_exists=CONFIDENCE_LOW
+        )
+        # Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+        )
+        # Assert
+        self.assertEqual(kept, [])
+        self.assertTrue(errors)
+
+    def test_drops_outside_region(self):
+        # Arrange
+        self.oa.returned_author_records["a999"] = {
+            "id": "https://openalex.org/A999",
+            "last_known_institutions": [{"display_name": "MPI", "country_code": "DE"}],
+        }
+        # Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+            region_filter=Region.US,
+        )
+        # Assert
+        self.assertEqual(kept, [])
+        self.assertTrue(any("outside region" in e for e in errors))
+        self.ses.get_email_address_insights.assert_not_called()
+
+    def test_keeps_in_region_author(self):
+        # Arrange
+        self.oa.returned_author_records["a999"] = {
+            "id": "https://openalex.org/A999",
+            "last_known_institutions": [{"display_name": "MIT", "country_code": "US"}],
+        }
+        # Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+            region_filter=Region.US,
+        )
+        # Assert
+        self.assertEqual(errors, [])
+        self.assertEqual(len(kept), 1)
+
+    def test_keeps_in_region_author_from_affiliation_country_codes(self):
+        # Arrange: last_known empty; cached synthetic still has affiliation codes.
+        self.oa.returned_author_records["a999"] = {
+            "id": "https://openalex.org/A999",
+            "last_known_institutions": [],
+            "affiliations": [
+                {"institution": {"display_name": "MIT", "country_code": "US"}}
+            ],
+        }
+        # Act
+        kept, errors = ground_submitted_experts(
+            [_expert_row()],
+            openalex_toolset=self.oa,
+            email_validation=self.email,
+            expert_count=5,
+            region_filter=Region.US,
+        )
+        # Assert
+        self.assertEqual(errors, [])
+        self.assertEqual(len(kept), 1)
+
+
+class RunExpertFinderAgentTests(SimpleTestCase):
+    def setUp(self):
+        self.ses = MagicMock()
+        self.ses.get_email_address_insights.return_value = _insights()
+        self.email = EmailValidationService(client=self.ses)
+        self.oa_client = MagicMock()
+        self.oa_client.get_author.return_value = {
+            "id": "https://openalex.org/A999",
+            "display_name": "Ada Expert",
+            "orcid": None,
+            "works_count": 40,
+            "cited_by_count": 100,
+            "summary_stats": {},
+            "last_known_institutions": [{"display_name": "MIT", "country_code": "US"}],
+            "affiliations": [],
+            "topics": [],
+        }
+
+    def test_happy_path_returns_grounded_experts(self):
+        # Arrange: target 1 so the first valid submit ends the run
+        provider = _scripted_provider(
+            [
+                (
+                    "get_author",
+                    {"openalex_author_id": "https://openalex.org/A999"},
+                ),
+                ("submit_experts", {"experts": [_expert_row()]}),
+            ]
+        )
+        # Act
+        result = run_expert_finder_agent(
+            query="CRISPR therapeutics for rare disease",
+            expert_count=1,
+            expertise_level=ExpertiseLevel.MID_CAREER,
+            region_filter=Region.US,
+            provider=provider,
+            oa_client=self.oa_client,
+            email_validation=self.email,
+        )
+        # Assert
+        self.assertEqual(len(result["experts"]), 1)
+        self.assertEqual(result["experts"][0]["email"], "ada@mit.edu")
+        self.assertEqual(result["errors"], [])
+
+    def test_no_submit_returns_empty(self):
+        # Arrange
+        provider = _scripted_provider([], final_text="I give up.")
+        # Act
+        result = run_expert_finder_agent(
+            query="Something",
+            expert_count=3,
+            expertise_level=ExpertiseLevel.ALL_LEVELS,
+            region_filter=Region.ALL_REGIONS,
+            provider=provider,
+            oa_client=self.oa_client,
+            email_validation=self.email,
+        )
+        # Assert
+        self.assertEqual(result["experts"], [])
+        self.assertTrue(any("did not submit" in e for e in result["errors"]))
+
+    def test_hard_drops_out_of_region_on_submit(self):
+        # Arrange: author is US-affiliated but search asked for Europe.
+        # Under-target continues; final_text ends the loop with zero keepers.
+        provider = _scripted_provider(
+            [
+                (
+                    "get_author",
+                    {"openalex_author_id": "https://openalex.org/A999"},
+                ),
+                ("submit_experts", {"experts": [_expert_row()]}),
+            ],
+            final_text="No in-region experts found.",
+        )
+        # Act
+        result = run_expert_finder_agent(
+            query="CRISPR therapeutics",
+            expert_count=5,
+            expertise_level=ExpertiseLevel.MID_CAREER,
+            region_filter=Region.EUROPE,
+            provider=provider,
+            oa_client=self.oa_client,
+            email_validation=self.email,
+        )
+        # Assert
+        self.assertEqual(result["experts"], [])
+        self.assertTrue(any("outside region" in e for e in result["errors"]))
+
+    def test_iteration_limit_records_error_without_raising(self):
+        # Arrange
+        from research_ai.services.agent.errors import IterationLimitError
+
+        agent = MagicMock()
+        agent.run.side_effect = IterationLimitError("exceeded", iterations=28)
+        service = MagicMock()
+        service.create_agent.return_value = agent
+
+        # Act
+        with patch(
+            "research_ai.services.expert_finder.agent_runner.AgentService",
+            return_value=service,
+        ):
+            result = run_expert_finder_agent(
+                query="Something",
+                expert_count=3,
+                expertise_level=ExpertiseLevel.ALL_LEVELS,
+                region_filter=Region.ALL_REGIONS,
+                provider=_scripted_provider([]),
+                oa_client=self.oa_client,
+                email_validation=self.email,
+                max_iterations=28,
+            )
+
+        # Assert
+        self.assertEqual(result["experts"], [])
+        self.assertTrue(
+            any("iteration budget exhausted" in e for e in result["errors"])
+        )
+        self.assertNotIn(
+            "did not submit experts",
+            " ".join(result["errors"]),
+        )
+
+    def test_web_search_budget_scales_with_expert_count(self):
+        # Arrange / Act
+        small = ExpertFinderAgentToolset(expert_count=10)
+        large = ExpertFinderAgentToolset(expert_count=100)
+        # Assert — floor 80; large targets hit the 200 cap.
+        self.assertEqual(small.web_search.max_searches, 80)
+        self.assertEqual(large.web_search.max_searches, 200)
+
+    def test_underfill_submit_continues_then_fills(self):
+        # Arrange: target 2. First submit keeps Ada; second adds Bob.
+        self.oa_client.get_author.side_effect = [
+            {
+                "id": "https://openalex.org/A999",
+                "display_name": "Ada Expert",
+                "orcid": None,
+                "works_count": 40,
+                "cited_by_count": 100,
+                "summary_stats": {},
+                "last_known_institutions": [
+                    {"display_name": "MIT", "country_code": "US"}
+                ],
+                "affiliations": [],
+                "topics": [],
+            },
+            {
+                "id": "https://openalex.org/A888",
+                "display_name": "Bob Other",
+                "orcid": None,
+                "works_count": 20,
+                "cited_by_count": 50,
+                "summary_stats": {},
+                "last_known_institutions": [
+                    {"display_name": "Oxford", "country_code": "GB"}
+                ],
+                "affiliations": [],
+                "topics": [],
+            },
+        ]
+        provider = _scripted_provider(
+            [
+                (
+                    "get_author",
+                    {"openalex_author_id": "https://openalex.org/A999"},
+                ),
+                ("submit_experts", {"experts": [_expert_row()]}),
+                (
+                    "get_author",
+                    {"openalex_author_id": "https://openalex.org/A888"},
+                ),
+                (
+                    "submit_experts",
+                    {
+                        "experts": [
+                            _expert_row(
+                                author_id="https://openalex.org/A888",
+                                email="bob@ox.ac.uk",
+                                first_name="Bob",
+                                last_name="Other",
+                            )
+                        ]
+                    },
+                ),
+            ]
+        )
+        # Act
+        result = run_expert_finder_agent(
+            query="CRISPR therapeutics",
+            expert_count=2,
+            expertise_level=ExpertiseLevel.ALL_LEVELS,
+            region_filter=Region.ALL_REGIONS,
+            provider=provider,
+            oa_client=self.oa_client,
+            email_validation=self.email,
+        )
+        # Assert
+        self.assertEqual(
+            [row["email"] for row in result["experts"]],
+            ["ada@mit.edu", "bob@ox.ac.uk"],
+        )
+        self.assertEqual(result["errors"], [])
+
+    def test_iteration_limit_keeps_partial_submission(self):
+        # Arrange: one grounded expert, target 2, cap hits before fill.
+        provider = _scripted_provider(
+            [
+                (
+                    "get_author",
+                    {"openalex_author_id": "https://openalex.org/A999"},
+                ),
+                ("submit_experts", {"experts": [_expert_row()]}),
+            ]
+        )
+        # Act
+        result = run_expert_finder_agent(
+            query="CRISPR therapeutics",
+            expert_count=2,
+            expertise_level=ExpertiseLevel.ALL_LEVELS,
+            region_filter=Region.ALL_REGIONS,
+            provider=provider,
+            oa_client=self.oa_client,
+            email_validation=self.email,
+            max_iterations=2,
+        )
+        # Assert
+        self.assertEqual([row["email"] for row in result["experts"]], ["ada@mit.edu"])
+        self.assertTrue(
+            any("iteration budget exhausted" in e for e in result["errors"])
+        )
+
+
+class WebSearchToolTests(SimpleTestCase):
+    def test_returns_results_when_configured(self):
+        # Arrange
+        client = MagicMock()
+        client.configured = True
+        client.search.return_value = [
+            {"title": "Ada", "url": "https://mit.edu/ada", "description": "Faculty"}
+        ]
+        provider = ExpertFinderWebSearchToolset(client=client)
+        # Act
+        result, stop = provider.as_toolset().dispatch(
+            WEB_SEARCH, {"query": "Ada Expert MIT email"}
+        )
+        # Assert
+        self.assertFalse(stop)
+        self.assertEqual(len(result["results"]), 1)
+        self.assertIn("https://mit.edu/ada", provider.provenance)
+
+    def test_errors_when_unconfigured(self):
+        # Arrange
+        client = MagicMock()
+        client.configured = False
+        toolset = ExpertFinderWebSearchToolset(client=client).as_toolset()
+        # Act
+        result, _stop = toolset.dispatch(WEB_SEARCH, {"query": "Ada MIT email"})
+        # Assert
+        self.assertIn("not configured", result["error"])
+        client.search.assert_not_called()
