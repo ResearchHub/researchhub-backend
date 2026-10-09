@@ -1,7 +1,9 @@
 """Services for funding and grant overview dashboard metrics."""
 
+from django.db.models import F, QuerySet
+
 from organizations.models import NonprofitOrg
-from purchase.models import Grant, GrantApplication
+from purchase.models import Grant, GrantApplication, Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.services.overview_mixin import OverviewMixin
 from purchase.utils import get_funded_fundraise_ids
@@ -15,19 +17,61 @@ class FundingOverviewService(OverviewMixin):
     def get_funding_overview(self, user: User) -> dict:
         """Return funding overview metrics for a given user."""
         funded_fundraise_ids = list(get_funded_fundraise_ids(user.id))
+        pool_contributions = Purchase.objects.for_user(user.id).filter(
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+        )
 
         return {
             "matched_funds": self._matched_contributions_breakdown(
                 user.id, funded_fundraise_ids
             ),
-            "distributed_funds": self._user_contributions_breakdown(
-                user.id, funded_fundraise_ids
+            "distributed_funds": self._sum_distributed_funds(
+                user.id, funded_fundraise_ids, pool_contributions
             ),
             "supported_proposals": self._supported_proposals(
                 user.id, funded_fundraise_ids
             ),
+            "supported_funding_pools": self._list_supported_funding_pools(
+                pool_contributions
+            ),
             "supported_nonprofits": self._supported_nonprofits(funded_fundraise_ids),
         }
+
+    def _sum_distributed_funds(
+        self,
+        user_id: int,
+        funded_fundraise_ids: list[int],
+        pool_contributions: QuerySet,
+    ) -> dict:
+        """Total the user gave to proposal fundraises and funding pools."""
+        rsc, cents, snapshot = self._query_user_contributions(
+            user_id, funded_fundraise_ids
+        )
+        pool_rsc, pool_snapshot = self._sum_rsc_with_snapshot(pool_contributions)
+        return {
+            "rsc": round(rsc + pool_rsc, 2),
+            "rsc_usd_snapshot": round(snapshot + pool_snapshot, 2),
+            "usd": round(cents / 100, 2),
+        }
+
+    def _list_supported_funding_pools(self, pool_contributions: QuerySet) -> list[dict]:
+        """RFP posts whose funding pools the user contributed to, with amounts."""
+        contributions = self._sum_rsc_with_snapshot_per_object(pool_contributions)
+        posts = (
+            ResearchhubPost.objects.filter(
+                unified_document__grants__funding_pool__id__in=contributions.keys(),
+            )
+            .select_related("unified_document", "created_by__author_profile")
+            .annotate(funding_pool_id=F("unified_document__grants__funding_pool__id"))
+        )
+        return [
+            {
+                **self._serialize_post(post),
+                "funded_amount": contributions[post.funding_pool_id],
+            }
+            for post in posts
+        ]
 
     def _supported_proposals(
         self, user_id: int, funded_fundraise_ids: list[int]
@@ -53,7 +97,7 @@ class FundingOverviewService(OverviewMixin):
         zero = {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0}
         for post in posts:
             fundraise = post.unified_document.fundraises.first()
-            entry = self._serialize_proposal(post)
+            entry = self._serialize_post(post)
             entry["funded_amount"] = (
                 contributions.get(fundraise.id, zero) if fundraise else zero
             )
@@ -87,7 +131,7 @@ class FundingOverviewService(OverviewMixin):
             "endaoment_org_id": org.endaoment_org_id or "",
         }
 
-    def _serialize_proposal(self, post: ResearchhubPost) -> dict:
+    def _serialize_post(self, post: ResearchhubPost) -> dict:
         creator = post.created_by
         author = getattr(creator, "author_profile", None) if creator else None
 

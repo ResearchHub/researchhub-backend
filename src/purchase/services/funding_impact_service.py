@@ -105,6 +105,7 @@ class FundingImpactService:
 
         matched_rsc = float(
             Purchase.objects.funding_contributions()
+            .exclude_pool_distributions()
             .for_fundraises(funded_ids)
             .exclude_user(user.id)
             .sum()
@@ -138,6 +139,7 @@ class FundingImpactService:
         rsc_amounts = dict(
             Purchase.objects.for_user(user.id)
             .funding_contributions()
+            .exclude_pool_distributions()
             .for_fundraises(fundraise_ids)
             .annotate(amount_decimal=Cast("amount", DECIMAL_FIELD))
             .values("object_id")
@@ -172,6 +174,7 @@ class FundingImpactService:
 
         rsc_monthly = (
             Purchase.objects.funding_contributions()
+            .exclude_pool_distributions()
             .for_fundraises(fundraise_ids)
             .filter(created_date__gte=cutoff)
             .annotate(

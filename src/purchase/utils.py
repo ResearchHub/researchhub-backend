@@ -9,6 +9,7 @@ def get_funded_fundraise_ids(user_id: int) -> set[int]:
     rsc_funded = set(
         Purchase.objects.for_user(user_id)
         .funding_contributions()
+        .exclude_pool_distributions()
         .values_list("object_id", flat=True)
     )
     usd_funded = set(

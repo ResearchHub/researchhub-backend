@@ -25,7 +25,7 @@ class ProposalCreatorSerializer(serializers.Serializer):
     author_profile = AuthorProfileMinimalSerializer()
 
 
-class SupportedProposalSerializer(serializers.Serializer):
+class SupportedPostSerializer(serializers.Serializer):
     unified_document = UnifiedDocumentMinimalSerializer()
     id = serializers.IntegerField()
     created_by = ProposalCreatorSerializer(allow_null=True)
@@ -47,5 +47,6 @@ class FundingOverviewSerializer(serializers.Serializer):
 
     matched_funds = CurrencyBreakdownSerializer()
     distributed_funds = CurrencyBreakdownSerializer()
-    supported_proposals = SupportedProposalSerializer(many=True)
+    supported_proposals = SupportedPostSerializer(many=True)
+    supported_funding_pools = SupportedPostSerializer(many=True)
     supported_nonprofits = SupportedNonprofitSerializer(many=True)

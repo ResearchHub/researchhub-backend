@@ -21,6 +21,7 @@ class OverviewMixin:
         rsc, snapshot = self._sum_rsc_with_snapshot(
             Purchase.objects.for_user(user_id)
             .funding_contributions()
+            .exclude_pool_distributions()
             .for_fundraises(fundraise_ids)
         )
         cents = (
@@ -41,6 +42,7 @@ class OverviewMixin:
             return 0.0, 0, 0.0
         rsc, snapshot = self._sum_rsc_with_snapshot(
             Purchase.objects.funding_contributions()
+            .exclude_pool_distributions()
             .for_fundraises(fundraise_ids)
             .exclude_user(user_id)
         )
@@ -85,6 +87,41 @@ class OverviewMixin:
             snapshot += RscExchangeRate.rsc_to_usd(rsc_without_rate)
         return rsc, snapshot
 
+    @staticmethod
+    def _sum_rsc_with_snapshot_per_object(queryset: QuerySet) -> dict[int, dict]:
+        """Per-object_id {rsc, rsc_usd_snapshot, usd} for a Purchase queryset."""
+        rows = (
+            queryset.annotate(amount_float=Cast("amount", FloatField()))
+            .values("object_id")
+            .annotate(
+                rsc_total=Coalesce(Sum("amount_float"), 0.0),
+                snapshot_with_rate=Coalesce(
+                    Sum(
+                        F("amount_float") * F("rsc_usd_rate"),
+                        filter=Q(rsc_usd_rate__isnull=False),
+                        output_field=FloatField(),
+                    ),
+                    0.0,
+                ),
+                rsc_without_rate=Coalesce(
+                    Sum("amount_float", filter=Q(rsc_usd_rate__isnull=True)),
+                    0.0,
+                ),
+            )
+        )
+
+        result: dict[int, dict] = {}
+        for row in rows:
+            snapshot = row["snapshot_with_rate"]
+            if row["rsc_without_rate"] > 0:
+                snapshot += RscExchangeRate.rsc_to_usd(row["rsc_without_rate"])
+            result[row["object_id"]] = {
+                "rsc": round(row["rsc_total"], 2),
+                "rsc_usd_snapshot": round(snapshot, 2),
+                "usd": 0.0,
+            }
+        return result
+
     def _user_contributions_usd(
         self, user_id: int, fundraise_ids: list[int], exchange_rate: float
     ) -> float:
@@ -101,17 +138,6 @@ class OverviewMixin:
         """
         rsc, cents, _ = self._query_matched_contributions(user_id, fundraise_ids)
         return rsc_and_cents_to_usd(rsc, cents, exchange_rate)
-
-    def _user_contributions_breakdown(
-        self, user_id: int, fundraise_ids: list[int]
-    ) -> dict:
-        """Separate RSC, USD snapshot of RSC, and USD contribution totals by a user."""
-        rsc, cents, snapshot = self._query_user_contributions(user_id, fundraise_ids)
-        return {
-            "rsc": round(rsc, 2),
-            "rsc_usd_snapshot": round(snapshot, 2),
-            "usd": round(cents / 100, 2),
-        }
 
     def _matched_contributions_breakdown(
         self, user_id: int, fundraise_ids: list[int]
@@ -134,27 +160,11 @@ class OverviewMixin:
         if not fundraise_ids:
             return {}
 
-        rsc_qs = (
+        result = self._sum_rsc_with_snapshot_per_object(
             Purchase.objects.for_user(user_id)
             .funding_contributions()
+            .exclude_pool_distributions()
             .for_fundraises(fundraise_ids)
-            .annotate(amount_float=Cast("amount", FloatField()))
-            .values("object_id")
-            .annotate(
-                rsc_total=Coalesce(Sum("amount_float"), 0.0),
-                snapshot_with_rate=Coalesce(
-                    Sum(
-                        F("amount_float") * F("rsc_usd_rate"),
-                        filter=Q(rsc_usd_rate__isnull=False),
-                        output_field=FloatField(),
-                    ),
-                    0.0,
-                ),
-                rsc_without_rate=Coalesce(
-                    Sum("amount_float", filter=Q(rsc_usd_rate__isnull=True)),
-                    0.0,
-                ),
-            )
         )
 
         usd_qs = (
@@ -164,18 +174,6 @@ class OverviewMixin:
             .values("fundraise_id")
             .annotate(total_cents=Coalesce(Sum("amount_cents"), 0))
         )
-
-        result: dict[int, dict] = {}
-        for row in rsc_qs:
-            fid = row["object_id"]
-            snapshot = row["snapshot_with_rate"]
-            if row["rsc_without_rate"] > 0:
-                snapshot += RscExchangeRate.rsc_to_usd(row["rsc_without_rate"])
-            result[fid] = {
-                "rsc": round(row["rsc_total"], 2),
-                "rsc_usd_snapshot": round(snapshot, 2),
-                "usd": 0.0,
-            }
 
         for row in usd_qs:
             fid = row["fundraise_id"]

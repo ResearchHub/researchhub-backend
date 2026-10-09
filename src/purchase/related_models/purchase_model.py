@@ -33,6 +33,10 @@ class PurchaseQuerySet(models.QuerySet):
             content_type=ContentType.objects.get_for_model(Fundraise),
         )
 
+    def exclude_pool_distributions(self):
+        """Exclude audit purchases created when a funding pool distributes RSC."""
+        return self.filter(funding_distribution__isnull=True)
+
     def for_fundraises(self, fundraise_ids: list[int]):
         """Filter by fundraise IDs."""
         return self.filter(object_id__in=fundraise_ids)
