@@ -40,36 +40,14 @@ EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY = "seen_openalex_work_ids"
 
 EXPERT_FINDER_BATCH_CHASE_RATIO = 0.30
 
-# Search engine variant stored on ``ExpertSearch.config["engine"]``.
-EXPERT_FINDER_ENGINE_CONFIG_KEY = "engine"
-
-
-class ExpertFinderEngine(models.TextChoices):
-    """Which expert-discovery backend to run for a search."""
-
-    ADVANCED = "advanced", "Advanced (OpenAlex agent)"
-    BASIC = "basic", "Basic (GPT web search)"
-
+# When the default (Bedrock/Claude) agent hits provider content_filtered with
+# zero experts, retry once on this OpenRouter open-weight model.
+EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL = (
+    "openrouter:deepseek/deepseek-v4-flash-0731"
+)
 
 EXPERT_FINDER_MIN_EXPERT_COUNT = 5
-EXPERT_FINDER_MAX_EXPERT_COUNT_ADVANCED = 25
-EXPERT_FINDER_MAX_EXPERT_COUNT_BASIC = 100
-EXPERT_FINDER_DEFAULT_ENGINE = ExpertFinderEngine.ADVANCED
-
-
-def expert_finder_max_expert_count(engine: str | None) -> int:
-    """Upper bound on ``expert_count`` for the given engine variant."""
-    if engine == ExpertFinderEngine.BASIC:
-        return EXPERT_FINDER_MAX_EXPERT_COUNT_BASIC
-    return EXPERT_FINDER_MAX_EXPERT_COUNT_ADVANCED
-
-
-def normalize_expert_finder_engine(value: str | None) -> str:
-    """Return a valid engine value; unknown/missing → default (advanced)."""
-    raw = str(value or "").strip().lower()
-    if raw in {c.value for c in ExpertFinderEngine}:
-        return raw
-    return EXPERT_FINDER_DEFAULT_ENGINE
+EXPERT_FINDER_MAX_EXPERT_COUNT = 25
 
 
 def expert_finder_web_search_budget(expert_count: int) -> int:

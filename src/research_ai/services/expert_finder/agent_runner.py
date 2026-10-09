@@ -87,12 +87,23 @@ _SUBMIT_INPUT_SCHEMA = {
                     "name_suffix": {"type": "string"},
                     "academic_title": {"type": "string"},
                     "affiliation": {"type": "string"},
-                    "expertise": {"type": "string"},
+                    "expertise": {
+                        "type": "string",
+                        "description": (
+                            "Short topical expertise summary for this expert."
+                        ),
+                    },
                     "email": {
                         "type": "string",
                         "description": "Professional email (validated).",
                     },
-                    "notes": {"type": "string"},
+                    "notes": {
+                        "type": "string",
+                        "description": (
+                            "1–2 short sentences on why they match the RFP "
+                            "(not verification process)."
+                        ),
+                    },
                     "sources": {
                         "type": "array",
                         "items": {
@@ -105,11 +116,15 @@ _SUBMIT_INPUT_SCHEMA = {
                         },
                     },
                 },
+                # Schema "required" steers the model; the server still keeps
+                # grounded experts if expertise/notes are omitted.
                 "required": [
                     "openalex_author_id",
                     "first_name",
                     "last_name",
                     "email",
+                    "expertise",
+                    "notes",
                 ],
             },
         }
@@ -464,11 +479,12 @@ class ExpertFinderAgentToolset:
             description=(
                 "Submit grounded experts with validated professional emails. "
                 "Each expert must include an openalex_author_id returned by a "
-                "tool this run. Call again with additional experts until the "
-                "tool reports the target is met. If under target, page "
-                "search_works (next_cursor) or try new keywords. Submit only "
-                "new candidates; already-kept ids are ignored. Call this "
-                "before running out of turns so a partial list can be kept."
+                "tool this run, plus expertise and notes (why they match). "
+                "Call again with additional experts until the tool reports "
+                "the target is met. If under target, page search_works "
+                "(next_cursor) or try new keywords. Submit only new "
+                "candidates; already-kept ids are ignored. Call this before "
+                "running out of turns so a partial list can be kept."
             ),
             input_schema=_SUBMIT_INPUT_SCHEMA,
             handler=self._submit_experts,

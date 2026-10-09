@@ -8,11 +8,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from research_ai.constants import (
-    EXPERT_FINDER_DEFAULT_ENGINE,
-    EXPERT_FINDER_ENGINE_CONFIG_KEY,
     ExpertiseLevel,
     Region,
-    normalize_expert_finder_engine,
 )
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.permissions import ResearchAIPermission
@@ -128,10 +125,6 @@ class ExpertSearchListCreateView(APIView):
             ),
             "region": config.get("region", Region.ALL_REGIONS),
             "state": config.get("state", "All States"),
-            EXPERT_FINDER_ENGINE_CONFIG_KEY: normalize_expert_finder_engine(
-                config.get(EXPERT_FINDER_ENGINE_CONFIG_KEY)
-                or EXPERT_FINDER_DEFAULT_ENGINE
-            ),
         }
 
         try:
@@ -310,20 +303,14 @@ class ExpertSearchFindMoreView(APIView):
 
     def post(self, request, search_id):
         try:
-            existing = ExpertSearch.objects.only("id", "config").get(id=search_id)
+            ExpertSearch.objects.only("id").get(id=search_id)
         except ExpertSearch.DoesNotExist:
             return Response(
                 {"detail": "Expert search not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        existing_engine = normalize_expert_finder_engine(
-            (existing.config or {}).get(EXPERT_FINDER_ENGINE_CONFIG_KEY)
-        )
-        ser = ExpertSearchFindMoreSerializer(
-            data=request.data or {},
-            context={"engine": existing_engine},
-        )
+        ser = ExpertSearchFindMoreSerializer(data=request.data or {})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         try:
@@ -331,7 +318,6 @@ class ExpertSearchFindMoreView(APIView):
                 search_id,
                 expert_count=data["expert_count"],
                 additional_context=data.get("additional_context"),
-                engine=data.get("engine"),
             )
         except FindMoreSearchNotFoundError:
             return Response(

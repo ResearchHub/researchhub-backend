@@ -227,4 +227,7 @@ class WorkEmailLookupHelpersTests(SimpleTestCase):
         # Assert
         self.assertEqual(emails, {"ada@ox.ac.uk"})
         self.assertEqual(session.get.call_count, 1)
-        self.assertTrue(emails_in_text("reach me at a@b.com"))
+        self.assertEqual(
+            emails_in_text("reach me at ada@ox.ac.uk"),
+            ["ada@ox.ac.uk"],
+        )

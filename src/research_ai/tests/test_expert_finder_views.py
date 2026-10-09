@@ -50,6 +50,13 @@ class ExpertSearchListCreateViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         data = response.json()
         self.assertIn("search_id", data)
+        self.assertIn("ws_url", data)
+        self.assertNotIn("sse_url", data)
+        self.assertTrue(
+            data["ws_url"].endswith(
+                f"/ws/expert-finder/searches/{data['search_id']}/"
+            )
+        )
         search = ExpertSearch.objects.get(id=data["search_id"])
         self.assertEqual(search.created_by, self.moderator)
         mock_delay.assert_called_once()
@@ -326,6 +333,13 @@ class ExpertSearchFindMoreViewTests(APITestCase):
         data = response.json()
         self.assertTrue(data["append"])
         self.assertEqual(data["expert_count"], 15)
+        self.assertIn("ws_url", data)
+        self.assertNotIn("sse_url", data)
+        self.assertTrue(
+            data["ws_url"].endswith(
+                f"/ws/expert-finder/searches/{self.search.id}/"
+            )
+        )
         self.search.refresh_from_db()
         self.assertEqual(self.search.status, ExpertSearch.Status.PROCESSING)
         self.assertEqual(self.search.config["expert_count"], 15)

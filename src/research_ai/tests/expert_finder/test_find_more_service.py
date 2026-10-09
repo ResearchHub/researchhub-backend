@@ -47,47 +47,6 @@ class FindMoreServiceTests(TestCase):
         kwargs = enqueue.call_args.kwargs
         self.assertEqual(kwargs["additional_context"], "Prefer US.")
         self.assertEqual(kwargs["config"]["expert_count"], 15)
-        self.assertNotIn("engine", kwargs["config"])
-
-    def test_queue_updates_engine_when_provided(self):
-        # Arrange
-        from research_ai.constants import ExpertFinderEngine
-
-        enqueue = MagicMock()
-
-        # Act
-        FindMoreService(enqueue=enqueue).queue(
-            self.search.id,
-            expert_count=20,
-            engine=ExpertFinderEngine.BASIC,
-        )
-
-        # Assert
-        self.search.refresh_from_db()
-        self.assertEqual(self.search.config["engine"], ExpertFinderEngine.BASIC)
-        self.assertEqual(self.search.config["expert_count"], 20)
-        self.assertEqual(
-            enqueue.call_args.kwargs["config"]["engine"], ExpertFinderEngine.BASIC
-        )
-
-    def test_queue_keeps_existing_engine_when_omitted(self):
-        # Arrange
-        from research_ai.constants import ExpertFinderEngine
-
-        self.search.config = {
-            "expert_count": 10,
-            "region": "all_regions",
-            "engine": ExpertFinderEngine.ADVANCED,
-        }
-        self.search.save(update_fields=["config"])
-        enqueue = MagicMock()
-
-        # Act
-        FindMoreService(enqueue=enqueue).queue(self.search.id, expert_count=12)
-
-        # Assert
-        self.search.refresh_from_db()
-        self.assertEqual(self.search.config["engine"], ExpertFinderEngine.ADVANCED)
 
     def test_queue_raises_when_already_running(self):
         # Arrange
