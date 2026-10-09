@@ -134,8 +134,8 @@ class TestFundingOverviewService(TestCase):
         )
         self.assertEqual(supported_pool["funded_amount"], expected_amount)
 
-    def test_excludes_pool_distributions_from_distributor_funding(self) -> None:
-        """RSC distributed from a funding pool is not credited to the distributor."""
+    def test_counts_pool_distributions_as_matched_funds(self) -> None:
+        """RSC distributed from a funding pool counts as matched, not as given."""
         # Arrange
         grant, _, fundraise, _ = self._create_grant_with_proposal()
         pool = FundingPool.objects.create(grant=grant, created_by=self.user)
@@ -148,13 +148,14 @@ class TestFundingOverviewService(TestCase):
             target_fundraise=fundraise,
             fundraise_purchase=Purchase.objects.get(object_id=fundraise.id),
         )
+        self._contribute(self.user, fundraise, rsc=50)
 
         # Act
         result = self.service.get_funding_overview(self.user)
 
         # Assert
-        self.assertEqual(result["distributed_funds"]["rsc"], 0.0)
-        self.assertEqual(result["supported_proposals"], [])
+        self.assertEqual(result["distributed_funds"]["rsc"], 50.0)
+        self.assertEqual(result["matched_funds"]["rsc"], 100.0)
 
     def test_distributed_funds_tracks_funder_contributions(self):
         # Arrange

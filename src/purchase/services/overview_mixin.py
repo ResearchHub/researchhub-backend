@@ -42,9 +42,8 @@ class OverviewMixin:
             return 0.0, 0, 0.0
         rsc, snapshot = self._sum_rsc_with_snapshot(
             Purchase.objects.funding_contributions()
-            .exclude_pool_distributions()
             .for_fundraises(fundraise_ids)
-            .exclude_user(user_id)
+            .exclude_direct_contributions_by(user_id)
         )
         cents = (
             UsdFundraiseContribution.objects.not_refunded()

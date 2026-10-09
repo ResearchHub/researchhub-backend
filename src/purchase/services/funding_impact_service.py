@@ -105,9 +105,8 @@ class FundingImpactService:
 
         matched_rsc = float(
             Purchase.objects.funding_contributions()
-            .exclude_pool_distributions()
             .for_fundraises(funded_ids)
-            .exclude_user(user.id)
+            .exclude_direct_contributions_by(user.id)
             .sum()
         )
         matched_cents = (
@@ -174,14 +173,13 @@ class FundingImpactService:
 
         rsc_monthly = (
             Purchase.objects.funding_contributions()
-            .exclude_pool_distributions()
             .for_fundraises(fundraise_ids)
             .filter(created_date__gte=cutoff)
             .annotate(
                 month=TruncMonth("created_date"),
                 amount_decimal=Cast("amount", DECIMAL_FIELD),
             )
-            .values("month", "user_id")
+            .values("month", "user_id", "funding_distribution")
             .annotate(total=Coalesce(Sum("amount_decimal"), Decimal(0)))
         )
 
@@ -199,7 +197,10 @@ class FundingImpactService:
         for row in rsc_monthly:
             month_str = row["month"].strftime("%Y-%m")
             if month_str in monthly:
-                contributor_type = "user" if row["user_id"] == user.id else "matched"
+                is_direct_user_contribution = (
+                    row["user_id"] == user.id and row["funding_distribution"] is None
+                )
+                contributor_type = "user" if is_direct_user_contribution else "matched"
                 monthly[month_str][contributor_type] += (
                     float(row["total"]) * exchange_rate
                 )
