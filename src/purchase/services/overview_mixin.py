@@ -88,11 +88,13 @@ class OverviewMixin:
         return rsc, snapshot
 
     @staticmethod
-    def _sum_rsc_with_snapshot_per_object(queryset: QuerySet) -> dict[int, dict]:
-        """Per-object_id {rsc, rsc_usd_snapshot, usd} for a Purchase queryset."""
+    def _sum_rsc_with_snapshot_grouped_by(
+        queryset: QuerySet, field: str
+    ) -> dict[int, dict]:
+        """Per-``field`` value {rsc, rsc_usd_snapshot, usd} for a Purchase queryset."""
         rows = (
             queryset.annotate(amount_float=Cast("amount", FloatField()))
-            .values("object_id")
+            .values(field)
             .annotate(
                 rsc_total=Coalesce(Sum("amount_float"), 0.0),
                 snapshot_with_rate=Coalesce(
@@ -115,7 +117,7 @@ class OverviewMixin:
             snapshot = row["snapshot_with_rate"]
             if row["rsc_without_rate"] > 0:
                 snapshot += RscExchangeRate.rsc_to_usd(row["rsc_without_rate"])
-            result[row["object_id"]] = {
+            result[row[field]] = {
                 "rsc": round(row["rsc_total"], 2),
                 "rsc_usd_snapshot": round(snapshot, 2),
                 "usd": 0.0,
@@ -160,11 +162,12 @@ class OverviewMixin:
         if not fundraise_ids:
             return {}
 
-        result = self._sum_rsc_with_snapshot_per_object(
+        result = self._sum_rsc_with_snapshot_grouped_by(
             Purchase.objects.for_user(user_id)
             .funding_contributions()
             .exclude_pool_distributions()
-            .for_fundraises(fundraise_ids)
+            .for_fundraises(fundraise_ids),
+            "object_id",
         )
 
         usd_qs = (

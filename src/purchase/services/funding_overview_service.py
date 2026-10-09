@@ -1,6 +1,6 @@
 """Services for funding and grant overview dashboard metrics."""
 
-from django.db.models import F, QuerySet
+from django.db.models import QuerySet
 
 from organizations.models import NonprofitOrg
 from purchase.models import Grant, GrantApplication, Purchase
@@ -57,18 +57,16 @@ class FundingOverviewService(OverviewMixin):
 
     def _list_supported_funding_pools(self, pool_contributions: QuerySet) -> list[dict]:
         """RFP posts whose funding pools the user contributed to, with amounts."""
-        contributions = self._sum_rsc_with_snapshot_per_object(pool_contributions)
-        posts = (
-            ResearchhubPost.objects.filter(
-                unified_document__grants__funding_pool__id__in=contributions.keys(),
-            )
-            .select_related("unified_document", "created_by__author_profile")
-            .annotate(funding_pool_id=F("unified_document__grants__funding_pool__id"))
+        contributions = self._sum_rsc_with_snapshot_grouped_by(
+            pool_contributions, "funding_pool__grant__unified_document_id"
         )
+        posts = ResearchhubPost.objects.filter(
+            unified_document_id__in=contributions.keys(),
+        ).select_related("unified_document", "created_by__author_profile")
         return [
             {
                 **self._serialize_post(post),
-                "funded_amount": contributions[post.funding_pool_id],
+                "funded_amount": contributions[post.unified_document_id],
             }
             for post in posts
         ]
