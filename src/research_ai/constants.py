@@ -40,6 +40,15 @@ EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY = "seen_openalex_work_ids"
 
 EXPERT_FINDER_BATCH_CHASE_RATIO = 0.30
 
+# When the default (Bedrock/Claude) agent hits provider content_filtered with
+# zero experts, retry once on this OpenRouter open-weight model.
+EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL = (
+    "openrouter:deepseek/deepseek-v4-flash-0731"
+)
+
+EXPERT_FINDER_MIN_EXPERT_COUNT = 5
+EXPERT_FINDER_MAX_EXPERT_COUNT = 25
+
 
 def expert_finder_web_search_budget(expert_count: int) -> int:
     """Brave web_search ceiling for one EF run."""
