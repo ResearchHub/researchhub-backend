@@ -96,7 +96,7 @@ Proposal (preregistration post) context. Built from `build_proposal_context(post
 
 To add a new variable:
 
-1. Add the key to the appropriate tuple in `email_template_variables.py` (`USER_VARIABLES`, `RFP_VARIABLES`, `PROPOSAL_VARIABLES`, or `EXPERT_VARIABLES`).
+1. Add the key to the appropriate tuple in `template_variables.py` (`USER_VARIABLES`, `RFP_VARIABLES`, `PROPOSAL_VARIABLES`, or `EXPERT_VARIABLES`).
 2. Update the corresponding `_build_*_context()` function to include the new field.
 3. Update this README.
 
