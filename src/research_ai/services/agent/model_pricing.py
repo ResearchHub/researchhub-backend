@@ -175,7 +175,7 @@ _OPENROUTER_PRICING = {
     "z-ai/glm-5.3-flash": _price("0.15", "0.50", "0.03", "0.15"),
     "deepseek/deepseek-v4-flash-0731": _price("0.0055", "1.28", "0.0055", "0.0055"),
     "deepseek/deepseek-v4-pro-0813": _price("0.66", "1.98", "0.022", "0.66"),
-    "moonshotai/kimi-k3": _price("0.30", "14.90", "0.20", "0.30"),
+    "moonshotai/kimi-k3": _price("0.80", "15", "0.55", "0.80"),
     "xiaomi/mimo-v2.6-pro": _price("0.435", "0.87", "0.0036", "0.435"),
     "qwen/qwen3.8-max-0902": _price("2", "6", "0.25", "2.50"),
 }

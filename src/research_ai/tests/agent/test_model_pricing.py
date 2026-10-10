@@ -82,8 +82,8 @@ class ModelPricingTests(SimpleTestCase):
             cache_read_tokens=1_000_000,
         )
         cases = (
-            # $0.30 input, $14.90 output, $0.20 cached input.
-            ("moonshotai/kimi-k3", 15_400_000),
+            # $0.80 input, $15 output, $0.55 cached input.
+            ("moonshotai/kimi-k3", 16_350_000),
             # $0.0055 input, $1.28 output, $0.0055 cached input.
             ("deepseek/deepseek-v4-flash-0731", 1_291_000),
         )
