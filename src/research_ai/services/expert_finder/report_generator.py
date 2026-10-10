@@ -260,7 +260,7 @@ def upload_report_to_storage(
         Public URL of the uploaded file.
     """
     file_key = f"research_ai/expert-finder/{search_id}/report.{file_extension}"
-    default_storage.save(file_key, ContentFile(file_content))
-    url = default_storage.url(file_key)
-    logger.info("Uploaded %s to %s", file_extension.upper(), file_key)
+    saved_key = default_storage.save(file_key, ContentFile(file_content))
+    url = default_storage.url(saved_key)
+    logger.info("Uploaded %s to %s", file_extension.upper(), saved_key)
     return url
