@@ -42,6 +42,10 @@ class Gender(models.TextChoices):
 # Sentinel US state filter: no state narrowing (matches API / frontend default).
 EXPERT_FINDER_DEFAULT_STATE = "All States"
 
+# Cap on OpenAlex work ids excluded across same-document reruns (URL length).
+EXPERT_FINDER_SEEN_WORK_IDS_CAP = 80
+EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY = "seen_openalex_work_ids"
+
 
 def get_choice_label(value: str, enum_class: type) -> str:
     """Return human-readable label for a choice value (e.g. for display in PDF/UI)."""
