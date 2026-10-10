@@ -25,6 +25,6 @@ or free-form query; outreach role (collaborator vs reviewer) is chosen later.
 - ``source_enrichment`` -- post-persist LinkedIn/X/Google Scholar enrichment
   through Brave web search and Bedrock candidate matching.
 - ``display`` -- display formatting of an ``Expert`` for listings and emails.
-- ``progress`` -- Redis-backed progress publishing for the search UI.
+- ``events`` -- Channels WebSocket progress / experts_found publishing.
 - ``report_generator`` -- PDF/CSV report artifacts for a completed search.
 """

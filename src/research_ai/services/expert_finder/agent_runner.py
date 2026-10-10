@@ -2,6 +2,7 @@
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from research_ai.constants import (
@@ -388,6 +389,7 @@ class ExpertFinderAgentToolset:
         web_search_max: int | None = None,
         expert_count: int = 10,
         excluded_expert_names: list[str] | None = None,
+        on_experts_found: Callable[[int], None] | None = None,
     ):
         self._expert_count = max(1, int(expert_count))
         self.openalex = openalex_toolset or ExpertFinderOpenAlexToolset(
@@ -413,11 +415,24 @@ class ExpertFinderAgentToolset:
         self._email_validation = self.email_validate.service
         self._region_filter = region_filter or Region.ALL_REGIONS
         self._excluded_expert_names = list(excluded_expert_names or [])
+        self._on_experts_found = on_experts_found
         self.accepted_experts: list[dict[str, Any]] = []
         self.gate_errors: list[str] = []
         self._accepted_ids: set[str] = set()
         self.submit_called = False
         self._submit_tool = self._build_submit_tool()
+
+    def _notify_experts_found(self, kept_count: int) -> None:
+        if self._on_experts_found is None:
+            return
+        try:
+            self._on_experts_found(kept_count)
+        except Exception:  # noqa: BLE001 - live updates must not break discovery
+            logger.warning(
+                "expert-finder on_experts_found callback failed kept_count=%s",
+                kept_count,
+                exc_info=True,
+            )
 
     def build_tools(self) -> list[Tool]:
         tools: list[Tool] = []
@@ -486,18 +501,17 @@ class ExpertFinderAgentToolset:
         remaining = max(0, self._expert_count - len(self.accepted_experts))
         if remaining <= 0:
             self._submit_tool.is_terminal = True
+            kept_count = len(self.accepted_experts)
+            self._notify_experts_found(kept_count)
             return {
                 "accepted": True,
-                "kept_count": len(self.accepted_experts),
+                "kept_count": kept_count,
                 "added_count": 0,
                 "target_count": self._expert_count,
                 "still_needed": 0,
                 "kept_openalex_author_ids": self._kept_openalex_ids(),
                 "drop_reasons": [],
-                "message": (
-                    f"Target met ({len(self.accepted_experts)} of "
-                    f"{self._expert_count})."
-                ),
+                "message": (f"Target met ({kept_count} of {self._expert_count})."),
             }
         batch_kept, gate_errors = ground_submitted_experts(
             experts,
@@ -512,6 +526,8 @@ class ExpertFinderAgentToolset:
         for row in batch_kept:
             self.openalex.mark_author_chased(row.get("openalex_author_id"))
         kept_count = len(self.accepted_experts)
+        if added > 0:
+            self._notify_experts_found(kept_count)
         still_needed = max(0, self._expert_count - kept_count)
         filled = still_needed == 0
         self._submit_tool.is_terminal = filled
@@ -553,6 +569,7 @@ def run_expert_finder_agent(
     email_validation: EmailValidationService | None = None,
     recorder=None,
     max_iterations: int | None = None,
+    on_experts_found: Callable[[int], None] | None = None,
 ) -> dict[str, Any]:
     """Run the expert-finder agent and return grounded expert rows.
 
@@ -578,6 +595,7 @@ def run_expert_finder_agent(
         web_search_max=expert_finder_web_search_budget(target or 10),
         expert_count=target or 10,
         excluded_expert_names=excluded_expert_names,
+        on_experts_found=on_experts_found,
     )
     provider = provider or resolve_provider()
     agent = AgentService(provider=provider, max_iterations=iterations).create_agent(
