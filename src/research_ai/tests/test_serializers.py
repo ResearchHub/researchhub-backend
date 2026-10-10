@@ -34,6 +34,7 @@ class ExpertSearchConfigSerializerTests(TestCase):
         self.assertEqual(data["expert_count"], 10)
         self.assertEqual(data["expertise_level"], [ExpertiseLevel.ALL_LEVELS])
         self.assertEqual(data["region"], Region.ALL_REGIONS)
+        self.assertNotIn("engine", data)
         self.assertNotIn("gender", data)
 
     def test_expert_count_required(self):
@@ -105,6 +106,8 @@ class ExpertSearchConfigSerializerTests(TestCase):
         self.assertFalse(ser.is_valid())
         ser = ExpertSearchConfigSerializer(data={"expert_count": 26})
         self.assertFalse(ser.is_valid())
+        ser = ExpertSearchConfigSerializer(data={"expert_count": 100})
+        self.assertFalse(ser.is_valid())
 
 
 class ExpertSearchFindMoreSerializerTests(TestCase):
@@ -120,6 +123,8 @@ class ExpertSearchFindMoreSerializerTests(TestCase):
         ser = ExpertSearchFindMoreSerializer(data={"expert_count": 4})
         self.assertFalse(ser.is_valid())
         ser = ExpertSearchFindMoreSerializer(data={"expert_count": 26})
+        self.assertFalse(ser.is_valid())
+        ser = ExpertSearchFindMoreSerializer(data={"expert_count": 100})
         self.assertFalse(ser.is_valid())
 
 

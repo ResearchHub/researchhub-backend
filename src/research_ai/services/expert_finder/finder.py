@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 
 from research_ai.constants import (
+    EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL,
     EXPERT_FINDER_DEFAULT_STATE,
     EXPERT_FINDER_SEEN_WORK_IDS_CAP,
     EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY,
@@ -18,7 +19,10 @@ from research_ai.constants import (
 )
 from research_ai.models import Expert, ExpertSearch, SearchExpert
 from research_ai.services.agent.errors import BudgetExceededError
-from research_ai.services.agent.providers.registry import generator_model_ref
+from research_ai.services.agent.providers.registry import (
+    generator_model_ref,
+    resolve_provider,
+)
 from research_ai.services.expert_finder.agent_runner import run_expert_finder_agent
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.events import ExpertFinderEventPublisher
@@ -540,18 +544,19 @@ class ExpertFinderService:
                 ),
                 28,
             )
+            agent_kwargs = {
+                "query": query,
+                "expert_count": target_expert_count,
+                "expertise_level": expertise_level,
+                "region_filter": region_filter,
+                "state_filter": state_filter,
+                "excluded_expert_names": excluded_names,
+                "additional_context": additional_context,
+                "exclude_work_ids": exclude_work_ids or None,
+                "on_experts_found": publish_experts_found,
+            }
             try:
-                agent_result = run_expert_finder_agent(
-                    query=query,
-                    expert_count=target_expert_count,
-                    expertise_level=expertise_level,
-                    region_filter=region_filter,
-                    state_filter=state_filter,
-                    excluded_expert_names=excluded_names,
-                    additional_context=additional_context,
-                    exclude_work_ids=exclude_work_ids or None,
-                    on_experts_found=publish_experts_found,
-                )
+                agent_result = run_expert_finder_agent(**agent_kwargs)
             except BudgetExceededError:
                 raise
             except Exception as e:
@@ -560,6 +565,37 @@ class ExpertFinderService:
                     current_step="Agent search failed",
                     exc=e,
                 )
+
+            # Anthropic/Bedrock may refuse some topics; retry once on an
+            # OpenRouter open-weight model (same agent tools, different host).
+            if agent_result.get("content_filtered") and not agent_result.get("experts"):
+                publish_progress(
+                    "Primary model blocked this content; "
+                    "retrying with alternate model...",
+                    28,
+                )
+                logger.warning(
+                    "expert finder search_id=%s content_filtered; "
+                    "retrying with %s",
+                    search_id,
+                    EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL,
+                )
+                try:
+                    agent_result = run_expert_finder_agent(
+                        **agent_kwargs,
+                        provider=resolve_provider(
+                            EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL
+                        ),
+                    )
+                    llm_model = EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL
+                except BudgetExceededError:
+                    raise
+                except Exception as e:
+                    return fail_return(
+                        f"Expert agent search failed: {e}"[:2000],
+                        current_step="Agent search failed",
+                        exc=e,
+                    )
 
             batch = list(agent_result.get("experts") or [])
             author_work_ids = agent_result.get("author_work_ids")

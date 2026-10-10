@@ -9,12 +9,13 @@ or free-form query; outreach role (collaborator vs reviewer) is chosen later.
   (append) runs.
 - ``agent_runner`` -- tool-using agent (OpenAlex + Brave + SES + submit_experts)
   via ``resolve_provider()``; grounds OpenAlex ids, hard-filters region,
-  accumulates until the target count, and re-validates emails.
+  accumulates until the target count, and re-validates emails. On provider
+  ``content_filtered``, the finder retries once on an OpenRouter open-weight
+  model.
 - ``region_filter`` -- Region → ISO country codes and author match helpers.
 - ``web_search_tools`` -- Brave contact ``web_search`` for the agent path.
 - ``work_email_lookup`` -- affiliation emails from OpenAlex, with Europe PMC /
   Crossref only when OpenAlex has none (no HTML scrape).
-- ``openai_finder`` -- legacy OpenAI Responses path (unused by the live finder).
 - ``openalex_tools`` -- works-first OpenAlex tools (``search_works`` + author
   lookup) with author/work grounding for the agent path.
 - ``email_validation`` -- expert-finder email gate (role-local rejection,

@@ -115,24 +115,11 @@ class ExpertSearchListViewTests(APITestCase):
 
 
 class ExpertSearchProgressStreamViewTests(APITestCase):
-    def setUp(self):
-        self.moderator = create_random_authenticated_user("mod4", moderator=True)
-        self.search = ExpertSearch.objects.create(
-            created_by=self.moderator,
-            query="Stream test",
-            status=ExpertSearch.Status.PENDING,
-        )
-        self.url = f"/api/research_ai/expert-finder/progress/{self.search.id}/"
+    """SSE progress endpoint was removed in favor of WebSocket live updates."""
 
-    def test_progress_requires_auth(self):
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_progress_returns_sse_stream(self):
-        self.client.force_authenticate(self.moderator)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("text/event-stream", response.get("Content-Type", ""))
+    def test_progress_url_is_gone(self):
+        response = self.client.get("/api/research_ai/expert-finder/progress/1/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 class ExpertSearchWorkViewTests(APITestCase):
