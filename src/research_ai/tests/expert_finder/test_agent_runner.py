@@ -505,9 +505,9 @@ class RunExpertFinderAgentTests(SimpleTestCase):
         # Arrange / Act
         small = ExpertFinderAgentToolset(expert_count=10)
         large = ExpertFinderAgentToolset(expert_count=100)
-        # Assert
-        self.assertEqual(small.web_search.max_searches, 35)
-        self.assertEqual(large.web_search.max_searches, 125)
+        # Assert — floor 80; large targets hit the 200 cap.
+        self.assertEqual(small.web_search.max_searches, 80)
+        self.assertEqual(large.web_search.max_searches, 200)
 
     def test_underfill_submit_continues_then_fills(self):
         # Arrange: target 2. First submit keeps Ada; second adds Bob.

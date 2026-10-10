@@ -262,8 +262,10 @@ class EmailValidateToolset:
         self,
         *,
         service: EmailValidationService | None = None,
+        on_author_chased=None,
     ):
         self._service = service or EmailValidationService()
+        self._on_author_chased = on_author_chased
 
     @property
     def service(self) -> EmailValidationService:
@@ -278,8 +280,10 @@ class EmailValidateToolset:
                     "insights before submitting an expert. Rejects role-like "
                     "locals (info@, contact@, …) and addresses whose overall "
                     f"or mailbox confidence is below {MIN_ACCEPT_CONFIDENCE}. "
-                    "Call this on every candidate email; the server re-checks "
-                    "on submit_experts."
+                    "Pass openalex_author_id when validating a grounded author "
+                    "(especially metadata_email) so the chase counts toward "
+                    "the search_works batch quota. Call this on every "
+                    "candidate email; the server re-checks on submit_experts."
                 ),
                 input_schema={
                     "type": "object",
@@ -287,7 +291,14 @@ class EmailValidateToolset:
                         "email": {
                             "type": "string",
                             "description": "Candidate professional email address.",
-                        }
+                        },
+                        "openalex_author_id": {
+                            "type": "string",
+                            "description": (
+                                "OpenAlex author id being validated; counts "
+                                "toward the current search_works chase batch."
+                            ),
+                        },
                     },
                     "required": ["email"],
                 },
@@ -302,4 +313,10 @@ class EmailValidateToolset:
         email = str((args or {}).get("email") or "").strip()
         if not email:
             return {"error": "email is required"}
-        return self._service.validate(email).as_dict()
+        author_id = str((args or {}).get("openalex_author_id") or "").strip()
+        if self._on_author_chased is not None and author_id:
+            self._on_author_chased(author_id)
+        result = self._service.validate(email).as_dict()
+        if author_id:
+            result["openalex_author_id"] = author_id
+        return result
