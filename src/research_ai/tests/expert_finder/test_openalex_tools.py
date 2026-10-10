@@ -185,7 +185,11 @@ class AuthorIdentityMatchTests(SimpleTestCase):
         # Arrange / Act / Assert
         self.assertTrue(
             self.provider.author_identity_matches(
-                {"openalex_author_id": "A1", "first_name": "Alice", "last_name": "Smith"}
+                {
+                    "openalex_author_id": "A1",
+                    "first_name": "Alice",
+                    "last_name": "Smith",
+                }
             )
         )
         self.assertFalse(
