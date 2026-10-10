@@ -93,6 +93,10 @@ class AvailableModelsTests(SimpleTestCase):
         # Arrange
         expected = {
             "claude_platform:claude-opus-5-5": ("adaptive",),
+            "openrouter:openai/gpt-6.1-sol": ("adaptive",),
+            "openrouter:x-ai/grok-4.7": ("adaptive",),
+            "openrouter:meta/muse-spark-1.3": ("adaptive",),
+            "openrouter:xiaomi/mimo-v2.6-pro": ("adaptive", "disabled"),
             "openrouter:openai/gpt-6-sol": (),
             "openrouter:openai/gpt-6-luna": (),
             "openrouter:qwen/qwen3.8-max-0902": ("adaptive",),
@@ -136,7 +140,6 @@ class AvailableModelsTests(SimpleTestCase):
             "openrouter:z-ai/glm-5.3-flash",
             "openrouter:deepseek/deepseek-v4-flash-0731",
             "openrouter:deepseek/deepseek-v4-pro-0813",
-            "openrouter:moonshotai/kimi-k3",
             "openrouter:qwen/qwen3.8-max-0902",
         )
 
@@ -144,7 +147,17 @@ class AvailableModelsTests(SimpleTestCase):
         refs = [option.ref for option in available_models()]
 
         # Assert: a pinned chat needs its model accepted and its ceiling known.
-        self.assertEqual(refs, ["claude_platform:claude-opus-5-5"])
+        self.assertEqual(
+            refs,
+            [
+                "claude_platform:claude-opus-5-5",
+                "openrouter:openai/gpt-6.1-sol",
+                "openrouter:x-ai/grok-4.7",
+                "openrouter:meta/muse-spark-1.3",
+                "openrouter:moonshotai/kimi-k3",
+                "openrouter:xiaomi/mimo-v2.6-pro",
+            ],
+        )
         for ref in retired:
             with self.subTest(ref=ref):
                 self.assertEqual(validate_model_ref(ref), ref)

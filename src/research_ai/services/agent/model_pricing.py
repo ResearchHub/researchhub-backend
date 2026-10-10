@@ -69,7 +69,8 @@ def _price(
 # - OpenRouter live catalog: https://openrouter.ai/api/v1/models
 # - OpenRouter usage cost: https://openrouter.ai/docs/cookbook/administration/usage-accounting
 # - OpenAI GPT-6 models: https://developers.openai.com/api/docs/models
-# OpenRouter rows rechecked against the live catalog 2026-10-06.
+# OpenRouter rows rechecked against the live catalog 2026-10-06; GPT-6.1 Sol,
+# Grok 4.7, Muse Spark 1.3 and MiMo-V2.6-Pro added and Kimi K3 rechecked 2026-10-10.
 # Prices are keyed by the same normalized ids as model capabilities. Historical
 # ledger rows retain the charge applied when their request completed.
 _CLAUDE_PLATFORM_PRICING = {
@@ -127,6 +128,16 @@ _OPENROUTER_PRICING = {
         override_after=272_000,
         override=("0.20", "0.75", "0.02", "0.25"),
     ),
+    "openai/gpt-6.1-sol": _price(
+        "2",
+        "10",
+        "0.10",
+        "2.50",
+        "0.01",
+        override_after=272_000,
+        override=("4", "15", "0.20", "5"),
+    ),
+    "meta/muse-spark-1.3": _price("1.25", "4.25", "0.15", "1.25", "0.0025"),
     "google/gemini-3.1-pro-preview": _price(
         "2",
         "12",
@@ -151,11 +162,21 @@ _OPENROUTER_PRICING = {
         override_after=200_000,
         override=("4", "12", "1", "0"),
     ),
+    "x-ai/grok-4.7": _price(
+        "2",
+        "6",
+        "0.50",
+        "0",
+        "0.005",
+        override_after=200_000,
+        override=("4", "12", "1", "0"),
+    ),
     # Use GLM's undiscounted rates; its launch discount expires September 9, 2026.
     "z-ai/glm-5.3-flash": _price("0.15", "0.50", "0.03", "0.15"),
     "deepseek/deepseek-v4-flash-0731": _price("0.0055", "1.28", "0.0055", "0.0055"),
     "deepseek/deepseek-v4-pro-0813": _price("0.66", "1.98", "0.022", "0.66"),
-    "moonshotai/kimi-k3": _price("0.69", "15", "0.23", "0.69"),
+    "moonshotai/kimi-k3": _price("0.30", "14.90", "0.20", "0.30"),
+    "xiaomi/mimo-v2.6-pro": _price("0.435", "0.87", "0.0036", "0.435"),
     "qwen/qwen3.8-max-0902": _price("2", "6", "0.25", "2.50"),
 }
 
