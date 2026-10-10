@@ -21,6 +21,7 @@ from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.types import TextBlock, ToolResultBlock
 from research_ai.services.agent_files import AgentFileService
 from research_ai.services.agent_files.delivery import DeliveryConfig
+from research_ai.services.agent_files.extraction import DOCX
 from research_ai.services.agent_files.image_loader import PrivateStorageImageLoader
 from research_ai.services.agent_files.page_images import PageImageService
 from research_ai.services.agent_persistence import AgentConversationService
@@ -66,6 +67,14 @@ PDF_TEXT = "[Page 1]\nAim 1: map enhancers.\n\n[Page 2]\nFigure 2 shows the scre
 DELIVERY = DeliveryConfig(page_images_max_pages=2, page_images_max_per_message=4)
 SHOWN = "its pages are also shown as images with this message"
 ON_REQUEST = f"view its pages as images with {VIEW_ATTACHMENT_PAGES}"
+WORD_SHOWN = (
+    "its images are also shown with this message, each labelled with the N of "
+    "its [Image N] marker in the text"
+)
+WORD_ON_REQUEST = (
+    "view the image at an [Image N] marker in its text with "
+    f"{VIEW_ATTACHMENT_PAGES}, as page N"
+)
 USE_TOOLS = "read it with read_attachment or find passages with search_attachment"
 NO_ROOM = (
     "its pages cannot be shown as images in this chat, which has no room left "
@@ -87,10 +96,11 @@ def _user(name="owner"):
     )
 
 
-def _page(file, page) -> ImageBlock:
+def _page(file, page, part="page") -> ImageBlock:
+    """A PDF's page, or with ``part="image"`` a Word file's image, as it is shown."""
     prefix = file.storage_key.rsplit("/", 1)[0]
     return ImageBlock(
-        f"{prefix}/pages/{page}.jpg", "image/jpeg", f"{file.filename}, page {page}"
+        f"{prefix}/pages/{page}.jpg", "image/jpeg", f"{file.filename}, {part} {page}"
     )
 
 
@@ -131,6 +141,21 @@ class BucketTestCase(AWSMockTestCase):
         # The fake renderer never parses the original.
         file.etag = self.bucket.put(file.storage_key, b"%PDF-1.7", "application/pdf")
         file.save(update_fields=["etag"])
+        return file
+
+    def _word(self, images, *, message=None) -> AgentFile:
+        """A Word file as processing leaves it: its images already in the bucket."""
+        file = make_file(
+            self.user,
+            message=message,
+            filename="plan.docx",
+            content_type=DOCX.content_type,
+            text="Figure 1 shows growth.\n\n[Image 1]",
+            embedded_image_count=images,
+        )
+        for number in range(1, images + 1):
+            ref = _page(file, number, part="image").ref
+            self.bucket.put(ref, image_bytes(image_format="JPEG"), "image/jpeg")
         return file
 
     def _image(self, *, message=None, filename="gel.png", text="") -> AgentFile:
@@ -217,7 +242,7 @@ class ViewAttachmentPagesTests(BucketTestCase):
         output = self._view(cv.id, [1])
 
         # Assert
-        self.assertIn("is not a PDF", output.content["error"])
+        self.assertIn("has no pages or images to view", output.content["error"])
         self.assertIn(READ_ATTACHMENT, output.content["error"])
         self.assertEqual(output.images, ())
 
@@ -235,6 +260,21 @@ class ViewAttachmentPagesTests(BucketTestCase):
             refused.content["error"],
             f"attachment {gel.id} is an image; view it as page 1",
         )
+
+    def test_an_image_a_word_file_does_not_have_is_refused(self):
+        # Arrange
+        plan = self._word(2, message=self.message)
+
+        # Act
+        output = self._view(plan.id, [3])
+
+        # Assert
+        self.assertEqual(
+            output.content["error"],
+            f"attachment {plan.id} has 2 images; give the N of an [Image N] "
+            "marker in its text, between 1 and 2",
+        )
+        self.assertEqual(output.images, ())
 
     def test_a_page_the_file_does_not_have_is_refused(self):
         for pages in ([0], [4], [1, 4]):
@@ -537,6 +577,76 @@ class NotebookChatPageImageTests(ChatTurnTestCase):
             [f"full text below; {SHOWN}", f"full text below; {SHOWN}"],
         )
         self.assertEqual(sorted(self.render.pages), [1, 1, 2])
+
+    def test_a_word_files_images_are_sent_with_the_message(self):
+        # Arrange
+        plan = self._word(2)
+        execution = self._submit_to_vision_model(
+            "What does the chart show?", file_ids=[plan.id]
+        )
+
+        # Act
+        provider = self._finish(execution, text_turn("Growth."))
+
+        # Assert: as processing stored them; nothing is rendered.
+        message = provider.calls[0][-1]
+        self.assertEqual(
+            message.content[:-1],
+            [_page(plan, 1, part="image"), _page(plan, 2, part="image")],
+        )
+        self.assertEqual(self._manifest(message), [f"full text below; {WORD_SHOWN}"])
+        self.assertIn(
+            '"plan.docx" (Word document, 2 images, 33 characters)',
+            message.content[-1].text,
+        )
+        self.assertEqual(self.render.pages, [])
+
+    def test_a_word_image_missing_from_storage_does_not_fail_the_turn(self):
+        # Arrange
+        plan = self._word(2)
+        del self.bucket.objects[_page(plan, 2, part="image").ref]
+        execution = self._submit_to_vision_model(
+            "What does the chart show?", file_ids=[plan.id]
+        )
+
+        # Act
+        provider = self._finish(execution, text_turn("Growth."))
+
+        # Assert
+        message = provider.calls[0][-1]
+        self.assertEqual(message.content[:-1], [_page(plan, 1, part="image")])
+        self.assertEqual(
+            self._manifest(message),
+            [
+                f"full text below; {WORD_SHOWN}, except image 2, which could "
+                "not be shown"
+            ],
+        )
+
+    def test_a_word_files_many_images_are_shown_when_the_model_asks(self):
+        # Arrange
+        plan = self._word(3)
+        execution = self._submit_to_vision_model(
+            "What is the third chart?", file_ids=[plan.id]
+        )
+
+        # Act
+        provider = self._finish(
+            execution,
+            tool_turn(
+                "t1", VIEW_ATTACHMENT_PAGES, {"attachment_id": plan.id, "pages": [3]}
+            ),
+            text_turn("A timeline."),
+        )
+
+        # Assert: nothing is sent up front; the tool result carries the image.
+        message = provider.calls[0][-1]
+        self.assertEqual([type(block) for block in message.content], [TextBlock])
+        self.assertEqual(
+            self._manifest(message), [f"full text below; {WORD_ON_REQUEST}"]
+        )
+        (result,) = provider.calls[1][-1].content
+        self.assertEqual(result.images, (_page(plan, 3, part="image"),))
 
     def test_an_uploaded_image_is_sent_with_the_message(self):
         # Arrange

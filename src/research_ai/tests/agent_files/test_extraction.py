@@ -2,8 +2,10 @@ import base64
 import codecs
 import io
 import json
+import pathlib
 import random
 import subprocess
+import tempfile
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -13,7 +15,9 @@ from PIL import Image
 from research_ai.services.agent_files import extraction
 from research_ai.services.agent_files.extraction import (
     DOCX,
+    EMBEDDED_IMAGE_NOT_SHOWN,
     IMAGE_UNREAD,
+    MAX_EMBEDDED_IMAGES,
     NO_TEXT_LAYER,
     OCR_NOTE,
     PDF,
@@ -30,12 +34,10 @@ from research_ai.tests.agent_files.helpers import (
     paragraph,
     pdf_bytes,
     pdf_with_scans,
+    picture,
+    picture_parts,
     stamped_scan,
 )
-
-DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006"
-RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-PACKAGE_NS = "http://schemas.openxmlformats.org/package/2006"
 
 TEXT = resolve_kind("notes.txt")
 MAX_CHARS = 10_000
@@ -780,26 +782,11 @@ class DocxExtractionTests(TestCase):
         # Assert
         self.assertEqual(extracted.text, "p_value for 2*3 runs")
 
-    def test_images_are_left_out(self):
+    def test_an_image_is_kept_as_a_jpeg_and_marked_where_it_sat(self):
         # Arrange
-        body = (
-            "<w:p><w:r><w:t>Figure 1</w:t></w:r><w:r><w:drawing>"
-            f"<wp:inline xmlns:wp='{DRAWING_NS}/wordprocessingDrawing'>"
-            f"<a:graphic xmlns:a='{DRAWING_NS}/main'><a:graphicData>"
-            f"<pic:pic xmlns:pic='{DRAWING_NS}/picture'><pic:blipFill>"
-            f"<a:blip xmlns:r='{RELATIONSHIPS_NS}' r:embed='rId1'/>"
-            "</pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline>"
-            "</w:drawing></w:r></w:p>"
-        )
-        relationships = (
-            f"<Relationships xmlns='{PACKAGE_NS}/relationships'>"
-            f"<Relationship Id='rId1' Type='{RELATIONSHIPS_NS}/image' "
-            "Target='media/image1.png'/></Relationships>"
-        )
-        parts = {
-            "word/_rels/document.xml.rels": relationships,
-            "word/media/image1.png": b"\x89PNG\r\n\x1a\n" + b"\x00" * 64,
-        }
+        body = f"<w:p><w:r><w:t>Figure 1</w:t></w:r>{picture('rId1')}</w:p>"
+        body += paragraph("Results")
+        parts = picture_parts({"rId1": image_bytes((400, 300))})
 
         # Act
         extracted = extract_text(
@@ -807,7 +794,103 @@ class DocxExtractionTests(TestCase):
         )
 
         # Assert
-        self.assertEqual(extracted.text, "Figure 1")
+        self.assertEqual(extracted.text, "Figure 1 [Image 1]\n\nResults")
+        (image,) = extracted.embedded_images
+        self.assertEqual((image.page, image.media_type), (1, "image/jpeg"))
+        with Image.open(io.BytesIO(image.data)) as kept:
+            self.assertEqual((kept.format, kept.size), ("JPEG", (400, 300)))
+
+    def test_images_are_numbered_in_order_and_one_used_twice_is_kept_once(self):
+        # Arrange
+        body = "".join(
+            f"<w:p>{picture(relationship_id)}</w:p>"
+            for relationship_id in ("rId1", "rId2", "rId1")
+        )
+        parts = picture_parts(
+            {"rId1": image_bytes((400, 300)), "rId2": image_bytes((200, 100))}
+        )
+
+        # Act
+        extracted = extract_text(
+            docx_bytes(body, parts=parts), DOCX, max_chars=MAX_CHARS
+        )
+
+        # Assert
+        self.assertEqual(extracted.text, "[Image 1]\n\n[Image 2]\n\n[Image 1]")
+        self.assertEqual(
+            [(image.page, image.width) for image in extracted.embedded_images],
+            [(1, 400), (2, 200)],
+        )
+
+    def test_an_icon_is_left_out_unmarked(self):
+        # Arrange
+        body = f"<w:p><w:r><w:t>Contact</w:t></w:r>{picture('rId1')}</w:p>"
+        parts = picture_parts({"rId1": image_bytes((24, 24))})
+
+        # Act
+        extracted = extract_text(
+            docx_bytes(body, parts=parts), DOCX, max_chars=MAX_CHARS
+        )
+
+        # Assert
+        self.assertEqual(extracted.text, "Contact")
+        self.assertEqual(extracted.embedded_images, ())
+
+    def test_an_image_in_a_format_that_is_not_read_is_marked_as_not_shown(self):
+        # Arrange: a metafile, as a chart pasted from a spreadsheet can be.
+        body = paragraph("Chart") + f"<w:p>{picture('rId1')}</w:p>"
+        parts = picture_parts({"rId1": b"\x01\x00\x00\x00" + bytes(64)})
+
+        # Act
+        extracted = extract_text(
+            docx_bytes(body, parts=parts), DOCX, max_chars=MAX_CHARS
+        )
+
+        # Assert
+        self.assertEqual(extracted.text, f"Chart\n\n{EMBEDDED_IMAGE_NOT_SHOWN}")
+        self.assertEqual(extracted.embedded_images, ())
+
+    def test_an_image_kept_outside_the_file_is_never_fetched(self):
+        # Arrange
+        body = paragraph("Chart") + f"<w:p>{picture('rId1', linked=True)}</w:p>"
+        with tempfile.NamedTemporaryFile(suffix=".png") as outside:
+            outside.write(image_bytes((400, 300)))
+            outside.flush()
+            parts = picture_parts(
+                {}, links={"rId1": pathlib.Path(outside.name).as_uri()}
+            )
+
+            # Act
+            extracted = extract_text(
+                docx_bytes(body, parts=parts), DOCX, max_chars=MAX_CHARS
+            )
+
+        # Assert
+        self.assertEqual(extracted.text, f"Chart\n\n{EMBEDDED_IMAGE_NOT_SHOWN}")
+        self.assertEqual(extracted.embedded_images, ())
+
+    def test_images_past_the_limit_are_marked_as_not_shown(self):
+        # Arrange
+        images = {
+            f"rId{number}": image_bytes((40 + number, 40))
+            for number in range(1, MAX_EMBEDDED_IMAGES + 2)
+        }
+        body = "".join(
+            f"<w:p>{picture(relationship_id)}</w:p>" for relationship_id in images
+        )
+
+        # Act
+        extracted = extract_text(
+            docx_bytes(body, parts=picture_parts(images)), DOCX, max_chars=MAX_CHARS
+        )
+
+        # Assert
+        self.assertEqual(len(extracted.embedded_images), MAX_EMBEDDED_IMAGES)
+        self.assertTrue(
+            extracted.text.endswith(
+                f"[Image {MAX_EMBEDDED_IMAGES}]\n\n{EMBEDDED_IMAGE_NOT_SHOWN}"
+            )
+        )
 
     def test_text_that_exactly_fits_is_not_flagged_as_cut(self):
         # Arrange

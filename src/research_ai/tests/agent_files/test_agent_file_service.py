@@ -33,6 +33,8 @@ from research_ai.tests.agent_files.helpers import (
     paragraph,
     pdf_bytes,
     pdf_with_scans,
+    picture,
+    picture_parts,
 )
 from researchhub.services.private_storage_service import (
     PresignedPost,
@@ -374,6 +376,84 @@ class AgentFileServiceTests(TestCase):
         self.assertEqual(file.text, "Specific aims")
         self.assertIsNone(file.page_count)
         self.assertIsNone(file.pages_without_text)
+
+    def _word_with_images(self, *sizes) -> AgentFile:
+        """A PROCESSING Word file whose object holds an image of each size."""
+        images = {
+            f"rId{number}": image_bytes(size) for number, size in enumerate(sizes, 1)
+        }
+        body = paragraph("Figure 1") + "".join(
+            f"<w:p>{picture(relationship_id)}</w:p>" for relationship_id in images
+        )
+        self.storage.read.return_value = docx_bytes(body, parts=picture_parts(images))
+        return make_file(
+            self.user,
+            status=AgentFile.Status.PROCESSING,
+            filename="aims.docx",
+            content_type=DOCX.content_type,
+            text="",
+        )
+
+    def test_process_stores_a_word_files_images_beside_it(self):
+        # Arrange
+        file = self._word_with_images((400, 300), (200, 100))
+        counted = []
+        self.storage.write.side_effect = lambda *args, **kwargs: counted.append(
+            AgentFile.objects.get(id=file.id).embedded_image_count
+        )
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        file.refresh_from_db()
+        prefix = file.storage_key.rsplit("/", 1)[0]
+        self.assertEqual(status, AgentFile.Status.READY)
+        self.assertEqual(file.text, "Figure 1\n\n[Image 1]\n\n[Image 2]")
+        self.assertEqual(file.embedded_image_count, 2)
+        self.assertEqual(
+            [
+                (stored.args[0], stored.kwargs["content_type"])
+                for stored in self.storage.write.call_args_list
+            ],
+            [
+                (f"{prefix}/pages/1.jpg", "image/jpeg"),
+                (f"{prefix}/pages/2.jpg", "image/jpeg"),
+            ],
+        )
+        # Counted before any is stored: a purge knows the keys of a run that dies.
+        self.assertEqual(counted, [2, 2])
+
+    def test_process_deletes_the_images_of_a_word_file_removed_meanwhile(self):
+        # Arrange
+        file = self._word_with_images((400, 300))
+        self.storage.write.side_effect = lambda *args, **kwargs: self.service.delete(
+            file
+        )
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        prefix = file.storage_key.rsplit("/", 1)[0]
+        self.assertIsNone(status)
+        self.assertEqual(
+            self.storage.delete.call_args_list,
+            [call(file.storage_key), call(f"{prefix}/pages/1.jpg")],
+        )
+
+    def test_process_fails_a_word_file_whose_images_cannot_be_stored(self):
+        # Arrange
+        file = self._word_with_images((400, 300))
+        self.storage.write.side_effect = RuntimeError("s3 unavailable")
+
+        # Act
+        status = self.service.process(file.id)
+
+        # Assert
+        file.refresh_from_db()
+        self.assertEqual(status, AgentFile.Status.FAILED)
+        self.assertEqual(file.text, "")
 
     @override_settings(MISTRAL_API_KEY="")
     def test_process_keeps_an_image_nothing_was_read_in(self):

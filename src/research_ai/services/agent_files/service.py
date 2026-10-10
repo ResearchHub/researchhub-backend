@@ -7,7 +7,8 @@ A file moves UPLOADING -> PROCESSING -> READY or FAILED:
   enforces the size cap and content type.
 - ``complete_upload`` confirms the object landed and queues extraction.
 - ``process`` (worker) extracts the text the agent reads; an image's is what
-  OCR reads in it, which may be nothing.
+  OCR reads in it, which may be nothing. A Word document's images are stored
+  with it.
 - ``attach`` binds READY files to the user message they are sent with.
 - ``message_attachments`` plans how each of a message's files reaches the model.
 
@@ -18,7 +19,7 @@ import logging
 import os
 import uuid
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 
@@ -42,8 +43,10 @@ from research_ai.services.agent_files.delivery import (
     plan_delivery,
 )
 from research_ai.services.agent_files.extraction import (
+    DOCX,
     KINDS_BY_EXTENSION,
     SUPPORTED_EXTENSIONS,
+    PageImage,
     UnreadableFileError,
     is_image_type,
     kind_for_content_type,
@@ -51,7 +54,10 @@ from research_ai.services.agent_files.extraction import (
 )
 from research_ai.services.agent_files.extraction_service import TextExtractionService
 from research_ai.services.agent_files.mistral_ocr import MistralOcr
-from research_ai.services.agent_files.page_images import page_image_keys
+from research_ai.services.agent_files.page_images import (
+    page_image_key,
+    page_image_keys,
+)
 from researchhub.services.private_storage_service import (
     PresignedPost,
     PrivateStorageNotConfiguredError,
@@ -432,6 +438,7 @@ class AgentFileService:
                     text_chars=file.text_chars,
                     page_count=file.page_count,
                     image=is_image_type(file.content_type),
+                    embedded_images=file.embedded_image_count or 0,
                 )
                 for file in files
             ],
@@ -482,6 +489,9 @@ class AgentFileService:
             extracted = self.extraction.extract(
                 data, kind, max_chars=config.max_text_chars
             )
+            image_keys = self._store_embedded_images(
+                processing, file, extracted.embedded_images
+            )
         except UnreadableFileError as exc:
             self._fail(file, str(exc))
             return AgentFile.Status.FAILED
@@ -501,8 +511,15 @@ class AgentFileService:
                 if extracted.page_count is None
                 else len(extracted.pages_without_text)
             ),
+            embedded_image_count=(
+                len(extracted.embedded_images) if kind == DOCX else None
+            ),
             updated_date=timezone.now(),
         )
+        if not readied:
+            # A purge may have passed already, so nothing else deletes these.
+            for key in image_keys:
+                self._delete_object(key)
         return AgentFile.Status.READY if readied else None
 
     def purge(self) -> int:
@@ -531,7 +548,12 @@ class AgentFileService:
                 # Re-checked under a lock: the file may have been sent since the scan.
                 file = (
                     AgentFile.objects.select_for_update(of=("self",))
-                    .only("storage_key", "content_type", "page_count")
+                    .only(
+                        "storage_key",
+                        "content_type",
+                        "page_count",
+                        "embedded_image_count",
+                    )
                     .filter(expired, id=file_id)
                     .first()
                 )
@@ -553,6 +575,18 @@ class AgentFileService:
         return purged
 
     # -- helpers ----------------------------------------------------------
+
+    def _store_embedded_images(
+        self, processing, file: AgentFile, images: Sequence[PageImage]
+    ) -> list[str]:
+        """Store a Word file's images at its page image keys; returns those keys."""
+        # Counted before they are stored, so a purge knows every key.
+        if not images or not processing.update(embedded_image_count=len(images)):
+            return []
+        keys = [page_image_key(file, image.page) for image in images]
+        for key, image in zip(keys, images, strict=True):
+            self.storage.write(key, image.data, content_type=image.media_type)
+        return keys
 
     def _fail(self, file: AgentFile, message: str) -> bool:
         """Mark an unfinished file FAILED and drop its now useless object."""
