@@ -54,8 +54,9 @@ class AvailableModelsViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
         self.assertEqual(data["default"], "claude_platform:claude-opus-5-5")
-        (opus,) = data["models"]
+        opus, *others = data["models"]
         self.assertTrue(opus["allowed"])
+        self.assertEqual([model["allowed"] for model in others], [False] * 5)
         self.assertEqual(opus["capabilities"]["effort"], ["low"])
         self.assertEqual(opus["capabilities"]["thinking"], ["adaptive"])
 
@@ -71,7 +72,17 @@ class AvailableModelsViewTests(APITestCase):
         data = response.json()
         self.assertEqual(data["default"], "claude_platform:claude-opus-5-5")
         refs = [model["ref"] for model in data["models"]]
-        self.assertEqual(refs, ["claude_platform:claude-opus-5-5"])
+        self.assertEqual(
+            refs,
+            [
+                "claude_platform:claude-opus-5-5",
+                "openrouter:openai/gpt-6.1-sol",
+                "openrouter:x-ai/grok-4.7",
+                "openrouter:meta/muse-spark-1.3",
+                "openrouter:moonshotai/kimi-k3",
+                "openrouter:xiaomi/mimo-v2.6-pro",
+            ],
+        )
         for model in data["models"]:
             self.assertEqual(
                 sorted(model),

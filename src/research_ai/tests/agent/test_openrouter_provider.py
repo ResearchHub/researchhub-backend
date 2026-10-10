@@ -453,6 +453,22 @@ class CompleteRequestTests(SimpleTestCase):
                     kwargs["extra_body"], {"reasoning": {"effort": "none"}}
                 )
 
+    def test_gpt6_1_tool_calls_keep_reasoning_and_omit_sampling(self):
+        # Arrange
+        rendered_tools = [{"type": "function", "function": {"name": "search"}}]
+        provider = _build_provider(
+            [_response(content="ok")], model_id="openai/gpt-6.1-sol"
+        )
+
+        # Act
+        _complete(provider, rendered_tools=rendered_tools)
+
+        # Assert
+        kwargs = provider._client.calls[0]
+        self.assertNotIn("temperature", kwargs)
+        self.assertEqual(kwargs["tools"], rendered_tools)
+        self.assertEqual(kwargs["extra_body"], {"reasoning": {"effort": "low"}})
+
     def test_gpt6_tool_calls_reject_higher_reasoning_effort(self):
         # Arrange
         provider = _build_provider(
