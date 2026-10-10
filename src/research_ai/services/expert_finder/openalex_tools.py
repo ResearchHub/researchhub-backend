@@ -34,7 +34,7 @@ _NAME_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 def names_match_display(
     first_name: str | None, last_name: str | None, display_name: str | None
 ) -> bool:
-    """True when first+last are full word tokens in ``display_name`` (not substrings)."""
+    """True when first+last are full word tokens in ``display_name``."""
     tokens = set(_NAME_TOKEN_RE.findall(str(display_name or "").casefold()))
     first = _NAME_TOKEN_RE.findall(str(first_name or "").casefold())
     last = _NAME_TOKEN_RE.findall(str(last_name or "").casefold())
