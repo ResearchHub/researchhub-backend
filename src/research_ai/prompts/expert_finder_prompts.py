@@ -1,7 +1,6 @@
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
     ExpertiseLevel,
-    Gender,
     Region,
     get_choice_label,
 )
@@ -27,12 +26,6 @@ REGION_DESCRIPTIONS: dict[str, str] = {
     Region.ASIA_PACIFIC: "Focus on experts affiliated with institutions in the Asia-Pacific region, including countries such as China, Japan, South Korea, Australia, New Zealand, Singapore, India, Thailand, Malaysia, Indonesia, Philippines, Vietnam, Kazakhstan, Uzbekistan, Kyrgyzstan, Tajikistan, Turkmenistan, Mongolia, and other Asia-Pacific nations.",  # noqa: E501
     Region.AFRICA_MENA: "Focus on experts affiliated with institutions in Africa and the Middle East & North Africa (MENA) region, including countries in sub-Saharan Africa, North Africa, and the Middle East such as Egypt, South Africa, Nigeria, Kenya, UAE, Saudi Arabia, Israel, Turkey, Iran, Morocco, Tunisia, etc.",  # noqa: E501
     Region.ALL_REGIONS: "Include experts from all geographic regions worldwide, ensuring global diversity in recommendations.",  # noqa: E501
-}
-
-GENDER_DESCRIPTIONS: dict[str, str] = {
-    Gender.MALE: "Focus on male-identifying experts and researchers in your recommendations.",  # noqa: E501
-    Gender.FEMALE: "Focus on female-identifying experts and researchers in your recommendations.",  # noqa: E501
-    Gender.ALL_GENDERS: "Include experts and researchers of all genders in your recommendations.",  # noqa: E501
 }
 
 
@@ -159,7 +152,6 @@ def build_user_prompt(
     expert_count: int,
     expertise_level: list[str] | str,
     region_filter: str,
-    gender_filter: str = "all_genders",
     is_pdf: bool = False,
     additional_context: str | None = None,
 ) -> str:
