@@ -175,6 +175,36 @@ class SearchWorksTests(SimpleTestCase):
         self.assertFalse(provider.has_returned_author("AM8"))
 
 
+class AuthorIdentityMatchTests(SimpleTestCase):
+    def setUp(self):
+        self.provider = ExpertFinderOpenAlexToolset(client=MagicMock())
+        self.provider._record_author("https://openalex.org/A1", "Alice Smith")
+        self.provider._record_author("https://openalex.org/A3", "Wei Li")
+
+    def test_token_match_not_substring(self):
+        # Arrange / Act / Assert
+        self.assertTrue(
+            self.provider.author_identity_matches(
+                {"openalex_author_id": "A1", "first_name": "Alice", "last_name": "Smith"}
+            )
+        )
+        self.assertFalse(
+            self.provider.author_identity_matches(
+                {"openalex_author_id": "A1", "first_name": "Alice", "last_name": "Li"}
+            )
+        )
+        self.assertFalse(
+            self.provider.author_identity_matches(
+                {"openalex_author_id": "A1", "first_name": "Bob", "last_name": "Smith"}
+            )
+        )
+        self.assertTrue(
+            self.provider.author_identity_matches(
+                {"openalex_author_id": "A3", "first_name": "Wei", "last_name": "Li"}
+            )
+        )
+
+
 class AuthorGroundingTests(SimpleTestCase):
     def test_get_author_records_returned_author_identity(self):
         # Arrange

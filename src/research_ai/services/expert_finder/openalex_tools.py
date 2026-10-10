@@ -12,6 +12,7 @@ records are cached so server-side grounding can hard-drop out-of-region rows.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, timedelta
 
 from orcid.identifiers import normalize_orcid
@@ -26,6 +27,19 @@ from research_ai.services.researcher_profile.openalex_tools import OpenAlexTools
 from utils.openalex import OpenAlex, Work, normalize_openalex_id
 
 logger = logging.getLogger(__name__)
+
+_NAME_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
+
+
+def names_match_display(
+    first_name: str | None, last_name: str | None, display_name: str | None
+) -> bool:
+    """True when first+last are full word tokens in ``display_name`` (not substrings)."""
+    tokens = set(_NAME_TOKEN_RE.findall(str(display_name or "").casefold()))
+    first = _NAME_TOKEN_RE.findall(str(first_name or "").casefold())
+    last = _NAME_TOKEN_RE.findall(str(last_name or "").casefold())
+    return bool(first and last) and set(first + last) <= tokens
+
 
 # Author/institution tools reused from the profile OpenAlex toolset.
 _REUSED_AUTHOR_TOOLS = frozenset(
@@ -166,16 +180,17 @@ class ExpertFinderOpenAlexToolset:
     def author_identity_matches(
         self, row: dict, *, openalex_author_id: str | None = None
     ) -> bool:
-        """True when submitted last name appears in the grounded display name."""
+        """True when submitted first+last bind to the grounded display name."""
         bare = normalize_openalex_id(
             openalex_author_id or row.get("openalex_author_id")
         ).lower()
         if not bare or bare not in self.returned_authors:
             return False
-        last = str(row.get("last_name") or "").strip().casefold()
-        if not last:
-            return False
-        return last in self.returned_authors[bare].casefold()
+        return names_match_display(
+            row.get("first_name"),
+            row.get("last_name"),
+            self.returned_authors[bare],
+        )
 
     def resolve_author_record(self, openalex_author_id: str | None) -> dict | None:
         """Return a cached or freshly fetched OpenAlex author entity."""
