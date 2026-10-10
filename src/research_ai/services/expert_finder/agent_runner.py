@@ -192,7 +192,7 @@ def build_agent_user_prompt(
     region_filter: str,
     additional_context: str | None = None,
 ) -> str:
-    """User turn: RFP / research text plus search constraints."""
+    """User turn: grant/RFP, proposal, or other research text plus constraints."""
     region_label = get_choice_label(region_filter, Region)
     region_text = (
         ""
@@ -206,7 +206,8 @@ def build_agent_user_prompt(
         "region_note": region_text.strip(),
     }
     body = (
-        "Find peer experts for this research description. Constraints:\n"
+        "Find peer experts for this research description (grant/RFP, proposal, "
+        "paper, or notes). Constraints:\n"
         + json.dumps(payload, indent=2, ensure_ascii=False)
         + "\n\n## Research description\n"
         + (query or "").strip()

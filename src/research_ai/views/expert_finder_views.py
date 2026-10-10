@@ -144,7 +144,6 @@ class ExpertSearchListCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         effective_input_type = content_type
-        is_pdf = content_type == ExpertSearch.InputType.PDF
         if not search_name:
             search_name = unified_doc.get_display_title()
 
@@ -166,7 +165,6 @@ class ExpertSearchListCreateView(APIView):
             search_id=str(search_id),
             query=query_text,
             config=search_config,
-            is_pdf=is_pdf,
             additional_context=additional_context or None,
         )
 

@@ -21,8 +21,8 @@ from research_ai.services.expert_finder.display import ExpertDisplay
 
 logger = logging.getLogger(__name__)
 
-# Gate: IsValid and MailboxExists must be at least this strong.
-MIN_ACCEPT_CONFIDENCE = CONFIDENCE_MEDIUM
+# Require high confidence that the email is valid / mailbox exists.
+MIN_ACCEPT_CONFIDENCE = CONFIDENCE_HIGH
 
 # Risk flags (disposable / SES role / random) reject at this strength or above.
 MIN_REJECT_RISK_CONFIDENCE = CONFIDENCE_MEDIUM

@@ -1,4 +1,7 @@
-"""Expert finder: the search pipeline that turns an RFP/query into experts.
+"""Expert finder: search pipeline from a research description into experts.
+
+The description may come from a grant/RFP, proposal/preregistration, paper,
+or free-form query; outreach role (collaborator vs reviewer) is chosen later.
 
 - ``finder`` -- the ``ExpertFinderService`` pipeline and the
   ``run_expert_finder_search`` entry point.

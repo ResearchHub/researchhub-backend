@@ -44,7 +44,6 @@ def enqueue_find_more_search(
     search_id: str,
     query: str,
     config: dict[str, Any],
-    is_pdf: bool,
     additional_context: str | None,
 ) -> None:
     from research_ai.tasks import run_expert_finder_search
@@ -53,7 +52,6 @@ def enqueue_find_more_search(
         search_id=search_id,
         query=query,
         config=config,
-        is_pdf=is_pdf,
         additional_context=additional_context,
         append=True,
     )
@@ -118,13 +116,11 @@ class FindMoreService:
                 ]
             )
 
-        is_pdf = expert_search.input_type == ExpertSearch.InputType.PDF
         try:
             self._enqueue(
                 search_id=str(expert_search.id),
                 query=expert_search.query,
                 config=config,
-                is_pdf=is_pdf,
                 additional_context=ctx or None,
             )
         except Exception as exc:

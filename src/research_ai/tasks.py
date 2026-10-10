@@ -196,7 +196,6 @@ def run_expert_finder_search(
     query: str,
     config: dict,
     *,
-    is_pdf: bool = False,
     additional_context: str | None = None,
     append: bool = False,
 ):
@@ -207,7 +206,6 @@ def run_expert_finder_search(
         search_id: ExpertSearch id (string of integer).
         query: Research description or document text.
         config: Dict with expert_count, expertise_level, region, state.
-        is_pdf: True if query was extracted from PDF.
         additional_context: Optional user notes to steer the model alongside query.
         append: When True, add new experts without replacing existing links.
     """
@@ -235,7 +233,6 @@ def run_expert_finder_search(
             search_id=search_id,
             query=query,
             config=config,
-            is_pdf=is_pdf,
             additional_context=additional_context,
             progress_callback=progress_callback,
             append=append,

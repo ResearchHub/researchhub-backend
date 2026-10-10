@@ -62,7 +62,8 @@ class ExpertSearch(DefaultModel):
         blank=True,
         default="",
         db_comment=(
-            "Optional user notes to steer expert-finder alongside the RFP/query."
+            "Optional user notes to steer expert-finder alongside the "
+            "linked document or query."
         ),
     )
     llm_model = models.CharField(max_length=128, blank=True)

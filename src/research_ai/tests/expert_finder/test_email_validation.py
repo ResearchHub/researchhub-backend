@@ -72,11 +72,11 @@ class EmailValidationServiceTests(SimpleTestCase):
         self.client = MagicMock()
         self.service = EmailValidationService(client=self.client)
 
-    def test_accepts_medium_or_better_overall_and_mailbox(self):
+    def test_accepts_high_overall_and_mailbox(self):
         # Arrange
         self.client.get_email_address_insights.return_value = _insights(
-            is_valid=CONFIDENCE_MEDIUM,
-            mailbox_exists=CONFIDENCE_MEDIUM,
+            is_valid=CONFIDENCE_HIGH,
+            mailbox_exists=CONFIDENCE_HIGH,
         )
         # Act
         result = self.service.validate("Jane.Doe@University.EDU")
@@ -87,6 +87,18 @@ class EmailValidationServiceTests(SimpleTestCase):
         self.client.get_email_address_insights.assert_called_once_with(
             EmailAddress="jane.doe@university.edu"
         )
+
+    def test_rejects_medium_is_valid(self):
+        # Arrange
+        self.client.get_email_address_insights.return_value = _insights(
+            is_valid=CONFIDENCE_MEDIUM,
+            mailbox_exists=CONFIDENCE_HIGH,
+        )
+        # Act
+        result = self.service.validate("jane@university.edu")
+        # Assert
+        self.assertFalse(result.accepted)
+        self.assertIn("IsValid", result.reason or "")
 
     def test_rejects_low_is_valid(self):
         # Arrange

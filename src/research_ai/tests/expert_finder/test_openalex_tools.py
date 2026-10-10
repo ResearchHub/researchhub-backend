@@ -69,7 +69,7 @@ class SearchWorksTests(SimpleTestCase):
         client.get_works.return_value = ([entity], "cursor-2")
         provider = ExpertFinderOpenAlexToolset(client=client)
         toolset = provider.as_toolset()
-        expected_from = (date.today() - timedelta(days=365 * 5)).strftime("%Y-%m-%d")
+        expected_from = (date.today() - timedelta(days=365 * 7)).strftime("%Y-%m-%d")
 
         # Act
         result, stop = toolset.dispatch(
@@ -126,7 +126,7 @@ class SearchWorksTests(SimpleTestCase):
         self.assertFalse(result["has_more"])
 
     def test_search_works_keeps_first_last_and_trims_middle(self):
-        # Arrange: 1 first + 7 middle + 1 last → keep first, last, and 5 middle.
+        # Arrange: 1 first + 9 middle + 1 last → keep first, last, and 7 middle.
         client = MagicMock()
         authorships = [
             {
@@ -141,7 +141,7 @@ class SearchWorksTests(SimpleTestCase):
                     },
                     "author_position": "middle",
                 }
-                for i in range(7)
+                for i in range(9)
             ],
             {
                 "author": {"id": "https://openalex.org/A9", "display_name": "Last"},
@@ -162,13 +162,17 @@ class SearchWorksTests(SimpleTestCase):
         names = [a["display_name"] for a in authors]
         self.assertEqual(names[0], "First")
         self.assertEqual(names[-1], "Last")
-        self.assertEqual(len(authors), 7)
-        self.assertEqual(names[1:6], ["Mid0", "Mid1", "Mid2", "Mid3", "Mid4"])
+        self.assertEqual(len(authors), 9)
+        self.assertEqual(
+            names[1:8],
+            ["Mid0", "Mid1", "Mid2", "Mid3", "Mid4", "Mid5", "Mid6"],
+        )
         self.assertTrue(provider.has_returned_author("A1"))
         self.assertTrue(provider.has_returned_author("A9"))
         self.assertTrue(provider.has_returned_author("AM0"))
-        self.assertFalse(provider.has_returned_author("AM5"))
-        self.assertFalse(provider.has_returned_author("AM6"))
+        self.assertTrue(provider.has_returned_author("AM6"))
+        self.assertFalse(provider.has_returned_author("AM7"))
+        self.assertFalse(provider.has_returned_author("AM8"))
 
 
 class AuthorGroundingTests(SimpleTestCase):

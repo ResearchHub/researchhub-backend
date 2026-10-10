@@ -69,11 +69,7 @@ def parse_mailbox_validation(response: dict | None) -> EmailAddressInsights:
 
 
 class EmailInsightsService:
-    """Thin SES ``GetEmailAddressInsights`` wrapper.
-
-    Inject ``client`` in tests (any object with ``get_email_address_insights``).
-    When omitted, builds a real ``sesv2`` client via ``utils.aws.create_client``.
-    """
+    """Thin SES ``GetEmailAddressInsights`` wrapper."""
 
     def __init__(self, *, client: Any | None = None):
         self._client = client

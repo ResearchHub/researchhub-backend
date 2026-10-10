@@ -321,7 +321,6 @@ class ExpertFinderService:
         query: str,
         config: dict[str, Any],
         *,
-        is_pdf: bool = False,  # noqa: ARG002 — kept for Celery/task API compat
         additional_context: str | None = None,
         progress_callback: Callable[[str, int, str], None] | None = None,
         append: bool = False,
@@ -337,7 +336,6 @@ class ExpertFinderService:
             unified_document_id = None
         progress_service = self.progress_service
         llm_model = generator_model_ref()
-        # Mutate a copy so callers keep their original dict identity-safe.
         config = deepcopy(config) if isinstance(config, dict) else {}
 
         def publish_progress(
@@ -642,7 +640,6 @@ def run_expert_finder_search(
     query: str,
     config: dict[str, Any],
     *,
-    is_pdf: bool = False,
     additional_context: str | None = None,
     progress_callback: Callable[[str, int, str], None] | None = None,
     append: bool = False,
@@ -651,7 +648,6 @@ def run_expert_finder_search(
         search_id,
         query,
         config,
-        is_pdf=is_pdf,
         additional_context=additional_context,
         progress_callback=progress_callback,
         append=append,
