@@ -55,8 +55,6 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(interaction.unified_document, self.post.unified_document)
         self.assertEqual(interaction.content_type, self.content_type)
         self.assertEqual(interaction.object_id, self.post.id)
-        self.assertFalse(interaction.is_synced_with_personalize)
-        self.assertIsNone(interaction.personalize_rec_id)
 
     def test_process_event_handles_duplicate_interactions(self):
         """Test that process_event handles duplicate interactions gracefully."""
@@ -283,228 +281,6 @@ class EventProcessorTestCase(TestCase):
         final_count = UserInteractions.objects.count()
         self.assertEqual(final_count, initial_count)  # No new interaction created
 
-    def test_process_event_stores_recommendation_id_as_personalize_rec_id(self):
-        """
-        Test that recommendation_id from event_properties is stored as
-        personalize_rec_id.
-        """
-        recommendation_id = "rec_12345"
-        event = {
-            "event_type": "feed_item_clicked",
-            "event_properties": {
-                "user_id": str(self.user.id),
-                "recommendation_id": recommendation_id,
-                "related_work": {
-                    "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "researchhubpost",
-                    "id": str(self.post.id),
-                },
-            },
-            "time": int(datetime.now().timestamp() * 1000),
-        }
-
-        initial_count = UserInteractions.objects.count()
-        self.processor.process_event(event)
-        final_count = UserInteractions.objects.count()
-
-        self.assertEqual(final_count, initial_count + 1)
-
-        # Verify the created interaction has personalize_rec_id
-        interaction = UserInteractions.objects.latest("created_date")
-        self.assertEqual(interaction.user, self.user)
-        self.assertEqual(interaction.event, FEED_ITEM_CLICK)
-        self.assertEqual(interaction.personalize_rec_id, recommendation_id)
-
-    def test_process_event_without_recommendation_id_stores_none(self):
-        """
-        Test that events without recommendation_id store None for personalize_rec_id.
-        """
-        event = {
-            "event_type": "feed_item_clicked",
-            "event_properties": {
-                "user_id": str(self.user.id),
-                "related_work": {
-                    "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "researchhubpost",
-                    "id": str(self.post.id),
-                },
-            },
-            "time": int(datetime.now().timestamp() * 1000),
-        }
-
-        initial_count = UserInteractions.objects.count()
-        self.processor.process_event(event)
-        final_count = UserInteractions.objects.count()
-
-        self.assertEqual(final_count, initial_count + 1)
-
-        # Verify the created interaction has None personalize_rec_id
-        interaction = UserInteractions.objects.latest("created_date")
-        self.assertIsNone(interaction.personalize_rec_id)
-
-    def test_process_event_with_numeric_recommendation_id_converts_to_string(self):
-        """Test that numeric recommendation_id is converted to string."""
-        recommendation_id = 12345
-        event = {
-            "event_type": "feed_item_clicked",
-            "event_properties": {
-                "user_id": str(self.user.id),
-                "recommendation_id": recommendation_id,
-                "related_work": {
-                    "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "researchhubpost",
-                    "id": str(self.post.id),
-                },
-            },
-            "time": int(datetime.now().timestamp() * 1000),
-        }
-
-        initial_count = UserInteractions.objects.count()
-        self.processor.process_event(event)
-        final_count = UserInteractions.objects.count()
-
-        self.assertEqual(final_count, initial_count + 1)
-
-        # Verify the created interaction has string personalize_rec_id
-        interaction = UserInteractions.objects.latest("created_date")
-        self.assertEqual(interaction.personalize_rec_id, "12345")
-
-    def test_process_event_with_recommendation_id_updates_existing_interaction(self):
-        """Test that recommendation_id is stored when updating existing interaction."""
-        recommendation_id = "rec_67890"
-        event = {
-            "event_type": "feed_item_clicked",
-            "event_properties": {
-                "user_id": str(self.user.id),
-                "recommendation_id": recommendation_id,
-                "related_work": {
-                    "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "researchhubpost",
-                    "id": str(self.post.id),
-                },
-            },
-            "time": int(datetime.now().timestamp() * 1000),
-        }
-
-        # Process event first time
-        self.processor.process_event(event)
-        initial_count = UserInteractions.objects.count()
-
-        # Process same event again (should update, not create duplicate)
-        self.processor.process_event(event)
-        final_count = UserInteractions.objects.count()
-
-        self.assertEqual(final_count, initial_count)
-
-        # Verify the interaction still has personalize_rec_id
-        interaction = UserInteractions.objects.get(
-            user=self.user,
-            event=FEED_ITEM_CLICK,
-            unified_document=self.post.unified_document,
-        )
-        self.assertEqual(interaction.personalize_rec_id, recommendation_id)
-
-    def test_process_event_with_impression_stores_pipe_delimited_string(self):
-        """Test that impression array is stored as pipe-delimited string."""
-        impression_array = ["123", "456", "789"]
-        event = {
-            "event_type": "feed_item_clicked",
-            "event_properties": {
-                "user_id": str(self.user.id),
-                "impression": impression_array,
-                "related_work": {
-                    "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "researchhubpost",
-                    "id": str(self.post.id),
-                },
-            },
-            "time": int(datetime.now().timestamp() * 1000),
-        }
-
-        initial_count = UserInteractions.objects.count()
-        self.processor.process_event(event)
-        final_count = UserInteractions.objects.count()
-
-        self.assertEqual(final_count, initial_count + 1)
-
-        # Verify the created interaction has impression
-        interaction = UserInteractions.objects.latest("created_date")
-        self.assertEqual(interaction.user, self.user)
-        self.assertEqual(interaction.event, FEED_ITEM_CLICK)
-        self.assertEqual(interaction.impression, "123|456|789")
-
-    def test_process_event_without_impression_stores_none(self):
-        """Test that events without impression store None."""
-        event = {
-            "event_type": "feed_item_clicked",
-            "event_properties": {
-                "user_id": str(self.user.id),
-                "related_work": {
-                    "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "researchhubpost",
-                    "id": str(self.post.id),
-                },
-            },
-            "time": int(datetime.now().timestamp() * 1000),
-        }
-
-        initial_count = UserInteractions.objects.count()
-        self.processor.process_event(event)
-        final_count = UserInteractions.objects.count()
-
-        self.assertEqual(final_count, initial_count + 1)
-
-        # Verify the created interaction has None impression
-        interaction = UserInteractions.objects.latest("created_date")
-        self.assertIsNone(interaction.impression)
-
-    def test_process_event_with_single_impression(self):
-        """Test that single-item impression array is stored correctly."""
-        impression_array = ["123"]
-        event = {
-            "event_type": "feed_item_clicked",
-            "event_properties": {
-                "user_id": str(self.user.id),
-                "impression": impression_array,
-                "related_work": {
-                    "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "researchhubpost",
-                    "id": str(self.post.id),
-                },
-            },
-            "time": int(datetime.now().timestamp() * 1000),
-        }
-
-        self.processor.process_event(event)
-
-        interaction = UserInteractions.objects.latest("created_date")
-        self.assertEqual(interaction.impression, "123")
-
-    def test_process_event_with_impression_and_recommendation_id(self):
-        """Test that both impression and recommendation_id are stored."""
-        impression_array = ["123", "456"]
-        recommendation_id = "rec_12345"
-        event = {
-            "event_type": "feed_item_clicked",
-            "event_properties": {
-                "user_id": str(self.user.id),
-                "impression": impression_array,
-                "recommendation_id": recommendation_id,
-                "related_work": {
-                    "unified_document_id": str(self.post.unified_document.id),
-                    "content_type": "researchhubpost",
-                    "id": str(self.post.id),
-                },
-            },
-            "time": int(datetime.now().timestamp() * 1000),
-        }
-
-        self.processor.process_event(event)
-
-        interaction = UserInteractions.objects.latest("created_date")
-        self.assertEqual(interaction.impression, "123|456")
-        self.assertEqual(interaction.personalize_rec_id, recommendation_id)
-
     def test_process_bulk_impression_event_creates_multiple_impression_records(
         self,
     ):
@@ -529,17 +305,11 @@ class EventProcessorTestCase(TestCase):
                         "unifiedDocumentId": str(self.post.unified_document.id),
                         "contentType": "paper",
                         "feedPosition": 3,
-                        "recommendationId": (
-                            "RID-41-4408-ac5a-4b769df9c6f2-CID-4f7b66"
-                        ),
                     },
                     {
                         "unifiedDocumentId": str(post2.unified_document.id),
                         "contentType": "paper",
                         "feedPosition": 4,
-                        "recommendationId": (
-                            "RID-41-4408-ac5a-4b769df9c6f2-CID-4f7b66"
-                        ),
                     },
                 ],
             },
@@ -565,11 +335,6 @@ class EventProcessorTestCase(TestCase):
         self.assertEqual(impression1.unified_document, self.post.unified_document)
         self.assertIsNone(impression1.content_type)
         self.assertIsNone(impression1.object_id)
-        self.assertFalse(impression1.is_synced_with_personalize)
-        self.assertEqual(
-            impression1.personalize_rec_id,
-            "RID-41-4408-ac5a-4b769df9c6f2-CID-4f7b66",
-        )
 
         # Verify second impression
         impression2 = impressions[1]
@@ -591,11 +356,9 @@ class EventProcessorTestCase(TestCase):
                 "impressions": [
                     {
                         "unifiedDocumentId": str(self.post.unified_document.id),
-                        "recommendationId": "rec-1",
                     },
                     {
                         "unifiedDocumentId": str(post2.unified_document.id),
-                        "recommendationId": "rec-2",
                     },
                 ],
             },
@@ -625,7 +388,6 @@ class EventProcessorTestCase(TestCase):
                 "impressions": [
                     {
                         "unifiedDocumentId": str(self.post.unified_document.id),
-                        "recommendationId": "rec-1",
                     },
                 ],
             },
@@ -648,7 +410,6 @@ class EventProcessorTestCase(TestCase):
                 "impressions": [
                     {
                         "unifiedDocumentId": str(self.post.unified_document.id),
-                        "recommendationId": "rec-2",
                     },
                 ],
             },
@@ -673,7 +434,6 @@ class EventProcessorTestCase(TestCase):
                 "impressions": [
                     {
                         "unifiedDocumentId": str(self.post.unified_document.id),
-                        "recommendationId": "rec-1",
                     },
                 ],
             },
@@ -710,7 +470,6 @@ class EventProcessorTestCase(TestCase):
                     },
                     {
                         "unifiedDocumentId": str(self.post.unified_document.id),
-                        "recommendationId": "rec-1",
                     },
                 ],
             },
@@ -733,11 +492,9 @@ class EventProcessorTestCase(TestCase):
                 "impressions": [
                     {
                         "unifiedDocumentId": "not-a-number",  # Invalid format
-                        "recommendationId": "rec-1",
                     },
                     {
                         "unifiedDocumentId": str(self.post.unified_document.id),
-                        "recommendationId": "rec-2",
                     },
                 ],
             },
@@ -778,7 +535,6 @@ class EventProcessorTestCase(TestCase):
                 "impressions": [
                     {
                         "unifiedDocumentId": str(self.post.unified_document.id),
-                        "recommendationId": "rec-1",
                     },
                 ],
             },
