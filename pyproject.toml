@@ -37,7 +37,7 @@ dependencies = [
     "django-simple-history>=3.13.0,<4",
     "django-storages==1.14.6",
     "django==6.1.2",
-    "djangorestframework==3.18.1",
+    "djangorestframework==3.18.3",
     "elastic-apm>=6.26.2,<7",
     "flower>=2.2.0,<3",
     "humanize>=4.12.2,<5.0.0",
