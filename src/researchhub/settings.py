@@ -207,7 +207,6 @@ INSTALLED_APPS = [
     "django_celery_results",
     # Custom apps
     "analytics",
-    "personalize",
     "discussion",
     "feed",
     "institution",
