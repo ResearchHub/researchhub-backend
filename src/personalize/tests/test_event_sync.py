@@ -6,6 +6,7 @@ from django.test import TestCase, override_settings
 
 from analytics.constants.event_types import (
     COMMENT_CREATED,
+    DOCUMENT_SAVED_TO_LIST,
     FEED_ITEM_CLICK,
     PAGE_VIEW,
     PEER_REVIEW_CREATED,
@@ -13,12 +14,13 @@ from analytics.constants.event_types import (
 )
 from analytics.interactions.interaction_mapper import map_from_comment
 from analytics.models import UserInteractions
-from analytics.services.event_processor import EventProcessor
 from discussion.models import Vote
 from personalize.clients.sync_client import SyncClient
 from personalize.tasks import (
     create_comment_interaction_task,
+    create_list_item_interaction_task,
     create_upvote_interaction_task,
+    sync_interaction_event_to_personalize_task,
 )
 from personalize.tests.helpers import create_prefetched_paper
 from personalize.utils.personalize_utils import (
@@ -31,7 +33,9 @@ from researchhub_comment.constants.rh_comment_thread_types import (
 )
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.helpers import create_post
+from researchhub_document.models import ResearchhubUnifiedDocument
 from user.tests.helpers import create_random_default_user
+from user_lists.models import List, ListItem
 
 
 class EventSyncTests(TestCase):
@@ -53,51 +57,6 @@ class EventSyncTests(TestCase):
             "failed": 1,
             "errors": ["AWS API error"],
         }
-
-    def _create_amplitude_event(self, event_type, timestamp_offset=0):
-        return {
-            "event_type": event_type,
-            "event_properties": {
-                "user_id": str(self.user.id),
-                "related_work": {
-                    "unified_document_id": str(self.paper.id),
-                    "content_type": "paper",
-                    "id": str(self.paper.paper.id),
-                },
-            },
-            "_time": int((datetime.now(UTC).timestamp() + timestamp_offset) * 1000),
-        }
-
-    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.interaction_signals.transaction")
-    @patch("personalize.tasks.SyncService")
-    def test_only_specific_events_synced_from_amplitude(
-        self, sync_service_mock, transaction_mock
-    ):
-        # Arrange
-        transaction_mock.on_commit = lambda func: func()
-        mock_service = Mock()
-        mock_service.sync_event.return_value = self.mock_sync_result_success
-        sync_service_mock.return_value = mock_service
-
-        processor = EventProcessor()
-        feed_click_event = self._create_amplitude_event("feed_item_clicked")
-        page_view_event = self._create_amplitude_event("work_document_viewed", 1)
-
-        # Act
-        processor.process_event(feed_click_event)
-        processor.process_event(page_view_event)
-
-        # Assert
-        self.assertEqual(mock_service.sync_event.call_count, 2)
-        synced_interactions = UserInteractions.objects.filter(
-            user=self.user, unified_document=self.paper
-        )
-        self.assertEqual(synced_interactions.count(), 2)
-        event_types = set(synced_interactions.values_list("event", flat=True))
-        self.assertIn(FEED_ITEM_CLICK, event_types)
-        self.assertIn(PAGE_VIEW, event_types)
-        self.assertNotIn(UPVOTE, event_types)
 
     @patch("personalize.clients.sync_client.create_client")
     @patch("personalize.clients.sync_client.settings")
@@ -161,49 +120,12 @@ class EventSyncTests(TestCase):
         self.assertEqual(session_id, f"sess_anon_{external_user_id}")
         self.assertRegex(session_id, r"^sess_anon_.+$")
 
-    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
-    def test_sync_only_triggered_when_interaction_created(
-        self, sync_service_mock, transaction_mock
-    ):
+    def test_interaction_marked_as_synced_on_success(self, sync_service_mock):
         # Arrange
-        transaction_mock.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_success
         sync_service_mock.return_value = mock_service
-
-        processor = EventProcessor()
-        event_payload = self._create_amplitude_event("feed_item_clicked")
-
-        # Act
-        processor.process_event(event_payload)
-        first_call_count = mock_service.sync_event.call_count
-
-        processor.process_event(event_payload)
-        second_call_count = mock_service.sync_event.call_count
-
-        # Assert
-        self.assertEqual(first_call_count, 1)
-        self.assertEqual(second_call_count, 1)
-        interactions = UserInteractions.objects.filter(
-            user=self.user, unified_document=self.paper, event=FEED_ITEM_CLICK
-        )
-        self.assertEqual(interactions.count(), 1)
-
-    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.interaction_signals.transaction")
-    @patch("personalize.tasks.SyncService")
-    def test_interaction_marked_as_synced_on_success(
-        self, sync_service_mock, transaction_mock
-    ):
-        # Arrange
-        transaction_mock.on_commit = lambda func: func()
-        mock_service = Mock()
-        mock_service.sync_event.return_value = self.mock_sync_result_success
-        sync_service_mock.return_value = mock_service
-
-        # Act - Creating UserInteraction should trigger signal which calls sync task
         interaction = UserInteractions.objects.create(
             user=self.user,
             event=FEED_ITEM_CLICK,
@@ -214,24 +136,20 @@ class EventSyncTests(TestCase):
             is_synced_with_personalize=False,
         )
 
+        # Act
+        sync_interaction_event_to_personalize_task(interaction.id)
+
         # Assert
         mock_service.sync_event.assert_called_once()
         interaction.refresh_from_db()
         self.assertTrue(interaction.is_synced_with_personalize)
 
-    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.interaction_signals.transaction")
     @patch("personalize.tasks.SyncService")
-    def test_interaction_not_marked_synced_on_failure(
-        self, sync_service_mock, transaction_mock
-    ):
+    def test_interaction_not_marked_synced_on_failure(self, sync_service_mock):
         # Arrange
-        transaction_mock.on_commit = lambda func: func()
         mock_service = Mock()
         mock_service.sync_event.return_value = self.mock_sync_result_failure
         sync_service_mock.return_value = mock_service
-
-        # Act - Creating UserInteraction should trigger signal which calls sync task
         interaction = UserInteractions.objects.create(
             user=self.user,
             event=PAGE_VIEW,
@@ -241,6 +159,10 @@ class EventSyncTests(TestCase):
             event_timestamp=datetime.now(UTC),
             is_synced_with_personalize=False,
         )
+
+        # Act
+        with self.assertRaises(Exception):
+            sync_interaction_event_to_personalize_task(interaction.id)
 
         # Assert
         mock_service.sync_event.assert_called_once()
@@ -412,10 +334,8 @@ class UpvoteInteractionTaskTests(TestCase):
         self.assertEqual(final_count, initial_count)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
-    @patch("personalize.signals.vote_signals.create_upvote_interaction")
     def test_create_upvote_interaction_task_skips_self_upvote_on_post(
-        self, mock_vote_signal, mock_interaction_signal
+        self,
     ):
         # Create a post by the same user
         self_post = create_post(created_by=self.user)
@@ -437,10 +357,8 @@ class UpvoteInteractionTaskTests(TestCase):
         self.assertEqual(final_count, initial_count)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
-    @patch("personalize.signals.vote_signals.create_upvote_interaction")
     def test_create_upvote_interaction_task_skips_self_upvote_on_paper(
-        self, mock_vote_signal, mock_interaction_signal
+        self,
     ):
         paper = create_prefetched_paper(title="Test Paper", user=self.user)
         content_type = ContentType.objects.get_for_model(paper.paper)
@@ -460,10 +378,8 @@ class UpvoteInteractionTaskTests(TestCase):
         self.assertEqual(final_count, initial_count)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
-    @patch("personalize.signals.vote_signals.create_upvote_interaction")
     def test_create_upvote_interaction_task_creates_interaction_for_other_user_upvote(
-        self, mock_vote_signal, mock_interaction_signal
+        self,
     ):
         other_user = create_random_default_user("other_user")
         other_post = create_post(created_by=other_user)
@@ -515,10 +431,8 @@ class CommentInteractionTaskTests(TestCase):
         return comment
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.comment_signals.create_comment_interaction_task")
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
     def test_create_comment_interaction_task_creates_comment_user_interaction(
-        self, mock_sync_signal, mock_comment_signal
+        self,
     ):
         comment = self._create_comment(comment_type=GENERIC_COMMENT)
 
@@ -539,10 +453,8 @@ class CommentInteractionTaskTests(TestCase):
         self.assertFalse(interaction.is_synced_with_personalize)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.comment_signals.create_comment_interaction_task")
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
     def test_create_comment_interaction_task_creates_peer_review_user_interaction(
-        self, mock_sync_signal, mock_comment_signal
+        self,
     ):
         comment = self._create_comment(comment_type=COMMUNITY_REVIEW)
 
@@ -563,10 +475,8 @@ class CommentInteractionTaskTests(TestCase):
         self.assertFalse(interaction.is_synced_with_personalize)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("personalize.signals.comment_signals.create_comment_interaction_task")
-    @patch("personalize.signals.interaction_signals.sync_interaction_to_personalize")
     def test_create_comment_interaction_task_is_idempotent(
-        self, mock_sync_signal, mock_comment_signal
+        self,
     ):
         comment = self._create_comment()
 
@@ -664,3 +574,32 @@ class CommentInteractionTaskTests(TestCase):
         interactions = UserInteractions.objects.filter(object_id=comment.id)
         self.assertEqual(interactions.count(), 0)
         self.assertEqual(interactions.count(), 0)
+
+
+class ListItemInteractionTaskTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("list_task_test_user")
+        self.unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="DISCUSSION"
+        )
+        self.list = List.objects.create(name="Test List", created_by=self.user)
+
+    def test_create_list_item_interaction_task_creates_user_interaction(self):
+        # Arrange
+        list_item = ListItem.objects.create(
+            parent_list=self.list,
+            unified_document=self.unified_doc,
+            created_by=self.user,
+        )
+
+        # Act
+        create_list_item_interaction_task(list_item.id)
+
+        # Assert
+        self.assertTrue(
+            UserInteractions.objects.filter(
+                user=self.user,
+                event=DOCUMENT_SAVED_TO_LIST,
+                unified_document=self.unified_doc,
+            ).exists()
+        )
