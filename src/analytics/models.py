@@ -45,17 +45,6 @@ class UserInteractions(DefaultModel):
     object_id = models.PositiveIntegerField(null=True, blank=True)
     item = GenericForeignKey("content_type", "object_id")
     event_timestamp = models.DateTimeField()
-    is_synced_with_personalize = models.BooleanField(default=False)
-    personalize_rec_id = models.CharField(
-        max_length=255,
-        null=True,
-        blank=True,
-    )
-    impression = models.TextField(
-        null=True,
-        blank=True,
-        help_text="Pipe-delimited unified document IDs from Amplitude events",
-    )
 
     class Meta:
         indexes = [
@@ -63,9 +52,6 @@ class UserInteractions(DefaultModel):
             models.Index(fields=["external_user_id"]),
             models.Index(fields=["event"]),
             models.Index(fields=["event_timestamp"]),
-            models.Index(
-                fields=["is_synced_with_personalize"], name="idx_synced_personalize"
-            ),
         ]
         constraints = [
             # Strict uniqueness for one-time actions
