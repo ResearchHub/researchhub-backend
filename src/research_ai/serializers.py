@@ -18,6 +18,7 @@ from research_ai.models import (
     Expert,
     ExpertSearch,
     GeneratedEmail,
+    OutreachCampaign,
     ProposalDraft,
     SearchExpert,
 )
@@ -1019,6 +1020,40 @@ class EmailTemplateUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255, required=False, allow_blank=False)
     email_subject = serializers.CharField(required=False, allow_blank=True)
     email_body = serializers.CharField(required=False, allow_blank=True)
+
+
+class OutreachCampaignSerializer(serializers.ModelSerializer):
+    """List/detail serializer for a per-editor published OutreachCampaign."""
+
+    template_id = serializers.IntegerField(source="template.id", read_only=True)
+    template_name = serializers.CharField(source="template.name", read_only=True)
+    has_unpublished_changes = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OutreachCampaign
+        fields = [
+            "id",
+            "template_id",
+            "template_name",
+            "external_campaign_id",
+            "published_subject",
+            "published_body",
+            "published_variable_keys",
+            "status",
+            "published_at",
+            "has_unpublished_changes",
+            "created_date",
+            "updated_date",
+        ]
+        read_only_fields = fields
+
+    def get_has_unpublished_changes(self, obj):
+        template = obj.template
+        if template is None:
+            return False
+        return (obj.published_subject or "") != (template.email_subject or "") or (
+            obj.published_body or ""
+        ) != (template.email_body or "")
 
 
 class ModelSelectionField(serializers.CharField):

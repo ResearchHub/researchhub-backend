@@ -10,7 +10,10 @@ from django.test import TestCase
 from research_ai.services.outreach.rfp_email_context import build_rfp_context
 from research_ai.services.outreach.template_variables import (
     build_replacement_context,
+    extract_placeholder_pairs,
+    flatten_placeholders_for_instantly,
     format_expert_name_from_raw,
+    published_variable_keys,
     replace_template_variables,
 )
 
@@ -187,6 +190,38 @@ class BuildReplacementContextTests(TestCase):
         self.assertEqual(ctx["proposal"]["created_by_name"], "Alice")
         self.assertEqual(ctx["proposal"]["amount_raised"], "$1K")
         self.assertEqual(ctx["proposal"]["contributor_count"], "3")
+
+
+class InstantlyPlaceholderFlattenTests(TestCase):
+    def test_flatten_placeholders_for_instantly(self):
+        # Arrange
+        text = "Hi {{expert.name}} re {{rfp.title}}"
+
+        # Act / Assert
+        self.assertEqual(
+            flatten_placeholders_for_instantly(text),
+            "Hi {{expert_name}} re {{rfp_title}}",
+        )
+
+    def test_published_variable_keys_sorted_unique(self):
+        # Arrange / Act
+        keys = published_variable_keys(
+            "Hi {{expert.name}}",
+            "{{expert.name}} at {{expert.affiliation}} — {{rfp.title}}",
+        )
+
+        # Assert
+        self.assertEqual(
+            keys,
+            ["expert_affiliation", "expert_name", "rfp_title"],
+        )
+
+    def test_extract_placeholder_pairs(self):
+        # Arrange / Act / Assert
+        self.assertEqual(
+            extract_placeholder_pairs("{{expert.name}}", "{{rfp.title}}"),
+            frozenset({("expert", "name"), ("rfp", "title")}),
+        )
 
 
 class BuildRfpContextBlurbTests(TestCase):

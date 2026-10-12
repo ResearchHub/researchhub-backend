@@ -45,7 +45,13 @@ from research_ai.views.proposal_draft_views import (
     ProposalDraftCreateView,
     ProposalDraftDetailView,
 )
-from research_ai.views.template_views import TemplateDetailView, TemplateListView
+from research_ai.views.template_views import (
+    OutreachCampaignListView,
+    TemplateDetailView,
+    TemplateListView,
+    TemplatePublishView,
+    TemplateRewriteView,
+)
 
 urlpatterns = [
     path("models/", AvailableModelsView.as_view()),
@@ -108,6 +114,18 @@ urlpatterns = [
     path(
         "expert-finder/templates/<int:template_id>/",
         TemplateDetailView.as_view(),
+    ),
+    path(
+        "expert-finder/templates/<int:template_id>/rewrite/",
+        TemplateRewriteView.as_view(),
+    ),
+    path(
+        "expert-finder/templates/<int:template_id>/publish/",
+        TemplatePublishView.as_view(),
+    ),
+    path(
+        "expert-finder/outreach-campaigns/",
+        OutreachCampaignListView.as_view(),
     ),
     path(
         "expert-finder/rfp/<int:grant_id>/invite-applicants/",
