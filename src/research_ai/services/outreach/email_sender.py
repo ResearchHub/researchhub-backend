@@ -1,14 +1,10 @@
 import logging
 
-from django.conf import settings
-
-from mailing_list.services import EmailService
-
 logger = logging.getLogger(__name__)
 
 
 class ExpertFinderOutreachDisabledError(Exception):
-    """Raised when expert-finder outreach sending is disabled via killswitch."""
+    """Raised when expert-finder SES outreach sending is disabled."""
 
 
 def send_outreach_email(
@@ -19,21 +15,18 @@ def send_outreach_email(
     cc: list[str] | None = None,
     from_email: str | None = None,
 ) -> str | None:
-    """Send approved outreach; return None if skipped or its ID (possibly empty)."""
-    if not settings.EXPERT_FINDER_OUTREACH_ENABLED:
-        logger.warning(
-            "Expert finder outreach disabled; refusing send to %s",
-            to_email,
-        )
-        raise ExpertFinderOutreachDisabledError(
-            "Expert finder outreach is temporarily disabled."
-        )
+    """
+    Legacy SES outreach send.
 
-    return EmailService().send_html_email(
+    Expert Finder outreach now uses Instantly campaigns. New sends must go
+    through ``OutreachCampaignService.send_to_experts``; this path always
+    refuses so SES is not used for new outreach.
+    """
+    _ = (subject, body, reply_to, cc, from_email)
+    logger.warning(
+        "Expert finder SES outreach disabled; refusing send to %s",
         to_email,
-        subject,
-        body,
-        sender=from_email,
-        reply_to=reply_to,
-        cc=cc,
+    )
+    raise ExpertFinderOutreachDisabledError(
+        "Expert finder outreach via SES is disabled; use Instantly campaigns."
     )

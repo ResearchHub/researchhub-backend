@@ -10,9 +10,11 @@ from django.test import TestCase
 from research_ai.services.outreach.rfp_email_context import build_rfp_context
 from research_ai.services.outreach.template_variables import (
     build_replacement_context,
+    custom_variables_for_published_keys,
     extract_placeholder_pairs,
     flatten_placeholders_for_instantly,
     format_expert_name_from_raw,
+    missing_published_variables,
     published_variable_keys,
     replace_template_variables,
 )
@@ -222,6 +224,32 @@ class InstantlyPlaceholderFlattenTests(TestCase):
             extract_placeholder_pairs("{{expert.name}}", "{{rfp.title}}"),
             frozenset({("expert", "name"), ("rfp", "title")}),
         )
+
+    def test_custom_variables_and_missing_published_keys(self):
+        # Arrange
+        context = {
+            "expert": {"name": "Jane", "affiliation": "MIT"},
+            "rfp": {"title": ""},
+        }
+
+        # Act
+        custom = custom_variables_for_published_keys(
+            context, ["expert_name", "expert_affiliation", "rfp_title"]
+        )
+        missing = missing_published_variables(
+            context, ["expert_name", "expert_affiliation", "rfp_title"]
+        )
+
+        # Assert
+        self.assertEqual(
+            custom,
+            {
+                "expert_name": "Jane",
+                "expert_affiliation": "MIT",
+                "rfp_title": "",
+            },
+        )
+        self.assertEqual(missing, ["rfp_title"])
 
 
 class BuildRfpContextBlurbTests(TestCase):

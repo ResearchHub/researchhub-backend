@@ -1056,6 +1056,17 @@ class OutreachCampaignSerializer(serializers.ModelSerializer):
         ) != (template.email_body or "")
 
 
+class OutreachCampaignSendSerializer(serializers.Serializer):
+    """Request for POST /expert-finder/outreach-campaigns/<id>/send/."""
+
+    expert_search_id = serializers.IntegerField(min_value=1)
+    expert_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        min_length=1,
+        max_length=1000,
+    )
+
+
 class ModelSelectionField(serializers.CharField):
     """Optional model selection, validated against the selectable catalog.
 

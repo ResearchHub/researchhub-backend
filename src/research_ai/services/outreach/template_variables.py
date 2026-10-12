@@ -197,3 +197,36 @@ def replace_template_variables(text: str, context: dict[str, dict[str, Any]]) ->
         return str(value) if value is not None else ""
 
     return VARIABLE_PATTERN.sub(repl, text)
+
+
+def flatten_context_for_instantly(
+    context: dict[str, dict[str, Any]],
+) -> dict[str, str]:
+    """Flatten nested ``{{entity.field}}`` context to Instantly custom_variables."""
+    result: dict[str, str] = {}
+    for entity, fields in (context or {}).items():
+        if not isinstance(fields, dict):
+            continue
+        for field, value in fields.items():
+            key = flatten_variable_key(str(entity), str(field))
+            result[key] = "" if value is None else str(value)
+    return result
+
+
+def custom_variables_for_published_keys(
+    context: dict[str, dict[str, Any]],
+    published_keys: list[str] | tuple[str, ...] | None,
+) -> dict[str, str]:
+    """Return Instantly custom_variables for the published keys only (strings)."""
+    flat = flatten_context_for_instantly(context)
+    keys = list(published_keys or [])
+    return {key: flat.get(key, "") for key in keys}
+
+
+def missing_published_variables(
+    context: dict[str, dict[str, Any]],
+    published_keys: list[str] | tuple[str, ...] | None,
+) -> list[str]:
+    """Return published Instantly keys that are missing or blank in ``context``."""
+    custom = custom_variables_for_published_keys(context, published_keys)
+    return sorted(key for key, value in custom.items() if not (value or "").strip())
