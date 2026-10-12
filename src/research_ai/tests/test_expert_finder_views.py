@@ -53,9 +53,7 @@ class ExpertSearchListCreateViewTests(APITestCase):
         self.assertIn("ws_url", data)
         self.assertNotIn("sse_url", data)
         self.assertTrue(
-            data["ws_url"].endswith(
-                f"/ws/expert-finder/searches/{data['search_id']}/"
-            )
+            data["ws_url"].endswith(f"/ws/expert-finder/searches/{data['search_id']}/")
         )
         search = ExpertSearch.objects.get(id=data["search_id"])
         self.assertEqual(search.created_by, self.moderator)
@@ -336,9 +334,7 @@ class ExpertSearchFindMoreViewTests(APITestCase):
         self.assertIn("ws_url", data)
         self.assertNotIn("sse_url", data)
         self.assertTrue(
-            data["ws_url"].endswith(
-                f"/ws/expert-finder/searches/{self.search.id}/"
-            )
+            data["ws_url"].endswith(f"/ws/expert-finder/searches/{self.search.id}/")
         )
         self.search.refresh_from_db()
         self.assertEqual(self.search.status, ExpertSearch.Status.PROCESSING)
