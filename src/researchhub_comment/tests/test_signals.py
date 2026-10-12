@@ -12,6 +12,7 @@ from purchase.related_models.constants.currency import USD
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.related_models.distribution import Distribution as DistributionModel
+from researchhub_comment.constants.rh_comment_content_types import TIPTAP
 from researchhub_comment.constants.rh_comment_thread_types import (
     AUTHOR_UPDATE,
     GENERIC_COMMENT,
@@ -246,6 +247,7 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
                 thread=thread,
                 created_by=self.author,
                 comment_content_json=update_content,
+                comment_content_type=TIPTAP,
                 comment_type=AUTHOR_UPDATE,
             )
             mock_send_notification.assert_not_called()

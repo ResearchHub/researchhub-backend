@@ -1,7 +1,10 @@
 import json
 
-from django.utils.html import escape, format_html
+from django.utils.html import escape, format_html, linebreaks
 from django.utils.safestring import SafeString, mark_safe
+
+from researchhub_comment.constants.rh_comment_content_types import TIPTAP
+from researchhub_comment.models import RhCommentModel
 
 _NODE_TAGS = {
     "blockquote": "blockquote",
@@ -20,8 +23,11 @@ _MARK_TAGS = {
 }
 
 
-def render_comment_html(content: dict | str) -> SafeString:
-    """Render stored TipTap comment content as escaped HTML for email."""
+def render_comment_html(comment: RhCommentModel) -> SafeString:
+    """Render a comment body as escaped HTML for email."""
+    if comment.comment_content_type != TIPTAP:
+        return mark_safe(linebreaks(comment.plain_text, autoescape=True))
+    content = comment.comment_content_json
     document = json.loads(content) if isinstance(content, str) else content
     return _render_nodes(document.get("content", []))
 
@@ -42,7 +48,7 @@ def _render_node(node: dict) -> SafeString:
     if node_type in _NODE_TAGS:
         return format_html("<{0}>{1}</{0}>", _NODE_TAGS[node_type], children)
     if node_type == "heading":
-        return format_html("<h{0}>{1}</h{0}>", attrs["level"], children)
+        return format_html("<h{0}>{1}</h{0}>", int(attrs["level"]), children)
     if node_type == "hardBreak":
         return mark_safe("<br>")
     if node_type == "horizontalRule":

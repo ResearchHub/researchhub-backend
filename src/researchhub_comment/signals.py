@@ -119,7 +119,7 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
 
     if recipient_emails:
         subject = f'{author.full_name()} just shared an update on "{document.title}"'
-        message = render_comment_html(comment.comment_content_json)
+        message = render_comment_html(comment)
         link = comment.unified_document.frontend_view_link()
         transaction.on_commit(
             lambda: send_message_email.delay(
