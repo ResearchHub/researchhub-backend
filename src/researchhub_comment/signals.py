@@ -18,6 +18,7 @@ from reputation.distributor import Distributor
 from reputation.related_models.distribution import Distribution as DistributionModel
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.services.comment_html_service import render_comment_html
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.user_model import User
@@ -117,14 +118,12 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         )
 
     if recipient_emails:
+        subject = f'{author.full_name()} just shared an update on "{document.title}"'
+        message = render_comment_html(comment.comment_content_json)
         link = comment.unified_document.frontend_view_link()
         transaction.on_commit(
             lambda: send_message_email.delay(
-                recipient_emails,
-                "New Preregistration Update",
-                f"{author.first_name} {author.last_name} posted an update to the "
-                f"preregistration {document.title}",
-                link=link,
+                recipient_emails, subject, message, link=link, is_html=True
             ),
             robust=True,
         )

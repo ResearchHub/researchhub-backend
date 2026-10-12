@@ -57,6 +57,18 @@ body {
   color: #2563EB;
 }
 
+.body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.body blockquote {
+  margin: 16px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid #E5E7EB;
+  color: #6B7280;
+}
+
 .cta-wrapper {
   margin-top: 28px;
 }
