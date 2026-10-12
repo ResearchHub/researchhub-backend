@@ -1,3 +1,5 @@
+import json
+
 from django.utils.html import escape, format_html
 from django.utils.safestring import SafeString, mark_safe
 
@@ -18,8 +20,9 @@ _MARK_TAGS = {
 }
 
 
-def render_comment_html(document: dict) -> SafeString:
-    """Render a TipTap comment document as escaped HTML for email."""
+def render_comment_html(content: dict | str) -> SafeString:
+    """Render stored TipTap comment content as escaped HTML for email."""
+    document = json.loads(content) if isinstance(content, str) else content
     return _render_nodes(document.get("content", []))
 
 

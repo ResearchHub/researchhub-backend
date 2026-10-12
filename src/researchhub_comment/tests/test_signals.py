@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -217,18 +218,24 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
             content_object=self.preregistration,
             created_by=self.author,
         )
-        update_content = {
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {"type": "text", "text": "Dose ", "marks": [{"type": "bold"}]},
-                        {"type": "text", "text": "< 20µM"},
-                    ],
-                }
-            ],
-        }
+        update_content = json.dumps(
+            {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Dose ",
+                                "marks": [{"type": "bold"}],
+                            },
+                            {"type": "text", "text": "< 20µM"},
+                        ],
+                    }
+                ],
+            }
+        )
 
         # Act
         with (
