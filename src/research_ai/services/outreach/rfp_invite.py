@@ -59,11 +59,12 @@ def _get_or_create_invite_search(*, grant, inviter) -> ExpertSearch:
 
 
 def invite_applicants(*, grant, inviter, emails: list[str]) -> InviteResult:
-    """Create Expert + GeneratedEmail rows (status=SENDING) for each email.
+    """Create Expert + GeneratedEmail rows (status=DRAFT) for each email.
 
-    The caller is expected to enqueue ``send_queued_emails_task`` with the
-    returned ids. ``skipped_existing`` lists emails that already have a SENT or
-    in-flight invite on this grant so we don't email anyone twice.
+    The caller marks all created drafts SENDING when they fit under the daily
+    quota and enqueues ``send_queued_emails_task``. ``skipped_existing`` lists
+    emails that already have a SENT or in-flight invite on this grant so we
+    don't email anyone twice.
     """
     subject, body = _render_email(grant=grant, inviter=inviter)
     search = _get_or_create_invite_search(grant=grant, inviter=inviter)
@@ -113,7 +114,7 @@ def invite_applicants(*, grant, inviter, emails: list[str]) -> InviteResult:
                 email_subject=subject,
                 email_body=body,
                 template=None,
-                status=GeneratedEmail.Status.SENDING,
+                status=GeneratedEmail.Status.DRAFT,
             )
             created_ids.append(ge.id)
 

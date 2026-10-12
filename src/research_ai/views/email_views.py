@@ -556,6 +556,10 @@ class InviteRfpApplicantsView(APIView):
         )
 
         if result.generated_email_ids:
+            GeneratedEmail.objects.filter(
+                id__in=result.generated_email_ids,
+                status=GeneratedEmail.Status.DRAFT,
+            ).update(status=GeneratedEmail.Status.SENDING)
             send_queued_emails_task.delay(
                 generated_email_ids=result.generated_email_ids,
                 reply_to=[reply_to] if reply_to else None,

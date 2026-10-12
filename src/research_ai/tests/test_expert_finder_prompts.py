@@ -1,6 +1,6 @@
 from django.test import SimpleTestCase
 
-from research_ai.constants import ExpertiseLevel, Gender, Region
+from research_ai.constants import ExpertiseLevel, Region
 from research_ai.prompts.expert_finder_prompts import (
     build_user_prompt,
     format_additional_context_section,
@@ -30,7 +30,6 @@ class BuildUserPromptAdditionalContextTests(SimpleTestCase):
             expert_count=5,
             expertise_level=[ExpertiseLevel.ALL_LEVELS],
             region_filter=Region.ALL_REGIONS,
-            gender_filter=Gender.ALL_GENDERS,
             is_pdf=False,
             additional_context=None,
         )
@@ -43,7 +42,6 @@ class BuildUserPromptAdditionalContextTests(SimpleTestCase):
             expert_count=5,
             expertise_level=[ExpertiseLevel.ALL_LEVELS],
             region_filter=Region.ALL_REGIONS,
-            gender_filter=Gender.ALL_GENDERS,
             is_pdf=False,
             additional_context="Focus on structural biology.",
         )
@@ -58,7 +56,6 @@ class BuildUserPromptAdditionalContextTests(SimpleTestCase):
             expert_count=3,
             expertise_level=[ExpertiseLevel.ALL_LEVELS],
             region_filter=Region.ALL_REGIONS,
-            gender_filter=Gender.ALL_GENDERS,
             is_pdf=True,
             additional_context="Prioritize junior faculty.",
         )
