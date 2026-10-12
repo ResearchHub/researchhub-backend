@@ -136,64 +136,6 @@ jobs:
       git_ref: ${{ needs.package.outputs.git_sha }}
     secrets: inherit
 
-  deploy-api:
-    needs: [package, migrate]
-    # FIXME: Disable Beanstalk deployment
-    if: false
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    permissions:
-      id-token: write # required for requesting JWT token from AWS
-    env:
-      SHORT_GIT_SHA: ${{ needs.package.outputs.short_git_sha }}
-
-    steps:
-      - name: Download deployment package
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: "backend-${{ env.SHORT_GIT_SHA }}"
-          path: target
-
-      - name: Get deploy role ARN
-        id: get-role-arn
-        run: |
-          role_arn_name=${DEPLOY_ENV^^}_DEPLOY_ROLE_ARN
-          role_arn=$(eval echo \$$role_arn_name)
-          echo "role_arn=$role_arn" >> "$GITHUB_OUTPUT"
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Assume role
-        id: aws_credentials
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: ${{ steps.get-role-arn.outputs.role_arn }}
-          role-session-name: github-actions-beanstalk-session
-          role-chaining: true
-          role-duration-seconds: 3600
-          role-skip-session-tagging: true
-          aws-region: ${{ env.AWS_REGION }}
-          retry-max-attempts: 3
-          output-credentials: true
-
-      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - API
-        uses: einaregilsson/beanstalk-deploy@a67044fa332b06e68985b06d361934c28ab09007 # v23
-        with:
-          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
-          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-          aws_session_token: ${{ steps.aws_credentials.outputs.aws-session-token }}
-          application_name: backend
-          environment_name: ${{ env.DEPLOY_ENV }}-backend-api
-          version_label: ${{ env.SHORT_GIT_SHA }}
-          use_existing_version_if_available: true
-          region: ${{ env.AWS_REGION }}
-          deployment_package: target/deploy.zip
-          wait_for_environment_recovery: 300
-
   deploy-workers:
     needs: [package, deploy-api]
     # FIXME: Disable Beanstalk deployment for workers
