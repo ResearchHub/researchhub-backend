@@ -140,6 +140,10 @@ class BuildReplacementContextTests(TestCase):
         self.assertEqual(ctx["expert"]["name"], "Bob")
         self.assertEqual(ctx["expert"]["affiliation"], "Yale")
 
+        text = "Hi {{expert.name}}, {{expert.affiliation}}."
+        out = replace_template_variables(text, ctx)
+        self.assertEqual(out, "Hi Bob, Yale.")
+
     def test_none_inputs_yield_empty_entity_dicts(self):
         ctx = build_replacement_context(
             user=None,

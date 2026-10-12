@@ -3,7 +3,9 @@
 ``NotebookChatConsumer`` subscribes one client to one chat's turn events
 (``ws/notebook/notes/<note_id>/chats/<conversation_id>/``);
 ``AssistantChatConsumer`` does the same for a note-less assistant chat
-(``ws/assistant/chats/<conversation_id>/``). Lifecycle events
+(``ws/assistant/chats/<conversation_id>/``);
+``ExpertFinderConsumer`` subscribes to one expert search's progress events
+(``ws/expert-finder/searches/<search_id>/``). Lifecycle events
 are small refetch nudges; ``stream_delta`` events append transient text or
 readable thinking to the matching active execution. The payload is forwarded
 verbatim. The ``?activity=live`` projection remains the recovery path: it
@@ -20,6 +22,9 @@ Resolution failures close with the same code whether the chat does not
 exist, belongs to someone else, or sits on an invisible note -- the group is
 per-conversation and owner-only precisely because chats are private, unlike
 the org-wide room ``NoteConsumer`` uses for note notifications.
+
+Expert Finder admission mirrors expert-finder REST views: editor or
+moderator (4403 otherwise), and the search must exist (4404).
 """
 
 import json
@@ -28,7 +33,9 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from note.related_models.note_model import Note
+from research_ai.models import ExpertSearch
 from research_ai.services.assistant_chat import AssistantChatService
+from research_ai.services.expert_finder.events import search_group
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.notebook_chat.events import conversation_group
 from research_ai.services.usage_budget import resolve_ai_tier
@@ -77,11 +84,23 @@ def _assistant_rejection_code(user, conversation_id: int) -> int | None:
     return None
 
 
+@database_sync_to_async
+def _expert_finder_rejection_code(user, search_id: int) -> int | None:
+    if not (getattr(user, "moderator", False) or user.is_hub_editor()):
+        return CLOSE_FORBIDDEN
+    if not ExpertSearch.objects.filter(id=search_id).exists():
+        return CLOSE_NOT_FOUND
+    return None
+
+
 class _ConversationConsumer(AsyncWebsocketConsumer):
     """Admit the owner of one chat and forward its turn events."""
 
     async def rejection_code(self, user, kwargs: dict) -> int | None:
         raise NotImplementedError
+
+    def group_name_for(self, kwargs: dict) -> str:
+        return conversation_group(kwargs["conversation_id"])
 
     async def connect(self):
         user = self.scope.get("user")
@@ -103,7 +122,7 @@ class _ConversationConsumer(AsyncWebsocketConsumer):
             await self.close(code=rejection)
             return
 
-        self.group_name = conversation_group(kwargs["conversation_id"])
+        self.group_name = self.group_name_for(kwargs)
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         # The client offers ("Token", <key>) as subprotocols for
         # TokenAuthMiddleware; echo the name back like the other consumers.
@@ -128,3 +147,29 @@ class NotebookChatConsumer(_ConversationConsumer):
 class AssistantChatConsumer(_ConversationConsumer):
     async def rejection_code(self, user, kwargs: dict) -> int | None:
         return await _assistant_rejection_code(user, kwargs["conversation_id"])
+
+
+class ExpertFinderConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        user = self.scope.get("user")
+        if user is None or user.is_anonymous or not user.is_active:
+            await self.close(code=CLOSE_UNAUTHENTICATED)
+            return
+
+        search_id = int(self.scope["url_route"]["kwargs"]["search_id"])
+        rejection = await _expert_finder_rejection_code(user, search_id)
+        if rejection is not None:
+            await self.close(code=rejection)
+            return
+
+        self.group_name = search_group(search_id)
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept(subprotocol="Token")
+
+    async def disconnect(self, close_code):
+        if hasattr(self, "group_name"):
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+
+    async def expert_finder_event(self, event):
+        """Forward one published expert-finder event to the client."""
+        await self.send(text_data=json.dumps(event["data"]))

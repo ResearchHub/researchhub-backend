@@ -27,8 +27,8 @@ from research_ai.views.expert_finder_views import (
     ExpertListView,
     ExpertSearchAddExpertView,
     ExpertSearchDetailView,
+    ExpertSearchFindMoreView,
     ExpertSearchListCreateView,
-    ExpertSearchProgressStreamView,
     ExpertSearchWorkView,
     InvitedExpertEditorsOverviewView,
     InvitedExpertOverviewView,
@@ -60,6 +60,10 @@ urlpatterns = [
         ExpertSearchAddExpertView.as_view(),
     ),
     path(
+        "expert-finder/searches/<int:search_id>/find-more/",
+        ExpertSearchFindMoreView.as_view(),
+    ),
+    path(
         "expert-finder/experts/",
         ExpertListView.as_view(),
     ),
@@ -78,10 +82,6 @@ urlpatterns = [
     path(
         "expert-finder/work/<int:unified_document_id>/",
         ExpertSearchWorkView.as_view(),
-    ),
-    path(
-        "expert-finder/progress/<int:search_id>/",
-        ExpertSearchProgressStreamView.as_view(),
     ),
     path("expert-finder/generate-email/", GenerateEmailView.as_view()),
     path(

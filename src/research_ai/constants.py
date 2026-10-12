@@ -31,16 +31,35 @@ class Region(models.TextChoices):
     ALL_REGIONS = "all_regions", "All Regions"
 
 
-class Gender(models.TextChoices):
-    """Gender preference. Value is snake_case (API/DB), label is display."""
-
-    MALE = "male", "Male"
-    FEMALE = "female", "Female"
-    ALL_GENDERS = "all_genders", "All Genders"
-
-
 # Sentinel US state filter: no state narrowing (matches API / frontend default).
 EXPERT_FINDER_DEFAULT_STATE = "All States"
+
+# Cap on OpenAlex work ids excluded across same-document reruns (URL length).
+EXPERT_FINDER_SEEN_WORK_IDS_CAP = 80
+EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY = "seen_openalex_work_ids"
+
+EXPERT_FINDER_BATCH_CHASE_RATIO = 0.30
+
+# When the default (Bedrock/Claude) agent hits provider content_filtered with
+# zero experts, retry once on this OpenRouter open-weight model.
+EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL = (
+    "openrouter:deepseek/deepseek-v4-flash-0731"
+)
+
+EXPERT_FINDER_MIN_EXPERT_COUNT = 5
+EXPERT_FINDER_MAX_EXPERT_COUNT = 25
+
+
+def expert_finder_web_search_budget(expert_count: int) -> int:
+    """Brave web_search ceiling for one EF run."""
+    n = max(1, int(expert_count))
+    return min(200, max(80, 6 * n))
+
+
+def expert_finder_max_iterations(expert_count: int) -> int:
+    """Agent LLM-turn ceiling for one EF run (scales with target size)."""
+    n = max(1, int(expert_count))
+    return min(150, max(60, 40 + 2 * n))
 
 
 def get_choice_label(value: str, enum_class: type) -> str:
