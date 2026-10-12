@@ -575,8 +575,7 @@ class ExpertFinderService:
                     28,
                 )
                 logger.warning(
-                    "expert finder search_id=%s content_filtered; "
-                    "retrying with %s",
+                    "expert finder search_id=%s content_filtered; retrying with %s",
                     search_id,
                     EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL,
                 )
