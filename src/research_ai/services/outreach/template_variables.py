@@ -44,6 +44,47 @@ def format_expert_name_from_raw(raw: str) -> str:
 VARIABLE_PATTERN = re.compile(r"\{\{(\w+)\.(\w+)\}\}")
 
 
+def extract_placeholder_pairs(*texts: str) -> frozenset[tuple[str, str]]:
+    """Return the set of (entity, field) pairs found across the given texts."""
+    pairs: set[tuple[str, str]] = set()
+    for text in texts:
+        if not text:
+            continue
+        pairs.update(
+            (entity, field) for entity, field in VARIABLE_PATTERN.findall(text)
+        )
+    return frozenset(pairs)
+
+
+def flatten_variable_key(entity: str, field: str) -> str:
+    """Map ResearchHub ``entity.field`` to Instantly ``entity_field``."""
+    return f"{entity}_{field}"
+
+
+def flatten_placeholders_for_instantly(text: str) -> str:
+    """
+    Rewrite ``{{entity.field}}`` placeholders to Instantly ``{{entity_field}}``.
+
+    Instantly custom variables are flat strings; ResearchHub templates use
+    dotted entity.field form.
+    """
+    if not text:
+        return text
+
+    def repl(match: re.Match) -> str:
+        return "{{" + flatten_variable_key(match.group(1), match.group(2)) + "}}"
+
+    return VARIABLE_PATTERN.sub(repl, text)
+
+
+def published_variable_keys(*texts: str) -> list[str]:
+    """Sorted Instantly custom_variable keys from ResearchHub placeholders."""
+    return sorted(
+        flatten_variable_key(entity, field)
+        for entity, field in extract_placeholder_pairs(*texts)
+    )
+
+
 def _build_user_context(user) -> dict[str, str]:
     """Build user entity dict for variable replacement."""
     if not user:

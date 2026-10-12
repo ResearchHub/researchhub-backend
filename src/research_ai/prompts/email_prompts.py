@@ -1,6 +1,10 @@
 from research_ai.constants import EMAIL_TEMPLATE_PROMPT_FILES
 from research_ai.prompts._loader import load_template
 
+TEMPLATE_REWRITE_SYSTEM_PROMPT = load_template(
+    "email_template_rewrite_system.txt"
+).strip()
+
 
 def build_email_prompt(
     expert_name: str,
