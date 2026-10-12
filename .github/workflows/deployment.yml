@@ -28,10 +28,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  package:
-    runs-on: ubuntu-26.04
-    permissions:
-      contents: read
+  build:
     if: |
       github.event_name == 'workflow_dispatch' ||
       (
@@ -39,95 +36,23 @@ jobs:
         github.event.workflow_run.event == 'push' &&
         github.event.workflow_run.conclusion == 'success'
       )
-    outputs:
-      git_sha: ${{ steps.git_sha.outputs.git_sha }}
-      short_git_sha: ${{ steps.git_sha.outputs.short_git_sha }}
-
-    steps:
-      - name: Workflow details
-        env:
-          GIT_REF: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
-        run: |
-          echo "Event: ${{ github.event_name }}"
-          echo "Git reference: $GIT_REF"
-          echo "Environment: ${{ env.DEPLOY_ENV }}"
-
-      - name: Checkout application repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
-
-      - name: Get Git SHA
-        id: git_sha
-        run: |
-          GIT_SHA=$(git rev-parse HEAD)
-          echo "$GIT_SHA" > src/git_hash.txt
-          SHORT_GIT_SHA=${GIT_SHA:0:7}
-          echo "git_sha=$GIT_SHA" >> "$GITHUB_OUTPUT"
-          echo "short_git_sha=$SHORT_GIT_SHA" >> "$GITHUB_OUTPUT"
-          echo "Git SHA: ${SHORT_GIT_SHA}"
-
-      - name: Checkout deploy repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: "researchhub/researchhub-internal-utils"
-          ref: main
-          path: researchhub-internal-utils
-          token: ${{ secrets.PAT }}
-
-      - name: Copy Beanstalk configuration files
-        run: |
-          cp -r researchhub-internal-utils/deploy/backend/config/.ebextensions \
-            researchhub-internal-utils/deploy/backend/config/.platform \
-            researchhub-internal-utils/deploy/backend/config/Procfile \
-            src
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Generate requirements.txt from uv.lock
-        run: |
-          uv export --frozen --no-dev > src/requirements.txt
-
-      - name: Collect static files
-        working-directory: ./src
-        run: |
-          uv run --frozen --no-dev python manage.py collectstatic --noinput
-
-      - name: Generate Beanstalk deployment package
-        run: |
-          mkdir -p target
-          cd src
-          zip -r ../target/deploy.zip . -x '*.git*'
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: "backend-${{ steps.git_sha.outputs.short_git_sha }}"
-          path: target/deploy.zip
-
-  build:
-    needs: package
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/build.yml
     with:
-      git_ref: ${{ needs.package.outputs.git_sha }}
+      git_ref: ${{ github.event.inputs.git_ref || github.event.workflow_run.head_sha }}
     secrets: inherit
 
   migrate:
-    needs: [package, build]
+    needs: build
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/database-migration.yml
     with:
       deploy_env: ${{ github.event.inputs.deploy_env || 'staging' }}
-      git_ref: ${{ needs.package.outputs.git_sha }}
+      git_ref: ${{ needs.build.outputs.git_sha }}
     secrets: inherit
 
   deploy-ecs-api:
