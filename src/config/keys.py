@@ -48,7 +48,6 @@ WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", "")
 WEB3_PROVIDER_URL = os.environ.get("WEB3_PROVIDER_URL", "")
 WEB3_BASE_PROVIDER_URL = os.environ.get("WEB3_BASE_PROVIDER_URL", "")
 
-TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 ANTHROPIC_AWS_WORKSPACE_ID = os.environ.get("ANTHROPIC_AWS_WORKSPACE_ID", "")

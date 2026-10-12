@@ -858,9 +858,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
 
-# Transpose API
-TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
-
 # OpenAlex API
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
 
