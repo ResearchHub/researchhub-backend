@@ -1281,11 +1281,9 @@ class SendEmailViewTests(APITestCase):
         self.assertIn("ResearchHub", from_email)
         self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, from_email)
 
-    @patch("research_ai.tasks.send_outreach_email")
-    def test_send_queued_emails_task_sends_and_updates_status(self, mock_send):
+    def test_send_queued_emails_task_reverts_sending_without_ses(self):
         from research_ai.tasks import send_queued_emails_task
 
-        mock_send.return_value = "ses-msg-id-123"
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. Y",
@@ -1302,10 +1300,8 @@ class SendEmailViewTests(APITestCase):
                 "from_email": None,
             }
         ).get()
-        self.assertEqual(result["sent"], 1)
+        self.assertEqual(result["sent"], 0)
         self.assertEqual(result["failed"], 0)
+        self.assertEqual(result["reverted"], 1)
         email_rec.refresh_from_db()
-        self.assertEqual(email_rec.status, "sent")
-        self.assertEqual(email_rec.channels, [GeneratedEmail.Channel.EMAIL])
-        self.assertEqual(email_rec.ses_message_id, "ses-msg-id-123")
-        mock_send.assert_called_once()
+        self.assertEqual(email_rec.status, "draft")

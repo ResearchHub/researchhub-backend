@@ -6,16 +6,33 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 from django.utils import timezone
 
-from research_ai.models import EmailTemplate, OutreachCampaign, OutreachMailbox
+from research_ai.models import (
+    EmailTemplate,
+    Expert,
+    ExpertSearch,
+    GeneratedEmail,
+    OutreachCampaign,
+    OutreachMailbox,
+    SearchExpert,
+)
+from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.outreach.document_context import (
+    resolve_expert_search_email_document_context,
+)
 from research_ai.services.outreach.instantly_client import (
     DEFAULT_ACCOUNT_DAILY_LIMIT,
     DEFAULT_CAMPAIGN_SCHEDULE,
     InstantlyClient,
     InstantlyNotFoundError,
 )
+from research_ai.services.outreach.mailbox_service import OutreachMailboxService
 from research_ai.services.outreach.template_service import get_template
 from research_ai.services.outreach.template_variables import (
+    build_replacement_context,
+    custom_variables_for_published_keys,
     flatten_placeholders_for_instantly,
+    format_expert_name_from_raw,
+    missing_published_variables,
     published_variable_keys,
 )
 
@@ -24,20 +41,44 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+MAX_LEADS_PER_SEND = 1000
+
 
 class CampaignError(Exception):
-    """Base error for campaign publish/list operations."""
+    """Base error for campaign publish/list/send operations."""
 
 
 class CampaignTemplateNotFoundError(CampaignError):
     """Raised when the shared EmailTemplate does not exist."""
 
 
-class OutreachCampaignService:
-    """Publish and list per-editor Instantly campaigns from shared templates."""
+class CampaignNotFoundError(CampaignError):
+    """Raised when the campaign is missing or not owned by the editor."""
 
-    def __init__(self, *, client: InstantlyClient | None = None):
+
+class CampaignNotReadyError(CampaignError):
+    """Raised when the campaign cannot accept leads yet."""
+
+
+class CampaignValidationError(CampaignError):
+    """Raised when experts or published variables fail validation."""
+
+
+class OutreachCampaignService:
+    """Publish, list, and send per-editor Instantly campaigns from shared templates."""
+
+    def __init__(
+        self,
+        *,
+        client: InstantlyClient | None = None,
+        mailbox_service: OutreachMailboxService | None = None,
+    ):
         self.client = client if client is not None else InstantlyClient()
+        self.mailbox_service = (
+            mailbox_service
+            if mailbox_service is not None
+            else OutreachMailboxService(client=self.client)
+        )
 
     def list_campaigns(self, editor: User):
         """Return the editor's published campaigns, newest first."""
@@ -213,6 +254,171 @@ class OutreachCampaignService:
                 self.client.activate_campaign(campaign.external_campaign_id)
         else:
             self.client.pause_campaign(campaign.external_campaign_id)
+
+    def send_to_experts(
+        self,
+        editor: User,
+        campaign_id: int,
+        *,
+        expert_search_id: int,
+        expert_ids: list[int],
+    ) -> list[GeneratedEmail]:
+        """
+        Bulk-add experts as Instantly leads on an existing published campaign.
+
+        Validates ownership, published variables, and remaining daily capacity.
+        Creates ``GeneratedEmail`` rows in ``SENDING`` (queued with Instantly).
+        """
+        if not expert_ids:
+            raise CampaignValidationError("At least one expert id is required.")
+        if len(expert_ids) > MAX_LEADS_PER_SEND:
+            raise CampaignValidationError(
+                f"At most {MAX_LEADS_PER_SEND} experts can be sent at once."
+            )
+
+        campaign = (
+            OutreachCampaign.objects.select_related("template")
+            .filter(id=campaign_id, editor=editor)
+            .first()
+        )
+        if campaign is None:
+            raise CampaignNotFoundError("Outreach campaign not found.")
+        if not campaign.external_campaign_id:
+            raise CampaignNotReadyError("Campaign has not been published to Instantly.")
+        if campaign.status != OutreachCampaign.Status.ACTIVE:
+            raise CampaignNotReadyError(
+                f"Campaign is not active (status={campaign.status})."
+            )
+
+        try:
+            expert_search = ExpertSearch.objects.select_related("unified_document").get(
+                id=expert_search_id
+            )
+        except ExpertSearch.DoesNotExist as exc:
+            raise CampaignValidationError("Expert search not found.") from exc
+
+        experts = _load_experts_for_search(expert_search, expert_ids)
+        self.mailbox_service.assert_within_daily_capacity(editor, len(experts))
+
+        doc_ctx = resolve_expert_search_email_document_context(expert_search)
+        published_keys = list(campaign.published_variable_keys or [])
+        prepared: list[tuple[Expert, dict, dict[str, str]]] = []
+        for expert in experts:
+            resolved = ExpertDisplay.email_generation_dict(expert)
+            context = build_replacement_context(
+                user=editor,
+                resolved_expert=resolved,
+                rfp_context_dict=doc_ctx.rfp_context_dict,
+                proposal_context_dict=doc_ctx.proposal_context_dict,
+            )
+            missing = missing_published_variables(context, published_keys)
+            if missing:
+                email = (expert.email or "").strip() or f"id={expert.id}"
+                raise CampaignValidationError(
+                    f"Missing published variables for {email}: {', '.join(missing)}."
+                )
+            custom_variables = custom_variables_for_published_keys(
+                context, published_keys
+            )
+            prepared.append((expert, resolved, custom_variables))
+
+        leads = [
+            _instantly_lead_payload(expert, custom_variables)
+            for expert, _resolved, custom_variables in prepared
+        ]
+        result = self.client.add_leads(
+            campaign_id=campaign.external_campaign_id,
+            leads=leads,
+            skip_if_in_workspace=True,
+        )
+        lead_id_by_email = _lead_ids_by_email(result)
+
+        created: list[GeneratedEmail] = []
+        with transaction.atomic():
+            for expert, resolved, _custom in prepared:
+                email = ExpertDisplay.normalize_email(expert.email or "")
+                created.append(
+                    GeneratedEmail.objects.create(
+                        created_by=editor,
+                        expert_search=expert_search,
+                        outreach_campaign=campaign,
+                        expert_name=format_expert_name_from_raw(
+                            resolved.get("name") or ""
+                        ),
+                        expert_title=(expert.academic_title or "").strip(),
+                        expert_affiliation=(expert.affiliation or "").strip(),
+                        expert_email=email,
+                        expertise=(expert.expertise or "").strip(),
+                        email_subject=campaign.published_subject or "",
+                        email_body=campaign.published_body or "",
+                        status=GeneratedEmail.Status.SENDING,
+                        channels=[GeneratedEmail.Channel.EMAIL],
+                        external_lead_id=lead_id_by_email.get(email, ""),
+                    )
+                )
+        return created
+
+
+def _load_experts_for_search(
+    expert_search: ExpertSearch, expert_ids: list[int]
+) -> list[Expert]:
+    """Return experts in request order; all must belong to the search and have email."""
+    unique_ids = list(dict.fromkeys(expert_ids))
+    linked = {
+        se.expert_id: se.expert
+        for se in SearchExpert.objects.filter(
+            expert_search=expert_search,
+            expert_id__in=unique_ids,
+        ).select_related("expert")
+    }
+    missing_ids = [eid for eid in unique_ids if eid not in linked]
+    if missing_ids:
+        raise CampaignValidationError(
+            "Experts not found in search: "
+            + ", ".join(str(eid) for eid in missing_ids)
+            + "."
+        )
+
+    experts: list[Expert] = []
+    for eid in unique_ids:
+        expert = linked[eid]
+        if not ExpertDisplay.normalize_email(expert.email or ""):
+            raise CampaignValidationError(
+                f"Expert id={expert.id} has no email address."
+            )
+        experts.append(expert)
+    return experts
+
+
+def _instantly_lead_payload(expert: Expert, custom_variables: dict[str, str]) -> dict:
+    email = ExpertDisplay.normalize_email(expert.email or "")
+    return {
+        "email": email,
+        "first_name": (expert.first_name or "").strip(),
+        "last_name": (expert.last_name or "").strip(),
+        "company_name": (expert.affiliation or "").strip(),
+        "custom_variables": {
+            key: (value if value is not None else "")
+            for key, value in custom_variables.items()
+        },
+    }
+
+
+def _lead_ids_by_email(result: dict | None) -> dict[str, str]:
+    if not isinstance(result, dict):
+        return {}
+    created = result.get("created_leads") or []
+    mapping: dict[str, str] = {}
+    if not isinstance(created, list):
+        return mapping
+    for row in created:
+        if not isinstance(row, dict):
+            continue
+        email = ExpertDisplay.normalize_email(str(row.get("email") or ""))
+        lead_id = row.get("id")
+        if email and lead_id is not None and str(lead_id).strip():
+            mapping[email] = str(lead_id).strip()
+    return mapping
 
 
 def _snapshot_changed(

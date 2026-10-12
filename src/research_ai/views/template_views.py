@@ -1,5 +1,6 @@
+from django.conf import settings
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -8,14 +9,20 @@ from research_ai.serializers import (
     EmailTemplateCreateSerializer,
     EmailTemplateSerializer,
     EmailTemplateUpdateSerializer,
+    GeneratedEmailSerializer,
+    OutreachCampaignSendSerializer,
     OutreachCampaignSerializer,
 )
 from research_ai.services.outreach.campaign_service import (
     CampaignError,
+    CampaignNotFoundError,
+    CampaignNotReadyError,
     CampaignTemplateNotFoundError,
+    CampaignValidationError,
     OutreachCampaignService,
 )
 from research_ai.services.outreach.instantly_client import InstantlyAPIError
+from research_ai.services.outreach.mailbox_service import InsufficientDailyCapacityError
 from research_ai.services.outreach.template_rewrite_service import (
     PlaceholderMismatchError,
     TemplateNotFoundError,
@@ -29,6 +36,7 @@ from research_ai.services.outreach.template_service import (
     list_templates,
     update_template,
 )
+from research_ai.services.outreach.webhook_service import InstantlyWebhookService
 from user.permissions import IsModerator, UserIsEditor
 
 
@@ -256,3 +264,112 @@ class OutreachCampaignListView(APIView):
                 "offset": offset,
             }
         )
+
+
+class OutreachCampaignSendView(APIView):
+    """
+    POST /api/research_ai/expert-finder/outreach-campaigns/<campaign_id>/send/
+    Bulk-add experts as Instantly leads on a published campaign.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def post(self, request, campaign_id):
+        try:
+            cid = int(campaign_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Invalid campaign ID."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ser = OutreachCampaignSendSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        try:
+            emails = OutreachCampaignService().send_to_experts(
+                request.user,
+                cid,
+                expert_search_id=data["expert_search_id"],
+                expert_ids=list(data["expert_ids"]),
+            )
+        except CampaignNotFoundError:
+            return Response(
+                {"detail": "Outreach campaign not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except InsufficientDailyCapacityError as exc:
+            return Response(
+                {
+                    "detail": str(exc),
+                    "remaining": exc.remaining,
+                    "requested": exc.requested,
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        except (CampaignNotReadyError, CampaignValidationError) as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except (CampaignError, InstantlyAPIError) as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        out = GeneratedEmailSerializer(emails, many=True)
+        return Response(
+            {"emails": out.data, "queued": len(emails)},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class InstantlyWebhookView(APIView):
+    """
+    POST /api/research_ai/expert-finder/instantly/webhook/
+    Public Instantly webhook receiver; authenticated via shared secret.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        if not _instantly_webhook_authorized(request):
+            return Response(
+                {"detail": "Unauthorized"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        payload = request.data
+        if not isinstance(payload, dict):
+            return Response(
+                {"detail": "Invalid payload"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        disposition = InstantlyWebhookService().handle_event(payload)
+        return Response({"status": "ok", "disposition": disposition})
+
+
+def _instantly_webhook_authorized(request) -> bool:
+    secret = getattr(settings, "INSTANTLY_WEBHOOK_SECRET", "") or ""
+    if not secret:
+        return False
+
+    auth = request.headers.get("Authorization") or ""
+    if auth.startswith("Bearer "):
+        token = auth[len("Bearer ") :].strip()
+        return bool(token) and token == secret
+
+    header_secret = (
+        request.headers.get("X-Instantly-Webhook-Secret")
+        or request.headers.get("X-Webhook-Secret")
+        or ""
+    ).strip()
+    return bool(header_secret) and header_secret == secret
