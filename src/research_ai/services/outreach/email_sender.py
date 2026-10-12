@@ -2,6 +2,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+SES_OUTREACH_DISABLED_DETAIL = (
+    "Expert finder outreach via SES is disabled; use Instantly campaigns."
+)
+
 
 class ExpertFinderOutreachDisabledError(Exception):
     """Raised when expert-finder SES outreach sending is disabled."""
@@ -27,6 +31,4 @@ def send_outreach_email(
         "Expert finder SES outreach disabled; refusing send to %s",
         to_email,
     )
-    raise ExpertFinderOutreachDisabledError(
-        "Expert finder outreach via SES is disabled; use Instantly campaigns."
-    )
+    raise ExpertFinderOutreachDisabledError(SES_OUTREACH_DISABLED_DETAIL)

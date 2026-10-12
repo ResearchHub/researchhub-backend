@@ -61,10 +61,9 @@ def _get_or_create_invite_search(*, grant, inviter) -> ExpertSearch:
 def invite_applicants(*, grant, inviter, emails: list[str]) -> InviteResult:
     """Create Expert + GeneratedEmail rows (status=DRAFT) for each email.
 
-    The caller marks all created drafts SENDING when they fit under the daily
-    quota and enqueues ``send_queued_emails_task``. ``skipped_existing`` lists
-    emails that already have a SENT or in-flight invite on this grant so we
-    don't email anyone twice.
+    SES enqueue is retired; callers keep drafts as DRAFT for the Instantly
+    campaign send path. ``skipped_existing`` lists emails that already have a
+    SENT or in-flight invite on this grant so we don't create duplicates.
     """
     subject, body = _render_email(grant=grant, inviter=inviter)
     search = _get_or_create_invite_search(grant=grant, inviter=inviter)

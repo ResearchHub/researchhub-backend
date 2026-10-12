@@ -1,7 +1,6 @@
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -1094,29 +1093,6 @@ class PreviewEmailViewTests(APITestCase):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.url = "/api/research_ai/expert-finder/emails/preview/"
 
-    def test_preview_user_no_email_returns_400(self):
-        """When request.user has no email, preview returns 400."""
-        user = create_random_authenticated_user("noemail", moderator=True)
-        user.email = ""
-        user.save(update_fields=["email"])
-        email_rec = GeneratedEmail.objects.create(
-            created_by=user,
-            expert_name="Dr. X",
-            email_subject="Subj",
-            email_body="Body",
-        )
-        self.client.force_authenticate(user)
-        response = self.client.post(
-            self.url,
-            {
-                "generated_email_ids": [email_rec.id],
-                "reply_to": ["replies@example.com"],
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("email", response.json().get("detail", "").lower())
-
     def test_preview_without_reply_to_returns_400(self):
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
@@ -1133,81 +1109,6 @@ class PreviewEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("reply_to", response.json())
 
-    @patch("research_ai.views.email_views.send_outreach_email")
-    def test_preview_by_ids_sends_to_current_user(self, mock_send):
-        reply_to_emails = ["sender-replies@example.com"]
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. X",
-            email_subject="Subj",
-            email_body="Body text",
-        )
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url,
-            {
-                "generated_email_ids": [email_rec.id],
-                "reply_to": reply_to_emails,
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json().get("sent"), 1)
-        mock_send.assert_called_once()
-        call_kw = mock_send.call_args[1]
-        self.assertEqual(call_kw["reply_to"], reply_to_emails)
-        self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, call_kw["from_email"])
-
-    @patch("research_ai.views.email_views.send_outreach_email")
-    def test_excludes_suppressed_previews_from_sent_count(
-        self, mock_send: MagicMock
-    ) -> None:
-        """Report a skipped preview without claiming delivery or returning an error."""
-        # Arrange
-        mock_send.return_value = None
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            email_subject="Subject",
-            email_body="Body",
-        )
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.post(
-            self.url,
-            {
-                "generated_email_ids": [email_rec.id],
-                "reply_to": ["reply@example.com"],
-            },
-            format="json",
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json(), {"sent": 0})
-
-    @patch("research_ai.views.email_views.send_outreach_email")
-    def test_preview_accepts_multiple_reply_to_addresses(self, mock_send):
-        reply_to_emails = ["reply@example.com", "other@example.com"]
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. X",
-            email_subject="Subj",
-            email_body="Body text",
-        )
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url,
-            {
-                "generated_email_ids": [email_rec.id],
-                "reply_to": reply_to_emails,
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        call_kw = mock_send.call_args[1]
-        self.assertEqual(call_kw["reply_to"], reply_to_emails)
-
     def test_preview_with_empty_reply_to_returns_400(self):
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
@@ -1223,6 +1124,30 @@ class PreviewEmailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("reply_to", response.json())
+
+    def test_preview_ses_path_returns_410(self):
+        # Arrange
+        email_rec = GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Dr. X",
+            email_subject="Subj",
+            email_body="Body text",
+        )
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {
+                "generated_email_ids": [email_rec.id],
+                "reply_to": ["sender-replies@example.com"],
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_410_GONE)
+        self.assertIn("Instantly", response.json().get("detail", ""))
 
 
 class SendEmailViewTests(APITestCase):
@@ -1249,9 +1174,8 @@ class SendEmailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("reply_to", response.json())
 
-    @patch("research_ai.views.email_views.send_queued_emails_task")
-    def test_send_queues_emails_and_returns_immediately(self, mock_task):
-        reply_to_emails = ["reply@example.com"]
+    def test_send_ses_path_returns_410_and_leaves_draft(self):
+        # Arrange
         email_rec = GeneratedEmail.objects.create(
             created_by=self.moderator,
             expert_name="Dr. Y",
@@ -1261,25 +1185,22 @@ class SendEmailViewTests(APITestCase):
             status="draft",
         )
         self.client.force_authenticate(self.moderator)
+
+        # Act
         response = self.client.post(
             self.url,
             {
                 "generated_email_ids": [email_rec.id],
-                "reply_to": reply_to_emails,
+                "reply_to": ["reply@example.com"],
             },
             format="json",
         )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json().get("sent"), 1)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_410_GONE)
+        self.assertIn("Instantly", response.json().get("detail", ""))
         email_rec.refresh_from_db()
-        self.assertEqual(email_rec.status, "sending")
-        mock_task.delay.assert_called_once()
-        call_kw = mock_task.delay.call_args[1]
-        self.assertEqual(call_kw["generated_email_ids"], [email_rec.id])
-        self.assertEqual(call_kw["reply_to"], reply_to_emails)
-        from_email = call_kw["from_email"]
-        self.assertIn("ResearchHub", from_email)
-        self.assertIn(settings.EXPERT_FINDER_FROM_EMAIL, from_email)
+        self.assertEqual(email_rec.status, "draft")
 
     def test_send_queued_emails_task_reverts_sending_without_ses(self):
         from research_ai.tasks import send_queued_emails_task
