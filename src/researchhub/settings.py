@@ -422,7 +422,13 @@ DATABASES = {
     }
 }
 
-if ELASTIC_BEANSTALK:
+CELERY_POOL = os.environ.get("CELERY_POOL") or "prefork"
+CELERY_PREFORK_WORKER = CELERY_WORKER and CELERY_POOL in ("prefork", "processes")
+
+# Prefork workers create their own database connections per task invocation,
+# so no connection pooling must be configured for prefork workers.
+# Otherwise every task would create a new connection pool.
+if ELASTIC_BEANSTALK and not CELERY_PREFORK_WORKER:
     # Connection pooling
     # See: https://docs.djangoproject.com/en/5.1/ref/databases/#connection-pool
     # See psycopg3 connection pool docs:
