@@ -16,7 +16,7 @@ from invite.serializers import DynamicOrganizationInvitationSerializer
 from note.models import Note, NoteTemplate
 from note.serializers import DynamicNoteSerializer, NoteTemplateSerializer
 from researchhub.pagination import MediumPageLimitPagination
-from researchhub_access_group.constants import ADMIN, MEMBER, NO_ACCESS
+from researchhub_access_group.constants import ADMIN, MEMBER
 from researchhub_access_group.models import Permission
 from researchhub_access_group.permissions import IsOrganizationAdmin, IsOrganizationUser
 from researchhub_document.models import ResearchhubPost
@@ -354,22 +354,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 unified_document__is_removed=False
             )
 
-        notes = (
-            notes.filter(
-                (
-                    Q(unified_document__permissions__user=user)
-                    & ~Q(unified_document__permissions__access_type=NO_ACCESS)
-                )
-                | (
-                    ~Q(unified_document__permissions__access_type=NO_ACCESS)
-                    & Q(
-                        unified_document__permissions__organization__permissions__user=user
-                    )
-                )
-            )
-            .distinct()
-            .order_by(self._get_org_notes_ordering(request))
-        )
+        ordering = self._get_org_notes_ordering(request)
+        notes = notes.accessible_to(user).order_by(ordering)
 
         status = request.query_params.get("status", "").upper()
         if status == "DRAFT":
@@ -387,9 +373,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             notes = notes.filter(document_type__in=note_types)
 
         # The post's unified document is what DynamicPostSerializer checks
-        # before serializing it, so join both rather than query per note.
+        # before serializing it, and the permissions and invitations are what
+        # `access` is decided from: joined or prefetched, none queried per note.
         notes = notes.select_related("post__unified_document").prefetch_related(
             "unified_document__permissions",
+            "invited_users",
         )
         page = self.paginate_queryset(notes)
         context = self._get_org_notes_context()

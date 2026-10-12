@@ -207,7 +207,6 @@ INSTALLED_APPS = [
     "django_celery_results",
     # Custom apps
     "analytics",
-    "personalize",
     "discussion",
     "feed",
     "institution",
@@ -422,7 +421,13 @@ DATABASES = {
     }
 }
 
-if ELASTIC_BEANSTALK:
+CELERY_POOL = os.environ.get("CELERY_POOL") or "prefork"
+CELERY_PREFORK_WORKER = CELERY_WORKER and CELERY_POOL in ("prefork", "processes")
+
+# Prefork workers create their own database connections per task invocation,
+# so no connection pooling must be configured for prefork workers.
+# Otherwise every task would create a new connection pool.
+if ELASTIC_BEANSTALK and not CELERY_PREFORK_WORKER:
     # Connection pooling
     # See: https://docs.djangoproject.com/en/5.1/ref/databases/#connection-pool
     # See psycopg3 connection pool docs:
@@ -940,54 +945,6 @@ RESEARCHHUB_JOURNAL_ID = os.environ.get(
 PAPER_INGESTION_ENABLED = (
     os.environ.get("PAPER_INGESTION_ENABLED", "false").lower() == "true"
 )
-
-# AWS Personalize
-if PRODUCTION:
-    AWS_PERSONALIZE_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:campaign/personalized-recs"
-    )
-    AWS_PERSONALIZE_DATASET_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:"
-        "dataset/prod-dataset-group-12-17/ITEMS"
-    )
-    AWS_PERSONALIZE_EVENT_TRACKER_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:event-tracker/dae2cc98"
-    )
-    AWS_PERSONALIZE_TRACKING_ID = "53602814-318f-497a-a717-6f6c8595394d"
-    AWS_PERSONALIZE_TRENDING_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:campaign/trending-recs"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS = (
-        "arn:aws:personalize:us-west-2:975049929542:filter/recent-preprints"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS_PER_HUB = (
-        "arn:aws:personalize:us-west-2:975049929542:filter/recent-preprints-per-hub"
-    )
-else:
-    AWS_PERSONALIZE_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:058264226692:campaign/Personalization"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_GTE_DATE = (
-        "arn:aws:personalize:us-west-2:058264226692:filter/filter-gte-date"
-    )
-    AWS_PERSONALIZE_DATASET_ARN = (
-        "arn:aws:personalize:us-west-2:058264226692:"
-        "dataset/staging-researchhub-recommendations/ITEMS"
-    )
-    AWS_PERSONALIZE_EVENT_TRACKER_ARN = (
-        "arn:aws:personalize:us-west-2:058264226692:"
-        "event-tracker/977ca9c1-8518-4408-bb82-efaa0e744c15"
-    )
-    AWS_PERSONALIZE_TRACKING_ID = "977ca9c1-8518-4408-bb82-efaa0e744c15"
-    AWS_PERSONALIZE_TRENDING_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:058264226692:campaign/trending"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS = (
-        "arn:aws:personalize:us-west-2:058264226692:filter/recent-preprints"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS_PER_HUB = (
-        "arn:aws:personalize:us-west-2:058264226692:filter/recent-preprints-per-hub"
-    )
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", getattr(keys, "GITHUB_TOKEN", ""))
 

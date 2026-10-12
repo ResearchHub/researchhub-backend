@@ -1,16 +1,35 @@
 import json
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
+from django.db.models import Exists, OuterRef
 
 from note.related_models.note_author_model import NoteAuthor
 from notification.services import NotificationService
+from researchhub_access_group.constants import NO_ACCESS
+from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import DOCUMENT_TYPES
 from user.models import Author, Organization, User
 from utils.models import DefaultModel
 
 
+class NoteQuerySet(models.QuerySet):
+    def accessible_to(self, user) -> "NoteQuerySet":
+        """Notes with a permission for the user or their organization, not NO_ACCESS."""
+        document_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
+        on_document = Permission.objects.filter(
+            content_type=document_type, object_id=OuterRef("unified_document_id")
+        ).exclude(access_type=NO_ACCESS)
+        return self.filter(
+            Exists(on_document.filter(user=user))
+            | Exists(on_document.filter(organization__permissions__user=user))
+        )
+
+
 class Note(DefaultModel):
+    objects = NoteQuerySet.as_manager()
+
     authors = models.ManyToManyField(
         Author,
         related_name="authored_notes",

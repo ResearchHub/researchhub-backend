@@ -79,7 +79,7 @@ _TOOL_IMAGES_NOTE = "[Images returned by tool result {position} above (id {id}).
 # provider verbatim, so omit them for those models.
 _NO_SAMPLING_PARAMS = (
     "openai/gpt-5",
-    "openai/gpt-6-",
+    "openai/gpt-6",
     "opus-4-7",
     "opus-4-8",
     "opus-4.7",
