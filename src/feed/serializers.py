@@ -720,6 +720,9 @@ class CommentSerializer(serializers.Serializer):
     comment_content_json = serializers.JSONField()
     comment_content_type = serializers.CharField()
     comment_type = serializers.CharField()
+    # Feed entries carry their own action date, but a reply's parent_comment does
+    # not, so without this clients have no date to show for the comment replied to.
+    created_date = serializers.DateTimeField()
     document_type = serializers.SerializerMethodField()
     hub = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
