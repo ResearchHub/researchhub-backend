@@ -140,22 +140,7 @@ class NoteViewSet(ModelViewSet):
         return self.get_paginated_response(serializer_data)
 
     def _get_accessible_notes(self, user) -> QuerySet[Note]:
-        return (
-            self.queryset.filter(
-                (
-                    Q(unified_document__permissions__user=user)
-                    & ~Q(unified_document__permissions__access_type=NO_ACCESS)
-                )
-                | (
-                    Q(
-                        unified_document__permissions__organization__permissions__user=user
-                    )
-                    & ~Q(unified_document__permissions__access_type=NO_ACCESS)
-                )
-            )
-            .distinct()
-            .order_by("-created_date")
-        )
+        return self.queryset.accessible_to(user).order_by("-created_date")
 
     def _filter_accessible_notes(
         self, notes: QuerySet[Note], request
