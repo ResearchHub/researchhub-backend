@@ -27,12 +27,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env || 'staging' }}
   cancel-in-progress: false
 
-env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
-  PROD_DEPLOY_ROLE_ARN: ${{ vars.PROD_DEPLOY_ROLE_ARN }}
-  DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
-
 jobs:
   package:
     runs-on: ubuntu-26.04
