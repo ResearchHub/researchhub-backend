@@ -55,7 +55,7 @@ jobs:
       git_ref: ${{ needs.build.outputs.git_sha }}
     secrets: inherit
 
-  deploy-ecs-api:
+  deploy-api:
     needs: migrate
     permissions:
       contents: read
@@ -67,7 +67,7 @@ jobs:
       service: api
     secrets: inherit
 
-  deploy-ecs-celery-beat:
+  deploy-celery-beat:
     needs: migrate
     permissions:
       contents: read
@@ -79,7 +79,7 @@ jobs:
       service: celery-beat
     secrets: inherit
 
-  deploy-ecs-celery-worker:
+  deploy-celery-worker:
     needs: migrate
     permissions:
       contents: read
@@ -91,7 +91,7 @@ jobs:
       service: celery-worker
     secrets: inherit
 
-  deploy-ecs-celery-worker-lite:
+  deploy-celery-worker-lite:
     needs: migrate
     permissions:
       contents: read
@@ -103,7 +103,7 @@ jobs:
       service: celery-worker-lite
     secrets: inherit
 
-  deploy-ecs-celery-flower:
+  deploy-celery-flower:
     needs: migrate
     permissions:
       contents: read
