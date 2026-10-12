@@ -119,6 +119,7 @@ class NoteViewSet(ModelViewSet):
             "unified_document",
         ).prefetch_related(
             "unified_document__permissions",
+            "invited_users",
         )
 
         page = self.paginate_queryset(notes)

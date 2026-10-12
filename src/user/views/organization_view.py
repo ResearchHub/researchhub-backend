@@ -387,9 +387,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             notes = notes.filter(document_type__in=note_types)
 
         # The post's unified document is what DynamicPostSerializer checks
-        # before serializing it, so join both rather than query per note.
+        # before serializing it, and the permissions and invitations are what
+        # `access` is decided from: joined or prefetched, none queried per note.
         notes = notes.select_related("post__unified_document").prefetch_related(
             "unified_document__permissions",
+            "invited_users",
         )
         page = self.paginate_queryset(notes)
         context = self._get_org_notes_context()
