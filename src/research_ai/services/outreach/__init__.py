@@ -2,6 +2,8 @@
 
 - ``email_generator`` -- LLM generation of outreach emails for an expert.
 - ``email_sender`` -- SES send of a finished email.
+- ``instantly_client`` -- Instantly API v2 HTTP client.
+- ``mailbox_service`` -- connect/detach Gmail accounts and capacity checks.
 - ``template_service`` -- CRUD/rendering of user-defined email templates.
 - ``template_variables`` -- ``{{entity.field}}`` variable substitution (see
   ``EMAIL_TEMPLATE_VARIABLES.md`` in this directory).
