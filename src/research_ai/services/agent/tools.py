@@ -174,7 +174,7 @@ class Toolset:
             tool.is_terminal and not is_error,
         )
 
-    def render_specs(self, provider: "LLMProvider") -> Any:
+    def render_specs(self, provider: LLMProvider) -> Any:
         """Render this toolset to ``provider``'s wire format."""
         return provider.render_tools(self.tools)
 

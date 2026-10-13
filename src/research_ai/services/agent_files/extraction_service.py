@@ -51,7 +51,7 @@ class OcrConfig:
     max_edge_px: int = 2400
 
     @classmethod
-    def from_settings(cls) -> "OcrConfig":
+    def from_settings(cls) -> OcrConfig:
         defaults = cls()
         return cls(
             **{
