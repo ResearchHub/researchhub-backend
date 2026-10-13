@@ -1088,141 +1088,40 @@ class BulkGenerateEmailViewTests(APITestCase):
         mock_task.delay.assert_not_called()
 
 
-class PreviewEmailViewTests(APITestCase):
+class RemovedSesEmailRouteTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
-        self.url = "/api/research_ai/expert-finder/emails/preview/"
 
-    def test_preview_without_reply_to_returns_400(self):
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. X",
-            email_subject="Subj",
-            email_body="Body",
-        )
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url,
-            {"generated_email_ids": [email_rec.id]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("reply_to", response.json())
-
-    def test_preview_with_empty_reply_to_returns_400(self):
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. X",
-            email_subject="Subj",
-            email_body="Body",
-        )
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url,
-            {"generated_email_ids": [email_rec.id], "reply_to": []},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("reply_to", response.json())
-
-    def test_preview_ses_path_returns_410(self):
+    def test_legacy_preview_route_returns_404(self):
         # Arrange
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. X",
-            email_subject="Subj",
-            email_body="Body text",
-        )
         self.client.force_authenticate(self.moderator)
 
         # Act
         response = self.client.post(
-            self.url,
+            "/api/research_ai/expert-finder/emails/preview/",
             {
-                "generated_email_ids": [email_rec.id],
+                "generated_email_ids": [1],
                 "reply_to": ["sender-replies@example.com"],
             },
             format="json",
         )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_410_GONE)
-        self.assertIn("Instantly", response.json().get("detail", ""))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-
-class SendEmailViewTests(APITestCase):
-    def setUp(self):
-        self.moderator = create_random_authenticated_user("mod", moderator=True)
-        self.url = "/api/research_ai/expert-finder/emails/send/"
-
-    def test_send_without_reply_to_returns_400(self):
-        """Send endpoint requires reply_to in request body."""
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. Y",
-            expert_email="expert@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status="draft",
-        )
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url,
-            {"generated_email_ids": [email_rec.id]},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("reply_to", response.json())
-
-    def test_send_ses_path_returns_410_and_leaves_draft(self):
+    def test_legacy_send_route_returns_404(self):
         # Arrange
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. Y",
-            expert_email="expert@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status="draft",
-        )
         self.client.force_authenticate(self.moderator)
 
         # Act
         response = self.client.post(
-            self.url,
+            "/api/research_ai/expert-finder/emails/send/",
             {
-                "generated_email_ids": [email_rec.id],
+                "generated_email_ids": [1],
                 "reply_to": ["reply@example.com"],
             },
             format="json",
         )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_410_GONE)
-        self.assertIn("Instantly", response.json().get("detail", ""))
-        email_rec.refresh_from_db()
-        self.assertEqual(email_rec.status, "draft")
-
-    def test_send_queued_emails_task_reverts_sending_without_ses(self):
-        from research_ai.tasks import send_queued_emails_task
-
-        email_rec = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_name="Dr. Y",
-            expert_email="expert@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status=GeneratedEmail.Status.SENDING,
-        )
-        result = send_queued_emails_task.apply(
-            kwargs={
-                "generated_email_ids": [email_rec.id],
-                "reply_to": None,
-                "cc": None,
-                "from_email": None,
-            }
-        ).get()
-        self.assertEqual(result["sent"], 0)
-        self.assertEqual(result["failed"], 0)
-        self.assertEqual(result["reverted"], 1)
-        email_rec.refresh_from_db()
-        self.assertEqual(email_rec.status, "draft")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

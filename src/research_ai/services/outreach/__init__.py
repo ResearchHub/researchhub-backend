@@ -1,7 +1,6 @@
 """Expert outreach: generating, templating, and sending emails to experts.
 
 - ``email_generator`` -- LLM generation of outreach emails for an expert.
-- ``email_sender`` -- legacy SES send (disabled; Instantly owns outreach).
 - ``instantly_client`` -- Instantly API v2 HTTP client.
 - ``mailbox_service`` -- connect/detach Gmail accounts and capacity checks.
 - ``campaign_service`` -- publish campaigns and bulk-add Instantly leads.
