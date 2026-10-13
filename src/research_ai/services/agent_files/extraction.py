@@ -14,6 +14,7 @@ import io
 import json
 import math
 import os
+import re
 import resource
 import subprocess
 import sys
@@ -80,6 +81,7 @@ OCR_NOTE = "[Text on this page was read by OCR and may contain errors.]"
 IMAGE_OCR_NOTE = "[Text in this image was read by OCR and may contain errors.]"
 # Written where a Word document has an image; N counts the images kept from it.
 EMBEDDED_IMAGE_MARKER = "[Image {number}]"
+_EMBEDDED_IMAGE_MARKER_RE = re.compile(r"\[Image (\d+)\]")
 # Written where it has one that is not kept: its format, its size, or one too many.
 EMBEDDED_IMAGE_NOT_SHOWN = "[An image here could not be shown.]"
 
@@ -680,12 +682,14 @@ def _docx_text(data: bytes, max_chars: int, max_edge_px: int, max_bytes: int) ->
         raise UnreadableFileError(
             "This file could not be read as a Word document (.docx)."
         ) from exc
+    kept, truncated = images.kept, len(text) > max_chars
     # Cut here so no more than max_chars reaches the unlimited parent.
-    return {
-        "text": text[:max_chars],
-        "truncated": len(text) > max_chars,
-        "images": images.kept,
-    }
+    text = text[:max_chars]
+    if truncated:
+        # Images first marked past the cut go with it: the text names none of them.
+        marked = map(int, _EMBEDDED_IMAGE_MARKER_RE.findall(text))
+        kept = kept[: max(marked, default=0)]
+    return {"text": text, "truncated": truncated, "images": kept}
 
 
 def _plain_text(data: bytes) -> str:

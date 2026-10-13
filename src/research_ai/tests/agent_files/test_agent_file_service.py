@@ -443,17 +443,22 @@ class AgentFileServiceTests(TestCase):
         )
 
     def test_process_fails_a_word_file_whose_images_cannot_be_stored(self):
-        # Arrange
-        file = self._word_with_images((400, 300))
-        self.storage.write.side_effect = RuntimeError("s3 unavailable")
+        # Arrange: the first image is stored, the second is not.
+        file = self._word_with_images((400, 300), (200, 100))
+        self.storage.write.side_effect = [None, RuntimeError("s3 unavailable")]
 
         # Act
         status = self.service.process(file.id)
 
         # Assert
         file.refresh_from_db()
+        prefix = file.storage_key.rsplit("/", 1)[0]
         self.assertEqual(status, AgentFile.Status.FAILED)
         self.assertEqual(file.text, "")
+        self.assertCountEqual(
+            self.storage.delete.call_args_list,
+            [call(f"{prefix}/pages/1.jpg"), call(file.storage_key)],
+        )
 
     @override_settings(MISTRAL_API_KEY="")
     def test_process_keeps_an_image_nothing_was_read_in(self):

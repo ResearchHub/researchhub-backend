@@ -914,6 +914,26 @@ class DocxExtractionTests(TestCase):
         self.assertEqual(extracted.text, "Aims\n\nPlan")
         self.assertTrue(extracted.truncated)
 
+    def test_images_whose_markers_were_cut_are_not_kept(self):
+        # Arrange: the cut falls inside the second image's marker.
+        body = f"<w:p>{picture('rId1')}</w:p>" + paragraph("Aims")
+        body += f"<w:p>{picture('rId2')}</w:p><w:p>{picture('rId3')}</w:p>"
+        parts = picture_parts(
+            {
+                "rId1": image_bytes((400, 300)),
+                "rId2": image_bytes((200, 100)),
+                "rId3": image_bytes((100, 50)),
+            }
+        )
+
+        # Act
+        extracted = extract_text(docx_bytes(body, parts=parts), DOCX, max_chars=25)
+
+        # Assert
+        self.assertEqual(extracted.text, "[Image 1]\n\nAims\n\n[Image 2")
+        self.assertTrue(extracted.truncated)
+        self.assertEqual([image.width for image in extracted.embedded_images], [400])
+
     def test_a_document_of_empty_tables_is_refused(self):
         # Arrange
         data = docx_bytes(

@@ -584,8 +584,14 @@ class AgentFileService:
         if not images or not processing.update(embedded_image_count=len(images)):
             return []
         keys = [page_image_key(file, image.page) for image in images]
-        for key, image in zip(keys, images, strict=True):
-            self.storage.write(key, image.data, content_type=image.media_type)
+        for stored, (key, image) in enumerate(zip(keys, images, strict=True)):
+            try:
+                self.storage.write(key, image.data, content_type=image.media_type)
+            except Exception:
+                # The file fails now; a purge would not reach these for a day.
+                for written in keys[:stored]:
+                    self._delete_object(written)
+                raise
         return keys
 
     def _fail(self, file: AgentFile, message: str) -> bool:
