@@ -37,6 +37,8 @@ from research_ai.services.usage_budget.config import (
     TierPolicy,
     tier_policies,
 )
+from user.constants.gatekeeper_constants import RESEARCH_AI_INVITED
+from user.related_models.gatekeeper_model import Gatekeeper
 
 logger = logging.getLogger(__name__)
 
@@ -132,12 +134,30 @@ def resolve_ai_tier(user) -> TierPolicy:
         callable(elevated_role) and elevated_role()
     ):
         return policies["privileged"]
-    if (
-        getattr(user, "pk", None)
-        and Expert.objects.filter(registered_user=user).exists()
+    if getattr(user, "pk", None) and (
+        Expert.objects.filter(registered_user=user).exists()
+        or has_manual_invited_grant(user)
     ):
         return policies["invited"]
     return policies["default"]
+
+
+def has_manual_invited_grant(user) -> bool:
+    return Gatekeeper.objects.filter(user=user, type=RESEARCH_AI_INVITED).exists()
+
+
+def grant_invited_tier(user) -> bool:
+    """Put ``user`` on the invited tier by hand; False if already granted."""
+    _grant, created = Gatekeeper.objects.get_or_create(
+        user=user, type=RESEARCH_AI_INVITED, defaults={"email": user.email}
+    )
+    return created
+
+
+def revoke_invited_tier(user) -> bool:
+    """Remove a manual grant; a registered expert stays on the invited tier."""
+    deleted, _ = Gatekeeper.objects.filter(user=user, type=RESEARCH_AI_INVITED).delete()
+    return bool(deleted)
 
 
 def _utc_window(now: datetime | None = None) -> tuple[datetime, datetime]:
