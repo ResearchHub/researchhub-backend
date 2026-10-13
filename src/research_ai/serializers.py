@@ -762,49 +762,6 @@ class BulkGenerateEmailRequestSerializer(serializers.Serializer):
         return attrs
 
 
-class PreviewEmailRequestSerializer(serializers.Serializer):
-    """
-    Request for POST /expert-finder/emails/preview/.
-
-    Legacy SES preview endpoint (returns 410; use Instantly campaigns).
-    """
-
-    generated_email_ids = serializers.ListField(
-        child=serializers.IntegerField(min_value=1),
-        min_length=1,
-        max_length=100,
-    )
-    reply_to = serializers.ListField(
-        child=serializers.EmailField(),
-        min_length=1,
-        max_length=10,
-    )
-
-
-class SendEmailRequestSerializer(serializers.Serializer):
-    """
-    Request for POST /expert-finder/emails/send/.
-
-    Legacy SES send endpoint (returns 410; use Instantly campaigns).
-    """
-
-    generated_email_ids = serializers.ListField(
-        child=serializers.IntegerField(min_value=1),
-        min_length=1,
-        max_length=100,
-    )
-    reply_to = serializers.ListField(
-        child=serializers.EmailField(),
-        min_length=1,
-        max_length=10,
-    )
-    cc = serializers.ListField(
-        child=serializers.EmailField(),
-        required=False,
-        default=list,
-    )
-
-
 class InviteRfpApplicantsSerializer(serializers.Serializer):
     """Request for POST /expert-finder/rfp/<grant_id>/invite-applicants/."""
 
@@ -881,7 +838,6 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "opened_at",
             "open_count",
             "bounced_at",
-            "complained_at",
             "outreach_campaign",
             "external_lead_id",
             "sender_account",
@@ -897,7 +853,6 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "opened_at",
             "open_count",
             "bounced_at",
-            "complained_at",
             "outreach_campaign",
             "external_lead_id",
             "sender_account",

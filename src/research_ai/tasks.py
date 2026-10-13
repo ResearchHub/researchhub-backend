@@ -603,35 +603,3 @@ def process_bulk_generate_emails_task(
         logger.exception("Bulk generate task failed")
         _mark_generated_emails_failed(generated_email_ids)
         raise
-
-
-@app.task(bind=True)
-def send_queued_emails_task(
-    self,
-    generated_email_ids: list[int],
-    reply_to: list[str] | None = None,
-    cc: list[str] | None = None,
-    from_email: str | None = None,
-):
-    """
-    Legacy SES queue drain.
-
-    Expert Finder outreach now sends via Instantly. Rows left in SENDING from
-    the old path are reverted to DRAFT so they can be resent through a published
-    campaign; SES is never called.
-    """
-    _ = (reply_to, cc, from_email)
-    qs = GeneratedEmail.objects.filter(
-        id__in=generated_email_ids,
-        status=GeneratedEmail.Status.SENDING,
-    )
-    reverted = qs.update(
-        status=GeneratedEmail.Status.DRAFT,
-        updated_date=timezone.now(),
-    )
-    if reverted:
-        logger.warning(
-            "SES outreach send path disabled; reverted %s SENDING row(s) to DRAFT",
-            reverted,
-        )
-    return {"sent": 0, "failed": 0, "reverted": reverted}

@@ -1,4 +1,4 @@
-"""Tests for research_ai.tasks: expert search, bulk email, send queued emails."""
+"""Tests for research_ai.tasks: expert search and bulk email generation."""
 
 from datetime import timedelta
 from unittest.mock import ANY, patch
@@ -21,7 +21,6 @@ from research_ai.tasks import (
     process_bulk_generate_emails_task,
     reclaim_lost_agent_runs,
     run_proposal_draft_task,
-    send_queued_emails_task,
 )
 from user.tests.helpers import create_random_authenticated_user
 
@@ -234,43 +233,6 @@ class ProcessBulkGenerateEmailsTaskTests(TestCase):
         rec.refresh_from_db()
         self.assertEqual(rec.status, GeneratedEmail.Status.FAILED)
         mock_logger.exception.assert_called_once()
-
-
-# --- send_queued_emails_task ---
-
-
-@override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-class SendQueuedEmailsTaskTests(TestCase):
-    def setUp(self):
-        self.user = create_random_authenticated_user("send_user")
-
-    def test_send_queued_reverts_sending_rows_without_ses(self):
-        # Arrange
-        rec = GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_name="Dr. Y",
-            expert_email="y@example.com",
-            email_subject="Subj",
-            email_body="Body",
-            status=GeneratedEmail.Status.SENDING,
-        )
-
-        # Act
-        result = send_queued_emails_task.apply(
-            kwargs={
-                "generated_email_ids": [rec.id],
-                "reply_to": None,
-                "cc": None,
-                "from_email": None,
-            }
-        ).get()
-        rec.refresh_from_db()
-
-        # Assert
-        self.assertEqual(result["sent"], 0)
-        self.assertEqual(result["failed"], 0)
-        self.assertEqual(result["reverted"], 1)
-        self.assertEqual(rec.status, GeneratedEmail.Status.DRAFT)
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)

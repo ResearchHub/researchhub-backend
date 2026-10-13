@@ -19,8 +19,6 @@ from research_ai.views.email_views import (
     GeneratedEmailListView,
     GenerateEmailView,
     InviteRfpApplicantsView,
-    PreviewEmailView,
-    SendEmailView,
 )
 from research_ai.views.expert_finder_views import (
     ExpertDetailView,
@@ -102,14 +100,6 @@ urlpatterns = [
     path(
         "expert-finder/emails/",
         GeneratedEmailListView.as_view(),
-    ),
-    path(
-        "expert-finder/emails/preview/",
-        PreviewEmailView.as_view(),
-    ),
-    path(
-        "expert-finder/emails/send/",
-        SendEmailView.as_view(),
     ),
     path(
         "expert-finder/emails/<int:email_id>/",
