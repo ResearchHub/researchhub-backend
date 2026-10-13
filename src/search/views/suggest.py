@@ -10,7 +10,6 @@ from rest_framework.views import APIView
 
 from search.backends.match_bool_prefix import MatchBoolPrefixBackend
 from search.documents.hub import HubDocument
-from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
 from search.documents.user import UserDocument
 from utils.doi import DOI
@@ -38,19 +37,12 @@ class SuggestView(APIView):
         "user": 4.0,  # Increased weight for users
         "person": 4.0,  # Authors same as users
         "post": 3.5,  # Regular posts
-        "paper": 2.0,  # Papers (lower than posts)
     }
 
     # Map of index names to their document classes and transform functions.
     # "author" is a backward-compatible alias over the "user" index for notebook
     # autocomplete; it returns person-shaped results with author profile IDs.
     INDEX_MAP = {
-        "paper": {
-            "document": PaperDocument,
-            "transform": lambda self, result: self.transform_es_result(result),
-            "external_search": True,  # Indicates if OpenAlex search should be included
-            "partial_match_field": "paper_title",
-        },
         "author": {
             "document": UserDocument,
             "transform": lambda self, result: self.transform_user_as_person(result),
@@ -156,38 +148,14 @@ class SuggestView(APIView):
             "_score": result.get("_score", 1.0),
         }
 
-    def transform_es_result(self, result):
-        source = result.get("_source", {})
-        normalized_doi = DOI.normalize_doi(source.get("doi"))
-        return {
-            "entity_type": "paper",
-            "id": source.get("id"),
-            "doi": (f"{normalized_doi}" if normalized_doi else None),
-            "normalized_doi": normalized_doi,  # Used for comparison
-            "display_name": source.get("paper_title", ""),
-            "authors": [
-                author.get("full_name", "")
-                for author in source.get("raw_authors", [])
-                if author.get("full_name")
-            ],
-            "citations": source.get("citations", 0),
-            "date_published": source.get("paper_publish_date"),
-            "created_date": source.get("created_date"),
-            "source": "researchhub",
-            "openalex_id": source.get("openalex_id"),
-            "_score": result.get("_score", 1.0),
-        }
-
     def get(self, request):
         """
-        Combined autocomplete search using both OpenAlex and local Elasticsearch.
+        Autocomplete search across local Elasticsearch indexes.
         Query params:
         - q: search query (required)
-        - index: index(es) to search in (optional, defaults to 'paper')
+        - index: index(es) to search in (optional, defaults to 'post')
                Can be a single index or comma-separated list (e.g. 'user,author')
         - limit: maximum number of results to return (optional, defaults to 10)
-        - enable_openalex: enable OpenAlex external search (optional, defaults to False)
-               Set to 'true' to include external results from OpenAlex
         """
         query = request.query_params.get("q", None)
         # More strict validation for empty query strings
@@ -203,7 +171,7 @@ class SuggestView(APIView):
             return self.handle_doi_search(query, request)
 
         # Parse indexes from the query parameter
-        index_param = request.query_params.get("index", "paper")
+        index_param = request.query_params.get("index", "post")
         indexes = self._normalize_indexes(index_param)
 
         # Get limit parameter
@@ -213,9 +181,6 @@ class SuggestView(APIView):
                 limit = self.DEFAULT_LIMIT
         except ValueError:
             limit = self.DEFAULT_LIMIT
-
-        # Get enable_openalex parameter (defaults to False)
-        enable_openalex = request.query_params.get("enable_openalex", "false") == "true"
 
         # Validate all indexes
         invalid_indexes = [idx for idx in indexes if idx not in self.INDEX_MAP]
@@ -232,9 +197,7 @@ class SuggestView(APIView):
             )
 
         try:
-            results = self.perform_regular_search(
-                query, indexes, limit, enable_openalex=enable_openalex
-            )
+            results = self.perform_regular_search(query, indexes, limit)
             return Response(results, status=status.HTTP_200_OK)
         except Exception as e:
             logger.exception("Error in search")
@@ -246,7 +209,7 @@ class SuggestView(APIView):
     def handle_doi_search(self, doi_query, request):
         """
         Handle search specifically for DOI inputs by searching only for exact matches
-        across papers and posts.
+        across OpenAlex works and posts.
         """
         try:
             # Get limit parameter
@@ -265,34 +228,7 @@ class SuggestView(APIView):
             results = []
             seen_dois = set()
 
-            # 1. Search in papers index
-            paper_document = self.INDEX_MAP["paper"]["document"]
-            paper_search = Search(index=paper_document._index._name)
-
-            # Create a combined query for all DOI variants
-            should_queries = []
-            for variant in doi_variants:
-                should_queries.append({"term": {"doi.keyword": variant}})
-                should_queries.append({"match_phrase": {"doi": variant}})
-
-            paper_query = {
-                "bool": {"should": should_queries, "minimum_should_match": 1}
-            }
-            paper_search = paper_search.query(paper_query)
-            paper_response = paper_search.execute()
-
-            # Process Elasticsearch paper results
-            if hasattr(paper_response, "hits") and paper_response.hits:
-                for hit in paper_response.hits:
-                    result = self.transform_es_result(hit.to_dict())
-                    normalized_doi = result.get("normalized_doi")
-                    if normalized_doi and normalized_doi not in seen_dois:
-                        seen_dois.add(normalized_doi)
-                        if "normalized_doi" in result:
-                            del result["normalized_doi"]
-                        results.append(result)
-
-            # 2. Get OpenAlex results for the DOI
+            # 1. Get OpenAlex results for the DOI
             try:
                 openalex = OpenAlex()
                 openalex_response = openalex.autocomplete_works(doi_query)
@@ -311,7 +247,7 @@ class SuggestView(APIView):
                 # Log the error but continue with local results
                 logger.warning("OpenAlex request failed in DOI search: %s", e)
 
-            # 3. Search in posts index (if posts could have DOIs)
+            # 2. Search in posts index (if posts could have DOIs)
             post_document = self.INDEX_MAP["post"]["document"]
             post_search = Search(index=post_document._index._name)
 
@@ -358,7 +294,7 @@ class SuggestView(APIView):
                 msg += ", falling back to regular search"
                 logger.info(msg)
                 # Parse indexes for fallback
-                index_param = request.query_params.get("index", "paper")
+                index_param = request.query_params.get("index", "post")
                 indexes = self._normalize_indexes(index_param)
 
                 # Validate indexes
@@ -426,7 +362,7 @@ class SuggestView(APIView):
         Modifies the results list in-place by appending new matches.
 
         Args:
-            index: The index name (e.g., "post", "paper")
+            index: The index name (e.g., "post", "user")
             index_config: Configuration dict from INDEX_MAP
             document: The document class for the index
             transform_func: Function to transform ES results to API format
@@ -491,9 +427,7 @@ class SuggestView(APIView):
                 seen.add(idx)
         return indexes
 
-    def perform_regular_search(
-        self, query, indexes, limit, enable_openalex: bool = False
-    ):
+    def perform_regular_search(self, query, indexes, limit):
         """
         Perform the regular search functionality extracted from the get method.
         This allows us to reuse this logic for fallback when DOI search finds
@@ -501,7 +435,6 @@ class SuggestView(APIView):
         """
         # Results by entity type
         results_by_type = {}
-        seen_dois = set()  # For deduplicating paper results
 
         limit_per_index = math.ceil(limit / len(indexes))
 
@@ -511,26 +444,6 @@ class SuggestView(APIView):
             index_config = self.INDEX_MAP[index]
             document = index_config["document"]
             transform_func = index_config["transform"]
-
-            # Get OpenAlex results if enabled for this index
-            if enable_openalex and index_config.get("external_search", False):
-                try:
-                    openalex = OpenAlex()
-                    openalex_response = openalex.autocomplete_works(query)
-                    results.extend(
-                        [
-                            self.transform_openalex_result(result)
-                            for result in openalex_response.get("results", [])
-                            if result.get(
-                                "external_id"
-                            )  # Only include results with DOI
-                        ]
-                    )
-                except Exception as e:
-                    # Log the error but continue with local Elasticsearch results
-                    logger.warning(
-                        "OpenAlex request failed for index '%s': %s", index, e
-                    )
 
             # Get local Elasticsearch results
             search = Search(index=document._index._name)
@@ -595,51 +508,13 @@ class SuggestView(APIView):
                     limit_per_index=limit_per_index,
                 )
 
-            # Handle paper-specific deduplication
-            if index == "paper":
-                # Process ResearchHub results first
-                rh_results = sorted(
-                    [r for r in results if r["source"] == "researchhub"],
-                    key=lambda x: x.get("_score", 0),
-                    reverse=True,
-                )
+            sorted_results = sorted(
+                results, key=lambda x: x.get("_score", 0), reverse=True
+            )
 
-                # Then OpenAlex results
-                oa_results = sorted(
-                    [r for r in results if r["source"] == "openalex"],
-                    key=lambda x: x.get("_score", 0),
-                    reverse=True,
-                )
-
-                # Deduplicate and combine
-                unique_results = []
-
-                # Process RH results first (higher priority)
-                for result in rh_results:
-                    doi = result.get("normalized_doi")
-                    if doi and doi not in seen_dois:
-                        seen_dois.add(doi)
-                        del result["normalized_doi"]
-                        unique_results.append(result)
-
-                # Then process OpenAlex results
-                for result in oa_results:
-                    doi = result.get("normalized_doi")
-                    if doi and doi not in seen_dois:
-                        seen_dois.add(doi)
-                        del result["normalized_doi"]
-                        unique_results.append(result)
-
-                results_by_type["paper"] = unique_results
-            else:
-                # For other indexes, store by entity type
-                sorted_results = sorted(
-                    results, key=lambda x: x.get("_score", 0), reverse=True
-                )
-
-                if sorted_results:
-                    entity_type = sorted_results[0].get("entity_type", index)
-                    results_by_type[entity_type] = sorted_results
+            if sorted_results:
+                entity_type = sorted_results[0].get("entity_type", index)
+                results_by_type[entity_type] = sorted_results
 
         # Apply entity type weights to scores
         for entity_type, results in results_by_type.items():

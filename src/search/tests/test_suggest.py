@@ -6,8 +6,6 @@ from opensearchpy import Search
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from paper.tests.helpers import create_paper
-
 
 class SuggestViewTests(TestCase):
     def setUp(self):
@@ -43,171 +41,6 @@ class SuggestViewTests(TestCase):
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
     @patch("opensearchpy.Search.execute")
-    def test_deduplication_prefers_researchhub(self, mock_es_execute, mock_openalex):
-        """Test that when same DOI exists in both sources, RH version is preferred"""
-        test_doi = "10.1234/test.123"
-
-        # Create paper in database
-        paper = create_paper()
-        paper.doi = test_doi
-        paper.paper_title = "Test Paper RH"
-        paper.save()
-
-        # Mock OpenAlex response
-        mock_openalex.return_value = {
-            "results": [
-                {
-                    "external_id": test_doi,
-                    "display_name": "Test Paper OA",
-                    "hint": "Author1, Author2",
-                    "cited_by_count": 10,
-                    "id": "W123",
-                    "publication_date": "2023-01-01",
-                }
-            ]
-        }
-
-        # Mock Elasticsearch response
-        class MockSuggest:
-            def to_dict(self):
-                return {
-                    "suggestions": [
-                        {
-                            "options": [
-                                {
-                                    "_score": 1.0,
-                                    "_source": {
-                                        "id": paper.id,
-                                        "doi": test_doi,
-                                        "paper_title": "Test Paper RH",
-                                        "raw_authors": [{"full_name": "RH Author"}],
-                                        "citations": 5,
-                                        "created_date": "2023-01-01",
-                                    },
-                                }
-                            ]
-                        }
-                    ]
-                }
-
-        class MockResponse:
-            suggest = MockSuggest()
-
-        mock_es_execute.return_value = MockResponse()
-
-        response = self.client.get(self.url + "?q=test")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)  # Only one result due to deduplication
-        self.assertEqual(
-            response.data[0]["source"], "researchhub"
-        )  # RH version preferred
-        self.assertEqual(response.data[0]["display_name"], "Test Paper RH")
-
-    @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("opensearchpy.Search.execute")
-    def test_combines_unique_results(self, mock_es_execute, mock_openalex):
-        """Test that results with different DOIs from both sources are combined"""
-        # Mock OpenAlex response
-        mock_openalex.return_value = {
-            "results": [
-                {
-                    "external_id": "10.1234/oa.123",
-                    "display_name": "OpenAlex Paper",
-                    "hint": "Author1, Author2",
-                    "cited_by_count": 10,
-                    "id": "W123",
-                    "publication_date": "2023-01-01",
-                }
-            ]
-        }
-
-        # Mock Elasticsearch response
-        class MockSuggest:
-            def to_dict(self):
-                return {
-                    "suggestions": [
-                        {
-                            "options": [
-                                {
-                                    "_score": 1.0,
-                                    "_source": {
-                                        "id": 1,
-                                        "doi": "10.1234/rh.123",
-                                        "paper_title": "ResearchHub Paper",
-                                        "raw_authors": [{"full_name": "RH Author"}],
-                                        "citations": 5,
-                                        "created_date": "2023-01-01",
-                                    },
-                                }
-                            ]
-                        }
-                    ]
-                }
-
-        class MockResponse:
-            suggest = MockSuggest()
-
-        mock_es_execute.return_value = MockResponse()
-
-        response = self.client.get(self.url + "?q=test&enable_openalex=true")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)  # Both results included
-
-        # Verify both sources are represented
-        sources = {result["source"] for result in response.data}
-        self.assertEqual(sources, {"researchhub", "openalex"})
-
-    @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("opensearchpy.Search.execute")
-    def test_handles_missing_fields_gracefully(self, mock_es_execute, mock_openalex):
-        """Test that missing optional fields don't cause errors"""
-        # Mock OpenAlex response with missing fields
-        mock_openalex.return_value = {
-            "results": [
-                {
-                    "external_id": "10.1234/oa.123",
-                    "display_name": "OpenAlex Paper",
-                    # Missing hint and cited_by_count
-                    "id": "W123",
-                }
-            ]
-        }
-
-        # Mock Elasticsearch response with missing fields
-        class MockSuggest:
-            def to_dict(self):
-                return {
-                    "suggestions": [
-                        {
-                            "options": [
-                                {
-                                    "_source": {
-                                        "doi": "10.1234/rh.123",
-                                        # Missing other fields
-                                    },
-                                }
-                            ]
-                        }
-                    ]
-                }
-
-        class MockResponse:
-            suggest = MockSuggest()
-
-        mock_es_execute.return_value = MockResponse()
-
-        response = self.client.get(self.url + "?q=test")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify results have default values for missing fields
-        for result in response.data:
-            self.assertIn("display_name", result)
-            self.assertIn("authors", result)
-            self.assertIn("citations", result)
-            self.assertIn("created_date", result)
-
-    @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("opensearchpy.Search.execute")
     def test_error_handling(self, mock_es_execute, mock_openalex):
         """Test handling of errors from both sources"""
         # Mock OpenAlex error - should be caught and logged, not propagate
@@ -235,22 +68,20 @@ class SuggestViewTests(TestCase):
         )  # Should list available indexes
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("opensearchpy.Search.execute")
+    @patch("opensearchpy.Search.execute", autospec=True)
     def test_multiple_indexes(self, mock_es_execute, mock_openalex):
         """Test searching across multiple indexes"""
         # Mock OpenAlex response
         mock_openalex.return_value = {"results": []}
 
-        # Mock Elasticsearch response for paper index
-        paper_options = [
+        # Mock Elasticsearch response for post index
+        post_options = [
             {
                 "_score": 1.0,
                 "_source": {
                     "id": 1,
-                    "doi": "10.1234/paper.123",
-                    "paper_title": "Test Paper",
-                    "raw_authors": [{"full_name": "Author 1"}],
-                    "citations": 10,
+                    "title": "Test Post",
+                    "document_type": "DISCUSSION",
                     "created_date": "2023-01-01",
                 },
             }
@@ -269,43 +100,34 @@ class SuggestViewTests(TestCase):
         ]
 
         # Use the same approach that is working for test_hub_index_search
-        class MockSuggestPaper:
+        class MockSuggestPost:
             def to_dict(self):
-                return {"suggestions": [{"options": paper_options}]}
+                return {"suggestions": [{"options": post_options}]}
 
         class MockSuggestUser:
             def to_dict(self):
                 return {"suggestions": [{"options": user_options}]}
 
-        class MockResponsePaper:
-            suggest = MockSuggestPaper()
+        class MockResponsePost:
+            suggest = MockSuggestPost()
 
         class MockResponseUser:
             suggest = MockSuggestUser()
 
         # Set up a side effect function that returns the correct response for each index
-        def mock_execute_side_effect(*args, **kwargs):
-            # Try to extract the index name
-            try:
-                current_index = str(args[0].index)
-                if "paper" in current_index:
-                    return MockResponsePaper()
-                elif "user" in current_index:
-                    return MockResponseUser()
-                # Default response for unknown indexes
-                return MockResponsePaper()
-            except Exception:
-                # Return paper response as fallback
-                return MockResponsePaper()
+        def mock_execute_side_effect(search):
+            if "user" in search._index:
+                return MockResponseUser()
+            return MockResponsePost()
 
         mock_es_execute.side_effect = mock_execute_side_effect
 
-        response = self.client.get(self.url + "?q=test&index=paper,user")
+        response = self.client.get(self.url + "?q=test&index=post,user")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Should have results from both indexes
         entity_types = [result["entity_type"] for result in response.data]
-        self.assertIn("paper", entity_types)
+        self.assertIn("post", entity_types)
         self.assertIn("user", entity_types)
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
@@ -327,50 +149,44 @@ class SuggestViewTests(TestCase):
     def test_limit_parameter(self, mock_es_execute, mock_openalex):
         """Test that limit parameter restricts the number of results"""
         # Create numerous results
-        openalex_results = [
+        post_options = [
             {
-                "external_id": f"10.1234/test.{i}",
-                "display_name": f"Test Paper {i}",
-                "hint": f"Author {i}",
-                "cited_by_count": i,
-                "id": f"W{i}",
-                "publication_date": "2023-01-01",
+                "_score": 1.0,
+                "_source": {
+                    "id": i,
+                    "title": f"Test Post {i}",
+                    "created_date": "2023-01-01",
+                },
             }
             for i in range(15)
         ]
 
-        # Mock OpenAlex response with many results
-        mock_openalex.return_value = {"results": openalex_results}
-
-        # Mock empty Elasticsearch response
         class MockSuggest:
             def to_dict(self):
-                return {"suggestions": []}
+                return {"suggestions": [{"options": post_options}]}
 
         class MockResponse:
             suggest = MockSuggest()
 
         mock_es_execute.return_value = MockResponse()
 
-        # Test with default limit (10) and enable OpenAlex
-        response = self.client.get(self.url + "?q=test&enable_openalex=true")
+        # Test with default limit (10)
+        response = self.client.get(self.url + "?q=test")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 10)  # Should be limited to 10 results
 
         # Test with custom limit
-        response = self.client.get(self.url + "?q=test&limit=5&enable_openalex=true")
+        response = self.client.get(self.url + "?q=test&limit=5")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 5)  # Should be limited to 5 results
 
         # Test with limit higher than available results
-        response = self.client.get(self.url + "?q=test&limit=20&enable_openalex=true")
+        response = self.client.get(self.url + "?q=test&limit=20")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 15)  # Should return all 15 available
 
         # Test with invalid limit
-        response = self.client.get(
-            self.url + "?q=test&limit=invalid&enable_openalex=true"
-        )
+        response = self.client.get(self.url + "?q=test&limit=invalid")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 10)  # Should use default of 10
 
@@ -445,34 +261,20 @@ class SuggestViewTests(TestCase):
     @patch("opensearchpy.Search.execute")
     def test_mixed_entity_representation(self, mock_es_execute, mock_openalex):
         """Test that balanced results include various entity types when requested"""
-        # Mock OpenAlex response with papers
-        paper_openalex_results = [
-            {
-                "external_id": f"10.1234/test.{i}",
-                "display_name": f"Test Paper {i}",
-                "hint": f"Author {i}",
-                "cited_by_count": i,
-                "id": f"W{i}",
-                "publication_date": "2023-01-01",
-            }
-            for i in range(5)
-        ]
-        mock_openalex.return_value = {"results": paper_openalex_results}
+        mock_openalex.return_value = {"results": []}
 
         # Mock Elasticsearch response with different entity types directly with lists
         # We'll just set up mock data and bypass the complex mocking
         mock_entities = {
-            "paper": [
+            "post": [
                 {
                     "_score": 2.0,
-                    "entity_type": "paper",
+                    "entity_type": "post",
                     "id": 1,
-                    "display_name": "ES Paper 1",
+                    "display_name": "ES Post 1",
                     "authors": ["Author 1"],
                     "created_date": "2023-01-01",
                     "source": "researchhub",
-                    "doi": "10.1234/test.999",
-                    "normalized_doi": "10.1234/test.999",
                 }
             ],
             "hub": [
@@ -508,16 +310,14 @@ class SuggestViewTests(TestCase):
             {
                 "status_code": status.HTTP_200_OK,
                 "data": (
-                    mock_entities["paper"]
-                    + mock_entities["hub"]
-                    + mock_entities["user"]
+                    mock_entities["post"] + mock_entities["hub"] + mock_entities["user"]
                 ),
             },
         )
 
         # Test with multiple entity types using balanced mode
         response = self.client.get(
-            self.url + "?q=test&index=paper,hub,user&limit=6&balanced=true"
+            self.url + "?q=test&index=post,hub,user&limit=6&balanced=true"
         )
 
         # Restore original get method
@@ -538,7 +338,7 @@ class SuggestViewTests(TestCase):
             entity_counts[entity_type] = entity_counts.get(entity_type, 0) + 1
 
         # Each entity type should have at least 1 result
-        for entity_type in ["paper", "hub", "user"]:
+        for entity_type in ["post", "hub", "user"]:
             self.assertGreaterEqual(
                 entity_counts.get(entity_type, 0),
                 1,
@@ -551,7 +351,6 @@ class SuggestViewTests(TestCase):
         self, mock_es_execute, mock_openalex
     ):
         """Test that default entity type weights properly prioritize results"""
-        # Mock OpenAlex response with papers (lower scores)
         mock_openalex.return_value = {"results": []}
 
         # Use a simpler approach - direct results with pre-weighted scores
@@ -565,15 +364,14 @@ class SuggestViewTests(TestCase):
                 "source": "researchhub",
                 "_score": 12.5,  # 5.0 base score × 2.5 weight
             },
-            # Paper with medium final score (weight applied)
+            # Post with medium final score (weight applied)
             {
-                "entity_type": "paper",
+                "entity_type": "post",
                 "id": 2,
-                "display_name": "Test Paper",
+                "display_name": "Test Post",
                 "authors": ["Author 1"],
                 "created_date": "2023-01-01",
                 "source": "researchhub",
-                "doi": "10.1234/test-paper",
                 "_score": 4.0,  # 2.0 base score × 2.0 weight
             },
             # Hub with lowest final score (weight applied)
@@ -597,7 +395,7 @@ class SuggestViewTests(TestCase):
         )
 
         # Test with default scoring (no balanced parameter)
-        response = self.client.get(self.url + "?q=test&index=paper,hub,user&limit=5")
+        response = self.client.get(self.url + "?q=test&index=post,hub,user&limit=5")
 
         # Restore original get method
         original_get = getattr(self, "_original_get", None)
@@ -611,7 +409,7 @@ class SuggestViewTests(TestCase):
         entity_types = [result["entity_type"] for result in response.data]
 
         # Check order matches expected weighted order
-        expected_order = ["user", "paper", "hub"]
+        expected_order = ["user", "post", "hub"]
         for i, expected_type in enumerate(expected_order):
             if i < len(entity_types):
                 self.assertEqual(
@@ -708,23 +506,19 @@ class SuggestViewTests(TestCase):
             self.client.get = original_get
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("opensearchpy.Search.execute")
+    @patch("opensearchpy.Search.execute", autospec=True)
     def test_score_based_sorting(self, mock_es_execute, mock_openalex):
         """Test that results are sorted by score when balanced mode is not requested"""
-        # Mock OpenAlex response with papers (lower scores)
         mock_openalex.return_value = {"results": []}
 
         # Mock Elasticsearch response with different types and varying scores
-        paper_options = [
+        post_options = [
             {
-                "_score": 2.0,  # Medium score for paper
+                "_score": 2.0,  # Medium score for post
                 "_source": {
                     "id": 1,
-                    "paper_title": "Test Paper",
-                    "raw_authors": [{"full_name": "Author 1"}],
-                    "citations": 10,
+                    "title": "Test Post",
                     "created_date": "2023-01-01",
-                    "doi": "10.1234/test.123",
                 },
             }
         ]
@@ -755,9 +549,9 @@ class SuggestViewTests(TestCase):
             }
         ]
 
-        class MockSuggestPaper:
+        class MockSuggestPost:
             def to_dict(self):
-                return {"suggestions": [{"options": paper_options}]}
+                return {"suggestions": [{"options": post_options}]}
 
         class MockSuggestHub:
             def to_dict(self):
@@ -767,8 +561,8 @@ class SuggestViewTests(TestCase):
             def to_dict(self):
                 return {"suggestions": [{"options": user_options}]}
 
-        class MockResponsePaper:
-            suggest = MockSuggestPaper()
+        class MockResponsePost:
+            suggest = MockSuggestPost()
 
         class MockResponseHub:
             suggest = MockSuggestHub()
@@ -776,48 +570,23 @@ class SuggestViewTests(TestCase):
         class MockResponseUser:
             suggest = MockSuggestUser()
 
-        # Simplified mock with improved exception handling
         def mock_execute_side_effect(search):
-            try:
-                current_index = search.index._name
-                if "paper" in current_index:
-                    return MockResponsePaper()
-                elif "hub" in current_index:
-                    return MockResponseHub()
-                elif "user" in current_index:
-                    return MockResponseUser()
-                else:
-                    return MockResponsePaper()
-            except Exception:
-                return MockResponsePaper()
+            if "hub" in search._index:
+                return MockResponseHub()
+            if "user" in search._index:
+                return MockResponseUser()
+            return MockResponsePost()
 
         mock_es_execute.side_effect = mock_execute_side_effect
 
         # Test with default scoring (no balanced parameter)
-        response = self.client.get(self.url + "?q=test&index=paper,hub,user&limit=5")
+        response = self.client.get(self.url + "?q=test&index=post,hub,user&limit=5")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Results should be ordered by score: user (highest) -> paper -> hub (lowest)
-        entity_types = [result["entity_type"] for result in response.data[:3]]
-
-        if len(entity_types) > 0:
-            # User should be first (highest score)
-            self.assertEqual(
-                entity_types[0], "user", "User should be first with highest score"
-            )
-
-            if len(entity_types) > 1:
-                # Paper should be second (medium score)
-                self.assertEqual(
-                    entity_types[1], "paper", "Paper should be second with medium score"
-                )
-
-                if len(entity_types) > 2:
-                    # Hub should be third (lowest score)
-                    self.assertEqual(
-                        entity_types[2], "hub", "Hub should be third with lowest score"
-                    )
+        # Results should be ordered by score: user (highest) -> post -> hub (lowest)
+        entity_types = [result["entity_type"] for result in response.data]
+        self.assertEqual(entity_types, ["user", "post", "hub"])
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
     @patch("opensearchpy.Search.execute")
@@ -1146,7 +915,7 @@ class SuggestViewTests(TestCase):
             ]
         }
 
-        # Mock ES response with paper hits
+        # Mock ES response with post hits
         class MockHits:
             def __init__(self, hits):
                 self.hits = hits
@@ -1161,15 +930,11 @@ class SuggestViewTests(TestCase):
             def to_dict(self):
                 return self.data
 
-        # Create mock paper hit
-        mock_es_paper_hit = MockHit(
+        mock_es_post_hit = MockHit(
             {
                 "_source": {
                     "id": 123,
-                    "doi": normalized_doi,
-                    "paper_title": "Computational modeling paper from ES",
-                    "raw_authors": [{"full_name": "ES Author"}],
-                    "citations": 5,
+                    "title": f"Discussion of {test_doi}",
                     "created_date": "2020-02-15",
                 },
                 "_score": 10.0,
@@ -1179,7 +944,7 @@ class SuggestViewTests(TestCase):
         # Set up the execute method to return our mocked responses
         def mock_execute_side_effect(*args, **kwargs):
             # Create a response object with the hits
-            response = type("obj", (object,), {"hits": MockHits([mock_es_paper_hit])})
+            response = type("obj", (object,), {"hits": MockHits([mock_es_post_hit])})
             return response
 
         mock_es_execute.side_effect = mock_execute_side_effect
@@ -1190,8 +955,9 @@ class SuggestViewTests(TestCase):
         # Verify the response
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # We should get at least one result
-        self.assertGreater(len(response.data), 0)
+        # Both the OpenAlex work and the matching post are returned
+        entity_types = {result["entity_type"] for result in response.data}
+        self.assertEqual(entity_types, {"paper", "post"})
 
         # Check that paper results have the DOI
         for result in response.data:
