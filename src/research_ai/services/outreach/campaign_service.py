@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from django.db import transaction
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from research_ai.models import (
@@ -85,6 +86,34 @@ class OutreachCampaignService:
         return (
             OutreachCampaign.objects.select_related("template", "editor")
             .filter(editor=editor)
+            .annotate(
+                queued_count=Count(
+                    "generated_emails",
+                    filter=Q(generated_emails__status=GeneratedEmail.Status.SENDING),
+                    distinct=True,
+                ),
+                sent_count=Count(
+                    "generated_emails",
+                    filter=Q(generated_emails__status=GeneratedEmail.Status.SENT),
+                    distinct=True,
+                ),
+                opened_count=Count(
+                    "generated_emails",
+                    filter=Q(generated_emails__opened_at__isnull=False),
+                    distinct=True,
+                ),
+                replied_count=Count(
+                    "generated_emails",
+                    filter=Q(generated_emails__replied_at__isnull=False),
+                    distinct=True,
+                ),
+                bounced_count=Count(
+                    "generated_emails",
+                    filter=Q(generated_emails__bounced_at__isnull=False)
+                    | Q(generated_emails__status=GeneratedEmail.Status.BOUNCED),
+                    distinct=True,
+                ),
+            )
             .order_by("-updated_date")
         )
 
