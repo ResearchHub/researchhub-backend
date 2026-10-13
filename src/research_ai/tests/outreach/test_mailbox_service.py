@@ -266,6 +266,46 @@ class CapacityTests(TestCase):
         self.assertEqual(ctx.exception.remaining, 5)
         self.assertEqual(ctx.exception.requested, 10)
 
+    @patch(
+        "research_ai.services.outreach.mailbox_service.timezone.localdate",
+        return_value=date(2099, 1, 1),
+    )
+    def test_capacity_summary_includes_inactive_mailboxes_with_zero_remaining(
+        self, _mock_localdate
+    ):
+        # Arrange
+        OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="a@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="err@gmail.com",
+            status=OutreachMailbox.Status.ERROR,
+            daily_limit=30,
+        )
+        self.client.get_daily_account_analytics.return_value = [
+            {"date": "2099-01-01", "email_account": "a@gmail.com", "sent": 10},
+        ]
+
+        # Act
+        summary = self.service.get_capacity_summary(self.editor)
+
+        # Assert
+        self.assertEqual(summary["active_mailbox_count"], 1)
+        self.assertEqual(summary["daily_limit_total"], 30)
+        self.assertEqual(summary["sent_today"], 10)
+        self.assertEqual(summary["remaining_today"], 20)
+        by_email = {row["email"]: row for row in summary["mailboxes"]}
+        self.assertEqual(by_email["a@gmail.com"]["remaining_today"], 20)
+        self.assertEqual(by_email["err@gmail.com"]["sent_today"], 0)
+        self.assertEqual(by_email["err@gmail.com"]["remaining_today"], 0)
+        self.client.get_daily_account_analytics.assert_called_once()
+        emails_arg = self.client.get_daily_account_analytics.call_args.args[0]
+        self.assertEqual(emails_arg, ["a@gmail.com"])
+
 
 class InstantlyClientGmailPayloadTests(TestCase):
     def test_create_gmail_account_posts_imap_smtp_fields(self):

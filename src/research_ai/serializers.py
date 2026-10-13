@@ -19,6 +19,7 @@ from research_ai.models import (
     ExpertSearch,
     GeneratedEmail,
     OutreachCampaign,
+    OutreachMailbox,
     ProposalDraft,
     SearchExpert,
 )
@@ -881,6 +882,11 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "open_count",
             "bounced_at",
             "complained_at",
+            "outreach_campaign",
+            "external_lead_id",
+            "sender_account",
+            "sent_at",
+            "replied_at",
             "created_at",
             "updated_at",
         ]
@@ -892,6 +898,11 @@ class GeneratedEmailSerializer(serializers.ModelSerializer):
             "open_count",
             "bounced_at",
             "complained_at",
+            "outreach_campaign",
+            "external_lead_id",
+            "sender_account",
+            "sent_at",
+            "replied_at",
         ]
 
     def get_created_by(self, obj):
@@ -1033,6 +1044,7 @@ class OutreachCampaignSerializer(serializers.ModelSerializer):
     template_id = serializers.IntegerField(source="template.id", read_only=True)
     template_name = serializers.CharField(source="template.name", read_only=True)
     has_unpublished_changes = serializers.SerializerMethodField()
+    counts = serializers.SerializerMethodField()
 
     class Meta:
         model = OutreachCampaign
@@ -1047,6 +1059,7 @@ class OutreachCampaignSerializer(serializers.ModelSerializer):
             "status",
             "published_at",
             "has_unpublished_changes",
+            "counts",
             "created_date",
             "updated_date",
         ]
@@ -1060,6 +1073,15 @@ class OutreachCampaignSerializer(serializers.ModelSerializer):
             obj.published_body or ""
         ) != (template.email_body or "")
 
+    def get_counts(self, obj):
+        return {
+            "queued": int(getattr(obj, "queued_count", 0) or 0),
+            "sent": int(getattr(obj, "sent_count", 0) or 0),
+            "opened": int(getattr(obj, "opened_count", 0) or 0),
+            "replied": int(getattr(obj, "replied_count", 0) or 0),
+            "bounced": int(getattr(obj, "bounced_count", 0) or 0),
+        }
+
 
 class OutreachCampaignSendSerializer(serializers.Serializer):
     """Request for POST /expert-finder/outreach-campaigns/<id>/send/."""
@@ -1070,6 +1092,30 @@ class OutreachCampaignSendSerializer(serializers.Serializer):
         min_length=1,
         max_length=1000,
     )
+
+
+class OutreachMailboxSerializer(serializers.ModelSerializer):
+    """List/detail serializer for an editor's connected outreach mailbox."""
+
+    class Meta:
+        model = OutreachMailbox
+        fields = [
+            "id",
+            "email",
+            "status",
+            "daily_limit",
+            "provider_code",
+            "created_date",
+            "updated_date",
+        ]
+        read_only_fields = fields
+
+
+class OutreachMailboxConnectSerializer(serializers.Serializer):
+    """Request for POST /expert-finder/outreach-mailboxes/."""
+
+    email = serializers.EmailField()
+    app_password = serializers.CharField(min_length=1, write_only=True)
 
 
 class ModelSelectionField(serializers.CharField):
