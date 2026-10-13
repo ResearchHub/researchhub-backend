@@ -27,7 +27,7 @@ APP_ENV = os.environ.get("APP_ENV") or "development"
 DEVELOPMENT = "development" in APP_ENV
 PRODUCTION = "production" in APP_ENV
 STAGING = "staging" in APP_ENV
-CELERY_WORKER = os.environ.get("CELERY_WORKER", False)
+CELERY_WORKER = os.environ.get("CELERY_WORKER", "false").strip().lower() == "true"
 ELASTIC_APM_OFF = os.environ.get("ELASTIC_APM_OFF", False)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -857,9 +857,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
     "WEB3_KEYSTORE_PASSWORD_SECRET_ID", keys.WEB3_KEYSTORE_PASSWORD_SECRET_ID
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
-
-# Transpose API
-TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 
 # OpenAlex API
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)

@@ -274,10 +274,3 @@ class Author(SoftDeletableModel):
 
         for authorship in authorships:
             authorship.paper.update_scores_citations(authorship.author)
-
-    def get_rep_score(self):
-        score = Score.get_max_score(self)
-        if score is None:
-            return 0
-
-        return score.score
