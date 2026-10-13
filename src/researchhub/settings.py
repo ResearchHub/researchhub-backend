@@ -27,7 +27,7 @@ APP_ENV = os.environ.get("APP_ENV") or "development"
 DEVELOPMENT = "development" in APP_ENV
 PRODUCTION = "production" in APP_ENV
 STAGING = "staging" in APP_ENV
-CELERY_WORKER = os.environ.get("CELERY_WORKER", False)
+CELERY_WORKER = os.environ.get("CELERY_WORKER", "false").strip().lower() == "true"
 ELASTIC_APM_OFF = os.environ.get("ELASTIC_APM_OFF", False)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
