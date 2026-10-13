@@ -125,10 +125,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         if not self._can_withdraw(user):
             return Response(
-                "Your reputation is too low to withdraw. "
-                "Please claim papers you have authored and contribute to the "
-                "community to increase your reputation. "
-                "Alternatively, verify your identity to withdraw.",
+                "Your account is not eligible to withdraw yet. "
+                "Please verify your identity to withdraw.",
                 status=400,
             )
 
