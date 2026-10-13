@@ -3,22 +3,13 @@ from django.db.models import QuerySet
 from opensearchpy import NotFoundError
 
 from hub.models import Hub
-from paper.models import Paper
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.documents.base import BaseDocument
 from search.documents.hub import HubDocument
 from search.documents.journal import JournalDocument
-from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
 
 INDEX_CONFIGS = {
-    "paper": {
-        "document": PaperDocument,
-        "queryset": lambda: Paper.objects.filter(is_removed=True).only(
-            "id", "is_removed"
-        ),
-        "label": "Papers",
-    },
     "post": {
         "document": PostDocument,
         "queryset": lambda: ResearchhubPost.objects.filter(
