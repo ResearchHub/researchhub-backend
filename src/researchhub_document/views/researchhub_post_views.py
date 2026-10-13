@@ -27,7 +27,6 @@ from purchase.serializers.fundraise_create_serializer import FundraiseCreateSeri
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
-from purchase.services.funding_pool_service import FundingPoolService
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
 from researchhub.settings import TESTING
@@ -56,6 +55,9 @@ from researchhub_document.services.journal_entry_service import (
     RegisteredReportDOIRegistrationError,
 )
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.note_publication_service import (
+    NotePublicationService,
+)
 from researchhub_document.services.proposal_visibility_service import (
     ProposalVisibilityService,
 )
@@ -332,6 +334,11 @@ class ResearchhubPostViewSet(
         try:
             with transaction.atomic():
                 created_by = request.user
+                if note_id is not None and document_type != REGISTERED_REPORT:
+                    note = NotePublicationService().get_note_for_publication(
+                        note_id, created_by
+                    )
+                    note_id = note.pk
                 journey_service = JourneyService()
                 registered_report_proposal = None
                 journal_entry_service = None
@@ -485,34 +492,7 @@ class ResearchhubPostViewSet(
 
                     grant_serializer = GrantCreateSerializer(data=grant_data)
                     grant_serializer.is_valid(raise_exception=True)
-
-                    grant_create_kwargs = {
-                        "created_by": created_by,
-                        "unified_document": unified_document,
-                        "amount": grant_serializer.validated_data["amount"],
-                        "currency": grant_serializer.validated_data["currency"],
-                        "organization": grant_serializer.validated_data["organization"],
-                        "description": grant_serializer.validated_data["description"],
-                        "end_date": grant_serializer.validated_data.get("end_date"),
-                    }
-                    if "application_visibility" in grant_serializer.validated_data:
-                        grant_create_kwargs["application_visibility"] = (
-                            grant_serializer.validated_data["application_visibility"]
-                        )
-
-                    # Create grant without contacts first
-                    grant = Grant.objects.create(**grant_create_kwargs)
-
-                    # Handle contacts properly
-                    # get contact_ids and convert to User objects
-                    contact_ids = grant_serializer.validated_data.get("contact_ids", [])
-                    if contact_ids:
-                        contacts = User.objects.filter(id__in=contact_ids)
-                        grant.contacts.set(contacts)
-                    else:
-                        grant.contacts.clear()
-
-                    FundingPoolService().create_pool_for_grant(grant)
+                    grant = grant_serializer.save(created_by=created_by)
 
                     # Trusted users skip the grant moderation queue.
                     if risk_score_service.is_trusted(created_by):
