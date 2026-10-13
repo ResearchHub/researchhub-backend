@@ -604,7 +604,7 @@ class NoteContentViewSet(
         """The referenced version, or ``None`` when it is not one of ``note``'s."""
         try:
             parent_version_id = int(parent_version_id)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         return NoteContent.objects.filter(id=parent_version_id, note=note).first()
 

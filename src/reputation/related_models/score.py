@@ -134,7 +134,7 @@ class Score(DefaultModel):
                 content_type,
                 algorithm_variables,
             )
-        except (Score.DoesNotExist, ScoreChange.DoesNotExist):
+        except Score.DoesNotExist, ScoreChange.DoesNotExist:
             previous_score_change_object = None
 
         if previous_score_change_object:

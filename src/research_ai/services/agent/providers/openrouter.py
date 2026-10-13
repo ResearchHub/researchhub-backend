@@ -136,7 +136,7 @@ def _parse_arguments(raw: str | None) -> dict:
         return {}
     try:
         parsed = json.loads(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         logger.warning("OpenRouter tool arguments are not valid JSON: %.200r", raw)
         return {}
     return parsed if isinstance(parsed, dict) else {}
@@ -481,7 +481,7 @@ class OpenRouterProvider(LLMProvider):
             return None
         try:
             cost = Decimal(str(raw_cost))
-        except (InvalidOperation, TypeError, ValueError):
+        except InvalidOperation, TypeError, ValueError:
             return None
         if not cost.is_finite() or cost < 0:
             return None

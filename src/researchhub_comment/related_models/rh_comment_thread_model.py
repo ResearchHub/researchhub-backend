@@ -161,5 +161,5 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
             return None
         try:
             return self.content_object
-        except (AttributeError, model_class.DoesNotExist):
+        except AttributeError, model_class.DoesNotExist:
             return None
