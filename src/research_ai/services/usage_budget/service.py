@@ -51,7 +51,7 @@ class ModelNotAllowedError(ValueError):
 class UsageLimitExceededError(RuntimeError):
     code = "usage_limit_exceeded"
 
-    def __init__(self, status: "BudgetStatus"):
+    def __init__(self, status: BudgetStatus):
         super().__init__("Daily Research AI usage limit exceeded")
         self.status = status
 
