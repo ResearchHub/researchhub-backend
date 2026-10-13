@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
 from note.models import NoteContent
@@ -12,6 +13,9 @@ from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,
     PREREGISTRATION,
+)
+from researchhub_document.services.note_publication_service import (
+    NotePublicationService,
 )
 from user.tests.helpers import create_random_default_user
 from utils.test_helpers import AWSMockMixin
@@ -178,3 +182,14 @@ class NotePublicationTests(AWSMockMixin, APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNone(ResearchhubPost.objects.get(pk=response.data["id"]).note)
+
+    def test_service_requires_an_authenticated_publisher(self):
+        # Arrange
+        service = NotePublicationService()
+
+        # Act
+        with self.assertRaises(PermissionDenied):
+            service.get_note_for_publication(self.note.pk, None)
+
+        # Assert
+        self.assertFalse(ResearchhubPost.objects.filter(note=self.note).exists())
