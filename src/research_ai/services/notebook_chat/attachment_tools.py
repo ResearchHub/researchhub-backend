@@ -649,7 +649,7 @@ class AttachmentToolset:
             return None
         try:
             attachment_id = int(attachment_id)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         return self._scope().filter(id=attachment_id).first()
 

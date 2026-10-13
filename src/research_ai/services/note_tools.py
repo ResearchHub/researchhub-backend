@@ -611,7 +611,7 @@ class NoteToolset:
             # Same visibility rule as NoteViewSet: soft-deleted notes (removed
             # unified document) do not exist as far as the tools are concerned.
             note = Note.objects.get(id=note_id, unified_document__is_removed=False)
-        except (Note.DoesNotExist, ValueError, TypeError):
+        except Note.DoesNotExist, ValueError, TypeError:
             return None
         # Compare on the fetched id, not the raw input: the id is canonical
         # after the lookup, while the input may arrive as a string.

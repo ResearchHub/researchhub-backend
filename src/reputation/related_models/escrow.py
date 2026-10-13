@@ -219,7 +219,7 @@ class Escrow(DefaultModel):
     def _finite_decimal(amount) -> Decimal | None:
         try:
             amount = Decimal(str(amount))
-        except (InvalidOperation, TypeError, ValueError):
+        except InvalidOperation, TypeError, ValueError:
             return None
         return amount if amount.is_finite() else None
 

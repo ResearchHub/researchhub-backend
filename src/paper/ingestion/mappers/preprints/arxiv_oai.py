@@ -208,7 +208,7 @@ class ArXivOAIMapper(BaseMapper):
                 return date_str[:10]
             else:
                 return None
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.warning(f"Invalid date format: {date_str}")
             return None
 

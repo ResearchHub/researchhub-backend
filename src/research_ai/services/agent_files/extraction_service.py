@@ -109,7 +109,7 @@ class TextExtractionService:
         executor = ThreadPoolExecutor(max_workers=1)
         try:
             return executor.submit(self.ocr.read_page, image).result(max_seconds)
-        except (OcrError, TimeoutError):
+        except OcrError, TimeoutError:
             logger.warning("OCR failed on an image", exc_info=True)
             return ""
         finally:
@@ -162,7 +162,7 @@ class TextExtractionService:
                 timeout_seconds=deadline - time.monotonic(),
             )
             return self.ocr.read_page(image)
-        except (OcrError, UnreadableFileError):
+        except OcrError, UnreadableFileError:
             logger.warning("OCR failed on page %d", page, exc_info=True)
             return None
 
