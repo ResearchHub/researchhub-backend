@@ -6,9 +6,9 @@ from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.services.usage_budget import TierPolicy
+from research_ai.services.usage_budget import TierPolicy, resolve_ai_tier
 from research_ai.views import model_views
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 URL = "/api/research_ai/models/"
 
@@ -128,3 +128,44 @@ class AvailableModelsViewTests(APITestCase):
         # Assert
         vision = {model["ref"]: model["vision"] for model in response.json()["models"]}
         self.assertIs(vision["claude_platform:claude-opus-5-5"], True)
+
+
+class InvitedTierGrantViewTests(APITestCase):
+    def setUp(self):
+        self.target = create_random_authenticated_user("invited-target")
+        self.url = f"/api/research_ai/invited-tier/{self.target.id}/"
+        self.details_url = f"/api/moderator/{self.target.id}/user_details/"
+
+    def test_hub_editor_grants_and_revokes_the_invited_tier(self):
+        # Arrange
+        editor, _hub = create_hub_editor("invited-editor", "Invited Tier Hub")
+        self.client.force_authenticate(editor)
+
+        # Act
+        granted = self.client.post(self.url)
+
+        # Assert: the profile's moderation details report the new tier.
+        self.assertEqual(granted.status_code, status.HTTP_200_OK)
+        details = self.client.get(self.details_url).json()
+        self.assertEqual(details["research_ai_tier"], "invited")
+        self.assertTrue(details["research_ai_invited_manually"])
+
+        # Act
+        revoked = self.client.delete(self.url)
+
+        # Assert
+        self.assertEqual(
+            revoked.json(),
+            {"research_ai_tier": "default", "research_ai_invited_manually": False},
+        )
+
+    def test_regular_user_cannot_grant_the_invited_tier(self):
+        # Arrange
+        self.client.force_authenticate(self.target)
+
+        # Act
+        response = self.client.post(self.url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resolve_ai_tier(self.target).name, "default")
