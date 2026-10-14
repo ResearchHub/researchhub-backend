@@ -141,7 +141,7 @@ class ExtractedText:
     # 1-based PDF pages whose text came from ``recover_pages``.
     ocr_pages: tuple[int, ...] = ()
     # A Word document's images, numbered as the ``[Image N]`` markers in its text.
-    embedded_images: tuple["PageImage", ...] = ()
+    embedded_images: tuple[PageImage, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -646,7 +646,7 @@ class _EmbeddedImages:
             if len(self.kept) >= MAX_EMBEDDED_IMAGES:
                 return EMBEDDED_IMAGE_NOT_SHOWN
             self.kept.append(_as_jpeg(source, self._max_edge_px, self._max_bytes))
-        except (UnreadableFileError, MemoryError):
+        except UnreadableFileError, MemoryError:
             # One image must not cost the document its text.
             return EMBEDDED_IMAGE_NOT_SHOWN
         return EMBEDDED_IMAGE_MARKER.format(number=len(self.kept))
