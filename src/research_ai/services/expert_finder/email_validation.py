@@ -21,8 +21,8 @@ from research_ai.services.expert_finder.display import ExpertDisplay
 
 logger = logging.getLogger(__name__)
 
-# Require high confidence that the email is valid / mailbox exists.
-MIN_ACCEPT_CONFIDENCE = CONFIDENCE_HIGH
+# Require at least medium confidence that the email is valid / mailbox exists.
+MIN_ACCEPT_CONFIDENCE = CONFIDENCE_MEDIUM
 
 # Risk flags (disposable / SES role / random) reject at this strength or above.
 MIN_REJECT_RISK_CONFIDENCE = CONFIDENCE_MEDIUM

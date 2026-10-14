@@ -181,8 +181,10 @@ class SearchWorksTests(SimpleTestCase):
         self.assertTrue(provider.has_returned_author("AM0"))
         self.assertFalse(provider.has_returned_author("AM2"))
         self.assertIn("batch", result)
-        self.assertEqual(result["batch"]["batch_authors"], 4)
-        self.assertEqual(result["batch"]["required_chased"], 2)
+        # Chase batch is easy-priority only (first/last medium); middle
+        # coauthors without orcid/institution stay low and are not chased.
+        self.assertEqual(result["batch"]["batch_authors"], 2)
+        self.assertEqual(result["batch"]["required_chased"], 1)
 
     def test_search_works_attaches_metadata_email_and_easy_batch(self):
         # Arrange

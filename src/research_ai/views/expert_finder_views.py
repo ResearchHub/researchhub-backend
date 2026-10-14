@@ -300,6 +300,14 @@ class ExpertSearchFindMoreView(APIView):
     ]
 
     def post(self, request, search_id):
+        try:
+            ExpertSearch.objects.only("id").get(id=search_id)
+        except ExpertSearch.DoesNotExist:
+            return Response(
+                {"detail": "Expert search not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
         ser = ExpertSearchFindMoreSerializer(data=request.data or {})
         ser.is_valid(raise_exception=True)
         data = ser.validated_data

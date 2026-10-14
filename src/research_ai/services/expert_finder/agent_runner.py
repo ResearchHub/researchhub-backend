@@ -27,7 +27,12 @@ from research_ai.services.agent import (
     Toolset,
     resolve_provider,
 )
-from research_ai.services.agent.errors import BudgetExceededError, IterationLimitError
+from research_ai.services.agent.errors import (
+    BudgetExceededError,
+    IncompleteTurnError,
+    IterationLimitError,
+)
+from research_ai.services.agent.types import StopReason
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.email_validation import (
     EmailValidateToolset,
@@ -82,12 +87,23 @@ _SUBMIT_INPUT_SCHEMA = {
                     "name_suffix": {"type": "string"},
                     "academic_title": {"type": "string"},
                     "affiliation": {"type": "string"},
-                    "expertise": {"type": "string"},
+                    "expertise": {
+                        "type": "string",
+                        "description": (
+                            "Short topical expertise summary for this expert."
+                        ),
+                    },
                     "email": {
                         "type": "string",
                         "description": "Professional email (validated).",
                     },
-                    "notes": {"type": "string"},
+                    "notes": {
+                        "type": "string",
+                        "description": (
+                            "1–2 short sentences on why they match the RFP "
+                            "(not verification process)."
+                        ),
+                    },
                     "sources": {
                         "type": "array",
                         "items": {
@@ -100,11 +116,15 @@ _SUBMIT_INPUT_SCHEMA = {
                         },
                     },
                 },
+                # Schema "required" steers the model; the server still keeps
+                # grounded experts if expertise/notes are omitted.
                 "required": [
                     "openalex_author_id",
                     "first_name",
                     "last_name",
                     "email",
+                    "expertise",
+                    "notes",
                 ],
             },
         }
@@ -460,11 +480,12 @@ class ExpertFinderAgentToolset:
             description=(
                 "Submit grounded experts with validated professional emails. "
                 "Each expert must include an openalex_author_id returned by a "
-                "tool this run. Call again with additional experts until the "
-                "tool reports the target is met. If under target, page "
-                "search_works (next_cursor) or try new keywords. Submit only "
-                "new candidates; already-kept ids are ignored. Call this "
-                "before running out of turns so a partial list can be kept."
+                "tool this run, plus expertise and notes (why they match). "
+                "Call again with additional experts until the tool reports "
+                "the target is met. If under target, page search_works "
+                "(next_cursor) or try new keywords. Submit only new "
+                "candidates; already-kept ids are ignored. Call this before "
+                "running out of turns so a partial list can be kept."
             ),
             input_schema=_SUBMIT_INPUT_SCHEMA,
             handler=self._submit_experts,
@@ -578,6 +599,7 @@ def run_expert_finder_agent(
     iteration-limit and other agent failures are recorded in ``errors``.
     """
     errors: list[str] = []
+    content_filtered = False
     target = max(0, int(expert_count))
     iterations = (
         max_iterations
@@ -622,6 +644,14 @@ def run_expert_finder_agent(
         )
     except BudgetExceededError:
         raise
+    except IncompleteTurnError as exc:
+        logger.warning(
+            "expert-finder agent incomplete turn stop_reason=%s",
+            exc.stop_reason,
+        )
+        errors.append(f"agent: {exc}")
+        if exc.stop_reason == StopReason.CONTENT_FILTERED.value:
+            content_filtered = True
     except IterationLimitError as exc:
         agent_iterations = getattr(exc, "iterations", iterations) or iterations
         logger.warning(
@@ -636,6 +666,8 @@ def run_expert_finder_agent(
     except Exception as exc:  # noqa: BLE001 - agent run is best-effort
         logger.exception("expert-finder agent failed")
         errors.append(f"agent: {exc}")
+        if "content_filtered" in str(exc).lower():
+            content_filtered = True
 
     accepted = list(toolset.accepted_experts)
     author_work_ids = toolset.openalex.author_work_ids_snapshot()
@@ -650,10 +682,12 @@ def run_expert_finder_agent(
             "experts": [],
             "errors": errors,
             "author_work_ids": author_work_ids,
+            "content_filtered": content_filtered,
         }
 
     return {
         "experts": accepted,
         "errors": errors,
         "author_work_ids": author_work_ids,
+        "content_filtered": content_filtered,
     }
