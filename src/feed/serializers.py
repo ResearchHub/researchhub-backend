@@ -13,6 +13,7 @@ from purchase.serializers import DynamicPurchaseSerializer
 from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -1245,6 +1246,57 @@ def _serialize_feed_entry_nonprofit(feed_entry):
     }
 
 
+def get_activity_card_comment_id(entry: dict) -> int | None:
+    """Return the comment a serialized activity entry shows, if it shows one.
+
+    That is the comment itself for a comment entry (comments, reviews, author
+    updates), or the review a tip went to for a review tip. The card's votes
+    belong to that comment rather than to the document it sits on.
+    """
+    content = entry.get("content_object") or {}
+    content_type = entry.get("content_type")
+    if content_type == "RHCOMMENTMODEL":
+        comment_id = content.get("id")
+    elif content_type == "FUNDINGACTIVITY":
+        comment_id = (content.get("peer_review") or {}).get("id")
+    else:
+        return None
+    return int(comment_id) if comment_id is not None else None
+
+
+class ActivityFeedEntryListSerializer(serializers.ListSerializer):
+    """Activity feed page that scores each comment-led entry by its comment.
+
+    Comment scores are read for the whole page in one query, after the entries
+    are serialized, so cached pages carry them too.
+    """
+
+    def to_representation(self, data):
+        entries = super().to_representation(data)
+        comment_ids = {
+            comment_id
+            for entry in entries
+            if (comment_id := get_activity_card_comment_id(entry)) is not None
+        }
+        if not comment_ids:
+            return entries
+
+        scores = dict(
+            RhCommentModel.objects.filter(id__in=comment_ids).values_list("id", "score")
+        )
+        for entry in entries:
+            comment_id = get_activity_card_comment_id(entry)
+            if comment_id not in scores:
+                continue
+            votes = scores[comment_id] or 0
+            entry["metrics"] = {
+                "votes": votes,
+                "adjusted_score": calculate_adjusted_score(votes, {}),
+            }
+            entry["adjusted_score"] = entry["metrics"]["adjusted_score"]
+        return entries
+
+
 class ActivityFeedEntrySerializer(FeedEntrySerializer):
     """Activity feed entry.
 
@@ -1256,6 +1308,10 @@ class ActivityFeedEntrySerializer(FeedEntrySerializer):
     ``nonprofit`` is the canonical receiving-organization field for proposal
     activity. It is populated from the fundraise linked to the entry's unified
     document and is otherwise null.
+
+    ``metrics`` are the related work's, except on an entry that shows a comment
+    (see ``get_activity_card_comment_id``), where they are that comment's.
+    ``related_work.metrics`` is always the work's.
     """
 
     related_work = serializers.SerializerMethodField()
@@ -1263,6 +1319,7 @@ class ActivityFeedEntrySerializer(FeedEntrySerializer):
 
     class Meta(FeedEntrySerializer.Meta):
         fields = FeedEntrySerializer.Meta.fields + ["related_work", "nonprofit"]
+        list_serializer_class = ActivityFeedEntryListSerializer
 
     def get_related_work(self, obj):
         return RelatedWorkSerializer.serialize(obj.unified_document, self.context)

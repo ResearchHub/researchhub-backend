@@ -31,6 +31,7 @@ from feed.serializers import (
     ActivityFeedEntrySerializer,
     AuthorActivityQuerySerializer,
     UserActivityQuerySerializer,
+    get_activity_card_comment_id,
 )
 from feed.services.feed_entry_visibility_service import FeedEntryVisibilityService
 from feed.services.user_activity_service import UserActivityService
@@ -126,12 +127,21 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         return context
 
     def add_user_votes_to_response(self, user, response_data):
-        """Attach votes for related_work documents."""
+        """Attach the requester's votes.
+
+        ``related_work.user_vote`` is the vote on the document. The entry's own
+        ``user_vote`` is the vote on the comment it shows, when it shows one
+        (see ``get_activity_card_comment_id``), and the document's otherwise.
+        """
         results = response_data.get("results") or []
         paper_ids: list[int] = []
         post_ids: list[int] = []
+        comment_ids: list[int] = []
 
         for item in results:
+            comment_id = get_activity_card_comment_id(item)
+            if comment_id is not None:
+                comment_ids.append(comment_id)
             related = item.get("related_work")
             if not related or related.get("id") is None:
                 continue
@@ -151,7 +161,18 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             for vote in self._get_user_votes(user, post_ids, self._post_content_type):
                 post_votes_map[int(vote.object_id)] = VoteSerializer(vote).data
 
+        comment_votes_map = {}
+        if comment_ids:
+            for vote in self._get_user_votes(
+                user, comment_ids, self._comment_content_type
+            ):
+                comment_votes_map[int(vote.object_id)] = VoteSerializer(vote).data
+
         for item in results:
+            comment_id = get_activity_card_comment_id(item)
+            if comment_id is not None and comment_id in comment_votes_map:
+                item["user_vote"] = comment_votes_map[comment_id]
+
             related = item.get("related_work")
             if not related or related.get("id") is None:
                 continue
@@ -163,7 +184,8 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             if not vote_data:
                 continue
             related["user_vote"] = vote_data
-            item["user_vote"] = vote_data
+            if comment_id is None:
+                item["user_vote"] = vote_data
 
     def list(self, request, *args, **kwargs):
         cache_key = None

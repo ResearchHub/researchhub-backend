@@ -271,37 +271,130 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         self.assertIn("start_date", related_work["fundraise"])
         self.assertIn("end_date", related_work["fundraise"])
 
-    def test_related_work_includes_document_metrics(self):
+    def _vote(self, item, vote_type):
+        return Vote.objects.create(
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(item),
+            object_id=item.id,
+            vote_type=vote_type,
+        )
+
+    def _create_review_tip_entry(self):
+        """A review on the prereg post, and a feed entry for a tip sent to it."""
+        review, _ = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, PEER_REVIEW
+        )
+        tip = FundingActivity.objects.create(
+            funder=self.user,
+            source_type=FundingActivity.TIP_REVIEW,
+            total_amount=Decimal(20),
+            total_usd_cents=400,
+            unified_document=self.prereg_doc,
+            activity_date=timezone.now(),
+            source_content_type=ContentType.objects.get_for_model(Fundraise),
+            source_object_id=self.fundraise.id,
+        )
+        tip_entry = _make_feed_entry(
+            FundingActivity, tip.id, self.prereg_doc, user=self.user
+        )
+        return review, tip_entry
+
+    def test_document_entry_metrics_are_the_documents(self):
         # Arrange
         self.prereg_post.score = 12
         self.prereg_post.save(update_fields=["score"])
 
         # Act
-        entry = self._get_entry(self.prereg_comment_entry.id)
+        entry = self._get_entry(self.prereg_entry.id)
 
         # Assert
-        related_metrics = entry["related_work"]["metrics"]
-        self.assertEqual(related_metrics["votes"], 12)
-        self.assertEqual(related_metrics["adjusted_score"], 12)
-        # Entry metrics mirror related-work for the activity card vote UI.
+        self.assertEqual(entry["related_work"]["metrics"]["votes"], 12)
+        self.assertEqual(entry["related_work"]["metrics"]["adjusted_score"], 12)
         self.assertEqual(entry["metrics"]["votes"], 12)
         self.assertEqual(entry["metrics"]["adjusted_score"], 12)
 
-    def test_user_vote_attached_to_related_work_not_comment(self):
-        # Arrange — vote is on the prereg post (card target), not the comment.
-        Vote.objects.create(
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubPost),
-            object_id=self.prereg_post.id,
-            vote_type=Vote.UPVOTE,
+    def test_comment_entry_metrics_are_the_comments(self):
+        # Arrange
+        self.prereg_post.score = 12
+        self.prereg_post.save(update_fields=["score"])
+        comment, comment_entry = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, GENERIC_COMMENT
         )
+        comment.score = 3
+        comment.save(update_fields=["score"])
 
         # Act
-        entry = self._get_entry(self.prereg_comment_entry.id)
+        entry = self._get_entry(comment_entry.id)
+
+        # Assert
+        self.assertEqual(entry["related_work"]["metrics"]["votes"], 12)
+        self.assertEqual(entry["metrics"]["votes"], 3)
+        self.assertEqual(entry["metrics"]["adjusted_score"], 3)
+        self.assertEqual(entry["adjusted_score"], 3)
+
+    def test_document_entry_user_vote_is_the_documents(self):
+        # Arrange
+        self._vote(self.prereg_post, Vote.UPVOTE)
+
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert
+        self.assertEqual(entry["related_work"]["user_vote"]["vote_type"], Vote.UPVOTE)
+        self.assertEqual(entry["user_vote"]["vote_type"], Vote.UPVOTE)
+
+    def test_comment_entry_user_vote_is_the_comments(self):
+        # Arrange
+        comment, comment_entry = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, GENERIC_COMMENT
+        )
+        self._vote(self.prereg_post, Vote.UPVOTE)
+        self._vote(comment, Vote.DOWNVOTE)
+
+        # Act
+        entry = self._get_entry(comment_entry.id)
 
         # Assert
         self.assertEqual(entry["related_work"]["id"], self.prereg_post.id)
         self.assertEqual(entry["related_work"]["user_vote"]["vote_type"], Vote.UPVOTE)
+        self.assertEqual(entry["user_vote"]["vote_type"], Vote.DOWNVOTE)
+
+    def test_comment_entry_ignores_a_vote_on_the_document(self):
+        # Arrange
+        _, comment_entry = _make_comment_feed_entry(
+            self.user, self.prereg_doc, self.prereg_post, GENERIC_COMMENT
+        )
+        self._vote(self.prereg_post, Vote.UPVOTE)
+
+        # Act
+        entry = self._get_entry(comment_entry.id)
+
+        # Assert
+        self.assertEqual(entry["related_work"]["user_vote"]["vote_type"], Vote.UPVOTE)
+        self.assertIsNone(entry.get("user_vote"))
+
+    def test_review_tip_entry_metrics_and_vote_are_the_reviews(self):
+        # Arrange
+        self.prereg_post.score = 12
+        self.prereg_post.save(update_fields=["score"])
+        review, tip_entry = self._create_review_tip_entry()
+        review.score = 4
+        review.save(update_fields=["score"])
+        self._vote(self.prereg_post, Vote.DOWNVOTE)
+        self._vote(review, Vote.UPVOTE)
+
+        # Act
+        with patch(
+            "feed.serializers.FundingActivityService.get_peer_review_comment",
+            return_value=review,
+        ):
+            entry = self._get_entry(tip_entry.id)
+
+        # Assert
+        self.assertEqual(entry["content_object"]["peer_review"]["id"], review.id)
+        self.assertEqual(entry["related_work"]["metrics"]["votes"], 12)
+        self.assertEqual(entry["metrics"]["votes"], 4)
+        self.assertEqual(entry["related_work"]["user_vote"]["vote_type"], Vote.DOWNVOTE)
         self.assertEqual(entry["user_vote"]["vote_type"], Vote.UPVOTE)
 
     def test_related_work_on_grant_post(self):
