@@ -1,10 +1,10 @@
-{# Context: author (Author), action, title, created_date, body #}
+{# Context: author (Author), action, title, created_date, body, possessive (optional) #}
 <div class="content">
   <div class="meta">
     <div class="avatar-wrapper">{% if author.profile_image %}<img class="author-avatar" src="{{ author.profile_image.url }}" alt="" />{% endif %}</div>
     <div class="notification-wrapper">
       <div class="notification-title">
-        <span class="first-line"><b>{{ author.first_name }} {{ author.last_name }}</b> {{ action }}:</span>
+        <span class="first-line"><b>{{ author.first_name }} {{ author.last_name }}{% if possessive %}'s{% endif %}</b> {{ action }}:</span>
         <div class="paper">{{ title }}</div>
         <div class="timestamp">{{ created_date }}</div>
       </div>

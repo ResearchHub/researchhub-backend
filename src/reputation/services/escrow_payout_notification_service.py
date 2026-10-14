@@ -1,6 +1,9 @@
 from decimal import Decimal
 
-from mailing_list.services import EmailService
+from django.template.loader import render_to_string
+from django.utils.html import escape
+
+from mailing_list.services import EmailService, truncate_preview
 from notification.models import Notification
 from notification.services import NotificationService
 from reputation.models import Escrow
@@ -31,17 +34,28 @@ class EscrowPayoutNotificationService:
         if escrow.hold_type == Escrow.BOUNTY:
             notification_type = Notification.BOUNTY_PAYOUT
             subject = "Bounty Payout"
-            message = (
+            message = escape(
                 f"{escrow.created_by.full_name()} awarded you a bounty for your "
                 f"thread in {title}."
             )
             link = f"{unified_document.frontend_view_link()}/bounties"
         else:
             notification_type = Notification.FUNDRAISE_PAYOUT
-            subject = "Fundraise Payout"
-            message = (
-                f"Congratulations! Your fundraise for {title} has been fulfilled "
-                "and paid out to you."
+            subject = (
+                f"Congratulations {recipient.first_name}, your proposal is fully "
+                "funded!"
+            )
+            proposal = unified_document.get_document()
+            message = render_to_string(
+                "email_content_card.html",
+                {
+                    "author": proposal.created_by.author_profile,
+                    "action": "Proposal",
+                    "possessive": True,
+                    "title": title,
+                    "created_date": proposal.created_date,
+                    "body": truncate_preview(proposal.renderable_text),
+                },
             )
             link = unified_document.frontend_view_link()
 
@@ -53,4 +67,6 @@ class EscrowPayoutNotificationService:
             unified_document=unified_document,
             extra={"amount": str(payout_amount)},
         )
-        self._emails.send_message_email([recipient.email], subject, message, link=link)
+        self._emails.send_message_email(
+            [recipient.email], subject, message, link=link, is_html=True
+        )
