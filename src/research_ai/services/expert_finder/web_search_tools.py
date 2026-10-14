@@ -1,22 +1,19 @@
-"""Brave web-search tool for the expert-finder agent.
+"""Brave ``web_search`` tool for expert-finder contact lookup.
 
-Used to find professional contact pages (faculty directories, lab pages,
-ORCID) after OpenAlex discovery. Results inform contact enrichment only --
-they do not substitute for an OpenAlex author id.
+Results are provenance URLs the agent may cite; they do not substitute for an
+OpenAlex author id.
 """
 
 from __future__ import annotations
 
-import logging
+from collections.abc import Callable
 
 from research_ai.services.agent import Tool, Toolset
 from utils.brave_search import BraveSearch
 
-logger = logging.getLogger(__name__)
-
 WEB_SEARCH = "web_search"
 
-_DEFAULT_MAX_SEARCHES = 24  # per-run ceiling on contact web searches
+_DEFAULT_MAX_SEARCHES = 80  # per-run ceiling
 _MAX_RESULTS = 5  # results surfaced to the model per call
 
 _INPUT_SCHEMA = {
@@ -25,11 +22,18 @@ _INPUT_SCHEMA = {
         "query": {
             "type": "string",
             "description": (
-                "Contact-oriented query, e.g. "
+                "Search query for a researcher's professional contact, e.g. "
                 "'Jane Doe MIT faculty email' or "
                 "'Ada Lovelace University College London ORCID'."
             ),
-        }
+        },
+        "openalex_author_id": {
+            "type": "string",
+            "description": (
+                "OpenAlex author id for the person being chased. Required to "
+                "count toward the current search_works batch chase quota."
+            ),
+        },
     },
     "required": ["query"],
 }
@@ -44,11 +48,13 @@ class ExpertFinderWebSearchToolset:
         client: BraveSearch | None = None,
         provenance: set[str] | None = None,
         max_searches: int = _DEFAULT_MAX_SEARCHES,
+        on_author_chased: Callable[[str | None], bool] | None = None,
     ):
         self._client = client or BraveSearch()
         self.provenance = provenance if provenance is not None else set()
         self.max_searches = max_searches
         self._searches_used = 0
+        self._on_author_chased = on_author_chased
 
     def build_tools(self) -> list[Tool]:
         return [
@@ -56,9 +62,12 @@ class ExpertFinderWebSearchToolset:
                 name=WEB_SEARCH,
                 description=(
                     "Search the open web for a researcher's professional "
-                    "contact details: faculty/lab pages, departmental "
-                    "directories, or ORCID. Prefer queries shaped as "
-                    "`name + institution + email|faculty`. Do not invent "
+                    "contact on faculty/lab/directory pages. Prefer "
+                    '`"Name" "Institution" (email OR faculty) '
+                    "-site:linkedin.com -site:researchgate.net`. Always pass "
+                    "openalex_author_id so the chase counts toward unlocking "
+                    "the next search_works page. Skip authors that already "
+                    "have metadata_email — validate that first. Do not invent "
                     "emails from snippets alone -- copy only addresses that "
                     "clearly belong to the person, then call email_validate. "
                     f"Limited to {self.max_searches} searches per run."
@@ -78,9 +87,8 @@ class ExpertFinderWebSearchToolset:
         if not self._client.configured:
             return {
                 "error": (
-                    "Web search is not configured in this deployment. Use "
-                    "OpenAlex authorship and any preprint/corresponding-author "
-                    "paths already available."
+                    "Web search is not configured in this deployment. Work "
+                    "from OpenAlex authorship and contacts already found."
                 )
             }
         if self._searches_used >= self.max_searches:
@@ -91,9 +99,22 @@ class ExpertFinderWebSearchToolset:
                 )
             }
         self._searches_used += 1
+        author_id = str((args or {}).get("openalex_author_id") or "").strip()
+        counted = False
+        if self._on_author_chased is not None and author_id:
+            counted = bool(self._on_author_chased(author_id))
         results = self._client.search(query, count=_MAX_RESULTS)
         for result in results:
             url = str(result.get("url") or "").strip()
             if url:
                 self.provenance.add(url)
-        return {"query": query, "results": results}
+        payload: dict = {"query": query, "results": results}
+        if author_id:
+            payload["openalex_author_id"] = author_id
+            payload["counted_toward_batch_chase"] = counted
+        elif self._on_author_chased is not None:
+            payload["warning"] = (
+                "Pass openalex_author_id so this chase counts toward the "
+                "search_works batch quota."
+            )
+        return payload
