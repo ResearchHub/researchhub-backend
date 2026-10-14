@@ -21,8 +21,8 @@ from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.agent.providers.registry import generator_model_ref
 from research_ai.services.expert_finder.agent_runner import run_expert_finder_agent
 from research_ai.services.expert_finder.display import ExpertDisplay
+from research_ai.services.expert_finder.events import ExpertFinderEventPublisher
 from research_ai.services.expert_finder.persist import ExpertPersist
-from research_ai.services.expert_finder.progress import ProgressService, TaskType
 from research_ai.services.expert_finder.report_generator import (
     expert_to_report_row,
     generate_csv_file,
@@ -279,8 +279,8 @@ def _seen_work_ids_from_prior_document_searches(
 
 
 class ExpertFinderService:
-    def __init__(self):
-        self.progress_service = ProgressService()
+    def __init__(self, event_publisher: ExpertFinderEventPublisher | None = None):
+        self.event_publisher = event_publisher or ExpertFinderEventPublisher()
 
     @staticmethod
     def _expert_row_suggests_deceased(row: dict[str, Any]) -> bool:
@@ -358,30 +358,46 @@ class ExpertFinderService:
             )
         except ExpertSearch.DoesNotExist:
             unified_document_id = None
-        progress_service = self.progress_service
+        publisher = self.event_publisher
         llm_model = generator_model_ref()
         config = deepcopy(config) if isinstance(config, dict) else {}
+
+        def publish_experts_found(count: int) -> None:
+            publisher.publish_experts_found(expert_search_id, count)
 
         def publish_progress(
             message: str,
             percent: int,
             status: str = ExpertSearch.Status.PROCESSING,
+            *,
+            expert_count: int | None = None,
+            error: str | None = None,
         ):
             status_val = status.value if hasattr(status, "value") else status
-            progress_service.publish_progress_sync(
-                TaskType.EXPERTS,
-                search_id,
-                {
-                    "status": status_val,
-                    "progress": percent,
-                    "currentStep": message,
-                    "type": (
-                        "progress"
-                        if status_val == ExpertSearch.Status.PROCESSING
-                        else status_val
-                    ),
-                },
-            )
+            if status_val == ExpertSearch.Status.FAILED:
+                publisher.publish_failed(
+                    expert_search_id,
+                    status=status_val,
+                    progress=percent,
+                    current_step=message,
+                    error=error or message,
+                )
+            elif status_val == ExpertSearch.Status.COMPLETED:
+                publisher.publish_finished(
+                    expert_search_id,
+                    status=status_val,
+                    progress=percent,
+                    current_step=message,
+                    expert_count=expert_count if expert_count is not None else 0,
+                    error=error,
+                )
+            else:
+                publisher.publish_progress(
+                    expert_search_id,
+                    status=status_val,
+                    progress=percent,
+                    current_step=message,
+                )
             if progress_callback:
                 progress_callback(search_id, percent, message)
 
@@ -429,7 +445,13 @@ class ExpertFinderService:
             )
 
             if append and existing_count > 0:
-                publish_progress(msg, 100, status=ExpertSearch.Status.COMPLETED)
+                publish_progress(
+                    msg,
+                    100,
+                    status=ExpertSearch.Status.COMPLETED,
+                    expert_count=existing_count,
+                    error=err,
+                )
                 return {
                     "search_id": search_id,
                     "status": ExpertSearch.Status.COMPLETED,
@@ -444,7 +466,7 @@ class ExpertFinderService:
                     "append": True,
                     "appended_count": 0,
                 }
-            publish_progress(msg, 0, status=ExpertSearch.Status.FAILED)
+            publish_progress(msg, 0, status=ExpertSearch.Status.FAILED, error=err)
             return {
                 "search_id": search_id,
                 "status": ExpertSearch.Status.FAILED,
@@ -506,6 +528,10 @@ class ExpertFinderService:
                 [n for n in search_id_names if n]
             )
 
+            batch: list[dict[str, Any]] = []
+            author_work_ids: dict | None = {}
+            discovery_errors: list[str] = []
+
             publish_progress(
                 (
                     "Finding more experts via agent search..."
@@ -524,6 +550,7 @@ class ExpertFinderService:
                     excluded_expert_names=excluded_names,
                     additional_context=additional_context,
                     exclude_work_ids=exclude_work_ids or None,
+                    on_experts_found=publish_experts_found,
                 )
             except BudgetExceededError:
                 raise
@@ -534,8 +561,12 @@ class ExpertFinderService:
                     exc=e,
                 )
 
-            publish_progress("Validating grounded expert recommendations...", 58)
             batch = list(agent_result.get("experts") or [])
+            author_work_ids = agent_result.get("author_work_ids")
+            discovery_errors = list(agent_result.get("errors") or [])
+
+            publish_progress("Validating expert recommendations...", 58)
+
             n_before = len(batch)
             kept: list[dict[str, Any]] = []
             for row in batch:
@@ -554,7 +585,6 @@ class ExpertFinderService:
             )[:target_expert_count]
 
             if len(experts_rows) == 0:
-                agent_errors = agent_result.get("errors") or []
                 if all_filtered_by_exclusion:
                     umsg = (
                         "Every recommendation matched an email already linked to "
@@ -564,21 +594,21 @@ class ExpertFinderService:
                     return fail_return(umsg, current_step="All experts excluded")
 
                 umsg = (
-                    "No expert recommendations were returned. The agent did not "
-                    "yield at least one grounded expert with a validated email."
+                    "No expert recommendations were returned. The agent did "
+                    "not yield at least one grounded expert with a "
+                    "validated email."
                 )
-                if agent_errors:
-                    detail = "; ".join(str(e) for e in agent_errors)
-                    umsg = (
-                        umsg + " Agent details:\n\n" + detail[:MAX_ERROR_MESSAGE_LENGTH]
-                    )
+                step = "No experts after agent search"
+                if discovery_errors:
+                    detail = "; ".join(str(e) for e in discovery_errors)
+                    umsg = umsg + " Details:\n\n" + detail[:MAX_ERROR_MESSAGE_LENGTH]
                 return fail_return(
                     umsg,
-                    current_step="No experts after agent search",
+                    current_step=step,
                     store_full_response_error=umsg[:MAX_ERROR_MESSAGE_LENGTH],
                     extra={
                         "target_expert_count": target_expert_count,
-                        "agent_error_count": len(agent_errors),
+                        "discovery_error_count": len(discovery_errors),
                     },
                 )
 
@@ -606,11 +636,12 @@ class ExpertFinderService:
             persist_seen_work_ids(
                 _work_ids_for_saved_experts(
                     experts_rows,
-                    agent_result.get("author_work_ids"),
+                    author_work_ids,
                 )
             )
 
             experts = load_experts_for_expert_search(expert_search_id)
+            publish_experts_found(len(experts))
             publish_progress("Enriching expert profile links...", 72)
             try:
                 # Enrich only the batch just added when appending.
@@ -643,7 +674,10 @@ class ExpertFinderService:
                 "appended_count": replace_count if append else len(experts),
             }
             publish_progress(
-                "Expert search complete!", 100, status=ExpertSearch.Status.COMPLETED
+                "Expert search complete!",
+                100,
+                status=ExpertSearch.Status.COMPLETED,
+                expert_count=len(experts),
             )
             logger.info(
                 "expert finder search_id=%s completed experts=%s persist=%s append=%s",
@@ -660,7 +694,7 @@ class ExpertFinderService:
             logger.exception(error_message)
             if not data_persisted and not append:
                 clear_expert_search_links(expert_search_id)
-            publish_progress(str(e), 0, status=ExpertSearch.Status.FAILED)
+            publish_progress(str(e), 0, status=ExpertSearch.Status.FAILED, error=str(e))
             raise
 
 
