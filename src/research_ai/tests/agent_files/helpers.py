@@ -137,10 +137,15 @@ def make_file(
     text="[Page 1]\nSpecific aims",
     **fields,
 ) -> AgentFile:
-    """A file row as the upload lifecycle leaves it; sent when ``message``."""
+    """A file row as the upload lifecycle leaves it; sent when ``message``.
+
+    A fetched file passes its ``conversation`` and ``source`` instead.
+    """
     return AgentFile.objects.create(
         user=user,
-        conversation=message.conversation if message is not None else None,
+        conversation=fields.pop(
+            "conversation", message.conversation if message is not None else None
+        ),
         message=message,
         filename=filename,
         content_type=content_type,

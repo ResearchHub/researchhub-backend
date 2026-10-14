@@ -142,6 +142,22 @@ class PageImageServiceTests(AWSMockTestCase):
                 # An A4 page at 72 DPI.
                 self.assertEqual(stored.size, (595, 842))
 
+    def test_a_pdf_fetched_in_the_chat_has_page_images(self):
+        # Arrange
+        file = self._pdf(
+            "Aims",
+            message=None,
+            conversation=self.conversation,
+            source=AgentFile.Source.WEB,
+        )
+
+        # Act
+        result = PageImageService(config=QUICK).images(file, [1])
+
+        # Assert
+        self.assertEqual(len(result.images), 1)
+        self.assertEqual(result.failed, ())
+
     def test_an_uploaded_image_is_shown_as_its_files_one_page(self):
         # Arrange
         file = self._image()

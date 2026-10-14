@@ -9,8 +9,9 @@ pages and any image the user uploaded with the message, and can look at any
 PDF's pages (``view_attachment_pages``). The images in a Word document are
 shown and looked at as a PDF's pages are, by the number of their ``[Image N]``
 marker in its text. An uploaded image's text is what OCR read in it. The tools
-are scoped to the conversation's sent, READY files, so the agent cannot reach
-another chat's files.
+are scoped to the conversation's sent or fetched READY files (pages from
+``web_fetch`` are read the same way), so the agent cannot reach another chat's
+files.
 
 Inline text and images stay in the conversation's context, so each has a
 budget per conversation; ``attachment_usage`` measures what a context carries.
@@ -25,6 +26,7 @@ from typing import NamedTuple
 from django.utils.crypto import salted_hmac
 
 from research_ai.models import AgentConversation, AgentFile
+from research_ai.models.agent_file import IN_CHAT
 from research_ai.services.agent import Tool, ToolOutput, Toolset
 from research_ai.services.agent.tools import MAX_TOOL_RESULT_BYTES
 from research_ai.services.agent.types import (
@@ -51,8 +53,8 @@ READ_ATTACHMENT = "read_attachment"
 SEARCH_ATTACHMENT = "search_attachment"
 VIEW_ATTACHMENT_PAGES = "view_attachment_pages"
 
-_DEFAULT_READ_CHARS = 20_000
-_MAX_READ_CHARS = 40_000
+DEFAULT_READ_CHARS = 20_000
+MAX_READ_CHARS = 40_000
 # Non-ASCII text JSON-escapes to several bytes per character, so a window is
 # also bounded by its encoded size, leaving room for the result envelope.
 _MAX_READ_BYTES = MAX_TOOL_RESULT_BYTES - 8 * 1024
@@ -317,7 +319,7 @@ def _bounded(value, *, name: str, default: int, minimum: int, maximum=None) -> i
     return value
 
 
-def _window_end(text: str, start: int, limit: int) -> int:
+def window_end(text: str, start: int, limit: int) -> int:
     """End of a read window: on a line or word break, within the byte budget."""
     end = min(start + limit, len(text))
     if end < len(text):
@@ -413,8 +415,9 @@ class AttachmentToolset:
             Tool(
                 name=READ_ATTACHMENT,
                 description=(
-                    "Read a file the user attached to this conversation, as "
-                    "extracted text; a file whose full text came with the "
+                    "Read a file the user attached to this conversation, or a "
+                    "page fetched with web_fetch, as extracted text; a file "
+                    "whose full text came with the "
                     "user's message needs no read. Returns up to max_chars "
                     "characters from start_char plus the file's total_chars; "
                     "continue from next_start_char to read further (null at "
@@ -439,10 +442,10 @@ class AttachmentToolset:
                         "max_chars": {
                             "type": "integer",
                             "minimum": 1,
-                            "maximum": _MAX_READ_CHARS,
+                            "maximum": MAX_READ_CHARS,
                             "description": (
                                 f"Characters to return (default "
-                                f"{_DEFAULT_READ_CHARS}, limit {_MAX_READ_CHARS})."
+                                f"{DEFAULT_READ_CHARS}, limit {MAX_READ_CHARS})."
                             ),
                         },
                     },
@@ -453,10 +456,11 @@ class AttachmentToolset:
             Tool(
                 name=SEARCH_ATTACHMENT,
                 description=(
-                    "Find the passages of the user's attached files most "
-                    "relevant to a focused query: a question, term, method, "
-                    "or claim. Searches one file (attachment_id) or, when "
-                    "omitted, every file attached to this conversation. "
+                    "Find the passages of the user's attached files, and of "
+                    "pages fetched with web_fetch, most relevant to a focused "
+                    "query: a question, term, method, or claim. Searches one "
+                    "file (attachment_id) or, when omitted, every file in this "
+                    "conversation. "
                     "Returns ranked excerpts with their offsets (and pages, "
                     "for PDFs), never whole files; read around an excerpt "
                     "with read_attachment, unless the file's full text came "
@@ -552,9 +556,9 @@ class AttachmentToolset:
             limit = _bounded(
                 args.get("max_chars"),
                 name="max_chars",
-                default=_DEFAULT_READ_CHARS,
+                default=DEFAULT_READ_CHARS,
                 minimum=1,
-                maximum=_MAX_READ_CHARS,
+                maximum=MAX_READ_CHARS,
             )
         except ValueError as exc:
             return {"error": str(exc)}
@@ -566,7 +570,7 @@ class AttachmentToolset:
                     f"({len(text)} characters)"
                 )
             }
-        end = _window_end(text, start, limit)
+        end = window_end(text, start, limit)
         return {
             "attachment_id": file.id,
             "filename": file.filename,
@@ -694,8 +698,8 @@ class AttachmentToolset:
 
     def _scope(self):
         return AgentFile.objects.defer("text").filter(
+            IN_CHAT,
             conversation=self._conversation,
-            message__isnull=False,
             status=AgentFile.Status.READY,
         )
 
