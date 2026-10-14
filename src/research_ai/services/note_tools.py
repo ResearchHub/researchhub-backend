@@ -467,12 +467,10 @@ class NoteToolset:
                         raise ValueError(f"edits[{index}]: {exc}") from exc
         except ValueError as exc:
             return {
-                "error": (
-                    f"{exc}. No edits were saved by this call. "
-                    "Correct the arguments and retry edit_note directly with "
-                    "the intended content and the same expected_version_id; "
-                    "edit_note is not available inside code_execution."
-                )
+                "error": f"{exc}. No edits were saved by this call. "
+                "Correct the arguments and retry edit_note directly with "
+                "the intended content and the same expected_version_id; "
+                "edit_note is not available inside code_execution."
             }
 
         expected = input.get("expected_version_id")
