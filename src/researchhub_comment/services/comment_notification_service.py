@@ -19,6 +19,11 @@ def notify_mentioned_users(comment_id: int, recipient_ids: list[int]) -> None:
     notifications = NotificationService()
     emails = EmailService()
     subject = f"{author.full_name()} Mentioned You in a Comment"
+    body = (
+        ""
+        if comment.thread.permissions.exists()
+        else render_comment_html(comment, max_length=EMAIL_PREVIEW_LENGTH)
+    )
     message = render_to_string(
         "email_content_card.html",
         {
@@ -26,7 +31,7 @@ def notify_mentioned_users(comment_id: int, recipient_ids: list[int]) -> None:
             "action": "mentioned you in a comment on",
             "title": unified_document.get_display_title(),
             "created_date": comment.created_date,
-            "body": render_comment_html(comment, max_length=EMAIL_PREVIEW_LENGTH),
+            "body": body,
         },
     )
     link = comment.get_frontend_view_link()
