@@ -2029,8 +2029,8 @@ class ActivityFeedReviewMetricsTests(ActivityFeedBaseTests):
             object_id=self.prereg_post.id,
             created_by=self.user,
         )
-        self._review(score=4)
-        self._review(score=2)
+        self.first = self._review(score=4)
+        self.second = self._review(score=2)
         self._review(score=1, is_assessed=False)
         self._review(score=5, comment_removed=True)
         self._review(score=5, review_removed=True)
@@ -2076,12 +2076,39 @@ class ActivityFeedReviewMetricsTests(ActivityFeedBaseTests):
             entry["related_work"]["review_metrics"], {"avg": 3.0, "count": 2}
         )
 
-    def test_review_metrics_left_out_without_assessed_reviews(self):
+    def test_assessed_reviews_list_reviewers_oldest_first(self):
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert
+        reviews = entry["related_work"]["assessed_reviews"]
+        self.assertEqual(
+            [review["id"] for review in reviews], [self.first.id, self.second.id]
+        )
+        self.assertEqual(reviews[0]["score"], 4)
+        self.assertTrue(reviews[0]["is_assessed"])
+        self.assertEqual(reviews[0]["author"]["id"], self.user.author_profile.id)
+
+    def test_assessed_reviews_stop_at_three_while_the_count_doesnt(self):
+        # Arrange
+        self._review(score=3)
+        self._review(score=5)
+
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertEqual(len(related_work["assessed_reviews"]), 3)
+        self.assertEqual(related_work["review_metrics"], {"avg": 3.5, "count": 4})
+
+    def test_review_fields_left_out_without_assessed_reviews(self):
         # Act
         entry = self._get_entry(self.discussion_entry.id)
 
         # Assert
         self.assertNotIn("review_metrics", entry["related_work"])
+        self.assertNotIn("assessed_reviews", entry["related_work"])
 
     def test_review_metrics_match_without_the_prefetch(self):
         # Act — serialized straight from the document, as other callers do.
@@ -2090,3 +2117,4 @@ class ActivityFeedReviewMetricsTests(ActivityFeedBaseTests):
         # Assert
         self.assertEqual(related_work["review_metrics"], {"avg": 3.0, "count": 2})
         self.assertEqual(self.prereg_doc.get_review_details(), {"avg": 3.0, "count": 2})
+        self.assertEqual(len(related_work["assessed_reviews"]), 2)
