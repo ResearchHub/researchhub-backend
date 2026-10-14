@@ -9,6 +9,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.template.loader import render_to_string
 
+from mailing_list.services import EMAIL_PREVIEW_LENGTH
 from mailing_list.tasks import send_message_email
 from notification.models import Notification
 from notification.services import NotificationService
@@ -27,7 +28,6 @@ from user.related_models.user_model import User
 logger = Logger(__name__)
 
 PREREGISTRATION_UPDATE_REWARD_AMOUNT_USD = 50
-AUTHOR_UPDATE_PREVIEW_LENGTH = 200
 
 
 @receiver(
@@ -130,9 +130,7 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
                 "action": "shared an update on",
                 "title": document.title,
                 "created_date": comment.created_date,
-                "body": render_comment_html(
-                    comment, max_length=AUTHOR_UPDATE_PREVIEW_LENGTH
-                ),
+                "body": render_comment_html(comment, max_length=EMAIL_PREVIEW_LENGTH),
             },
         )
         link = comment.unified_document.frontend_view_link()
