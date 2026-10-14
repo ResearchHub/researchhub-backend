@@ -8,5 +8,5 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
     && apt-get -y install --no-install-recommends redis-tools
 
 # Install uv and add to PATH
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /usr/local/bin/uv
 ENV PATH="/root/.local/bin:${PATH}"
