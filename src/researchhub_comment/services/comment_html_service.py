@@ -21,7 +21,7 @@ _MARK_TAGS = {
     "strike": "s",
     "underline": "u",
 }
-_WEB_SCHEMES = ("http://", "https://")
+_ALLOWED_LINK_SCHEME = "https://"
 
 
 def render_comment_html(
@@ -79,7 +79,7 @@ class _TiptapRenderer:
         if node_type == "richLink":
             url = attrs["url"]
             text = self._spend(url)
-            if url.lower().startswith(_WEB_SCHEMES):
+            if url.lower().startswith(_ALLOWED_LINK_SCHEME):
                 return format_html('<a href="{}">{}</a>', url, text)
             return escape(text)
         if node_type == "hardBreak":
@@ -100,7 +100,7 @@ class _TiptapRenderer:
         for mark in node.get("marks", []):
             if mark["type"] == "link":
                 href = mark["attrs"]["href"]
-                if href.lower().startswith(_WEB_SCHEMES):
+                if href.lower().startswith(_ALLOWED_LINK_SCHEME):
                     html = format_html('<a href="{}">{}</a>', href, html)
             else:
                 html = format_html("<{0}>{1}</{0}>", _MARK_TAGS[mark["type"]], html)

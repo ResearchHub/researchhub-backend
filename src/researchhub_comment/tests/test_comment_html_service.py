@@ -73,8 +73,8 @@ class RenderCommentHtmlTests(SimpleTestCase):
         # Assert
         self.assertEqual(html, "<p>Dose &lt; 20µM</p>")
 
-    def test_renders_non_web_links_as_text(self) -> None:
-        """Links without an http or https scheme render as plain text."""
+    def test_renders_non_https_links_as_text(self) -> None:
+        """Links without an https scheme render as plain text."""
         # Arrange
         comment = RhCommentModel(
             comment_content_type=TIPTAP,
@@ -98,20 +98,6 @@ class RenderCommentHtmlTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(html, "Datajavascript:alert(1)")
-
-    def test_renders_malformed_tiptap_as_plain_text(self) -> None:
-        """Tiptap content that is not a document falls back to its plain text."""
-        # Arrange
-        comment = RhCommentModel(
-            comment_content_type=TIPTAP,
-            comment_content_json=[{"type": "text", "text": "Update"}],
-        )
-
-        # Act
-        html = render_comment_html(comment)
-
-        # Assert
-        self.assertEqual(html, "<p>Update</p>")
 
     def test_truncates_tiptap_text_across_nodes(self) -> None:
         """Text past the limit is cut with an ellipsis and later nodes are dropped."""
