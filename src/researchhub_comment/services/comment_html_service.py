@@ -3,6 +3,7 @@ import json
 from django.utils.html import escape, format_html, linebreaks
 from django.utils.safestring import SafeString, mark_safe
 
+from mailing_list.services import truncate_preview
 from researchhub_comment.constants.rh_comment_content_types import TIPTAP
 from researchhub_comment.models import RhCommentModel
 
@@ -41,14 +42,9 @@ def render_comment_html(
         if isinstance(document, dict):
             return _TiptapRenderer(max_length).render(document.get("content", []))
     text = comment.plain_text
-    if max_length is not None and len(text) > max_length:
-        text = _truncate(text, max_length)
+    if max_length is not None:
+        text = truncate_preview(text, max_length)
     return mark_safe(linebreaks(text, autoescape=True))
-
-
-def _truncate(text: str, max_length: int) -> str:
-    """Cut text to `max_length` characters and mark the cut with an ellipsis."""
-    return text[:max_length].rstrip() + "..."
 
 
 class _TiptapRenderer:
@@ -112,6 +108,6 @@ class _TiptapRenderer:
             return text
         if len(text) > self._remaining:
             self._truncated = True
-            return _truncate(text, self._remaining)
+            return truncate_preview(text, self._remaining)
         self._remaining -= len(text)
         return text

@@ -143,7 +143,14 @@ class GrantApplicationNotificationDispatchTests(AWSMockTransactionTestCase):
         mock_send_email.assert_called_once()
         recipients, subject, context = mock_send_email.call_args.args
         self.assertEqual(recipients, [self.owner.email])
-        self.assertEqual(subject, "Someone applied to your RFP")
+        self.assertEqual(
+            subject,
+            f"{self.applicant.full_name()} has applied to your RFP "
+            f"{self.grant_post.title}",
+        )
+        self.assertIn(
+            f'<div class="paper">{self.proposal.title}</div>', context["body"]
+        )
         self.assertEqual(context["cta_url"], proposal_url)
 
     @patch.object(EmailService, "send_email")
@@ -171,9 +178,8 @@ class GrantApplicationNotificationDispatchTests(AWSMockTransactionTestCase):
 
         # Assert
         mock_send_email.assert_called_once()
-        recipients, subject, context = mock_send_email.call_args.args
+        recipients, _, context = mock_send_email.call_args.args
         self.assertEqual(recipients, [self.owner.email])
-        self.assertEqual(subject, "Someone applied to your RFP")
         self.assertEqual(
             context["cta_url"], self.proposal.unified_document.frontend_view_link()
         )

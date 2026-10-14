@@ -16,6 +16,14 @@ from mailing_list.services.email_subscription_service import EmailSubscriptionSe
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEND_INTERVAL_SECONDS = 0.2
+EMAIL_PREVIEW_LENGTH = 200
+
+
+def truncate_preview(text: str, max_length: int = EMAIL_PREVIEW_LENGTH) -> str:
+    """Cut text to `max_length` characters, marking a cut with an ellipsis."""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rstrip() + "..."
 
 
 class EmailService:
