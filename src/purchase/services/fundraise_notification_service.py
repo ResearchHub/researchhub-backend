@@ -39,11 +39,12 @@ class FundraiseNotificationService:
             rsc_amount = contribution.amount
 
         proposal = fundraise.unified_document.get_document()
-        recipients = self._notify_recipients(
+        self._notify_recipients(
             Notification.FUNDRAISE_CONTRIBUTION,
             contribution,
             rsc_amount,
             proposal,
+            "Proposal",
             recipients=User.objects.filter(
                 Q(id=proposal.created_by_id)
                 | Q(
@@ -52,49 +53,21 @@ class FundraiseNotificationService:
                 )
             ).distinct(),
         )
-        self._emails.send_message_email(
-            [recipient.email for recipient in recipients],
-            "New contribution to your proposal",
-            f"{contribution.user.full_name()} submitted a contribution to your "
-            f"proposal: {proposal.title}.",
-            link=proposal.unified_document.frontend_view_link(),
-        )
 
     def notify_grant_authors(self, purchase_id: int) -> None:
         """Notify the RFP creator and contacts after a pool contribution commits."""
         purchase = Purchase.objects.select_related("user").get(id=purchase_id)
         grant = purchase.item.grant
-        grant_post = grant.unified_document.get_document()
-
-        recipients = self._notify_recipients(
+        self._notify_recipients(
             Notification.FUNDING_POOL_CONTRIBUTION,
             purchase,
             purchase.amount,
-            grant_post,
+            grant.unified_document.get_document(),
+            "RFP",
             recipients=User.objects.filter(
                 Q(id=grant.created_by_id) | Q(grant_contacts=grant)
             ).distinct(),
         )
-        message = render_to_string(
-            "email_content_card.html",
-            {
-                "author": grant.created_by.author_profile,
-                "action": "RFP",
-                "possessive": True,
-                "title": grant_post.title,
-                "created_date": grant_post.created_date,
-                "body": truncate_preview(grant_post.renderable_text),
-            },
-        )
-        for recipient in recipients:
-            self._emails.send_message_email(
-                [recipient.email],
-                f"Congratulations {recipient.first_name}, "
-                f"{purchase.user.full_name()} contributed to your RFP!",
-                message,
-                link=grant.unified_document.frontend_view_link(),
-                is_html=True,
-            )
 
     def _notify_recipients(
         self,
@@ -102,10 +75,21 @@ class FundraiseNotificationService:
         contribution: Purchase | UsdFundraiseContribution,
         rsc_amount: str,
         post: ResearchhubPost,
+        label: str,
         recipients: QuerySet[User],
-    ) -> list[User]:
-        """Send each recipient an in-app alert with the RSC amount and return them."""
-        recipients = list(recipients)
+    ) -> None:
+        """Send each recipient an in-app alert and a congratulatory email."""
+        message = render_to_string(
+            "email_content_card.html",
+            {
+                "author": post.created_by.author_profile,
+                "action": label,
+                "possessive": True,
+                "title": post.title,
+                "created_date": post.created_date,
+                "body": truncate_preview(post.renderable_text),
+            },
+        )
         for recipient in recipients:
             self._notifications.try_send(
                 notification_type,
@@ -115,4 +99,11 @@ class FundraiseNotificationService:
                 unified_document=post.unified_document,
                 extra={"amount": rsc_amount},
             )
-        return recipients
+            self._emails.send_message_email(
+                [recipient.email],
+                f"Congratulations {recipient.first_name}, "
+                f"{contribution.user.full_name()} contributed to your {label}!",
+                message,
+                link=post.unified_document.frontend_view_link(),
+                is_html=True,
+            )

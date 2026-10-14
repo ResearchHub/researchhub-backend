@@ -122,13 +122,13 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
                 self.assertFalse(self.notifications.exists())
 
         # Assert
-        self.email_service.send_message_email.assert_called_once()
+        sent_emails = self.email_service.send_message_email.call_args_list
         self.assertCountEqual(
-            self.email_service.send_message_email.call_args.args[0],
-            [self.creator.email, self.contributor.email],
+            [call.args[0] for call in sent_emails],
+            [[self.creator.email], [self.contributor.email]],
         )
         self.assertEqual(
-            self.email_service.send_message_email.call_args.kwargs["link"],
+            sent_emails[0].kwargs["link"],
             self.proposal.unified_document.frontend_view_link(),
         )
         self.assertCountEqual(
@@ -175,8 +175,12 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
             self.email_service.send_message_email.call_args.args[0],
             [self.creator.email],
         )
+        self.assertEqual(
+            self.email_service.send_message_email.call_args.args[1],
+            f"Congratulations {self.creator.first_name}, "
+            f"{self.contributor.full_name()} contributed to your Proposal!",
+        )
         message = "submitted a contribution to your proposal"
-        self.assertIn(message, self.email_service.send_message_email.call_args.args[2])
         notification = self.notifications.get()
         self.assertEqual(notification.recipient, self.creator)
         self.assertEqual(notification.item, contribution)
