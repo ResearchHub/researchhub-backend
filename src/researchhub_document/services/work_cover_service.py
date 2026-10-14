@@ -1,3 +1,4 @@
+from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from purchase.related_models.constants.currency import USD
 from researchhub_document.related_models.constants.document_type import (
@@ -9,6 +10,7 @@ from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.related_models.author_model import Author
 
 _KIND_LABELS_AND_NOUNS = {
     PREREGISTRATION: ("Proposal", "a proposal"),
@@ -45,16 +47,23 @@ def build_work_cover(document: Paper | ResearchhubPost) -> dict:
 def _get_first_author_name(document: Paper | ResearchhubPost) -> str | None:
     """Return the name of the document's first credited author, if any."""
     if isinstance(document, Paper):
-        author = document.authors.first()
-    else:
-        author = next(iter(document.ordered_authors), None)
-    return author.full_name if author else None
+        author = Author.objects.filter(
+            authorships__paper=document,
+            authorships__author_position=Authorship.FIRST_AUTHOR_POSITION,
+        ).first()
+        return author.full_name if author else None
+    link = (
+        document.author_links.select_related("author")
+        .filter(author__is_removed=False)
+        .first()
+    )
+    return link.author.full_name if link else None
 
 
 def _describe_fundraise(proposal: ResearchhubPost) -> dict:
     """Return the proposal's peer review rating, funding goal and progress toward it."""
     unified_document = proposal.unified_document
-    fundraise = unified_document.fundraises.first()
+    fundraise = unified_document.fundraises.select_related("escrow").first()
     if fundraise is None:
         return {}
 
