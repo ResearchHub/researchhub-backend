@@ -21,6 +21,7 @@ _MARK_TAGS = {
     "strike": "s",
     "underline": "u",
 }
+_WEB_SCHEMES = ("http://", "https://")
 
 
 def render_comment_html(
@@ -31,14 +32,18 @@ def render_comment_html(
     With `max_length`, stop after that many characters of text and end with an
     ellipsis.
     """
-    if comment.comment_content_type != TIPTAP:
-        text = comment.plain_text
-        if max_length is not None and len(text) > max_length:
-            text = _truncate(text, max_length)
-        return mark_safe(linebreaks(text, autoescape=True))
-    content = comment.comment_content_json
-    document = json.loads(content) if isinstance(content, str) else content
-    return _TiptapRenderer(max_length).render(document.get("content", []))
+    if comment.comment_content_type == TIPTAP:
+        content = comment.comment_content_json
+        try:
+            document = json.loads(content) if isinstance(content, str) else content
+        except ValueError:
+            document = None
+        if isinstance(document, dict):
+            return _TiptapRenderer(max_length).render(document.get("content", []))
+    text = comment.plain_text
+    if max_length is not None and len(text) > max_length:
+        text = _truncate(text, max_length)
+    return mark_safe(linebreaks(text, autoescape=True))
 
 
 def _truncate(text: str, max_length: int) -> str:
@@ -72,9 +77,11 @@ class _TiptapRenderer:
         if node_type == "mention":
             return escape(self._spend(attrs.get("displayName") or attrs["label"]))
         if node_type == "richLink":
-            return format_html(
-                '<a href="{}">{}</a>', attrs["url"], self._spend(attrs["url"])
-            )
+            url = attrs["url"]
+            text = self._spend(url)
+            if url.lower().startswith(_WEB_SCHEMES):
+                return format_html('<a href="{}">{}</a>', url, text)
+            return escape(text)
         if node_type == "hardBreak":
             return mark_safe("<br>")
         if node_type == "horizontalRule":
@@ -92,7 +99,9 @@ class _TiptapRenderer:
         html = escape(self._spend(node["text"]))
         for mark in node.get("marks", []):
             if mark["type"] == "link":
-                html = format_html('<a href="{}">{}</a>', mark["attrs"]["href"], html)
+                href = mark["attrs"]["href"]
+                if href.lower().startswith(_WEB_SCHEMES):
+                    html = format_html('<a href="{}">{}</a>', href, html)
             else:
                 html = format_html("<{0}>{1}</{0}>", _MARK_TAGS[mark["type"]], html)
         return html
