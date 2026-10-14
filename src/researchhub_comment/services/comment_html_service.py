@@ -1,4 +1,5 @@
 import json
+from contextlib import suppress
 
 from django.utils.html import escape, format_html, linebreaks
 from django.utils.safestring import SafeString, mark_safe
@@ -31,15 +32,12 @@ def render_comment_html(
     """Render a comment body as escaped HTML for email, without images.
 
     With `max_length`, stop after that many characters of text and end with an
-    ellipsis.
+    ellipsis. Malformed Tiptap content falls back to the comment's plain text.
     """
     if comment.comment_content_type == TIPTAP:
         content = comment.comment_content_json
-        try:
+        with suppress(AttributeError, KeyError, TypeError, ValueError):
             document = json.loads(content) if isinstance(content, str) else content
-        except ValueError:
-            document = None
-        if isinstance(document, dict):
             return _TiptapRenderer(max_length).render(document.get("content", []))
     text = comment.plain_text
     if max_length is not None:
