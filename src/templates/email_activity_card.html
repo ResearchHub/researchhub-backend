@@ -1,0 +1,53 @@
+{# Context: author (Author), action, created_date, is_author (optional), body (optional), cover (from build_work_cover) #}
+<table class="activity-actor" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    <td class="activity-avatar-cell" width="40" valign="top">
+      <div class="activity-avatar">{% if author.profile_image %}<img class="activity-avatar-image" src="{{ author.profile_image.url }}" width="40" height="40" alt="" />{% endif %}</div>
+    </td>
+    <td valign="top">
+      <div class="activity-name">
+        <b>{{ author.first_name }} {{ author.last_name }}</b>{% if is_author %} <span class="author-badge">Author</span>{% endif %}
+        <span class="activity-time">&middot; {{ created_date|date:"M j" }}</span>
+      </div>
+      <div class="activity-action">{{ action }}</div>
+    </td>
+  </tr>
+</table>
+{% if body %}<div class="activity-comment">{{ body }}</div>{% endif %}
+<table class="work-cover" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr>
+    {% if cover.image_url %}
+    <td class="work-cover-art" height="172" valign="bottom" background="{{ cover.image_url }}" style="background-image: url('{{ cover.image_url }}');">
+    {% elif cover.is_discussion %}
+    <td class="work-cover-art work-cover-brand" height="172" valign="bottom">
+    {% else %}
+    <td class="work-cover-art work-cover-placeholder" height="172" valign="bottom">
+    {% endif %}
+      <div class="work-cover-bar">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td valign="bottom">
+              <div class="work-cover-eyebrow">{{ cover.eyebrow }}</div>
+              <div class="work-cover-title">{{ cover.title }}</div>
+            </td>
+            {% if cover.rating %}
+            <td class="work-cover-stat" valign="bottom">
+              <div class="work-cover-stat-label">Rating</div>
+              <div class="work-cover-stat-value"><span class="work-cover-star">&#9733;</span> {{ cover.rating }}</div>
+            </td>
+            {% endif %}
+            {% if cover.raising %}
+            <td class="work-cover-stat" valign="bottom">
+              <div class="work-cover-stat-label">Raising</div>
+              <div class="work-cover-stat-value work-cover-amount">{{ cover.raising }}</div>
+            </td>
+            {% endif %}
+          </tr>
+        </table>
+        {% if "progress" in cover %}
+        <div class="work-cover-progress"><div class="work-cover-progress-fill" style="width: {{ cover.progress }}%;"></div></div>
+        {% endif %}
+      </div>
+    </td>
+  </tr>
+</table>

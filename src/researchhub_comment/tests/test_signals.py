@@ -264,9 +264,13 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
             f"{self.preregistration.title}",
         )
         self.assertIn(f"<b>{self.author.full_name()}</b>", message)
-        self.assertIn(f'<div class="paper">{self.preregistration.title}</div>', message)
         self.assertIn(
-            '<div class="body"><p><strong>Dose </strong>&lt; 20µM</p></div>',
+            f'<div class="work-cover-title">{self.preregistration.title}</div>',
+            message,
+        )
+        self.assertIn(
+            '<div class="activity-comment">'
+            "<p><strong>Dose </strong>&lt; 20µM</p></div>",
             message,
         )
         self.assertEqual(

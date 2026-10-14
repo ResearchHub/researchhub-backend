@@ -1,7 +1,8 @@
 from django.template.loader import render_to_string
 
-from mailing_list.services import EmailService, truncate_preview
+from mailing_list.services import EmailService
 from purchase.models import GrantApplication
+from researchhub_document.services.work_cover_service import build_work_cover
 
 
 class GrantApplicationService:
@@ -32,13 +33,12 @@ class GrantApplicationService:
         context = {
             "subject": subject,
             "body": render_to_string(
-                "email_content_card.html",
+                "email_activity_card.html",
                 {
                     "author": applicant.author_profile,
-                    "action": "submitted a proposal",
-                    "title": proposal.title,
+                    "action": "Submitted a proposal for funding",
                     "created_date": application.created_date,
-                    "body": truncate_preview(proposal.renderable_text),
+                    "cover": build_work_cover(proposal),
                 },
             ),
             "cta_url": document.frontend_view_link(),

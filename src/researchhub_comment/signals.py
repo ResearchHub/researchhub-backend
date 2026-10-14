@@ -23,6 +23,7 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_comment.services.comment_html_service import render_comment_html
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.services.work_cover_service import build_work_cover
 from user.related_models.user_model import User
 
 logger = Logger(__name__)
@@ -124,13 +125,14 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
             f"{author.full_name()} [Author] just shared an update on {document.title}"
         )
         message = render_to_string(
-            "email_content_card.html",
+            "email_activity_card.html",
             {
                 "author": author.author_profile,
-                "action": "shared an update on",
-                "title": document.title,
+                "is_author": True,
+                "action": "Posted an update",
                 "created_date": comment.created_date,
                 "body": render_comment_html(comment, max_length=EMAIL_PREVIEW_LENGTH),
+                "cover": build_work_cover(document),
             },
         )
         link = comment.unified_document.frontend_view_link()
