@@ -1,8 +1,9 @@
-"""PDF pages and uploaded images as images the model can look at.
+"""PDF pages, uploaded images and a Word file's images as images the model can look at.
 
-Each is rendered on first need and stored at one key beside its file's
-original; an uploaded image is its file's page 1. Every key a file can have
-follows from its type and ``page_count``, so nothing lists the bucket.
+Each is stored at one key beside its file's original: a PDF page and an
+uploaded image (its file's page 1) on first need, a Word file's images when it
+is processed. Every key a file can have follows from its type and counts, so
+nothing lists the bucket.
 """
 
 import logging
@@ -19,6 +20,7 @@ from research_ai.models import AgentFile
 from research_ai.services.agent.types import ImageBlock
 from research_ai.services.agent_files.config import AgentFileConfig
 from research_ai.services.agent_files.extraction import (
+    DOCX,
     is_image_type,
     prepare_image,
     render_pdf_page,
@@ -48,9 +50,9 @@ class PageRenderConfig:
     # Longest side; Claude rejects more once a request carries over 20 images.
     max_edge_px: int = 2000
 
-    # A page or uploaded image is scaled down until it fits; bounds what a
-    # message's images add to a request, which takes 10 MB of them on Bedrock
-    # and OpenRouter.
+    # A page, uploaded image or Word image is scaled down until it fits; bounds
+    # what a message's images add to a request, which takes 10 MB of them on
+    # Bedrock and OpenRouter.
     max_bytes: int = 500 * 1024
 
     # Pages rendered at once, each in its own child process.
@@ -78,10 +80,20 @@ class RenderedPages:
     failed: tuple[int, ...] = ()
 
 
+def is_word_file(file: AgentFile) -> bool:
+    """Whether the file is shown by the images kept from it, not by its pages."""
+    return file.content_type == DOCX.content_type
+
+
 def page_image_count(file: AgentFile) -> int:
-    """How many images the file can be shown as: a PDF's pages, an image's one."""
+    """How many images the file can be shown as.
+
+    A PDF's pages, the images kept from a Word document, an uploaded image's one.
+    """
     if is_image_type(file.content_type):
         return 1
+    if is_word_file(file):
+        return file.embedded_image_count or 0
     return min(file.page_count or 0, MAX_PAGE)
 
 
@@ -97,9 +109,10 @@ def page_image_keys(file: AgentFile) -> list[str]:
 class PageImageService:
     """Images of a READY PDF's pages or uploaded image, stored on first need.
 
-    Only for a file sent in a live chat: a purge deletes any other with its
-    page images. ``storage``, the configs, ``render`` and ``prepare`` are
-    injectable for tests.
+    A Word file's images are only read: processing stored them. Only for a
+    file sent in a live chat: a purge deletes any other with its page images.
+    ``storage``, the configs, ``render`` and ``prepare`` are injectable for
+    tests.
     """
 
     def __init__(
@@ -124,12 +137,12 @@ class PageImageService:
     def images(self, file: AgentFile, pages: Sequence[int]) -> RenderedPages:
         """Images of ``pages`` (1-based), without those that cannot be rendered.
 
-        Raises ``ValueError`` unless ``file`` is a READY PDF or image that has
-        every page.
+        For a Word file, ``pages`` are the numbers of its images. Raises
+        ``ValueError`` unless ``file`` is READY and has every page.
         """
         last = page_image_count(file)
         if file.status != AgentFile.Status.READY or not last:
-            raise ValueError("page images need a READY PDF or image")
+            raise ValueError("page images need a READY file that has some")
         if not all(isinstance(page, int) and 1 <= page <= last for page in pages):
             raise ValueError(f"pages must be between 1 and {last}")
         # Worker threads get plain values, never the model instance.
@@ -145,7 +158,10 @@ class PageImageService:
         try:
             stored = _run(executor, self._is_stored, keys, deadline)
             missing = {page: key for page, key in keys.items() if page not in stored}
-            data = self._original(executor, file, deadline) if missing else None
+            data = None
+            # A Word file's images were stored as it was processed; none is made here.
+            if missing and not is_word_file(file):
+                data = self._original(executor, file, deadline)
             if data is not None:
                 store = partial(
                     self._render_and_store, data, uploaded_image, config, deadline
@@ -159,15 +175,7 @@ class PageImageService:
             logger.warning("agent file %s: no image for pages %s", file.id, failed)
         return RenderedPages(
             images=tuple(
-                ImageBlock(
-                    ref=key,
-                    media_type=_MEDIA_TYPE,
-                    label=(
-                        file.filename
-                        if uploaded_image
-                        else f"{file.filename}, page {page}"
-                    ),
-                )
+                ImageBlock(ref=key, media_type=_MEDIA_TYPE, label=_label(file, page))
                 for page, key in keys.items()
                 if page in stored
             ),
@@ -239,6 +247,14 @@ class PageImageService:
             logger.warning("could not store page image %s", key, exc_info=True)
             return False
         return True
+
+
+def _label(file: AgentFile, page: int) -> str:
+    """What the model reads before the image: which file, and which part of it."""
+    if is_image_type(file.content_type):
+        return file.filename
+    part = "image" if is_word_file(file) else "page"
+    return f"{file.filename}, {part} {page}"
 
 
 def _run(
