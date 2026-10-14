@@ -41,7 +41,7 @@ class FundraiseNotificationService:
             )
             fundraise = contribution.item
             rsc_amount = contribution.amount
-            usd_amount = RscExchangeRate.rsc_to_usd(float(rsc_amount))
+            usd_amount = float(rsc_amount) * contribution.rsc_usd_rate
 
         proposal = fundraise.unified_document.get_document()
         self._notify_recipients(
@@ -72,7 +72,7 @@ class FundraiseNotificationService:
             Notification.FUNDING_POOL_CONTRIBUTION,
             purchase,
             purchase.amount,
-            RscExchangeRate.rsc_to_usd(float(purchase.amount)),
+            float(purchase.amount) * purchase.rsc_usd_rate,
             grant.unified_document.get_document(),
             action="Added to an RFP’s funding pool",
             label="RFP",
