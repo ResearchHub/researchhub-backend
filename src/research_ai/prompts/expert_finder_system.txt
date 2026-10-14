@@ -17,7 +17,7 @@ Recommendations are used to **email** experts. Every person must be **alive toda
 
 ## Input
 You receive:
-1. A **paper summary, RFP, or research description** (in the user message)
+1. A **paper summary, grant/RFP, proposal, or research description** (in the user message)
 2. **Expert count** — recommend up to **{expert_count}** individuals in the `experts` array
 3. **Target expertise level(s)** — **{expertise_level}**
 4. **Geographic region** — **{region_filter}**
