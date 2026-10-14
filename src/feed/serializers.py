@@ -3,6 +3,7 @@ from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework import serializers
 
 from hub.models import Hub
@@ -13,6 +14,7 @@ from purchase.serializers import DynamicPurchaseSerializer
 from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -23,6 +25,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from review.models.review_model import Review
 from review.serializers.review_serializer import ReviewSerializer
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import Author, User
@@ -1026,6 +1029,32 @@ class AuthorActivityQuerySerializer(serializers.Serializer):
     author_id = serializers.IntegerField(min_value=1)
 
 
+ASSESSED_REVIEWS_ATTR = "assessed_reviews"
+
+
+def assessed_reviews_prefetch(lookup: str = "unified_document__reviews") -> Prefetch:
+    """Prefetch a document's assessed peer reviews onto ``assessed_reviews``.
+
+    Counts the reviews ``ResearchhubUnifiedDocument.get_review_details`` does:
+    assessed by the foundation, not removed, and left as a comment that hasn't
+    been removed either.
+    """
+    active_comment = RhCommentModel.objects.filter(
+        id=OuterRef("object_id"), is_removed=False
+    )
+    return Prefetch(
+        lookup,
+        queryset=Review.objects.filter(
+            is_removed=False,
+            is_assessed=True,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+        )
+        .filter(Exists(active_comment))
+        .only("id", "score", "unified_document_id"),
+        to_attr=ASSESSED_REVIEWS_ATTR,
+    )
+
+
 class RelatedWorkSerializer(serializers.Serializer):
     """Slim unified-document payload for activity feed related_work."""
 
@@ -1041,8 +1070,9 @@ class RelatedWorkSerializer(serializers.Serializer):
     grant = serializers.SerializerMethodField()
     fundraise = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
+    review_metrics = serializers.SerializerMethodField()
 
-    _OPTIONAL_FIELDS = ("authors", "grant", "fundraise")
+    _OPTIONAL_FIELDS = ("authors", "grant", "fundraise", "review_metrics")
 
     @staticmethod
     def _first_prefetched(relation):
@@ -1127,6 +1157,25 @@ class RelatedWorkSerializer(serializers.Serializer):
             "votes": votes,
             "adjusted_score": calculate_adjusted_score(votes, {}),
         }
+
+    def get_review_metrics(self, unified_document):
+        """Average score and count of the work's assessed peer reviews, if any.
+
+        Read from ``assessed_reviews_prefetch`` when the queryset carries it, and
+        from the document otherwise.
+        """
+        reviews = getattr(unified_document, ASSESSED_REVIEWS_ATTR, None)
+        if reviews is None:
+            details = unified_document.get_review_details()
+        else:
+            scores = [review.score for review in reviews]
+            details = {
+                "avg": sum(scores) / len(scores) if scores else 0,
+                "count": len(scores),
+            }
+        if not details["count"]:
+            return None
+        return {"avg": details["avg"], "count": details["count"]}
 
     def get_grant(self, unified_document):
         if unified_document.document_type != GRANT:

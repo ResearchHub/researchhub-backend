@@ -31,6 +31,7 @@ from feed.serializers import (
     ActivityFeedEntrySerializer,
     AuthorActivityQuerySerializer,
     UserActivityQuerySerializer,
+    assessed_reviews_prefetch,
 )
 from feed.services.feed_entry_visibility_service import FeedEntryVisibilityService
 from feed.services.user_activity_service import UserActivityService
@@ -350,6 +351,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                     )
                     .prefetch_related("nonprofit_links__nonprofit"),
                 ),
+                assessed_reviews_prefetch(),
             )
             .order_by("-action_date")
         )
