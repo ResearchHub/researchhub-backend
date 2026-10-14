@@ -1004,14 +1004,15 @@ wheels = [
 
 [[package]]
 name = "django-health-check"
-version = "3.20.8"
+version = "4.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
+    { name = "dnspython" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/e4/6700a587b75c89ea3ba14240be5d5412b825dcb6ec0b1f76e60a310daafb/django_health_check-3.20.8.tar.gz", hash = "sha256:bbb7286af4b4e2079d262eeb3e68014c8980f8fcfbd295bca1ec31cbf827b83c", size = 15664, upload-time = "2025-12-22T23:58:58.78Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a4/0c/1a1f61b3899de48a46d93951c7a99493716987387ee70e30ba10f7ebbe41/django_health_check-4.10.0.tar.gz", hash = "sha256:ade209858e5fe4154e252ad5b37c1c57cf5e0752f2fb1366eaf47cdf995fefb1", size = 24765, upload-time = "2026-10-10T22:27:42.388Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2b/1f/6f508be8c39d45cff06c4fda7f50a137c627a2fbe970cef451111c6199f2/django_health_check-3.20.8-py3-none-any.whl", hash = "sha256:89f06fd3ecfefb13a8444cbc49508c76f1f49c816624026f720a28e0e67a458c", size = 29522, upload-time = "2025-12-22T23:58:57.226Z" },
+    { url = "https://files.pythonhosted.org/packages/28/db/fdd01f7ea2e8e6221f9c100be616caf462eeaef7ffb7a9634448510751d0/django_health_check-4.10.0-py3-none-any.whl", hash = "sha256:2cd841b2cf9eab706b8146ed098afda1312c778895db008c7e9d68e0343a9966", size = 30889, upload-time = "2026-10-10T22:27:40.855Z" },
 ]
 
 [[package]]
@@ -2673,7 +2674,7 @@ requires-dist = [
     { name = "django-extensions", specifier = ">=4.1,<5" },
     { name = "django-fernet-encrypted-fields", specifier = ">=0.3.1" },
     { name = "django-filter", specifier = ">=26.2,<27" },
-    { name = "django-health-check", specifier = ">=3.18.3,<4.0.0" },
+    { name = "django-health-check", specifier = ">=4.10.0,<5" },
     { name = "django-opensearch-dsl", specifier = "==0.8.0" },
     { name = "django-ses", extras = ["events"], specifier = ">=4.7.2,<5" },
     { name = "django-silk", specifier = ">=5.6.0,<6" },
