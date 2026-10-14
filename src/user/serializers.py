@@ -108,6 +108,11 @@ class ModeratorUserSerializer(ModelSerializer):
         requester = getattr(self.context.get("request"), "user", None)
         if not (requester and getattr(requester, "moderator", False)):
             self.fields.pop("risk_score", None)
+        # Resolving the tier takes several queries per user, so only the
+        # single-user view asks for it.
+        if not self.context.get("include_research_ai_tier"):
+            self.fields.pop("research_ai_tier", None)
+            self.fields.pop("research_ai_invited_manually", None)
 
     def get_author_profile_id(self, user: User) -> int | None:
         author = getattr(user, "author_profile", None)
