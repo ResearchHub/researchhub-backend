@@ -9,6 +9,9 @@ Unprefixed model refs use the configured generator provider. This preserves
 existing per-environment rosters while prefixed refs are unambiguous.
 Resolution stays string-only until a provider is built, so callers can report
 configuration without constructing clients or requiring credentials.
+
+With ``refusal_fallback``, a conversation its model refuses moves to
+``RESEARCH_AI_REFUSAL_FALLBACK_MODEL`` (see ``router``).
 """
 
 from django.conf import settings
@@ -20,6 +23,7 @@ from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.providers.openrouter import OpenRouterProvider
+from research_ai.services.agent.providers.router import RoutedProvider
 
 BEDROCK = "bedrock"
 CLAUDE_PLATFORM = "claude_platform"
@@ -27,6 +31,11 @@ OPENROUTER = "openrouter"
 DEFAULT_PROVIDER = CLAUDE_PLATFORM
 
 _PROVIDERS = (BEDROCK, CLAUDE_PLATFORM, OPENROUTER)
+_ADAPTERS = {
+    BEDROCK: bedrock,
+    CLAUDE_PLATFORM: claude_platform,
+    OPENROUTER: openrouter,
+}
 _PREFIXES = tuple(f"{provider}:" for provider in _PROVIDERS)
 
 
@@ -45,12 +54,7 @@ def generator_provider_name() -> str:
 def generator_model_ref() -> str:
     """Return the configured generator as a provider-prefixed model ref."""
     name = generator_provider_name()
-    model_ids = {
-        BEDROCK: bedrock.MODEL_ID,
-        CLAUDE_PLATFORM: claude_platform.MODEL_ID,
-        OPENROUTER: openrouter.MODEL_ID,
-    }
-    return f"{name}:{model_ids[name]}"
+    return f"{name}:{_ADAPTERS[name].MODEL_ID}"
 
 
 def default_effort(model_ref: str) -> str | None:
@@ -70,16 +74,47 @@ def resolve_provider(
     effort: str | None = None,
     thinking: str | None = None,
     image_loader: ImageLoader | None = None,
+    refusal_fallback: bool = False,
 ) -> LLMProvider:
     """Build the provider for ``model_ref``.
 
     ``native_tools`` is an explicit per-agent capability request. Unsupported
     names are ignored, so callers can request native search while Bedrock and
     OpenRouter continue to use their local implementations. ``image_loader``
-    supplies the bytes of images in the conversation.
+    supplies the bytes of images in the conversation. ``refusal_fallback``
+    wraps the provider in a ``RoutedProvider``; a model it moves the
+    conversation to runs on its adapter's effort and thinking defaults.
     """
     if model_ref is None:
         model_ref = generator_model_ref()
+    provider = _build_provider(
+        model_ref,
+        native_tools=native_tools,
+        effort=effort,
+        thinking=thinking,
+        image_loader=image_loader,
+    )
+    if not refusal_fallback:
+        return provider
+    fallback = settings.RESEARCH_AI_REFUSAL_FALLBACK_MODEL
+    return RoutedProvider(
+        primary_ref=_canonical_model_ref(model_ref),
+        primary=provider,
+        fallback_ref=_canonical_model_ref(fallback) if fallback else None,
+        build=lambda ref: _build_provider(
+            ref, native_tools=native_tools, image_loader=image_loader
+        ),
+    )
+
+
+def _build_provider(
+    model_ref: str,
+    *,
+    native_tools: frozenset[str],
+    image_loader: ImageLoader | None,
+    effort: str | None = None,
+    thinking: str | None = None,
+) -> LLMProvider:
     provider_name, model_id = split_model_ref(model_ref)
     if provider_name == BEDROCK:
         return BedrockProvider(model_id=model_id, image_loader=image_loader)
@@ -97,6 +132,12 @@ def resolve_provider(
         thinking=thinking,
         image_loader=image_loader,
     )
+
+
+def _canonical_model_ref(model_ref: str) -> str:
+    """``model_ref`` with its provider prefix and default model id filled in."""
+    provider_name, model_id = split_model_ref(model_ref)
+    return f"{provider_name}:{model_id or _ADAPTERS[provider_name].MODEL_ID}"
 
 
 def split_model_ref(model_ref: str) -> tuple[str, str | None]:

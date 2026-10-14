@@ -331,6 +331,7 @@ class NotebookChatServiceTests(TestCase):
             "claude_platform:claude-sonnet-5",
             native_tools=frozenset({"web_search"}),
             image_loader=ANY,
+            refusal_fallback=True,
             effort="low",
         )
 
@@ -639,6 +640,7 @@ class NotebookChatServiceTests(TestCase):
             "claude_platform:claude-sonnet-5",
             native_tools=frozenset({"web_search"}),
             image_loader=ANY,
+            refusal_fallback=True,
             effort="low",
         )
         self.assertEqual(result["final_text"], "Done.")

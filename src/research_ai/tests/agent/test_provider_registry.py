@@ -2,8 +2,11 @@
 
 from unittest.mock import patch
 
+from django.conf import settings
 from django.test import SimpleTestCase, override_settings
 
+from research_ai.services.agent.model_capabilities import model_capabilities
+from research_ai.services.agent.model_pricing import model_pricing
 from research_ai.services.agent.providers import registry
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.providers.openrouter import OpenRouterProvider
@@ -12,6 +15,7 @@ from research_ai.services.agent.providers.registry import (
     resolve_provider,
     split_model_ref,
 )
+from research_ai.services.agent.providers.router import RoutedProvider
 
 
 class GeneratorModelRefTests(SimpleTestCase):
@@ -163,3 +167,41 @@ class ResolveProviderTests(SimpleTestCase):
         self.assertIsInstance(provider, OpenRouterProvider)
         self.assertEqual(provider.model_id, "openai/gpt-5.4")
         bedrock_cls.assert_not_called()
+
+    @override_settings(
+        RESEARCH_AI_REFUSAL_FALLBACK_MODEL="openrouter:moonshotai/kimi-k3"
+    )
+    def test_refusal_fallback_moves_refused_chats_to_the_setting(self, bedrock_cls):
+        # Arrange
+        def loader(ref):
+            return b""
+
+        # Act
+        provider = resolve_provider(
+            "claude-opus-5-5", effort="high", image_loader=loader, refusal_fallback=True
+        )
+        fallback = provider._build(provider.fallback_ref)
+
+        # Assert: the chat's effort was chosen for its own model.
+        self.assertIsInstance(provider, RoutedProvider)
+        self.assertEqual(provider.primary_ref, "claude_platform:claude-opus-5-5")
+        self.assertIsInstance(fallback, OpenRouterProvider)
+        self.assertEqual(fallback.model_id, "moonshotai/kimi-k3")
+        self.assertEqual(fallback.effort, "low")
+        self.assertIs(fallback.image_loader, loader)
+
+
+class RefusalFallbackSettingTests(SimpleTestCase):
+    def test_default_fallback_is_priced_and_takes_images(self):
+        # Arrange
+        provider, model_id = split_model_ref(
+            settings.RESEARCH_AI_REFUSAL_FALLBACK_MODEL
+        )
+
+        # Act
+        capabilities = model_capabilities(provider, model_id)
+
+        # Assert
+        self.assertIsNotNone(model_pricing(provider, model_id))
+        self.assertIsNotNone(capabilities.max_output_tokens)
+        self.assertTrue(capabilities.vision)

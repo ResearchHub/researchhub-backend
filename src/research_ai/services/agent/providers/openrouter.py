@@ -116,6 +116,24 @@ def _is_retryable_error(error: Exception) -> bool:
     return False
 
 
+# 403 ``error_type``s for a request the model or a content filter declined.
+_REFUSAL_ERROR_TYPES = frozenset({"refusal", "content_policy_violation"})
+
+
+def _refusal_error(error: Exception) -> dict | None:
+    """The error body when OpenRouter reports a refusal or flagged input."""
+    if not isinstance(error, openai.PermissionDeniedError):
+        return None
+    body = error.body if isinstance(error.body, dict) else {}
+    metadata = body.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    if metadata.get("error_type") in _REFUSAL_ERROR_TYPES:
+        return body
+    # A moderation flag carries the flagged text instead of an error type.
+    return body if "flagged_input" in metadata else None
+
+
 # Chat Completions ``finish_reason`` -> neutral ``StopReason``.
 _FINISH_REASONS = {
     "stop": StopReason.END_TURN,
@@ -257,6 +275,21 @@ class OpenRouterProvider(LLMProvider):
         try:
             response = self._client.chat.completions.create(**kwargs)
         except Exception as e:
+            refusal = _refusal_error(e)
+            if refusal is not None:
+                # The same outcome as a refusal the model writes, so it is
+                # reported the same way.
+                logger.warning(
+                    "openrouter: request refused (model=%s, error=%r)",
+                    self.model_id,
+                    refusal,
+                )
+                return AssistantTurn(
+                    text_blocks=[],
+                    tool_calls=[],
+                    stop_reason=StopReason.CONTENT_FILTERED,
+                    stop_details=refusal,
+                )
             logger.exception("OpenRouter complete failed")
             raise ProviderError(
                 f"OpenRouter complete failed: {e}",
