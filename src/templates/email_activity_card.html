@@ -1,4 +1,4 @@
-{# Context: author (Author), action, created_date, is_author (optional), body (optional), cover (from build_work_cover) #}
+{# Context: author (Author), action, amount and action_trailing (optional), created_date, is_author (optional), body (optional), cover (from build_work_cover) #}
 <table class="activity-actor" role="presentation" width="100%" cellpadding="0" cellspacing="0">
   <tr>
     <td class="activity-avatar-cell" width="40" valign="top">
@@ -9,7 +9,7 @@
         <b>{{ author.first_name }} {{ author.last_name }}</b>{% if is_author %} <span class="author-badge">Author</span>{% endif %}
         <span class="activity-time">&middot; {{ created_date|date:"M j" }}</span>
       </div>
-      <div class="activity-action">{{ action }}</div>
+      <div class="activity-action">{{ action }}{% if amount %} <span class="activity-amount">{{ amount }}</span>{% endif %}{% if action_trailing %} {{ action_trailing }}{% endif %}</div>
     </td>
   </tr>
 </table>
@@ -34,6 +34,12 @@
             <td class="work-cover-stat" valign="bottom">
               <div class="work-cover-stat-label">Rating</div>
               <div class="work-cover-stat-value"><span class="work-cover-star">&#9733;</span> {{ cover.rating }}</div>
+            </td>
+            {% endif %}
+            {% if cover.available_funding %}
+            <td class="work-cover-stat" valign="bottom">
+              <div class="work-cover-stat-label">Available funding</div>
+              <div class="work-cover-stat-value work-cover-amount">{{ cover.available_funding }}</div>
             </td>
             {% endif %}
             {% if cover.raising %}

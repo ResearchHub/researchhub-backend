@@ -1,6 +1,8 @@
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from purchase.related_models.constants.currency import USD
+from purchase.related_models.grant_model import Grant
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,
@@ -30,7 +32,17 @@ def build_work_cover(document: Paper | ResearchhubPost) -> dict:
         document_type, title = document.document_type, document.title
     kind, noun = _KIND_LABELS_AND_NOUNS.get(document_type, _POST_LABEL_AND_NOUN)
     is_discussion = document_type == DISCUSSION
-    owner = "ResearchHub" if is_discussion else _get_first_author_name(document)
+    grant = (
+        document.unified_document.grants.select_related("funding_pool").first()
+        if document_type == GRANT
+        else None
+    )
+    if is_discussion:
+        owner = "ResearchHub"
+    elif grant and grant.organization:
+        owner = grant.organization
+    else:
+        owner = _get_first_author_name(document)
 
     cover = {
         "eyebrow": f"{kind} · {owner}" if owner else kind,
@@ -41,6 +53,8 @@ def build_work_cover(document: Paper | ResearchhubPost) -> dict:
     }
     if document_type == PREREGISTRATION:
         cover.update(_describe_fundraise(document))
+    if grant:
+        cover.update(_describe_grant_funding(grant))
     return cover
 
 
@@ -74,12 +88,20 @@ def _describe_fundraise(proposal: ResearchhubPost) -> dict:
     goal = float(fundraise.goal_amount)
     if goal > 0:
         raised = fundraise.get_amount_raised(currency=USD)
-        figures["raising"] = _format_compact_usd(goal)
+        figures["raising"] = format_compact_usd(goal)
         figures["progress"] = round(min(1, raised / goal) * 100)
     return figures
 
 
-def _format_compact_usd(amount: float) -> str:
+def _describe_grant_funding(grant: Grant) -> dict:
+    """Return the RFP's budget plus what its funding pool has raised, in USD."""
+    pool = getattr(grant, "funding_pool", None)
+    pool_usd = RscExchangeRate.rsc_to_usd(float(pool.amount_raised)) if pool else 0
+    available = float(grant.amount) + pool_usd
+    return {"available_funding": format_compact_usd(available)} if available > 0 else {}
+
+
+def format_compact_usd(amount: float) -> str:
     """Shorten a USD amount the way the feed does: $850, $10K, $1.5M, $12M."""
     if amount < 1000:
         return f"${round(amount)}"

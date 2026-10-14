@@ -234,6 +234,12 @@ body {
   color: #4B5563;
 }
 
+.activity-amount {
+  font-size: 15px;
+  font-weight: 600;
+  color: #15803D;
+}
+
 .activity-comment {
   margin-top: 12px;
   padding-top: 12px;
