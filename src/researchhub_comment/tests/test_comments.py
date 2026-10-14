@@ -371,14 +371,20 @@ class CommentViewTests(APITestCase):
         # Assert
         self.assertEqual(notification_res.status_code, 200)
         self.assertEqual(notification_res.data["count"], 1)
-        send_email.assert_called_once_with(
-            [recipient.email],
-            "You were Mentioned in a Comment",
-            f"{creator.first_name} {creator.last_name} mentioned you in their comment",
-            link=(
-                f"{self.paper.unified_document.frontend_view_link()}"
-                f"/conversation#comment-{comment.data['id']}"
-            ),
+        send_email.assert_called_once()
+        recipients, subject, message = send_email.call_args.args
+        self.assertEqual(recipients, [recipient.email])
+        self.assertEqual(subject, f"{creator.full_name()} Mentioned You in a Comment")
+        self.assertIn('<div class="body"><p>this is a test comment</p></div>', message)
+        self.assertEqual(
+            send_email.call_args.kwargs,
+            {
+                "link": (
+                    f"{self.paper.unified_document.frontend_view_link()}"
+                    f"/conversation#comment-{comment.data['id']}"
+                ),
+                "is_html": True,
+            },
         )
 
     def test_get_frontend_view_link_opens_the_tab_of_the_root_comment(self) -> None:

@@ -1,23 +1,34 @@
 from django.db import transaction
+from django.template.loader import render_to_string
 
-from mailing_list.services import EmailService
+from mailing_list.services import EMAIL_PREVIEW_LENGTH, EmailService
 from notification.models import Notification
 from notification.services import NotificationService
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.services.comment_html_service import render_comment_html
 from user.models import User
 
 
 def notify_mentioned_users(comment_id: int, recipient_ids: list[int]) -> None:
     """Create each new mention notice and email its recipient after commit."""
-    comment = RhCommentModel.objects.select_related("created_by", "thread").get(
-        id=comment_id
-    )
+    comment = RhCommentModel.objects.select_related(
+        "created_by__author_profile", "thread"
+    ).get(id=comment_id)
     author = comment.created_by
     unified_document = comment.thread.unified_document
     notifications = NotificationService()
     emails = EmailService()
-    subject = "You were Mentioned in a Comment"
-    message = f"{author.first_name} {author.last_name} mentioned you in their comment"
+    subject = f"{author.full_name()} Mentioned You in a Comment"
+    message = render_to_string(
+        "email_content_card.html",
+        {
+            "author": author.author_profile,
+            "action": "mentioned you in a comment on",
+            "title": unified_document.get_display_title(),
+            "created_date": comment.created_date,
+            "body": render_comment_html(comment, max_length=EMAIL_PREVIEW_LENGTH),
+        },
+    )
     link = comment.get_frontend_view_link()
 
     for recipient in User.objects.filter(
@@ -33,7 +44,7 @@ def notify_mentioned_users(comment_id: int, recipient_ids: list[int]) -> None:
         if notification is not None:
             transaction.on_commit(
                 lambda email=recipient.email: emails.send_message_email(
-                    [email], subject, message, link=link
+                    [email], subject, message, link=link, is_html=True
                 ),
                 robust=True,
             )
