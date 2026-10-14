@@ -1,6 +1,7 @@
 from django.db.models import Q, QuerySet
+from django.template.loader import render_to_string
 
-from mailing_list.services import EmailService
+from mailing_list.services import EmailService, truncate_preview
 from notification.models import Notification
 from notification.services import NotificationService
 from purchase.models import Purchase, RscExchangeRate, UsdFundraiseContribution
@@ -38,7 +39,7 @@ class FundraiseNotificationService:
             rsc_amount = contribution.amount
 
         proposal = fundraise.unified_document.get_document()
-        self._notify_recipients(
+        recipients = self._notify_recipients(
             Notification.FUNDRAISE_CONTRIBUTION,
             contribution,
             rsc_amount,
@@ -50,26 +51,50 @@ class FundraiseNotificationService:
                     author_profile__is_removed=False,
                 )
             ).distinct(),
-            subject="New contribution to your proposal",
-            message="submitted a contribution to your proposal",
+        )
+        self._emails.send_message_email(
+            [recipient.email for recipient in recipients],
+            "New contribution to your proposal",
+            f"{contribution.user.full_name()} submitted a contribution to your "
+            f"proposal: {proposal.title}.",
+            link=proposal.unified_document.frontend_view_link(),
         )
 
     def notify_grant_authors(self, purchase_id: int) -> None:
         """Notify the RFP creator and contacts after a pool contribution commits."""
         purchase = Purchase.objects.select_related("user").get(id=purchase_id)
         grant = purchase.item.grant
+        grant_post = grant.unified_document.get_document()
 
-        self._notify_recipients(
+        recipients = self._notify_recipients(
             Notification.FUNDING_POOL_CONTRIBUTION,
             purchase,
             purchase.amount,
-            grant.unified_document.get_document(),
+            grant_post,
             recipients=User.objects.filter(
                 Q(id=grant.created_by_id) | Q(grant_contacts=grant)
             ).distinct(),
-            subject="New contribution to your RFP",
-            message="submitted a contribution to your RFP",
         )
+        message = render_to_string(
+            "email_content_card.html",
+            {
+                "author": grant.created_by.author_profile,
+                "action": "RFP",
+                "possessive": True,
+                "title": grant_post.title,
+                "created_date": grant_post.created_date,
+                "body": truncate_preview(grant_post.renderable_text),
+            },
+        )
+        for recipient in recipients:
+            self._emails.send_message_email(
+                [recipient.email],
+                f"Congratulations {recipient.first_name}, "
+                f"{purchase.user.full_name()} contributed to your RFP!",
+                message,
+                link=grant.unified_document.frontend_view_link(),
+                is_html=True,
+            )
 
     def _notify_recipients(
         self,
@@ -78,11 +103,8 @@ class FundraiseNotificationService:
         rsc_amount: str,
         post: ResearchhubPost,
         recipients: QuerySet[User],
-        subject: str,
-        message: str,
-    ) -> None:
-        """Send each recipient an in-app alert with the RSC amount and one email."""
-        document = post.unified_document
+    ) -> list[User]:
+        """Send each recipient an in-app alert with the RSC amount and return them."""
         recipients = list(recipients)
         for recipient in recipients:
             self._notifications.try_send(
@@ -90,13 +112,7 @@ class FundraiseNotificationService:
                 recipient=recipient,
                 action_user=contribution.user,
                 item=contribution,
-                unified_document=document,
+                unified_document=post.unified_document,
                 extra={"amount": rsc_amount},
             )
-
-        self._emails.send_message_email(
-            [recipient.email for recipient in recipients],
-            subject,
-            f"{contribution.user.full_name()} {message}: {post.title}.",
-            link=document.frontend_view_link(),
-        )
+        return recipients
