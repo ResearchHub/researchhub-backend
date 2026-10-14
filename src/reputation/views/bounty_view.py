@@ -578,7 +578,9 @@ class BountyViewSet(viewsets.ModelViewSet):
 
                 # Attempt to pay out the bounty
                 bounty_paid = bounty.approve(
-                    recipient=solution_created_by, payout_amount=decimal_amount
+                    recipient=solution_created_by,
+                    payout_amount=decimal_amount,
+                    solution_id=bounty_solution.id,
                 )
 
                 if not bounty_paid:

@@ -102,7 +102,14 @@ def _describe_grant_funding(grant: Grant) -> dict:
 
 
 def format_compact_usd(amount: float) -> str:
-    """Shorten a USD amount the way the feed does: $850, $10K, $1.5M, $12M."""
+    """Shorten a USD amount the way the feed does: $850, $10K, $1.5M, $12M.
+
+    Amounts under a dollar keep their cents so small contributions never read $0.
+    """
+    if amount < 0.01:
+        return "<$0.01"
+    if amount < 1:
+        return f"${amount:.2f}"
     if amount < 1000:
         return f"${round(amount)}"
     if round(amount / 1000) < 1000:

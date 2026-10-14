@@ -29,7 +29,11 @@ class EscrowPayoutNotificationService:
         self._emails = email_service or EmailService()
 
     def notify_payout_recipient(
-        self, escrow_id: int, recipient_id: int, payout_amount: Decimal
+        self,
+        escrow_id: int,
+        recipient_id: int,
+        payout_amount: Decimal,
+        solution_id: int | None = None,
     ) -> None:
         """Send the recipient an in-app alert and an email after a payout commits."""
         escrow = Escrow.objects.select_related("created_by").get(id=escrow_id)
@@ -42,14 +46,13 @@ class EscrowPayoutNotificationService:
             subject = (
                 f"Congratulations {recipient.first_name}, you were awarded a bounty!"
             )
-            answer = (
-                BountySolution.objects.filter(
-                    bounty__escrow=escrow,
-                    created_by=recipient,
-                    status=BountySolution.Status.AWARDED,
+            body = (
+                render_comment_html(
+                    BountySolution.objects.get(id=solution_id).item,
+                    max_length=EMAIL_PREVIEW_LENGTH,
                 )
-                .latest("updated_date")
-                .item
+                if solution_id
+                else None
             )
             card = {
                 "author": recipient.author_profile,
@@ -62,7 +65,7 @@ class EscrowPayoutNotificationService:
                     if item.bounty_type == Bounty.Type.REVIEW
                     else None
                 ),
-                "body": render_comment_html(answer, max_length=EMAIL_PREVIEW_LENGTH),
+                "body": body,
             }
             link = f"{unified_document.frontend_view_link()}/bounties"
         else:

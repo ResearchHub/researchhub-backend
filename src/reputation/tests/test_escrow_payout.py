@@ -76,7 +76,7 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency=USD)
         bounty = Bounty.objects.get(id=self._create_bounty().data["id"])
         answer = create_rh_comment(created_by=self.recipient)
-        BountySolution.objects.create(
+        solution = BountySolution.objects.create(
             bounty=bounty,
             created_by=self.recipient,
             content_type=ContentType.objects.get_for_model(answer),
@@ -87,7 +87,9 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         # Act
         with self.captureOnCommitCallbacks(execute=True):
             bounty.escrow.payout(
-                recipient=self.recipient, payout_amount=decimal.Decimal(100)
+                recipient=self.recipient,
+                payout_amount=decimal.Decimal(100),
+                solution_id=solution.id,
             )
 
         # Assert

@@ -161,12 +161,13 @@ class Bounty(DefaultModel):
 
         return proportions
 
-    def approve(self, recipient=None, payout_amount=None):
+    def approve(self, recipient=None, payout_amount=None, solution_id=None):
         """
         Approve a bounty payout to a recipient
         Args:
             recipient: User to receive the payout
             payout_amount: Amount to pay out
+            solution_id: The awarded BountySolution, shown in the payout email
         Returns:
             bool: Whether the payout was successful
         """
@@ -178,7 +179,7 @@ class Bounty(DefaultModel):
             return False
 
         escrow_paid = self.escrow.payout(
-            recipient=recipient, payout_amount=payout_amount
+            recipient=recipient, payout_amount=payout_amount, solution_id=solution_id
         )
         return escrow_paid
 
