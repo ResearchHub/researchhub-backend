@@ -4,7 +4,7 @@ Django REST API backend for ResearchHub. The main application lives in `src/`.
 
 ## Environment
 - Python 3.14
-- Django 5.2 + Django REST Framework
+- Django 6.1 + Django REST Framework
 - PostgreSQL, Redis, OpenSearch
 - Celery for async work
 - Dependencies managed with `uv`
