@@ -10,7 +10,7 @@ from researchhub_comment.services.comment_html_service import render_comment_htm
 
 class RenderCommentHtmlTests(SimpleTestCase):
     def test_renders_each_node_type(self) -> None:
-        """Every supported node renders as HTML and unsupported nodes are dropped."""
+        """Supported nodes render as HTML; images and unsupported nodes are dropped."""
         # Arrange
         comment = RhCommentModel(
             comment_content_type=TIPTAP,
@@ -56,7 +56,6 @@ class RenderCommentHtmlTests(SimpleTestCase):
             "<h2>Results</h2>"
             '<p>Ruslan Rust<br><a href="https://example.com">Data</a></p>'
             "<hr>"
-            '<img src="https://example.com/a.png" alt="">'
             '<a href="https://example.com/v">https://example.com/v</a>',
         )
 
@@ -73,3 +72,50 @@ class RenderCommentHtmlTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(html, "<p>Dose &lt; 20µM</p>")
+
+    def test_truncates_tiptap_text_across_nodes(self) -> None:
+        """Text past the limit is cut with an ellipsis and later nodes are dropped."""
+        # Arrange
+        comment = RhCommentModel(
+            comment_content_type=TIPTAP,
+            comment_content_json={
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Dose ",
+                                "marks": [{"type": "bold"}],
+                            },
+                            {"type": "text", "text": "< 20µM daily"},
+                        ],
+                    },
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": "Next"}],
+                    },
+                ],
+            },
+        )
+
+        # Act
+        html = render_comment_html(comment, max_length=11)
+
+        # Assert
+        self.assertEqual(html, "<p><strong>Dose </strong>&lt; 20µM...</p>")
+
+    def test_truncates_quill_text(self) -> None:
+        """Quill text past the limit is cut with an ellipsis."""
+        # Arrange
+        comment = RhCommentModel(
+            comment_content_type=QUILL_EDITOR,
+            comment_content_json={"ops": [{"insert": "Dose < 20µM daily"}]},
+        )
+
+        # Act
+        html = render_comment_html(comment, max_length=8)
+
+        # Assert
+        self.assertEqual(html, "<p>Dose &lt; 2...</p>")

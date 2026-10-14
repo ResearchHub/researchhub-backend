@@ -263,7 +263,12 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
             f"{self.author.full_name()} just shared an update on "
             f'"{self.preregistration.title}"',
         )
-        self.assertEqual(message, "<p><strong>Dose </strong>&lt; 20µM</p>")
+        self.assertIn(f"<b>{self.author.full_name()}</b>", message)
+        self.assertIn(f'<div class="paper">{self.preregistration.title}</div>', message)
+        self.assertIn(
+            '<div class="body"><p><strong>Dose </strong>&lt; 20µM</p></div>',
+            message,
+        )
         self.assertEqual(
             send_email.call_args.kwargs,
             {

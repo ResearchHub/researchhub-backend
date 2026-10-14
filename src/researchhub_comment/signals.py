@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.template.loader import render_to_string
 
 from mailing_list.tasks import send_message_email
 from notification.models import Notification
@@ -26,6 +27,7 @@ from user.related_models.user_model import User
 logger = Logger(__name__)
 
 PREREGISTRATION_UPDATE_REWARD_AMOUNT_USD = 50
+AUTHOR_UPDATE_PREVIEW_LENGTH = 200
 
 
 @receiver(
@@ -119,7 +121,18 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
 
     if recipient_emails:
         subject = f'{author.full_name()} just shared an update on "{document.title}"'
-        message = render_comment_html(comment)
+        message = render_to_string(
+            "email_content_card.html",
+            {
+                "author": author.author_profile,
+                "action": "shared an update on",
+                "title": document.title,
+                "created_date": comment.created_date,
+                "body": render_comment_html(
+                    comment, max_length=AUTHOR_UPDATE_PREVIEW_LENGTH
+                ),
+            },
+        )
         link = comment.unified_document.frontend_view_link()
         transaction.on_commit(
             lambda: send_message_email.delay(

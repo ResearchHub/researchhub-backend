@@ -23,53 +23,86 @@ _MARK_TAGS = {
 }
 
 
-def render_comment_html(comment: RhCommentModel) -> SafeString:
-    """Render a comment body as escaped HTML for email."""
+def render_comment_html(
+    comment: RhCommentModel, max_length: int | None = None
+) -> SafeString:
+    """Render a comment body as escaped HTML for email, without images.
+
+    With `max_length`, stop after that many characters of text and end with an
+    ellipsis.
+    """
     if comment.comment_content_type != TIPTAP:
-        return mark_safe(linebreaks(comment.plain_text, autoescape=True))
+        text = comment.plain_text
+        if max_length is not None and len(text) > max_length:
+            text = _truncate(text, max_length)
+        return mark_safe(linebreaks(text, autoescape=True))
     content = comment.comment_content_json
     document = json.loads(content) if isinstance(content, str) else content
-    return _render_nodes(document.get("content", []))
+    return _TiptapRenderer(max_length).render(document.get("content", []))
 
 
-def _render_nodes(nodes: list[dict]) -> SafeString:
-    """Render sibling nodes in order."""
-    return mark_safe("".join(_render_node(node) for node in nodes))
+def _truncate(text: str, max_length: int) -> str:
+    """Cut text to `max_length` characters and mark the cut with an ellipsis."""
+    return text[:max_length].rstrip() + "..."
 
 
-def _render_node(node: dict) -> SafeString:
-    """Render one node, keeping only the children of nodes email cannot show."""
-    node_type = node["type"]
-    if node_type == "text":
-        return _render_text(node)
+class _TiptapRenderer:
+    """Render Tiptap nodes, spending a shared character budget on their text."""
 
-    attrs = node.get("attrs", {})
-    children = _render_nodes(node.get("content", []))
-    if node_type in _NODE_TAGS:
-        return format_html("<{0}>{1}</{0}>", _NODE_TAGS[node_type], children)
-    if node_type == "heading":
-        return format_html("<h{0}>{1}</h{0}>", int(attrs["level"]), children)
-    if node_type == "hardBreak":
-        return mark_safe("<br>")
-    if node_type == "horizontalRule":
-        return mark_safe("<hr>")
-    if node_type == "image":
-        return format_html(
-            '<img src="{}" alt="{}">', attrs["src"], attrs.get("alt") or ""
-        )
-    if node_type == "mention":
-        return escape(attrs.get("displayName") or attrs["label"])
-    if node_type == "richLink":
-        return format_html('<a href="{0}">{0}</a>', attrs["url"])
-    return children
+    def __init__(self, max_length: int | None) -> None:
+        self._remaining = max_length
+        self._truncated = False
 
+    def render(self, nodes: list[dict]) -> SafeString:
+        """Render sibling nodes in order, stopping once the budget runs out."""
+        html = []
+        for node in nodes:
+            if self._truncated:
+                break
+            html.append(self._render_node(node))
+        return mark_safe("".join(html))
 
-def _render_text(node: dict) -> SafeString:
-    """Render a text node wrapped in each of its marks."""
-    html = escape(node["text"])
-    for mark in node.get("marks", []):
-        if mark["type"] == "link":
-            html = format_html('<a href="{}">{}</a>', mark["attrs"]["href"], html)
-        else:
-            html = format_html("<{0}>{1}</{0}>", _MARK_TAGS[mark["type"]], html)
-    return html
+    def _render_node(self, node: dict) -> SafeString:
+        """Render one node, keeping only the children of nodes email cannot show."""
+        node_type = node["type"]
+        if node_type == "text":
+            return self._render_text(node)
+
+        attrs = node.get("attrs", {})
+        if node_type == "mention":
+            return escape(self._spend(attrs.get("displayName") or attrs["label"]))
+        if node_type == "richLink":
+            return format_html(
+                '<a href="{}">{}</a>', attrs["url"], self._spend(attrs["url"])
+            )
+        if node_type == "hardBreak":
+            return mark_safe("<br>")
+        if node_type == "horizontalRule":
+            return mark_safe("<hr>")
+
+        children = self.render(node.get("content", []))
+        if node_type in _NODE_TAGS:
+            return format_html("<{0}>{1}</{0}>", _NODE_TAGS[node_type], children)
+        if node_type == "heading":
+            return format_html("<h{0}>{1}</h{0}>", int(attrs["level"]), children)
+        return children
+
+    def _render_text(self, node: dict) -> SafeString:
+        """Render a text node wrapped in each of its marks."""
+        html = escape(self._spend(node["text"]))
+        for mark in node.get("marks", []):
+            if mark["type"] == "link":
+                html = format_html('<a href="{}">{}</a>', mark["attrs"]["href"], html)
+            else:
+                html = format_html("<{0}>{1}</{0}>", _MARK_TAGS[mark["type"]], html)
+        return html
+
+    def _spend(self, text: str) -> str:
+        """Return as much of the text as the budget allows, ellipsized if cut."""
+        if self._remaining is None:
+            return text
+        if len(text) > self._remaining:
+            self._truncated = True
+            return _truncate(text, self._remaining)
+        self._remaining -= len(text)
+        return text
