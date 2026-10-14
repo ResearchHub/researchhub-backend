@@ -49,7 +49,7 @@ class EscrowPayoutNotificationService:
             message = render_to_string(
                 "email_content_card.html",
                 {
-                    "author": proposal.created_by.author_profile,
+                    "author": recipient.author_profile,
                     "action": "Proposal",
                     "possessive": True,
                     "title": title,
