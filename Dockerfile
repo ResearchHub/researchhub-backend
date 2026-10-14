@@ -1,6 +1,6 @@
 FROM ghcr.io/astral-sh/uv:0.12.1 AS uv
 
-FROM python:3.13-slim-trixie AS builder
+FROM python:3.14-slim-trixie AS builder
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -13,7 +13,7 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv sync --frozen --no-dev --no-install-project --no-cache
 
-FROM python:3.13-slim-trixie AS runtime
+FROM python:3.14-slim-trixie AS runtime
 
 ENV APP_ENV=production \
     PATH="/opt/venv/bin:${PATH}" \

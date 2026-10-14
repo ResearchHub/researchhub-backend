@@ -467,12 +467,10 @@ class NoteToolset:
                         raise ValueError(f"edits[{index}]: {exc}") from exc
         except ValueError as exc:
             return {
-                "error": (
-                    f"{exc}. No edits were saved by this call. "
-                    "Correct the arguments and retry edit_note directly with "
-                    "the intended content and the same expected_version_id; "
-                    "edit_note is not available inside code_execution."
-                )
+                "error": f"{exc}. No edits were saved by this call. "
+                "Correct the arguments and retry edit_note directly with "
+                "the intended content and the same expected_version_id; "
+                "edit_note is not available inside code_execution."
             }
 
         expected = input.get("expected_version_id")
@@ -611,7 +609,7 @@ class NoteToolset:
             # Same visibility rule as NoteViewSet: soft-deleted notes (removed
             # unified document) do not exist as far as the tools are concerned.
             note = Note.objects.get(id=note_id, unified_document__is_removed=False)
-        except (Note.DoesNotExist, ValueError, TypeError):
+        except Note.DoesNotExist, ValueError, TypeError:
             return None
         # Compare on the fetched id, not the raw input: the id is canonical
         # after the lookup, while the input may arrive as a string.

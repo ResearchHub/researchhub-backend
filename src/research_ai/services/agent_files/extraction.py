@@ -595,7 +595,7 @@ def _docx_text(data: bytes, max_chars: int) -> dict:
             escape_asterisks=False,
             escape_underscores=False,
         ).strip()
-    except (UnreadableFileError, MemoryError):
+    except UnreadableFileError, MemoryError:
         raise
     except Exception as exc:  # noqa: BLE001 - corrupt files raise many types
         raise UnreadableFileError(

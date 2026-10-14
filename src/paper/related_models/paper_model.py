@@ -19,7 +19,7 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
 class PaperQuerySet(models.QuerySet):
-    def visible_to(self, user: User | None) -> "PaperQuerySet":
+    def visible_to(self, user: User | None) -> PaperQuerySet:
         """Restrict to papers by moderation status the given user may see.
 
         This is a moderation-status gate, not the full privacy gate: papers

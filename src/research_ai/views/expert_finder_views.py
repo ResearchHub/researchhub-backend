@@ -573,7 +573,7 @@ def _sse_event_stream(search_id):
     progress_service = ProgressService()
     try:
         search_id_int = int(search_id)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         search_id_int = None
 
     yield "event: connected\n"
@@ -631,7 +631,7 @@ def _sse_event_stream(search_id):
                             + "\n\n"
                         )
                         return
-                except (ValueError, Exception):
+                except ValueError, Exception:
                     pass
             continue
 

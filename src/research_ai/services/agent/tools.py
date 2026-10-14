@@ -146,7 +146,7 @@ class Toolset:
             )
         try:
             encoded = json.dumps(result, allow_nan=False)
-        except (TypeError, ValueError, RecursionError):
+        except TypeError, ValueError, RecursionError:
             logger.warning("tool %r returned invalid JSON", name, exc_info=True)
             return _error(f"tool {name!r} returned invalid JSON")
         size = len(encoded.encode("utf-8"))
@@ -174,7 +174,7 @@ class Toolset:
             tool.is_terminal and not is_error,
         )
 
-    def render_specs(self, provider: "LLMProvider") -> Any:
+    def render_specs(self, provider: LLMProvider) -> Any:
         """Render this toolset to ``provider``'s wire format."""
         return provider.render_tools(self.tools)
 

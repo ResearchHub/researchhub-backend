@@ -15,7 +15,7 @@ from utils.models import DefaultModel
 
 
 class NoteQuerySet(models.QuerySet):
-    def accessible_to(self, user) -> "NoteQuerySet":
+    def accessible_to(self, user) -> NoteQuerySet:
         """Notes with a permission for the user or their organization, not NO_ACCESS."""
         document_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
         on_document = Permission.objects.filter(
