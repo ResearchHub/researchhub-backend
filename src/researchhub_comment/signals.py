@@ -7,6 +7,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.template.loader import render_to_string
 
 from mailing_list.tasks import send_message_email
 from notification.models import Notification
@@ -18,6 +19,7 @@ from reputation.distributor import Distributor
 from reputation.related_models.distribution import Distribution as DistributionModel
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.services.comment_html_service import render_comment_html
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.user_model import User
@@ -25,6 +27,7 @@ from user.related_models.user_model import User
 logger = Logger(__name__)
 
 PREREGISTRATION_UPDATE_REWARD_AMOUNT_USD = 50
+AUTHOR_UPDATE_PREVIEW_LENGTH = 200
 
 
 @receiver(
@@ -117,14 +120,25 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         )
 
     if recipient_emails:
+        subject = (
+            f"{author.full_name()} [Author] just shared an update on {document.title}"
+        )
+        message = render_to_string(
+            "email_content_card.html",
+            {
+                "author": author.author_profile,
+                "action": "shared an update on",
+                "title": document.title,
+                "created_date": comment.created_date,
+                "body": render_comment_html(
+                    comment, max_length=AUTHOR_UPDATE_PREVIEW_LENGTH
+                ),
+            },
+        )
         link = comment.unified_document.frontend_view_link()
         transaction.on_commit(
             lambda: send_message_email.delay(
-                recipient_emails,
-                "New Preregistration Update",
-                f"{author.first_name} {author.last_name} posted an update to the "
-                f"preregistration {document.title}",
-                link=link,
+                recipient_emails, subject, message, link=link, is_html=True
             ),
             robust=True,
         )

@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -11,6 +12,7 @@ from purchase.related_models.constants.currency import USD
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.related_models.distribution import Distribution as DistributionModel
+from researchhub_comment.constants.rh_comment_content_types import TIPTAP
 from researchhub_comment.constants.rh_comment_thread_types import (
     AUTHOR_UPDATE,
     GENERIC_COMMENT,
@@ -210,12 +212,30 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
     def test_notifies_followers_after_commit(
         self, mock_send_notification: Mock
     ) -> None:
-        """Followers receive inbox updates and a queued email after commit."""
+        """Followers receive inbox updates and an email of the update after commit."""
         # Arrange
         thread = RhCommentThreadModel.objects.create(
             thread_type=AUTHOR_UPDATE,
             content_object=self.preregistration,
             created_by=self.author,
+        )
+        update_content = json.dumps(
+            {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Dose ",
+                                "marks": [{"type": "bold"}],
+                            },
+                            {"type": "text", "text": "< 20µM"},
+                        ],
+                    }
+                ],
+            }
         )
 
         # Act
@@ -226,7 +246,8 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
             RhCommentModel.objects.create(
                 thread=thread,
                 created_by=self.author,
-                comment_content_json={"text": "This is an author update"},
+                comment_content_json=update_content,
+                comment_content_type=TIPTAP,
                 comment_type=AUTHOR_UPDATE,
             )
             mock_send_notification.assert_not_called()
@@ -237,15 +258,23 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         send_email.assert_called_once()
         recipients, subject, message = send_email.call_args.args
         self.assertCountEqual(recipients, [self.follower1.email, self.follower2.email])
-        self.assertEqual(subject, "New Preregistration Update")
         self.assertEqual(
+            subject,
+            f"{self.author.full_name()} [Author] just shared an update on "
+            f"{self.preregistration.title}",
+        )
+        self.assertIn(f"<b>{self.author.full_name()}</b>", message)
+        self.assertIn(f'<div class="paper">{self.preregistration.title}</div>', message)
+        self.assertIn(
+            '<div class="body"><p><strong>Dose </strong>&lt; 20µM</p></div>',
             message,
-            f"{self.author.first_name} {self.author.last_name} posted an update "
-            f"to the preregistration {self.preregistration.title}",
         )
         self.assertEqual(
             send_email.call_args.kwargs,
-            {"link": self.preregistration_unified_doc.frontend_view_link()},
+            {
+                "link": self.preregistration_unified_doc.frontend_view_link(),
+                "is_html": True,
+            },
         )
 
     @patch.object(NotificationService, "_send_notification")
