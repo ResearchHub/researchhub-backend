@@ -15,6 +15,7 @@ from rest_framework.test import APIClient, APITestCase
 
 from discussion.models import Vote
 from feed.models import FeedEntry
+from feed.serializers import RelatedWorkSerializer
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Paper
 from purchase.models import FundingPool, Fundraise
@@ -47,6 +48,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from review.models.review_model import Review
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 from user.tests.helpers import create_random_authenticated_user
@@ -2014,3 +2016,77 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
             if saw_empty or not results:
                 saw_empty = True
                 self.assertEqual(results, [])
+
+
+class ActivityFeedReviewMetricsTests(ActivityFeedBaseTests):
+    """related_work.review_metrics averages the work's assessed peer reviews."""
+
+    def setUp(self):
+        super().setUp()
+        self.thread = RhCommentThreadModel.objects.create(
+            thread_type=PEER_REVIEW,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.prereg_post.id,
+            created_by=self.user,
+        )
+        self._review(score=4)
+        self._review(score=2)
+        self._review(score=1, is_assessed=False)
+        self._review(score=5, comment_removed=True)
+        self._review(score=5, review_removed=True)
+
+    def _review(
+        self,
+        score,
+        is_assessed=True,
+        comment_removed=False,
+        review_removed=False,
+    ):
+        comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "review"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.user,
+            thread=self.thread,
+            is_removed=comment_removed,
+        )
+        return Review.objects.create(
+            score=score,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            unified_document=self.prereg_doc,
+            is_assessed=is_assessed,
+            is_removed=review_removed,
+        )
+
+    def _get_entry(self, entry_id):
+        resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        for entry in resp.data["results"]:
+            if entry["id"] == entry_id:
+                return entry
+        self.fail(f"Feed entry {entry_id} not found in response")
+
+    def test_review_metrics_count_only_assessed_live_reviews(self):
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert — the unassessed and removed reviews are left out.
+        self.assertEqual(
+            entry["related_work"]["review_metrics"], {"avg": 3.0, "count": 2}
+        )
+
+    def test_review_metrics_left_out_without_assessed_reviews(self):
+        # Act
+        entry = self._get_entry(self.discussion_entry.id)
+
+        # Assert
+        self.assertNotIn("review_metrics", entry["related_work"])
+
+    def test_review_metrics_match_without_the_prefetch(self):
+        # Act — serialized straight from the document, as other callers do.
+        related_work = RelatedWorkSerializer.serialize(self.prereg_doc)
+
+        # Assert
+        self.assertEqual(related_work["review_metrics"], {"avg": 3.0, "count": 2})
+        self.assertEqual(self.prereg_doc.get_review_details(), {"avg": 3.0, "count": 2})
