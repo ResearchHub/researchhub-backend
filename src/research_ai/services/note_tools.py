@@ -169,7 +169,11 @@ class NoteToolset:
                     "as `blocks`: a map from global top-level block index "
                     '("0", "1", ...) to that block. Use start_block and '
                     "max_blocks to continue through a long note; next_start_block "
-                    "is null at the end. Pass the first response's version_id "
+                    "is null at the end. On the first read, use start_block 0 "
+                    "and omit version_id or set it to null to fetch the latest "
+                    "version. Version ids are database row ids, not revision "
+                    "numbers: never guess them or use 0 as a default. "
+                    "Pass the first response's version_id "
                     "on every continuation read so all pages come from the same "
                     "immutable note version. "
                     f"{_BLOCK_FORMAT} A note with no content yet reads as "
@@ -196,10 +200,14 @@ class NoteToolset:
                             ),
                         },
                         "version_id": {
-                            "type": "integer",
+                            "type": ["integer", "null"],
                             "description": (
-                                "Version returned by the first read. Required "
-                                "when start_block is greater than 0."
+                                "Omit or use null on the first read to fetch "
+                                "the latest version. Otherwise use the exact "
+                                "database row id returned by read_note or "
+                                "edit_note; never guess a revision number. "
+                                "A non-null id is required when start_block "
+                                "is greater than 0."
                             ),
                         },
                     },
@@ -424,11 +432,19 @@ class NoteToolset:
                     "pass the version_id from the first read_note response"
                 )
             return note.latest_version
+        recovery = (
+            f'Restart with read_note({{"note_id": {note.id}, "start_block": 0}}) '
+            "and omit version_id or set it to null to fetch the latest version. "
+            "Use the returned version_id for subsequent pages and edits; "
+            "never guess version ids."
+        )
         if isinstance(version_id, bool) or not isinstance(version_id, int):
-            raise ValueError("read_note version_id must be an integer")
+            raise ValueError(f"read_note version_id must be an integer. {recovery}")
         version = NoteContent.objects.filter(note_id=note.id, id=version_id).first()
         if version is None:
-            raise ValueError(f"version {version_id} not found for note {note.id}")
+            raise ValueError(
+                f"version {version_id} not found for note {note.id}. {recovery}"
+            )
         return version
 
     @staticmethod
