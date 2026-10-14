@@ -30,7 +30,8 @@ COPY --from=builder /opt/venv /opt/venv
 COPY --chown=app:app src ./
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/entrypoint
 
-RUN python -m compileall -q . \
+RUN /usr/local/bin/python3 -m pip uninstall -y pip \
+    && python -m compileall -q . \
     && python manage.py collectstatic --noinput
 
 USER app
