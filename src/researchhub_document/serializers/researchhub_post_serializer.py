@@ -446,6 +446,11 @@ class DynamicPostSerializer(
         threads, notifications, reviews, bounties, activity feeds). Guarding it
         here ensures a private preregistration's content never leaks via any of
         those paths to an unauthorized viewer.
+
+        A listing can resolve visibility for a whole page in one query and pass
+        the result as ``visible_post_ids`` in the context: the ids of the posts
+        ``ResearchhubPost.visible_to`` admits for the request's viewer. Without
+        it, each private post costs a visibility query.
         """
         unified_document = instance.unified_document
         if unified_document is not None and not (
@@ -457,10 +462,16 @@ class DynamicPostSerializer(
                 get_shared_unified_document_id(self.context.get("request"))
                 == unified_document.id
             )
-            user = get_user_from_request(self.context)
-            if not is_shared and not unified_document.is_visible_to_user(user):
+            if not is_shared and not self._is_visible(instance, unified_document):
                 return {"id": instance.id, "is_public": False}
         return super().to_representation(instance)
+
+    def _is_visible(self, post, unified_document):
+        visible_post_ids = self.context.get("visible_post_ids")
+        if visible_post_ids is not None:
+            return post.id in visible_post_ids
+        user = get_user_from_request(self.context)
+        return unified_document.is_visible_to_user(user)
 
     def get_authors(self, post):
         context = self.context

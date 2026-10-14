@@ -120,7 +120,7 @@ class DeliveryConfig:
         return max(0, self.page_images_max_per_conversation - used.page_images)
 
     @classmethod
-    def from_settings(cls) -> "DeliveryConfig":
+    def from_settings(cls) -> DeliveryConfig:
         defaults = cls()
         return cls(
             **{

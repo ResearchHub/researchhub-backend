@@ -2,7 +2,6 @@ from datetime import UTC, datetime
 
 from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Q
 from rest_framework.serializers import (
     ModelSerializer,
     PrimaryKeyRelatedField,
@@ -290,22 +289,31 @@ class NoteSerializer(ModelSerializer):
         return data
 
     def get_access(self, note):
-        permissions = note.permissions
+        # Decided over the loaded rows, so a listing that prefetched
+        # `unified_document__permissions` and `invited_users` serializes a
+        # page without a query per note; a detail view spends one per relation.
+        permissions = list(note.permissions.all())
 
-        is_workspace = permissions.filter(
-            organization__isnull=False, access_type=ADMIN
-        ).exists()
+        is_workspace = any(
+            permission.organization_id is not None and permission.access_type == ADMIN
+            for permission in permissions
+        )
 
         is_private = (
-            permissions.filter(
-                Q(access_type__in=[ADMIN, MEMBER, EDITOR]) & Q(user__isnull=False)
-            ).count()
+            sum(
+                1
+                for permission in permissions
+                if permission.user_id is not None
+                and permission.access_type in (ADMIN, MEMBER, EDITOR)
+            )
             <= 1
         )
 
-        has_invited_users = note.invited_users.filter(
-            accepted=False, expiration_date__gt=datetime.now(UTC)
-        ).exists()
+        now = datetime.now(UTC)
+        has_invited_users = any(
+            not invite.accepted and invite.expiration_date > now
+            for invite in note.invited_users.all()
+        )
 
         if is_workspace:
             return WORKSPACE
@@ -418,22 +426,31 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
     def get_access(self, note):
-        permissions = note.permissions
+        # Decided over the loaded rows, so a listing that prefetched
+        # `unified_document__permissions` and `invited_users` serializes a
+        # page without a query per note; a detail view spends one per relation.
+        permissions = list(note.permissions.all())
 
-        is_workspace = permissions.filter(
-            organization__isnull=False, access_type=ADMIN
-        ).exists()
+        is_workspace = any(
+            permission.organization_id is not None and permission.access_type == ADMIN
+            for permission in permissions
+        )
 
         is_private = (
-            permissions.filter(
-                Q(access_type__in=[ADMIN, MEMBER, EDITOR]) & Q(user__isnull=False)
-            ).count()
+            sum(
+                1
+                for permission in permissions
+                if permission.user_id is not None
+                and permission.access_type in (ADMIN, MEMBER, EDITOR)
+            )
             <= 1
         )
 
-        has_invited_users = note.invited_users.filter(
-            accepted=False, expiration_date__gt=datetime.now(UTC)
-        ).exists()
+        now = datetime.now(UTC)
+        has_invited_users = any(
+            not invite.accepted and invite.expiration_date > now
+            for invite in note.invited_users.all()
+        )
 
         if is_workspace:
             return WORKSPACE
@@ -479,6 +496,15 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
 
         if not hasattr(note, "post"):
             return None
+
+        # A listing that only needs to know whether a note is published asks
+        # for a slim post; without the entry it gets the full shape below.
+        _context_fields = self.context.get("nte_dns_get_post")
+        if _context_fields is not None:
+            serializer = DynamicPostSerializer(
+                note.post, context=self.context, **_context_fields
+            )
+            return serializer.data
 
         context = {
             # Propagate the request so DynamicPostSerializer can resolve the

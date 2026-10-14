@@ -24,7 +24,8 @@ admin). A toolset built for a single-note surface can additionally be
 scoped with ``note_ids``; notes outside the scope get the same not-found
 error as inaccessible ones. A surface that starts without a note can pass a
 ``note_creator`` to expose ``create_note``; a note it creates joins the scope
-for the rest of the turn.
+for the rest of the turn. ``rename_note`` retitles a note under the same write
+check and, like a rename through the note API, tells an open notebook.
 
 Stored documents carry editor scaffolding (uuid block ids and a trailing
 empty paragraph; see ``utils.prosemirror.editor_shape``) that is hidden from
@@ -69,15 +70,23 @@ logger = logging.getLogger(__name__)
 
 READ_NOTE = "read_note"
 EDIT_NOTE = "edit_note"
+RENAME_NOTE = "rename_note"
 CREATE_NOTE = "create_note"
 _MAX_BLOCKS_PER_READ = 50
 _MAX_TITLE_CHARS = 255
 _CREATABLE_NOTE_TYPES = (PREREGISTRATION, GRANT)
 
 _BLOCK_FORMAT = (
-    "Blocks use a compact Tiptap form: a bare string at block level is a "
-    "plain paragraph; inside a block's `content`, a bare string is unmarked "
-    "text; attributes equal to the editor default are omitted. "
+    "Blocks use a compact Tiptap form: a bare string directly in the "
+    "top-level blocks array is a plain paragraph. Inside a node's `content`, "
+    "a bare string is unmarked inline text, never a paragraph. Nested "
+    "paragraphs must keep explicit paragraph objects. In bulletList and "
+    "orderedList, every listItem must start with a paragraph; never put "
+    "bare strings directly in listItem.content. Example: "
+    '{"type": "bulletList", "content": [{"type": "listItem", '
+    '"content": [{"type": "paragraph", "content": ["Bullet text"]}]}]}. '
+    "Use the same listItem structure for orderedList. Attributes equal to "
+    "the editor default are omitted. "
     "Reference URLs must be clickable: use text nodes with "
     'marks: [{"type": "link", "attrs": {"href": "https://..."}}]. '
     "Do not write Markdown link syntax into note text."
@@ -160,7 +169,11 @@ class NoteToolset:
                     "as `blocks`: a map from global top-level block index "
                     '("0", "1", ...) to that block. Use start_block and '
                     "max_blocks to continue through a long note; next_start_block "
-                    "is null at the end. Pass the first response's version_id "
+                    "is null at the end. On the first read, use start_block 0 "
+                    "and omit version_id or set it to null to fetch the latest "
+                    "version. Version ids are database row ids, not revision "
+                    "numbers: never guess them or use 0 as a default. "
+                    "Pass the first response's version_id "
                     "on every continuation read so all pages come from the same "
                     "immutable note version. "
                     f"{_BLOCK_FORMAT} A note with no content yet reads as "
@@ -187,10 +200,14 @@ class NoteToolset:
                             ),
                         },
                         "version_id": {
-                            "type": "integer",
+                            "type": ["integer", "null"],
                             "description": (
-                                "Version returned by the first read. Required "
-                                "when start_block is greater than 0."
+                                "Omit or use null on the first read to fetch "
+                                "the latest version. Otherwise use the exact "
+                                "database row id returned by read_note or "
+                                "edit_note; never guess a revision number. "
+                                "A non-null id is required when start_block "
+                                "is greater than 0."
                             ),
                         },
                     },
@@ -292,6 +309,29 @@ class NoteToolset:
                 },
                 handler=self._edit_note,
             ),
+            Tool(
+                name=RENAME_NOTE,
+                description=(
+                    "Rename a note. Use it to give a note a short, specific "
+                    "title, or when the user asks to rename it. Returns the "
+                    "title as saved."
+                ),
+                input_schema={
+                    "type": "object",
+                    "properties": {
+                        "note_id": {
+                            "type": "integer",
+                            "description": "Id of the note to rename.",
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "The note's new title.",
+                        },
+                    },
+                    "required": ["note_id", "title"],
+                },
+                handler=self._rename_note,
+            ),
         ]
 
     def as_toolset(self) -> Toolset:
@@ -392,11 +432,19 @@ class NoteToolset:
                     "pass the version_id from the first read_note response"
                 )
             return note.latest_version
+        recovery = (
+            f'Restart with read_note({{"note_id": {note.id}, "start_block": 0}}) '
+            "and omit version_id or set it to null to fetch the latest version. "
+            "Use the returned version_id for subsequent pages and edits; "
+            "never guess version ids."
+        )
         if isinstance(version_id, bool) or not isinstance(version_id, int):
-            raise ValueError("read_note version_id must be an integer")
+            raise ValueError(f"read_note version_id must be an integer. {recovery}")
         version = NoteContent.objects.filter(note_id=note.id, id=version_id).first()
         if version is None:
-            raise ValueError(f"version {version_id} not found for note {note.id}")
+            raise ValueError(
+                f"version {version_id} not found for note {note.id}. {recovery}"
+            )
         return version
 
     @staticmethod
@@ -435,12 +483,10 @@ class NoteToolset:
                         raise ValueError(f"edits[{index}]: {exc}") from exc
         except ValueError as exc:
             return {
-                "error": (
-                    f"{exc}. No edits were saved by this call. "
-                    "Correct the arguments and retry edit_note directly with "
-                    "the intended content and the same expected_version_id; "
-                    "edit_note is not available inside code_execution."
-                )
+                "error": f"{exc}. No edits were saved by this call. "
+                "Correct the arguments and retry edit_note directly with "
+                "the intended content and the same expected_version_id; "
+                "edit_note is not available inside code_execution."
             }
 
         expected = input.get("expected_version_id")
@@ -516,6 +562,32 @@ class NoteToolset:
         block_count = len(saved) - (1 if is_trailing_paragraph(saved[-1]) else 0)
         return version, block_count
 
+    def _rename_note(self, input: dict) -> dict:
+        note = self.get_readable_note(input.get("note_id"))
+        if note is None:
+            return {"error": f"note {input.get('note_id')} not found or not accessible"}
+
+        permissions = note.permissions
+        if not (
+            permissions.has_admin_user(self._user)
+            or permissions.has_editor_user(self._user)
+        ):
+            return {"error": f"no edit permission on note {note.id}"}
+
+        title = input.get("title")
+        if not isinstance(title, str) or not title.strip():
+            return {"error": "title must be a non-empty string"}
+        title = " ".join(title.split())
+        if len(title) > _MAX_TITLE_CHARS:
+            return {"error": f"title must be at most {_MAX_TITLE_CHARS} characters"}
+
+        # Like the note API, only a real rename is saved and broadcast.
+        if note.title != title:
+            note.title = title
+            note.save(update_fields=["title", "updated_date"])
+            notify_note_updated(note)
+        return {"note_id": note.id, "title": note.title}
+
     # -- turn context -----------------------------------------------------
 
     def changed_notes_notice(self, messages: Iterable[Message]) -> str | None:
@@ -553,7 +625,7 @@ class NoteToolset:
             # Same visibility rule as NoteViewSet: soft-deleted notes (removed
             # unified document) do not exist as far as the tools are concerned.
             note = Note.objects.get(id=note_id, unified_document__is_removed=False)
-        except (Note.DoesNotExist, ValueError, TypeError):
+        except Note.DoesNotExist, ValueError, TypeError:
             return None
         # Compare on the fetched id, not the raw input: the id is canonical
         # after the lookup, while the input may arrive as a string.
@@ -567,7 +639,8 @@ class NoteToolset:
 
 
 def notify_note_updated(note: Note) -> None:
-    """Tell an open notebook about a Details write, which adds no NoteContent.
+    """Tell an open notebook about a Details write or a rename, neither of
+    which adds a NoteContent.
 
     Best-effort: an ownerless note has no org room, and the write is committed.
     """
@@ -577,7 +650,8 @@ def notify_note_updated(note: Note) -> None:
         note.notify_note_updated_title()
     except Exception:  # noqa: BLE001 - the write is already saved
         logger.warning(
-            "could not publish note update after a Details change", exc_info=True
+            "could not publish note update after a Details change or rename",
+            exc_info=True,
         )
 
 

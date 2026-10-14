@@ -46,7 +46,7 @@ class TurnstileService:
             )
             response.raise_for_status()
             body = response.json()
-        except (requests.RequestException, ValueError):
+        except requests.RequestException, ValueError:
             logger.exception("Turnstile siteverify failed")
             return False
 

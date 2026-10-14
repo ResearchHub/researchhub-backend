@@ -62,7 +62,7 @@ class PageRenderConfig:
     max_seconds: int = 60
 
     @classmethod
-    def from_settings(cls) -> "PageRenderConfig":
+    def from_settings(cls) -> PageRenderConfig:
         defaults = cls()
         return cls(
             **{

@@ -1,16 +1,18 @@
 import json
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from note.models import NoteContent
+from note.models import Note, NoteContent
 from note.tests.helpers import create_note, without_editor_shape
 from research_ai.services.agent.types import Message, ToolResultBlock, ToolUseBlock
 from research_ai.services.note_tools import (
     CREATE_NOTE,
     EDIT_NOTE,
     READ_NOTE,
+    RENAME_NOTE,
     NoteToolset,
 )
 from researchhub_access_group.constants import ADMIN, VIEWER
@@ -110,6 +112,44 @@ class NoteToolsetTests(TestCase):
             },
         )
         self.assertNotIn("plain_text", result)
+
+    def test_read_note_null_version_returns_latest_content(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            READ_NOTE,
+            {"note_id": self.note.id, "start_block": 0, "version_id": None},
+        )
+
+        # Assert
+        self.assertEqual(result["version_id"], seeded.id)
+        self.assertEqual(result["blocks"]["1"], "Original body")
+
+    def test_read_note_invalid_version_explains_how_to_recover(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
+        for version_id in (0, -1, "1"):
+            with self.subTest(version_id=version_id):
+                # Act
+                failed, _ = self.toolset.dispatch(
+                    READ_NOTE,
+                    {"note_id": self.note.id, "version_id": version_id},
+                )
+                recovered, _ = self.toolset.dispatch(
+                    READ_NOTE, {"note_id": self.note.id, "start_block": 0}
+                )
+
+                # Assert: invalid ids fail and give an actionable fresh read.
+                self.assertIn("error", failed)
+                self.assertNotIn("blocks", failed)
+                self.assertIn("omit version_id or set it to null", failed["error"])
+                self.assertIn('"start_block": 0', failed["error"])
+                self.assertIn("never guess version ids", failed["error"])
+                self.assertEqual(recovered["version_id"], seeded.id)
+                self.assertEqual(recovered["blocks"]["1"], "Original body")
 
     def test_read_note_without_content_returns_null_blocks(self):
         # Act: the seeded note from create_note has no content JSON.
@@ -215,13 +255,15 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(continuation["blocks"]["50"], "Block 50")
 
     def test_read_note_continuation_requires_version_id(self):
-        # Act
-        result, _ = self.toolset.dispatch(
-            READ_NOTE, {"note_id": self.note.id, "start_block": 1}
-        )
+        # Arrange
+        first_page = {"note_id": self.note.id, "start_block": 1}
+        for arguments in (first_page, {**first_page, "version_id": None}):
+            with self.subTest(arguments=arguments):
+                # Act
+                result, _ = self.toolset.dispatch(READ_NOTE, arguments)
 
-        # Assert
-        self.assertIn("version_id is required", result["error"])
+                # Assert
+                self.assertIn("version_id is required", result["error"])
 
     def test_read_note_rejects_version_from_another_note(self):
         # Arrange
@@ -629,6 +671,75 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(stored[2]["content"], [{"type": "text", "text": "Appended"}])
         self.assertEqual(len(stored), 3)
         self.assertEqual(result["block_count"], 3)
+
+    # -- rename -------------------------------------------------------------
+
+    def test_rename_note_saves_the_title_and_notifies_the_notebook(self):
+        # Arrange: an org-owned note, so an open notebook has a room to hear.
+        self.note.organization = self.owner.organization
+        self.note.save(update_fields=["organization"])
+
+        # Act
+        with patch.object(Note, "notify_note_updated_title") as notify:
+            result, _ = self.toolset.dispatch(
+                RENAME_NOTE,
+                {"note_id": self.note.id, "title": "  Kindness   at work "},
+            )
+
+        # Assert
+        self.assertEqual(result, {"note_id": self.note.id, "title": "Kindness at work"})
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.title, "Kindness at work")
+        notify.assert_called_once_with()
+
+    def test_rename_note_rejects_a_blank_or_too_long_title(self):
+        for title in (None, "", "   ", 42, "x" * 256):
+            with self.subTest(title=title):
+                # Act
+                result, _ = self.toolset.dispatch(
+                    RENAME_NOTE, {"note_id": self.note.id, "title": title}
+                )
+
+                # Assert
+                self.assertIn("title must be", result["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.title, "Some random post title")
+
+    def test_rename_note_refuses_a_note_it_cannot_edit(self):
+        # Arrange: a second note the owner administers, outside the scope.
+        other_note, _content = create_note(self.owner, organization=None)
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=other_note.unified_document.id,
+            user=self.owner,
+        )
+        scoped = NoteToolset(user=self.owner, note_ids={self.note.id}).as_toolset()
+        viewer = NoteToolset(user=self.viewer).as_toolset()
+        outsider = NoteToolset(user=self.outsider).as_toolset()
+        rename = {"note_id": self.note.id, "title": "Renamed"}
+
+        # Act
+        out_of_scope, _ = scoped.dispatch(
+            RENAME_NOTE, {"note_id": other_note.id, "title": "Renamed"}
+        )
+        by_viewer, _ = viewer.dispatch(RENAME_NOTE, rename)
+        by_outsider, _ = outsider.dispatch(RENAME_NOTE, rename)
+
+        # Assert: out of scope reads exactly like inaccessible.
+        self.assertEqual(
+            out_of_scope,
+            {"error": f"note {other_note.id} not found or not accessible"},
+        )
+        self.assertEqual(
+            by_outsider,
+            {"error": f"note {self.note.id} not found or not accessible"},
+        )
+        self.assertIn("no edit permission", by_viewer["error"])
+        self.note.refresh_from_db()
+        other_note.refresh_from_db()
+        self.assertEqual(self.note.title, "Some random post title")
+        self.assertEqual(other_note.title, "Some random post title")
 
     # -- changed notes --------------------------------------------------------
 

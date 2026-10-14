@@ -98,6 +98,7 @@ class FundingOverviewService(OverviewMixin):
                 "slug": post.slug,
             },
             "id": post.id,
+            "image_url": post.get_image_url(),
             "created_by": (
                 {
                     "id": creator.id,

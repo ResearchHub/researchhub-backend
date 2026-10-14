@@ -530,6 +530,26 @@ class NotebookChatService:
         self.conversations.set_title(conversation, title)
         return conversation
 
+    def delete_conversation(self, conversation: AgentConversation) -> None:
+        """Remove the chat from every user-facing lookup. The note it is on
+        is the user's and is not touched.
+
+        Refused while a turn is running: the worker would keep writing to a
+        chat the user can no longer see.
+        """
+        if conversation.executions.filter(
+            status__in=[
+                AgentExecution.Status.PENDING,
+                AgentExecution.Status.RUNNING,
+            ]
+        ).exists():
+            raise AgentConversationBusyError(
+                "The assistant is still working on this conversation."
+            )
+        conversation.is_removed = True
+        conversation.removed_date = timezone.now()
+        conversation.save(update_fields=["is_removed", "removed_date", "updated_date"])
+
     def submit_message(
         self,
         note: Note | None,

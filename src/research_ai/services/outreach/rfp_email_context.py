@@ -42,7 +42,7 @@ def _format_amount(amount: Decimal | None) -> str:
         if n >= 1_000:
             return f"${n // 1_000}K"
         return f"${n}"
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return str(amount) if amount else ""
 
 

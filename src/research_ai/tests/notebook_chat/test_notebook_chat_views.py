@@ -657,3 +657,46 @@ class NotebookChatViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 404)
+
+    # -- deleting ---------------------------------------------------------
+
+    def test_delete_chat_removes_it_and_keeps_the_note(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+
+        # Act
+        response = self.client.delete(self._chat_url(chat_id))
+        listing = self.client.get(self.chats_url)
+        detail = self.client.get(self._chat_url(chat_id))
+        self.note.refresh_from_db()
+
+        # Assert
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(listing.data["chats"], [])
+        self.assertEqual(detail.status_code, 404)
+        self.assertFalse(self.note.unified_document.is_removed)
+
+    def test_delete_chat_is_refused_while_a_turn_runs(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+        self._post_message(chat_id)
+
+        # Act
+        response = self.client.delete(self._chat_url(chat_id))
+
+        # Assert
+        self.assertEqual(response.status_code, 409)
+
+    def test_delete_chat_is_scoped_to_its_owner(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+        chat_id = self._create_chat_id()
+
+        # Act: a viewer of the note can see it, but the chat is the owner's.
+        self.client.force_authenticate(self.viewer)
+        response = self.client.delete(self._chat_url(chat_id))
+
+        # Assert
+        self.assertEqual(response.status_code, 404)

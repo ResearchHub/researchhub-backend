@@ -76,6 +76,7 @@ def compute_user_balances(user):
 class ModeratorUserSerializer(ModelSerializer):
     verification = SerializerMethodField()
     risk_score = SerializerMethodField()
+    author_profile_id = SerializerMethodField()
 
     class Meta:
         model = User
@@ -89,6 +90,7 @@ class ModeratorUserSerializer(ModelSerializer):
             "is_orcid_connected",
             "orcid_verified_edu_email",
             "risk_score",
+            "author_profile_id",
         ]
 
     def __init__(self, *args, **kwargs) -> None:
@@ -98,6 +100,10 @@ class ModeratorUserSerializer(ModelSerializer):
         requester = getattr(self.context.get("request"), "user", None)
         if not (requester and getattr(requester, "moderator", False)):
             self.fields.pop("risk_score", None)
+
+    def get_author_profile_id(self, user: User) -> int | None:
+        author = getattr(user, "author_profile", None)
+        return author.id if author else None
 
     def get_verification(self, user: User) -> dict | None:
         try:

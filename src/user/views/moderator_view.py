@@ -19,6 +19,7 @@ class ModeratorView(ModelViewSet):
     queryset = User.objects.select_related(
         "userverification",
         "risk_score",
+        "author_profile",
     )
     serializer_class = ModeratorUserSerializer
     permission_classes = [UserIsEditor | IsModerator]
