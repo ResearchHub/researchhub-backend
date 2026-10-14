@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 class ResearchhubPostQuerySet(models.QuerySet):
-    def publicly_visible(self) -> "ResearchhubPostQuerySet":
+    def publicly_visible(self) -> ResearchhubPostQuerySet:
         """Restrict to posts safe for anonymous/public discovery surfaces."""
         return self.filter(self._public_visibility_filter())
 
@@ -42,7 +42,7 @@ class ResearchhubPostQuerySet(models.QuerySet):
         self,
         user: User | None,
         shared_unified_document_id: int | None = None,
-    ) -> "ResearchhubPostQuerySet":
+    ) -> ResearchhubPostQuerySet:
         """Restrict to posts the given user is allowed to see.
 
         Anonymous users only see public posts that cleared moderation. Authors
@@ -312,7 +312,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 class ResearchhubPostAuthorManager(models.Manager):
     """Load author links with their author, so bylines cost a single query."""
 
-    def get_queryset(self) -> "models.QuerySet[ResearchhubPostAuthor]":
+    def get_queryset(self) -> models.QuerySet[ResearchhubPostAuthor]:
         """Return links with the credited author already loaded."""
         return super().get_queryset().select_related("author")
 
