@@ -14,7 +14,7 @@ from notification.models import Notification
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee, Distribution, Escrow
+from reputation.models import Bounty, BountyFee, BountySolution, Distribution, Escrow
 from researchhub_comment.tests.helpers import create_rh_comment
 from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import create_random_default_user, create_user
@@ -72,6 +72,14 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         """Notify and email the paid-out user once the bounty payout commits."""
         # Arrange
         bounty = Bounty.objects.get(id=self._create_bounty().data["id"])
+        answer = create_rh_comment(created_by=self.recipient)
+        BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.recipient,
+            content_type=ContentType.objects.get_for_model(answer),
+            object_id=answer.id,
+            status=BountySolution.Status.AWARDED,
+        )
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
@@ -85,8 +93,12 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         )
         self.assertEqual(notification.recipient, self.recipient)
         mock_send_message_email.assert_called_once()
+        recipients, subject, _ = mock_send_message_email.call_args.args
+        self.assertEqual(recipients, [self.recipient.email])
         self.assertEqual(
-            mock_send_message_email.call_args.args[0], [self.recipient.email]
+            subject,
+            f"Congratulations {self.recipient.first_name}, "
+            "you were awarded a bounty!",
         )
 
     def test_author_rsc_escrow_payout_is_rejected(self):

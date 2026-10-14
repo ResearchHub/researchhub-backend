@@ -1,12 +1,12 @@
 from decimal import Decimal
 
 from django.template.loader import render_to_string
-from django.utils.html import escape
 
-from mailing_list.services import EmailService, truncate_preview
+from mailing_list.services import EMAIL_PREVIEW_LENGTH, EmailService, truncate_preview
 from notification.models import Notification
 from notification.services import NotificationService
-from reputation.models import Escrow
+from reputation.models import BountySolution, Escrow
+from researchhub_comment.services.comment_html_service import render_comment_html
 from user.models import User
 
 
@@ -33,11 +33,24 @@ class EscrowPayoutNotificationService:
 
         if escrow.hold_type == Escrow.BOUNTY:
             notification_type = Notification.BOUNTY_PAYOUT
-            subject = "Bounty Payout"
-            message = escape(
-                f"{escrow.created_by.full_name()} awarded you a bounty for your "
-                f"thread in {title}."
+            subject = (
+                f"Congratulations {recipient.first_name}, you were awarded a bounty!"
             )
+            answer = (
+                BountySolution.objects.filter(
+                    bounty__escrow=escrow,
+                    created_by=recipient,
+                    status=BountySolution.Status.AWARDED,
+                )
+                .latest("updated_date")
+                .item
+            )
+            card = {
+                "author": recipient.author_profile,
+                "action": "Answer",
+                "created_date": answer.created_date,
+                "body": render_comment_html(answer, max_length=EMAIL_PREVIEW_LENGTH),
+            }
             link = f"{unified_document.frontend_view_link()}/bounties"
         else:
             notification_type = Notification.FUNDRAISE_PAYOUT
@@ -46,19 +59,17 @@ class EscrowPayoutNotificationService:
                 "funded!"
             )
             proposal = unified_document.get_document()
-            message = render_to_string(
-                "email_content_card.html",
-                {
-                    "author": proposal.created_by.author_profile,
-                    "action": "Proposal",
-                    "possessive": True,
-                    "title": title,
-                    "created_date": proposal.created_date,
-                    "body": truncate_preview(proposal.renderable_text),
-                },
-            )
+            card = {
+                "author": proposal.created_by.author_profile,
+                "action": "Proposal",
+                "created_date": proposal.created_date,
+                "body": truncate_preview(proposal.renderable_text),
+            }
             link = unified_document.frontend_view_link()
 
+        message = render_to_string(
+            "email_content_card.html", {**card, "title": title, "possessive": True}
+        )
         self._notifications.try_send(
             notification_type,
             recipient=recipient,
