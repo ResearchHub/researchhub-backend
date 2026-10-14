@@ -1030,10 +1030,12 @@ class AuthorActivityQuerySerializer(serializers.Serializer):
 
 
 ASSESSED_REVIEWS_ATTR = "assessed_reviews"
+# Enough for a preview of who reviewed the work; review_metrics carries the count.
+RELATED_WORK_REVIEWERS = 3
 
 
-def assessed_reviews_prefetch(lookup: str = "unified_document__reviews") -> Prefetch:
-    """Prefetch a document's assessed peer reviews onto ``assessed_reviews``.
+def assessed_reviews_queryset():
+    """A document's assessed peer reviews, oldest first, with their authors.
 
     Counts the reviews ``ResearchhubUnifiedDocument.get_review_details`` does:
     assessed by the foundation, not removed, and left as a comment that hasn't
@@ -1042,16 +1044,22 @@ def assessed_reviews_prefetch(lookup: str = "unified_document__reviews") -> Pref
     active_comment = RhCommentModel.objects.filter(
         id=OuterRef("object_id"), is_removed=False
     )
-    return Prefetch(
-        lookup,
-        queryset=Review.objects.filter(
+    return (
+        Review.objects.filter(
             is_removed=False,
             is_assessed=True,
             content_type=ContentType.objects.get_for_model(RhCommentModel),
         )
         .filter(Exists(active_comment))
-        .only("id", "score", "unified_document_id"),
-        to_attr=ASSESSED_REVIEWS_ATTR,
+        .select_related("created_by__author_profile")
+        .order_by("created_date", "id")
+    )
+
+
+def assessed_reviews_prefetch(lookup: str = "unified_document__reviews") -> Prefetch:
+    """Prefetch a document's assessed peer reviews onto ``assessed_reviews``."""
+    return Prefetch(
+        lookup, queryset=assessed_reviews_queryset(), to_attr=ASSESSED_REVIEWS_ATTR
     )
 
 
@@ -1071,8 +1079,15 @@ class RelatedWorkSerializer(serializers.Serializer):
     fundraise = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
     review_metrics = serializers.SerializerMethodField()
+    assessed_reviews = serializers.SerializerMethodField()
 
-    _OPTIONAL_FIELDS = ("authors", "grant", "fundraise", "review_metrics")
+    _OPTIONAL_FIELDS = (
+        "authors",
+        "grant",
+        "fundraise",
+        "review_metrics",
+        "assessed_reviews",
+    )
 
     @staticmethod
     def _first_prefetched(relation):
@@ -1158,24 +1173,31 @@ class RelatedWorkSerializer(serializers.Serializer):
             "adjusted_score": calculate_adjusted_score(votes, {}),
         }
 
-    def get_review_metrics(self, unified_document):
-        """Average score and count of the work's assessed peer reviews, if any.
-
-        Read from ``assessed_reviews_prefetch`` when the queryset carries it, and
-        from the document otherwise.
-        """
+    @staticmethod
+    def _assessed_reviews(unified_document):
+        """The document's assessed reviews: from ``assessed_reviews_prefetch`` when
+        the queryset carries it, and otherwise read once and kept the same way."""
         reviews = getattr(unified_document, ASSESSED_REVIEWS_ATTR, None)
         if reviews is None:
-            details = unified_document.get_review_details()
-        else:
-            scores = [review.score for review in reviews]
-            details = {
-                "avg": sum(scores) / len(scores) if scores else 0,
-                "count": len(scores),
-            }
-        if not details["count"]:
+            reviews = list(
+                assessed_reviews_queryset().filter(unified_document=unified_document)
+            )
+            setattr(unified_document, ASSESSED_REVIEWS_ATTR, reviews)
+        return reviews
+
+    def get_review_metrics(self, unified_document):
+        """Average score and count of the work's assessed peer reviews, if any."""
+        scores = [review.score for review in self._assessed_reviews(unified_document)]
+        if not scores:
             return None
-        return {"avg": details["avg"], "count": details["count"]}
+        return {"avg": sum(scores) / len(scores), "count": len(scores)}
+
+    def get_assessed_reviews(self, unified_document):
+        """The first few assessed reviews and who wrote them, if any."""
+        reviews = self._assessed_reviews(unified_document)[:RELATED_WORK_REVIEWERS]
+        if not reviews:
+            return None
+        return SimpleReviewSerializer(reviews, many=True).data
 
     def get_grant(self, unified_document):
         if unified_document.document_type != GRANT:
