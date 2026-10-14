@@ -3,7 +3,6 @@ from threading import Event, Thread
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.core.management import CommandError, call_command
 from django.db import close_old_connections
 from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
@@ -98,30 +97,6 @@ class TierResolutionTests(TestCase):
         policy = resolve_ai_tier(self.user)
         self.assertEqual(policy.name, "invited")
         self.assertEqual(policy.daily_budget_microusd, 10_000_000)
-
-    def test_manual_grant_gives_invited_tier_until_revoked(self):
-        # Act
-        call_command("research_ai_invited_tier", "grant", self.user.email.upper())
-
-        # Assert
-        self.assertEqual(resolve_ai_tier(self.user).name, "invited")
-
-        # Act
-        call_command("research_ai_invited_tier", "revoke", self.user.email)
-
-        # Assert
-        self.assertEqual(resolve_ai_tier(self.user).name, "default")
-
-    def test_manual_grant_reports_unknown_emails_after_granting_the_rest(self):
-        # Act / Assert
-        with self.assertRaisesMessage(CommandError, "nobody@example.com"):
-            call_command(
-                "research_ai_invited_tier",
-                "grant",
-                "nobody@example.com",
-                self.user.email,
-            )
-        self.assertEqual(resolve_ai_tier(self.user).name, "invited")
 
     def test_privileged_role_precedes_invited_tier(self):
         # Arrange

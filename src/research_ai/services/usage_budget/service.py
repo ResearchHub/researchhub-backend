@@ -146,18 +146,16 @@ def has_manual_invited_grant(user) -> bool:
     return Gatekeeper.objects.filter(user=user, type=RESEARCH_AI_INVITED).exists()
 
 
-def grant_invited_tier(user) -> bool:
-    """Put ``user`` on the invited tier by hand; False if already granted."""
-    _grant, created = Gatekeeper.objects.get_or_create(
+def grant_invited_tier(user) -> None:
+    """Put ``user`` on the invited tier by hand."""
+    Gatekeeper.objects.get_or_create(
         user=user, type=RESEARCH_AI_INVITED, defaults={"email": user.email}
     )
-    return created
 
 
-def revoke_invited_tier(user) -> bool:
+def revoke_invited_tier(user) -> None:
     """Remove a manual grant; a registered expert stays on the invited tier."""
-    deleted, _ = Gatekeeper.objects.filter(user=user, type=RESEARCH_AI_INVITED).delete()
-    return bool(deleted)
+    Gatekeeper.objects.filter(user=user, type=RESEARCH_AI_INVITED).delete()
 
 
 def _utc_window(now: datetime | None = None) -> tuple[datetime, datetime]:
