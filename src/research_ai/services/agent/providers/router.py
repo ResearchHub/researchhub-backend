@@ -103,7 +103,7 @@ class RoutedProvider(LLMProvider):
     ) -> AssistantTurn:
         # A conversation moved off its own model stays where it moved to.
         ref = next(
-            (model for model in map(_written_by, reversed(messages)) if model),
+            (model for model in map(written_by, reversed(messages)) if model),
             self.primary_ref,
         )
         while True:
@@ -156,7 +156,7 @@ class RoutedProvider(LLMProvider):
         replayable = []
         for message in messages:
             if message.role == "assistant":
-                if (_written_by(message) or self.primary_ref) != ref:
+                if (written_by(message) or self.primary_ref) != ref:
                     # Reasoning, server-side tool blocks and continuation state
                     # replay only on the model that wrote them.
                     message = Message(
@@ -182,7 +182,7 @@ class RoutedProvider(LLMProvider):
         return replace(turn, provider_state=state)
 
 
-def _written_by(message: Message) -> str | None:
+def written_by(message: Message) -> str | None:
     """The model that wrote ``message`` when it was not the conversation's own."""
     state = message.provider_state.get(STATE_KEY)
     return state.get("model") if isinstance(state, dict) else None
