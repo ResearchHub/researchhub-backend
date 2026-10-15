@@ -19,7 +19,7 @@ def notify_mentioned_users(comment_id: int, recipient_ids: list[int]) -> None:
     unified_document = comment.thread.unified_document
     notifications = NotificationService()
     emails = EmailService()
-    subject = f"{author.full_name()} Mentioned You in a Comment"
+    subject = f"{author.full_name()} mentioned you in a comment"
     body = (
         ""
         if comment.thread.permissions.exists()

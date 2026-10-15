@@ -51,7 +51,7 @@ class FundraiseNotificationService:
             usd_amount,
             proposal,
             action="Funded a proposal",
-            label="Proposal",
+            label="proposal",
             recipients=User.objects.filter(
                 Q(id=proposal.created_by_id)
                 | Q(
