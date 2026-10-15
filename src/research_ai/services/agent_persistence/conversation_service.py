@@ -1,7 +1,7 @@
 """Conversation and notebook-association services."""
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Subquery
 
 from research_ai.models import (
     AgentConversation,
@@ -71,13 +71,27 @@ class NoteAgentConversationService:
         return link
 
     def for_note(self, note):
-        # The proposal relation is a deterministic recovery path if the
-        # best-effort join-table write failed after the proposal was completed.
         return (
-            AgentConversation.objects.filter(
-                Q(note_links__note=note) | Q(proposal_draft__note=note),
-                is_removed=False,
-            )
+            AgentConversation.objects.filter(self._linked_to(note), is_removed=False)
             .distinct()
             .order_by("-updated_date", "-id")
         )
+
+    def latest_id_for_note(self, note, **filters) -> Subquery:
+        """The id of the conversation ``for_note`` lists first, narrowed by
+        ``filters``, as a subquery: ``note`` may be an ``OuterRef``, to
+        annotate each note of a queryset with it. Null when there is none.
+        """
+        return Subquery(
+            AgentConversation.objects.filter(
+                self._linked_to(note), is_removed=False, **filters
+            )
+            .order_by("-updated_date", "-id")
+            .values("id")[:1]
+        )
+
+    @staticmethod
+    def _linked_to(note) -> Q:
+        # The proposal relation is a deterministic recovery path if the
+        # best-effort join-table write failed after the proposal was completed.
+        return Q(note_links__note=note) | Q(proposal_draft__note=note)

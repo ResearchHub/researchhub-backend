@@ -360,6 +360,15 @@ class NotebookChatService:
             for conversation in conversations
         ]
 
+    def latest_conversation_ids(self, user) -> Subquery:
+        """For annotating a queryset of notes: the id of ``user``'s chat on
+        each that ``list_conversations`` would list first, or null when they
+        have none on it.
+        """
+        return self.note_conversations.latest_id_for_note(
+            OuterRef("pk"), workflow=self.workflow, user=user
+        )
+
     @staticmethod
     def listing(conversations):
         """Annotate a conversation queryset for a chat picker, in one query."""
