@@ -96,7 +96,8 @@ def _describe_fundraise(proposal: ResearchhubPost) -> dict:
 def _describe_grant_funding(grant: Grant) -> dict:
     """Return the RFP's budget plus what its funding pool has raised, in USD."""
     pool = getattr(grant, "funding_pool", None)
-    pool_usd = RscExchangeRate.rsc_to_usd(float(pool.amount_raised)) if pool else 0
+    pool_rsc = float(pool.amount_raised) if pool else 0
+    pool_usd = RscExchangeRate.rsc_to_usd(pool_rsc) if pool_rsc > 0 else 0
     available = float(grant.amount) + pool_usd
     return {"available_funding": format_compact_usd(available)} if available > 0 else {}
 
