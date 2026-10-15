@@ -99,7 +99,7 @@ class Escrow(DefaultModel):
     def set_pending_status(self, should_save=True):
         self.set_status(self.PENDING, should_save=should_save)
 
-    def payout(self, recipient, payout_amount):
+    def payout(self, recipient, payout_amount, solution_id=None):
         from reputation.distributor import Distributor
         from reputation.services.escrow_payout_notification_service import (
             EscrowPayoutNotificationService,
@@ -153,7 +153,7 @@ class Escrow(DefaultModel):
 
             transaction.on_commit(
                 lambda: EscrowPayoutNotificationService().notify_payout_recipient(
-                    escrow.id, recipient.id, payout_amount
+                    escrow.id, recipient.id, payout_amount, solution_id
                 ),
                 robust=True,
             )

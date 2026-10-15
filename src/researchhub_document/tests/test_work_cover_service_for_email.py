@@ -1,11 +1,14 @@
 from decimal import Decimal
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from purchase.models import Fundraise
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from researchhub_document.services.work_cover_service_for_email import build_work_cover
+from researchhub_document.services.work_cover_service_for_email import (
+    build_work_cover,
+    format_compact_usd,
+)
 from user.tests.helpers import create_random_default_user
 
 
@@ -39,3 +42,16 @@ class BuildWorkCoverTests(TestCase):
                 "progress": 0,
             },
         )
+
+
+class FormatCompactUsdTests(SimpleTestCase):
+    def test_keeps_cents_for_sub_dollar_amounts(self) -> None:
+        """Small contributions show their cents instead of rounding down to $0."""
+        # Arrange
+        amounts = [0.3, 0.004]
+
+        # Act
+        formatted = [format_compact_usd(amount) for amount in amounts]
+
+        # Assert
+        self.assertEqual(formatted, ["$0.30", "<$0.01"])
