@@ -2,10 +2,10 @@
 
 Before the CHANGELOG type existed, changelogs were DISCUSSION posts whose IDs
 the frontend hard-coded, and the notebook created changelog drafts as
-DISCUSSION notes once it shipped (no other notebook flow creates DISCUSSION
-notes since then). Both are retyped here, along with each post's unified
-document and note. Their feed entries are dropped because changelogs are no
-longer shown in feeds.
+DISCUSSION notes once it shipped. Only moderators could create those, and no
+other notebook flow creates DISCUSSION notes since then. Both are retyped
+here, along with each post's unified document and note. Their feed entries
+are dropped because changelogs are no longer shown in feeds.
 """
 
 from datetime import UTC, datetime
@@ -73,6 +73,7 @@ def mark_changelogs(apps, schema_editor):
 
     notebook_changelog_note_ids = set(
         Note.objects.filter(
+            created_by__moderator=True,
             document_type=DISCUSSION,
             created_date__gte=NOTEBOOK_CHANGELOG_ROLLOUT_AT,
         ).values_list("id", flat=True)

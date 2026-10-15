@@ -60,21 +60,38 @@ class ChangelogPublishTests(APITestCase):
         self.assertEqual(response.status_code, 403)
         self.assertFalse(ResearchhubPost.objects.filter(created_by=self.user).exists())
 
-    def test_non_moderator_cannot_turn_post_into_changelog(self):
+    def test_existing_post_cannot_become_changelog(self):
         # Arrange
-        post = create_post(created_by=self.user, document_type=DISCUSSION)
+        post = create_post(created_by=self.moderator, document_type=DISCUSSION)
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.put(
+            f"/api/researchhubpost/{post.id}/",
+            _post_payload(self.moderator, post_id=post.id, authors=[]),
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        post.refresh_from_db()
+        self.assertEqual(post.document_type, DISCUSSION)
+        self.assertEqual(post.unified_document.document_type, DISCUSSION)
+
+    def test_non_moderator_cannot_edit_changelog(self):
+        # Arrange
+        post = create_post(created_by=self.user, document_type=CHANGELOG)
         self.client.force_authenticate(self.user)
 
         # Act
         response = self.client.put(
             f"/api/researchhubpost/{post.id}/",
-            _post_payload(self.user, post_id=post.id),
+            _post_payload(self.user, post_id=post.id, title="y" * 30),
         )
 
         # Assert
         self.assertEqual(response.status_code, 403)
         post.refresh_from_db()
-        self.assertEqual(post.document_type, DISCUSSION)
+        self.assertNotEqual(post.title, "y" * 30)
 
     def test_editing_changelog_keeps_its_type(self):
         # Arrange

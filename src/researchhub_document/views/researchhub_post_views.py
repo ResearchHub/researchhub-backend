@@ -666,10 +666,13 @@ class ResearchhubPostViewSet(
                 )
 
             is_changelog = rh_post.document_type == CHANGELOG
-            if (
-                is_changelog or data.get("document_type") == CHANGELOG
-            ) and not request.user.moderator:
+            if is_changelog and not request.user.moderator:
                 raise PermissionDenied("Only moderators can edit changelogs.")
+            if not is_changelog and data.get("document_type") == CHANGELOG:
+                return Response(
+                    {"msg": "An existing post cannot become a changelog"},
+                    status=400,
+                )
             if is_changelog:
                 # A changelog stays a changelog: its unified document, feed
                 # suppression and listing all key off the type.
