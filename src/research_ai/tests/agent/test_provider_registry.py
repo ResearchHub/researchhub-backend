@@ -5,6 +5,7 @@ from unittest.mock import patch
 from django.conf import settings
 from django.test import SimpleTestCase, override_settings
 
+from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.model_pricing import model_pricing
 from research_ai.services.agent.providers import registry
@@ -189,6 +190,17 @@ class ResolveProviderTests(SimpleTestCase):
         self.assertEqual(fallback.model_id, "moonshotai/kimi-k3")
         self.assertEqual(fallback.effort, "low")
         self.assertIs(fallback.image_loader, loader)
+
+    @override_settings(
+        RESEARCH_AI_REFUSAL_FALLBACK_MODEL="claude_platform:claude-sonnet-4-5"
+    )
+    def test_unpriced_fallback_is_refused_before_any_spend(self, bedrock_cls):
+        # Arrange
+        provider = resolve_provider("claude-opus-5-5", refusal_fallback=True)
+
+        # Act / Assert
+        with self.assertRaisesMessage(ProviderError, "no reviewed pricing"):
+            provider._build(provider.fallback_ref)
 
 
 class RefusalFallbackSettingTests(SimpleTestCase):

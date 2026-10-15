@@ -16,6 +16,7 @@ With ``refusal_fallback``, a conversation its model refuses moves to
 
 from django.conf import settings
 
+from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.images import ImageLoader
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.providers import bedrock, claude_platform, openrouter
@@ -101,9 +102,28 @@ def resolve_provider(
         primary_ref=_canonical_model_ref(model_ref),
         primary=provider,
         fallback_ref=_canonical_model_ref(fallback) if fallback else None,
-        build=lambda ref: _build_provider(
+        build=lambda ref: _build_routed_provider(
             ref, native_tools=native_tools, image_loader=image_loader
         ),
+    )
+
+
+def _build_routed_provider(
+    model_ref: str, *, native_tools: frozenset[str], image_loader: ImageLoader | None
+) -> LLMProvider:
+    """A model the router moves a conversation to, refused unless it is priced."""
+    # Imported here because model_pricing imports this module.
+    from research_ai.services.agent.model_pricing import model_pricing
+
+    provider_name, model_id = split_model_ref(model_ref)
+    # The budget guard prices only the conversation's own model, so the model
+    # actually called is checked here before anything is spent on it.
+    if model_pricing(provider_name, model_id or "") is None:
+        raise ProviderError(
+            f"routed model {model_ref} has no reviewed pricing", retryable=False
+        )
+    return _build_provider(
+        model_ref, native_tools=native_tools, image_loader=image_loader
     )
 
 
