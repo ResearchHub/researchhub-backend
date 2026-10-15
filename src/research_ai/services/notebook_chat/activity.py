@@ -59,6 +59,7 @@ from research_ai.services.notebook_chat.rfp_details_tools import (
     READ_RFP_DETAILS,
     UPDATE_RFP_DETAILS,
 )
+from research_ai.services.notebook_chat.web_fetch_tools import WEB_FETCH
 from research_ai.services.researcher_profile.openalex_tools import (
     GET_WORK_ABSTRACT,
     GET_WORK_FULLTEXT,
@@ -78,6 +79,7 @@ _LABELS = {
     EDIT_NOTE: "Edited the note",
     RENAME_NOTE: "Renamed the note",
     WEB_SEARCH: "Searched the web",
+    WEB_FETCH: "Read a web page",
     SEARCH_GRANTS: "Searched grants",
     GET_GRANT_DETAILS: "Read grant details",
     READ_SELECTED_RFP: "Read the selected RFP",
@@ -105,6 +107,7 @@ _ACTIVE_LABELS = {
     EDIT_NOTE: "Editing the note",
     RENAME_NOTE: "Renaming the note",
     WEB_SEARCH: "Searching the web",
+    WEB_FETCH: "Reading a web page",
     SEARCH_GRANTS: "Searching grants",
     GET_GRANT_DETAILS: "Reading grant details",
     READ_SELECTED_RFP: "Reading the selected RFP",
@@ -135,6 +138,7 @@ _DRAFTING_LABELS = {
 # and meaningful to echo as the event detail.
 _DETAIL_INPUT_FIELDS = {
     WEB_SEARCH: "query",
+    WEB_FETCH: "url",
     SEARCH_GRANTS: "query",
     SEARCH_INSTITUTIONS: "query",
     SEARCH_AUTHORS: "name",
@@ -365,7 +369,7 @@ def _sources(event: ToolCallEvent) -> list[dict]:
     elif event.tool == SEARCH_GRANTS:
         items = result.get("grants")
         url_field = "url"
-    elif event.tool in (GET_GRANT_DETAILS, READ_SELECTED_RFP):
+    elif event.tool in (WEB_FETCH, GET_GRANT_DETAILS, READ_SELECTED_RFP):
         items = [result]
         url_field = "url"
     elif event.tool == SET_SELECTED_RFP:
