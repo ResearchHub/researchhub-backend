@@ -782,6 +782,24 @@ class AgentFileServiceTests(TestCase):
                 self.assertEqual(raised.exception.code, "file_unavailable")
         self.storage.presigned_get.assert_not_called()
 
+    def test_a_fetched_file_is_not_an_upload_to_list_send_or_remove(self):
+        # Arrange
+        fetched = make_file(
+            self.user, conversation=self.conversation, source=AgentFile.Source.WEB
+        )
+
+        # Act
+        unsent = self.service.unsent_files(self.user)
+        with self.assertRaises(AgentFileError) as attaching:
+            self.service.attach(self.message, [fetched.id])
+        with self.assertRaises(AgentFileError) as removing:
+            self.service.delete(fetched)
+
+        # Assert
+        self.assertEqual(unsent, [])
+        self.assertEqual(attaching.exception.code, "attachment_unavailable")
+        self.assertEqual(removing.exception.code, "attachment_sent")
+
     def test_purge_deletes_stale_unsent_files(self):
         # Arrange
         stale = make_file(self.user)
@@ -789,6 +807,10 @@ class AgentFileServiceTests(TestCase):
         fresh = make_file(self.user)
         sent = make_file(self.user, message=self.message)
         self._age(sent, field="created_date", seconds=CONFIG.unsent_ttl_seconds + 1)
+        fetched = make_file(
+            self.user, conversation=self.conversation, source=AgentFile.Source.WEB
+        )
+        self._age(fetched, field="created_date", seconds=CONFIG.unsent_ttl_seconds + 1)
 
         # Act
         purged = self.service.purge()
@@ -796,7 +818,8 @@ class AgentFileServiceTests(TestCase):
         # Assert
         self.assertEqual(purged, 1)
         self.assertEqual(
-            set(AgentFile.objects.values_list("id", flat=True)), {fresh.id, sent.id}
+            set(AgentFile.objects.values_list("id", flat=True)),
+            {fresh.id, sent.id, fetched.id},
         )
         self.storage.delete.assert_called_once_with(stale.storage_key)
 
