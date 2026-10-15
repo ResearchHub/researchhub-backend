@@ -179,8 +179,7 @@ class RoutedProvider(LLMProvider):
         if ref == self.primary_ref:
             return turn
         state = {**turn.provider_state, STATE_KEY: {"model": ref}}
-        stamped: AssistantTurn = replace(turn, provider_state=state)
-        return stamped
+        return replace(turn, provider_state=state)  # NOSONAR - an AssistantTurn
 
 
 def written_by(message: Message) -> str | None:
