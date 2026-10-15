@@ -102,8 +102,7 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         self.assertEqual(recipients, [self.recipient.email])
         self.assertEqual(
             subject,
-            f"Congratulations {self.recipient.first_name}, "
-            "you were awarded a bounty!",
+            f"Congratulations {self.recipient.first_name}, you were awarded a bounty!",
         )
         self.assertIn('Earned <span class="activity-amount">$50</span>', message)
 
