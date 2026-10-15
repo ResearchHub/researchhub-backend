@@ -30,6 +30,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from research_ai.models import AgentConversation, AgentConversationMessage, AgentFile
+from research_ai.models.agent_file import WEB_SOURCES
 from research_ai.services.agent_files.config import (
     MAX_FILE_IDS_PER_REQUEST,
     AgentFileConfig,
@@ -180,7 +181,7 @@ class AgentFileService:
         """
         files = (
             AgentFile.objects.defer("text")
-            .filter(user=user, message__isnull=True)
+            .filter(user=user, message__isnull=True, source=AgentFile.Source.UPLOAD)
             .order_by("id")
         )
         return [self.refresh(file) for file in files]
@@ -243,7 +244,10 @@ class AgentFileService:
             # The user row lock keeps simultaneous uploads within the cap.
             type(user)._default_manager.select_for_update().get(pk=user.pk)
             unsent = AgentFile.objects.filter(
-                user=user, message__isnull=True, status__in=_UNSENT_STATUSES
+                user=user,
+                message__isnull=True,
+                source=AgentFile.Source.UPLOAD,
+                status__in=_UNSENT_STATUSES,
             ).count()
             if unsent >= config.max_unsent_files:
                 raise AgentFileError(
@@ -312,7 +316,9 @@ class AgentFileService:
         The row stays, ownerless, for ``purge``: the upload form may still be
         valid, and the row is the only record of its key.
         """
-        removed = AgentFile.objects.filter(id=file.id, message__isnull=True).update(
+        removed = AgentFile.objects.filter(
+            id=file.id, message__isnull=True, source=AgentFile.Source.UPLOAD
+        ).update(
             user=None,
             status=AgentFile.Status.FAILED,
             text="",
@@ -364,7 +370,9 @@ class AgentFileService:
                 code="too_many_attachments",
             )
         conversation = message.conversation
-        sent = AgentFile.objects.filter(conversation=conversation).count()
+        sent = AgentFile.objects.filter(
+            conversation=conversation, source=AgentFile.Source.UPLOAD
+        ).count()
         if sent + len(file_ids) > config.max_files_per_conversation:
             raise AgentFileError(
                 f"A chat can hold at most {config.max_files_per_conversation} "
@@ -376,7 +384,12 @@ class AgentFileService:
             for file in AgentFile.objects.select_for_update()
             .defer("text")
             # A removed file has no owner; a chat without one must not match it.
-            .filter(id__in=file_ids, user_id=conversation.user_id, user__isnull=False)
+            .filter(
+                id__in=file_ids,
+                user_id=conversation.user_id,
+                user__isnull=False,
+                source=AgentFile.Source.UPLOAD,
+            )
         }
         for file_id in file_ids:
             file = files.get(file_id)
@@ -530,9 +543,13 @@ class AgentFileService:
         config = self.config
         now = timezone.now()
         expired = (
-            Q(
-                message__isnull=True,
-                created_date__lt=now - timedelta(seconds=config.unsent_ttl_seconds),
+            (
+                Q(
+                    message__isnull=True,
+                    created_date__lt=now - timedelta(seconds=config.unsent_ttl_seconds),
+                )
+                # A fetched file is never sent; it lives as long as its chat.
+                & ~Q(source__in=WEB_SOURCES, conversation__isnull=False)
             )
             | Q(
                 # Kept until the upload form expires, so a late upload is deleted too.

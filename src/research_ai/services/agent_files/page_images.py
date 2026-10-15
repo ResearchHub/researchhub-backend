@@ -17,6 +17,7 @@ from botocore.exceptions import ClientError
 from django.conf import settings
 
 from research_ai.models import AgentFile
+from research_ai.models.agent_file import IN_CHAT
 from research_ai.services.agent.types import ImageBlock
 from research_ai.services.agent_files.config import AgentFileConfig
 from research_ai.services.agent_files.extraction import (
@@ -274,10 +275,10 @@ def _succeeded(future) -> bool:
 
 
 def _kept(file: AgentFile) -> bool:
-    """Whether no purge deletes the file: sent, owned, and its chat not removed."""
+    """Whether no purge deletes the file: in a chat, owned, and the chat not removed."""
     return AgentFile.objects.filter(
+        IN_CHAT,
         id=file.id,
-        message__isnull=False,
         user__isnull=False,
         conversation__is_removed=False,
     ).exists()
