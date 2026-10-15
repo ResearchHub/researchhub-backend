@@ -5,7 +5,7 @@ from django.test import TestCase
 from purchase.models import Fundraise
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from researchhub_document.services.work_cover_service import build_work_cover
+from researchhub_document.services.work_cover_service_for_email import build_work_cover
 from user.tests.helpers import create_random_default_user
 
 
