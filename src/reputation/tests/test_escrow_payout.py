@@ -100,11 +100,12 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         mock_send_message_email.assert_called_once()
         recipients, subject, message = mock_send_message_email.call_args.args
         self.assertEqual(recipients, [self.recipient.email])
-        self.assertEqual(
-            subject,
-            f"Congratulations {self.recipient.first_name}, you were awarded a bounty!",
+        self.assertEqual(subject, "You were awarded a bounty")
+        self.assertIn(
+            'You were awarded <span class="activity-amount">$50</span> '
+            "for your peer review",
+            message,
         )
-        self.assertIn('Earned <span class="activity-amount">$50</span>', message)
 
     def test_author_rsc_escrow_payout_is_rejected(self):
         paper = create_paper()

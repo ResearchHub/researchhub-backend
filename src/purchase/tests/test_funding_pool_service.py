@@ -428,11 +428,7 @@ class FundingPoolServiceTests(TestCase):
         send_email.assert_called_once()
         self.assertEqual(
             send_email.call_args.args[:2],
-            (
-                [applicant.email],
-                f"Congratulations {applicant.first_name}, your proposal is fully "
-                "funded!",
-            ),
+            ([applicant.email], "Your proposal is fully funded"),
         )
         fundraise.refresh_from_db()
         self.assertEqual(fundraise.status, Fundraise.COMPLETED)

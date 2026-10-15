@@ -7,7 +7,7 @@ from notification.models import Notification
 from notification.services import NotificationService
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.models import Bounty, BountySolution, Escrow
+from reputation.models import BountySolution, Escrow
 from researchhub_comment.services.comment_html_service import render_comment_html
 from researchhub_document.services.work_cover_service_for_email import (
     build_work_cover,
@@ -43,9 +43,7 @@ class EscrowPayoutNotificationService:
 
         if escrow.hold_type == Escrow.BOUNTY:
             notification_type = Notification.BOUNTY_PAYOUT
-            subject = (
-                f"Congratulations {recipient.first_name}, you were awarded a bounty!"
-            )
+            subject = "You were awarded a bounty"
             body = (
                 render_comment_html(
                     BountySolution.objects.get(id=solution_id).item,
@@ -56,24 +54,17 @@ class EscrowPayoutNotificationService:
             )
             card = {
                 "author": recipient.author_profile,
-                "action": "Earned",
+                "action": "You were awarded",
                 "amount": format_compact_usd(
                     RscExchangeRate.rsc_to_usd(float(payout_amount))
                 ),
-                "action_trailing": (
-                    "for a peer review"
-                    if escrow.bounties.first().bounty_type == Bounty.Type.REVIEW
-                    else None
-                ),
+                "action_trailing": "for your peer review",
                 "body": body,
             }
             link = f"{unified_document.frontend_view_link()}/bounties"
         else:
             notification_type = Notification.FUNDRAISE_PAYOUT
-            subject = (
-                f"Congratulations {recipient.first_name}, your proposal is fully "
-                "funded!"
-            )
+            subject = "Your proposal is fully funded"
             card = {
                 "author": item.created_by.author_profile,
                 "action": "Raised",
