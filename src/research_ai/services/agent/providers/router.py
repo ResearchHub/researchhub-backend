@@ -179,7 +179,8 @@ class RoutedProvider(LLMProvider):
         if ref == self.primary_ref:
             return turn
         state = {**turn.provider_state, STATE_KEY: {"model": ref}}
-        return replace(turn, provider_state=state)
+        stamped: AssistantTurn = replace(turn, provider_state=state)
+        return stamped
 
 
 def written_by(message: Message) -> str | None:
@@ -212,18 +213,24 @@ def _server_tool_text(data: dict) -> str:
         text = f"[{data.get('name')} call: {call}]"
     else:
         content = data.get("content")
-        lines = []
-        for item in content if isinstance(content, list) else [content]:
-            if not isinstance(item, dict):
-                continue
-            if item.get("url"):
-                lines.append(f"- {item.get('title') or item['url']}: {item['url']}")
-            lines.extend(
-                f"{key}: {item[key]}"
-                for key in ("stdout", "stderr")
-                if isinstance(item.get(key), str) and item[key]
-            )
+        items = content if isinstance(content, list) else [content]
+        lines = [line for item in items for line in _result_lines(item)]
         if not lines:
             return ""
         text = f"[{data.get('type')}]\n" + "\n".join(lines)
     return text[:_MAX_SERVER_TOOL_TEXT]
+
+
+def _result_lines(item) -> list[str]:
+    """The links and output a server-side tool result item holds."""
+    if not isinstance(item, dict):
+        return []
+    lines = []
+    if item.get("url"):
+        lines.append(f"- {item.get('title') or item['url']}: {item['url']}")
+    lines.extend(
+        f"{key}: {item[key]}"
+        for key in ("stdout", "stderr")
+        if isinstance(item.get(key), str) and item[key]
+    )
+    return lines

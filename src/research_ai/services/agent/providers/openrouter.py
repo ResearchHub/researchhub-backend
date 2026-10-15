@@ -260,11 +260,7 @@ class OpenRouterProvider(LLMProvider):
                     retryable=False,
                 )
             kwargs["tools"] = rendered_tools
-        reasoning: dict = {}
-        if self.thinking is not None:
-            reasoning["enabled"] = self.thinking == "adaptive"
-        if self.effort and self.thinking != "disabled":
-            reasoning["effort"] = self.effort
+        reasoning = self._reasoning()
         if reasoning:
             # ``reasoning`` is an OpenRouter extension rather than an OpenAI
             # Chat Completions argument, so the OpenAI client forwards it via
@@ -304,6 +300,15 @@ class OpenRouterProvider(LLMProvider):
         return self._parse_turn(response, latency_ms=latency_ms)
 
     # -- private helpers --------------------------------------------------
+
+    def _reasoning(self) -> dict:
+        """OpenRouter's ``reasoning`` option for this provider's settings."""
+        reasoning: dict = {}
+        if self.thinking is not None:
+            reasoning["enabled"] = self.thinking == "adaptive"
+        if self.effort and self.thinking != "disabled":
+            reasoning["effort"] = self.effort
+        return reasoning
 
     def _render_messages(
         self, system_prompt: str, messages: list[Message]
