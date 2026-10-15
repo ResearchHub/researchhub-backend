@@ -43,7 +43,10 @@ class EscrowPayoutNotificationService:
 
         if escrow.hold_type == Escrow.BOUNTY:
             notification_type = Notification.BOUNTY_PAYOUT
-            subject = "You were awarded a bounty"
+            amount = format_compact_usd(
+                RscExchangeRate.rsc_to_usd(float(payout_amount))
+            )
+            subject = f"You were awarded {amount} for your peer review"
             body = (
                 render_comment_html(
                     BountySolution.objects.get(id=solution_id).item,
@@ -54,11 +57,9 @@ class EscrowPayoutNotificationService:
             )
             card = {
                 "author": recipient.author_profile,
-                "action": "You were awarded",
-                "amount": format_compact_usd(
-                    RscExchangeRate.rsc_to_usd(float(payout_amount))
-                ),
-                "action_trailing": "for your peer review",
+                "action": "Earned",
+                "amount": amount,
+                "action_trailing": "for a peer review",
                 "body": body,
             }
             link = f"{unified_document.frontend_view_link()}/bounties"
