@@ -524,6 +524,10 @@ MISTRAL_API_KEY = os.environ.get(
     getattr(keys, "MISTRAL_API_KEY", ""),
 )
 
+# Exa contents API, the research_ai web_fetch fallback for pages that block or
+# fail a direct request. Optional: without it such fetches fail.
+EXA_API_KEY = os.environ.get("EXA_API_KEY", getattr(keys, "EXA_API_KEY", ""))
+
 # Which provider the research_ai agent core generates with: "claude_platform"
 # (default, Claude Platform on AWS), "bedrock", or "openrouter". Each adapter
 # names its own model and inference knobs as module constants.
