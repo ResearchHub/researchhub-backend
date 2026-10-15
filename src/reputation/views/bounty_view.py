@@ -834,57 +834,41 @@ class BountyViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         sort = self.request.query_params.get("sort", self.DEFAULT_SORT)
 
-        if sort == "personalized" and not request.user.is_authenticated:
-            sort = self.DEFAULT_SORT
+        queryset = self.filter_queryset(self.get_queryset())
 
-        if sort == "personalized":
-            bounties = Bounty.find_bounties_for_user(
-                user=request.user,
-                include_unrelated=True,
-            )
-
-            queryset = self.get_queryset().filter(id__in=[b.id for b in bounties])
-            queryset = self.filter_queryset(queryset)
-            queryset = self._prioritize_preregistration_bounties(queryset)
-            queryset = queryset.order_by("preregistration_first", self.DEFAULT_SORT)
-        else:
-            queryset = self.filter_queryset(self.get_queryset())
-
-            # Sorting by amount requires calculating total including child bounties
-            if sort == "-total_amount":
-                children_sum = (
-                    Bounty.objects.filter(parent=OuterRef("pk"))
-                    .values("parent")
-                    .annotate(
-                        sum=Coalesce(
-                            Sum("amount"),
-                            Value(
-                                0,
-                                output_field=DecimalField(
-                                    max_digits=19, decimal_places=10
-                                ),
-                            ),
-                        )
-                    )
-                    .values("sum")
-                )
-
-                queryset = queryset.annotate(
-                    total_amount=F("amount")
-                    + Coalesce(
-                        Subquery(children_sum),
+        # Sorting by amount requires calculating total including child bounties
+        if sort == "-total_amount":
+            children_sum = (
+                Bounty.objects.filter(parent=OuterRef("pk"))
+                .values("parent")
+                .annotate(
+                    sum=Coalesce(
+                        Sum("amount"),
                         Value(
                             0,
                             output_field=DecimalField(max_digits=19, decimal_places=10),
                         ),
                     )
                 )
+                .values("sum")
+            )
 
-            if sort == self.DEFAULT_SORT:
-                queryset = self._prioritize_preregistration_bounties(queryset)
-                queryset = queryset.order_by("preregistration_first", sort)
-            else:
-                queryset = queryset.order_by(sort)
+            queryset = queryset.annotate(
+                total_amount=F("amount")
+                + Coalesce(
+                    Subquery(children_sum),
+                    Value(
+                        0,
+                        output_field=DecimalField(max_digits=19, decimal_places=10),
+                    ),
+                )
+            )
+
+        if sort == self.DEFAULT_SORT:
+            queryset = self._prioritize_preregistration_bounties(queryset)
+            queryset = queryset.order_by("preregistration_first", sort)
+        else:
+            queryset = queryset.order_by(sort)
 
         page = self.paginate_queryset(queryset)
         context = {
