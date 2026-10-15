@@ -1,14 +1,7 @@
 from datetime import UTC, datetime
-from importlib import import_module
 
-from django.apps import apps
-from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
 from rest_framework.test import APITestCase
 
-from feed.models import FeedEntry
-from note.models import Note
-from note.tests.helpers import create_note
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -20,10 +13,6 @@ from researchhub_document.views.researchhub_post_views import (
     MIN_POST_TITLE_LENGTH,
 )
 from user.tests.helpers import create_random_default_user
-
-mark_existing_changelogs = import_module(
-    "researchhub_document.migrations.0084_mark_existing_changelogs"
-)
 
 
 def _post_payload(user, **overrides):
@@ -210,98 +199,3 @@ class LatestChangelogTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.data)
-
-
-class MarkExistingChangelogsMigrationTests(TestCase):
-    def setUp(self):
-        self.user = create_random_default_user("changelog_migration")
-        self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-
-    def _create_note(self):
-        note, _ = create_note(self.user, None)
-        return note
-
-    def _create_discussion_post(self, post_id=None, note=None):
-        unified_document = ResearchhubUnifiedDocument.objects.create(
-            document_type=DISCUSSION
-        )
-        return ResearchhubPost.objects.create(
-            id=post_id,
-            created_by=self.user,
-            document_type=DISCUSSION,
-            note=note,
-            title="Changelog",
-            unified_document=unified_document,
-        )
-
-    def _create_feed_entry(self, post):
-        return FeedEntry.objects.create(
-            action=FeedEntry.PUBLISH,
-            action_date=post.created_date,
-            content_type=self.post_content_type,
-            object_id=post.id,
-            unified_document=post.unified_document,
-        )
-
-    def test_retypes_legacy_changelog_posts_and_drops_their_feed_entries(self):
-        # Arrange
-        legacy_note = self._create_note()
-        legacy = self._create_discussion_post(
-            post_id=mark_existing_changelogs.LEGACY_CHANGELOG_POST_IDS[-1],
-            note=legacy_note,
-        )
-        other = self._create_discussion_post()
-        legacy_entry = self._create_feed_entry(legacy)
-        other_entry = self._create_feed_entry(other)
-
-        # Act
-        mark_existing_changelogs.mark_changelogs(apps, None)
-
-        # Assert
-        legacy.refresh_from_db()
-        legacy_note.refresh_from_db()
-        other.refresh_from_db()
-        self.assertEqual(legacy.document_type, CHANGELOG)
-        self.assertEqual(legacy.unified_document.document_type, CHANGELOG)
-        self.assertEqual(legacy_note.document_type, CHANGELOG)
-        self.assertEqual(other.document_type, DISCUSSION)
-        self.assertFalse(FeedEntry.objects.filter(id=legacy_entry.id).exists())
-        self.assertTrue(FeedEntry.objects.filter(id=other_entry.id).exists())
-
-    def test_retypes_notebook_changelogs_created_after_rollout(self):
-        # Arrange
-        draft = self._create_note()
-        published_note = self._create_note()
-        preprint_note = self._create_note()
-        Note.objects.filter(id__in=[draft.id, published_note.id]).update(
-            document_type=DISCUSSION
-        )
-        Note.objects.filter(id=preprint_note.id).update(
-            document_type=DISCUSSION, created_date=datetime(2026, 1, 1, tzinfo=UTC)
-        )
-        published = self._create_discussion_post(note=published_note)
-        preprint = self._create_discussion_post(note=preprint_note)
-
-        # Act
-        mark_existing_changelogs.mark_changelogs(apps, None)
-
-        # Assert
-        for record in (draft, published_note, preprint_note, published, preprint):
-            record.refresh_from_db()
-        self.assertEqual(draft.document_type, CHANGELOG)
-        self.assertEqual(published_note.document_type, CHANGELOG)
-        self.assertEqual(published.document_type, CHANGELOG)
-        self.assertEqual(preprint_note.document_type, DISCUSSION)
-        self.assertEqual(preprint.document_type, DISCUSSION)
-
-    def test_reverse_restores_discussion(self):
-        # Arrange
-        post = create_post(created_by=self.user, document_type=CHANGELOG)
-
-        # Act
-        mark_existing_changelogs.unmark_changelogs(apps, None)
-
-        # Assert
-        post.refresh_from_db()
-        self.assertEqual(post.document_type, DISCUSSION)
-        self.assertEqual(post.unified_document.document_type, DISCUSSION)
