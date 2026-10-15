@@ -149,7 +149,8 @@ class GrantApplicationNotificationDispatchTests(AWSMockTransactionTestCase):
             f"{self.grant_post.title}",
         )
         self.assertIn(
-            f'<div class="paper">{self.proposal.title}</div>', context["body"]
+            f'<div class="work-cover-title">{self.proposal.title}</div>',
+            context["body"],
         )
         self.assertEqual(context["cta_url"], proposal_url)
 

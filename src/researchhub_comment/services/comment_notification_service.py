@@ -6,6 +6,7 @@ from notification.models import Notification
 from notification.services import NotificationService
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.services.comment_html_service import render_comment_html
+from researchhub_document.services.work_cover_service_for_email import build_work_cover
 from user.models import User
 
 
@@ -24,14 +25,15 @@ def notify_mentioned_users(comment_id: int, recipient_ids: list[int]) -> None:
         if comment.thread.permissions.exists()
         else render_comment_html(comment, max_length=EMAIL_PREVIEW_LENGTH)
     )
+    cover = build_work_cover(comment.thread.content_object)
     message = render_to_string(
-        "email_content_card.html",
+        "email_activity_card.html",
         {
             "author": author.author_profile,
-            "action": "mentioned you in a comment on",
-            "title": unified_document.get_display_title(),
+            "action": f"Commented on {cover['noun']}",
             "created_date": comment.created_date,
             "body": body,
+            "cover": cover,
         },
     )
     link = comment.get_frontend_view_link()

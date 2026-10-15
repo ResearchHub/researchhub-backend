@@ -380,7 +380,9 @@ class CommentViewTests(APITestCase):
         recipients, subject, message = send_email.call_args.args
         self.assertEqual(recipients, [recipient.email])
         self.assertEqual(subject, f"{creator.full_name()} Mentioned You in a Comment")
-        self.assertIn('<div class="body"><p>this is a test comment</p></div>', message)
+        self.assertIn(
+            '<div class="activity-comment"><p>this is a test comment</p></div>', message
+        )
         self.assertEqual(
             send_email.call_args.kwargs,
             {
