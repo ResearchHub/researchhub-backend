@@ -2,7 +2,7 @@ from django.template.loader import render_to_string
 
 from mailing_list.services import EmailService
 from purchase.models import GrantApplication
-from researchhub_document.services.work_cover_service import build_work_cover
+from researchhub_document.services.work_cover_service_for_email import build_work_cover
 
 
 class GrantApplicationService:

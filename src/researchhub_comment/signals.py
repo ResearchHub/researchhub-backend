@@ -23,7 +23,7 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_comment.services.comment_html_service import render_comment_html
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_document.services.work_cover_service import build_work_cover
+from researchhub_document.services.work_cover_service_for_email import build_work_cover
 from user.related_models.user_model import User
 
 logger = Logger(__name__)

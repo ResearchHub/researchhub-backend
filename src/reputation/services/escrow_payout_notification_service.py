@@ -9,7 +9,7 @@ from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Bounty, BountySolution, Escrow
 from researchhub_comment.services.comment_html_service import render_comment_html
-from researchhub_document.services.work_cover_service import (
+from researchhub_document.services.work_cover_service_for_email import (
     build_work_cover,
     format_compact_usd,
 )

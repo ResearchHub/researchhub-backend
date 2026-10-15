@@ -6,7 +6,7 @@ from notification.models import Notification
 from notification.services import NotificationService
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.services.comment_html_service import render_comment_html
-from researchhub_document.services.work_cover_service import build_work_cover
+from researchhub_document.services.work_cover_service_for_email import build_work_cover
 from user.models import User
 
 

@@ -7,7 +7,7 @@ from notification.services import NotificationService
 from purchase.models import Purchase, RscExchangeRate, UsdFundraiseContribution
 from purchase.related_models.constants.currency import USD
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_document.services.work_cover_service import (
+from researchhub_document.services.work_cover_service_for_email import (
     build_work_cover,
     format_compact_usd,
 )
