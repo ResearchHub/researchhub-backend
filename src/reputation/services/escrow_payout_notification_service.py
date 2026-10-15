@@ -62,7 +62,7 @@ class EscrowPayoutNotificationService:
                 ),
                 "action_trailing": (
                     "for a peer review"
-                    if item.bounty_type == Bounty.Type.REVIEW
+                    if escrow.bounties.first().bounty_type == Bounty.Type.REVIEW
                     else None
                 ),
                 "body": body,
