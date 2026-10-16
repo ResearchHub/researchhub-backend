@@ -4,8 +4,11 @@ Before the CHANGELOG type existed, changelogs were DISCUSSION posts whose IDs
 the frontend hard-coded. Exactly those posts are retyped, along with their
 unified documents and notes, and their feed entries are dropped because
 changelogs are no longer shown in feeds.
+
+The IDs are production IDs, so other environments are left untouched.
 """
 
+from django.conf import settings
 from django.db import migrations
 
 CHANGELOG = "CHANGELOG"
@@ -56,6 +59,9 @@ LEGACY_CHANGELOG_POST_IDS = [
 
 
 def mark_changelogs(apps, schema_editor):
+    if not settings.PRODUCTION:
+        return
+
     FeedEntry = apps.get_model("feed", "FeedEntry")
     Note = apps.get_model("note", "Note")
     ResearchhubPost = apps.get_model("researchhub_document", "ResearchhubPost")
