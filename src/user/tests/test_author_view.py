@@ -1,3 +1,6 @@
+from allauth.account.models import EmailAddress
+from allauth.socialaccount.models import SocialAccount
+from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from rest_framework.test import APITestCase
 
 from paper.related_models.authorship_model import Authorship
@@ -39,6 +42,81 @@ class AuthorApiTests(APITestCase):
         self.assertIn("last_name", response.data)
         # Check that the editor_of field is not included
         self.assertNotIn("editor_of", response.data)
+
+    def test_minimal_overview_returns_academic_domain_without_address(self):
+        # Arrange
+        user = create_user(email="private.inbox@cs.stanford.edu")
+        EmailAddress.objects.create(
+            user=user, email=user.email, verified=True, primary=True
+        )
+        url = f"/api/author/{user.author_profile.id}/minimal_overview/"
+
+        # Act
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["verified_academic_email"],
+            {
+                "email_domain": "cs.stanford.edu",
+                "institution_domain": "stanford.edu",
+                "source": "account_email",
+            },
+        )
+        self.assertNotIn("private.inbox", response.content.decode())
+
+    def test_minimal_overview_returns_null_without_academic_email(self):
+        # Arrange
+        author_profile = self.user_with_published_works.author_profile
+        url = f"/api/author/{author_profile.id}/minimal_overview/"
+
+        # Act
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["verified_academic_email"])
+
+    def test_minimal_overview_returns_null_for_unclaimed_author(self):
+        # Arrange
+        author = Author.objects.create(first_name="Unclaimed", last_name="Author")
+        url = f"/api/author/{author.id}/minimal_overview/"
+
+        # Act
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["verified_academic_email"])
+
+    def test_retrieve_returns_orcid_academic_domain_without_address(self):
+        # Arrange
+        user = create_user(email="private.inbox@gmail.com")
+        SocialAccount.objects.create(
+            user=user,
+            provider=OrcidProvider.id,
+            uid="0000-0001-2345-6789",
+            extra_data={"verified_edu_emails": ["orcid.handle@purdue.edu"]},
+        )
+        url = f"/api/author/{user.author_profile.id}/"
+
+        # Act
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["verified_academic_email"],
+            {
+                "email_domain": "purdue.edu",
+                "institution_domain": "purdue.edu",
+                "source": "orcid",
+            },
+        )
+        body = response.content.decode()
+        self.assertNotIn("orcid.handle", body)
+        self.assertNotIn("private.inbox", body)
 
     def test_delete_soft_deletes_author_and_linked_user(self):
         # Arrange
