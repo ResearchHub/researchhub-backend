@@ -618,6 +618,137 @@ class GeneratedEmailListViewTests(APITestCase):
         self.assertEqual(data["total"], 0)
         self.assertEqual(len(data["emails"]), 0)
 
+    def test_get_filter_by_campaign_id(self):
+        from research_ai.models import EmailTemplate, OutreachCampaign
+
+        template = EmailTemplate.objects.create(
+            created_by=self.moderator,
+            name="Invite",
+            email_subject="Hi",
+            email_body="Body",
+        )
+        campaign_a = OutreachCampaign.objects.create(
+            editor=self.moderator,
+            template=template,
+            name="Campaign A",
+            external_campaign_id="camp-a",
+        )
+        other_template = EmailTemplate.objects.create(
+            created_by=self.moderator,
+            name="Invite 2",
+            email_subject="Hi",
+            email_body="Body",
+        )
+        campaign_b = OutreachCampaign.objects.create(
+            editor=self.moderator,
+            template=other_template,
+            name="Campaign B",
+            external_campaign_id="camp-b",
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            outreach_campaign=campaign_a,
+            expert_name="In A",
+            expert_email="a@example.edu",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            outreach_campaign=campaign_b,
+            expert_name="In B",
+            expert_email="b@example.edu",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="No campaign",
+            expert_email="c@example.edu",
+            status=GeneratedEmail.Status.DRAFT,
+        )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.url + f"?campaign_id={campaign_a.id}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["emails"][0]["expert_name"], "In A")
+        self.assertEqual(data["emails"][0]["outreach_campaign"], campaign_a.id)
+
+    def test_get_filter_by_status(self):
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Queued",
+            expert_email="q@example.edu",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Delivered",
+            expert_email="s@example.edu",
+            status=GeneratedEmail.Status.SENT,
+        )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.url + "?status=sending")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["emails"][0]["expert_name"], "Queued")
+        self.assertEqual(data["emails"][0]["status"], "sending")
+
+    def test_get_filter_by_campaign_id_and_status(self):
+        from research_ai.models import EmailTemplate, OutreachCampaign
+
+        template = EmailTemplate.objects.create(
+            created_by=self.moderator,
+            name="Invite",
+            email_subject="Hi",
+            email_body="Body",
+        )
+        campaign = OutreachCampaign.objects.create(
+            editor=self.moderator,
+            template=template,
+            name="Mixed",
+            external_campaign_id="camp-mixed",
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            outreach_campaign=campaign,
+            expert_name="Queued",
+            expert_email="q@example.edu",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            outreach_campaign=campaign,
+            expert_name="Delivered",
+            expert_email="s@example.edu",
+            status=GeneratedEmail.Status.SENT,
+        )
+
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(
+            self.url + f"?campaign_id={campaign.id}&status=sending"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["emails"][0]["expert_name"], "Queued")
+
+    def test_get_filter_by_invalid_status_returns_empty(self):
+        GeneratedEmail.objects.create(
+            created_by=self.moderator,
+            expert_name="Queued",
+            status=GeneratedEmail.Status.SENDING,
+        )
+        self.client.force_authenticate(self.moderator)
+        response = self.client.get(self.url + "?status=not-a-status")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.json()["total"], 0)
+
     def test_post_requires_authentication(self):
         response = self.client.post(
             self.url,

@@ -57,16 +57,16 @@ def extract_placeholder_pairs(*texts: str) -> frozenset[tuple[str, str]]:
 
 
 def flatten_variable_key(entity: str, field: str) -> str:
-    """Map ResearchHub ``entity.field`` to Instantly ``entity_field``."""
+    """Map ResearchHub ``entity.field`` to provider ``entity_field``."""
     return f"{entity}_{field}"
 
 
-def flatten_placeholders_for_instantly(text: str) -> str:
+def flatten_placeholders_for_provider(text: str) -> str:
     """
-    Rewrite ``{{entity.field}}`` placeholders to Instantly ``{{entity_field}}``.
+    Rewrite ``{{entity.field}}`` placeholders to provider ``{{entity_field}}``.
 
-    Instantly custom variables are flat strings; ResearchHub templates use
-    dotted entity.field form.
+    Outreach provider custom variables are flat strings; ResearchHub templates
+    use dotted entity.field form.
     """
     if not text:
         return text
@@ -78,7 +78,7 @@ def flatten_placeholders_for_instantly(text: str) -> str:
 
 
 def published_variable_keys(*texts: str) -> list[str]:
-    """Sorted Instantly custom_variable keys from ResearchHub placeholders."""
+    """Sorted provider custom_variable keys from ResearchHub placeholders."""
     return sorted(
         flatten_variable_key(entity, field)
         for entity, field in extract_placeholder_pairs(*texts)
@@ -199,10 +199,10 @@ def replace_template_variables(text: str, context: dict[str, dict[str, Any]]) ->
     return VARIABLE_PATTERN.sub(repl, text)
 
 
-def flatten_context_for_instantly(
+def flatten_context_for_provider(
     context: dict[str, dict[str, Any]],
 ) -> dict[str, str]:
-    """Flatten nested ``{{entity.field}}`` context to Instantly custom_variables."""
+    """Flatten nested ``{{entity.field}}`` context to provider custom_variables."""
     result: dict[str, str] = {}
     for entity, fields in (context or {}).items():
         if not isinstance(fields, dict):
@@ -217,8 +217,8 @@ def custom_variables_for_published_keys(
     context: dict[str, dict[str, Any]],
     published_keys: list[str] | tuple[str, ...] | None,
 ) -> dict[str, str]:
-    """Return Instantly custom_variables for the published keys only (strings)."""
-    flat = flatten_context_for_instantly(context)
+    """Return provider custom_variables for the published keys only (strings)."""
+    flat = flatten_context_for_provider(context)
     keys = list(published_keys or [])
     return {key: flat.get(key, "") for key in keys}
 
@@ -227,6 +227,6 @@ def missing_published_variables(
     context: dict[str, dict[str, Any]],
     published_keys: list[str] | tuple[str, ...] | None,
 ) -> list[str]:
-    """Return published Instantly keys that are missing or blank in ``context``."""
+    """Return published provider keys that are missing or blank in ``context``."""
     custom = custom_variables_for_published_keys(context, published_keys)
     return sorted(key for key, value in custom.items() if not (value or "").strip())

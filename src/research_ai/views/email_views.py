@@ -50,6 +50,41 @@ def _generated_email_list_sequence_queryset(expert_search_id):
     return qs
 
 
+def _apply_generated_email_list_filters(qs, query_params):
+    """
+    Apply optional list filters from query params.
+
+    - ``search_id`` → expert_search_id
+    - ``campaign_id`` → outreach_campaign_id
+    - ``status`` → GeneratedEmail.status (must be a valid Status value)
+
+    Invalid integer ids or unknown status yield an empty queryset.
+    """
+    search_id = query_params.get("search_id")
+    if search_id is not None:
+        try:
+            qs = qs.filter(expert_search_id=int(search_id))
+        except (ValueError, TypeError):
+            return qs.none()
+
+    campaign_id = query_params.get("campaign_id")
+    if campaign_id is not None:
+        try:
+            qs = qs.filter(outreach_campaign_id=int(campaign_id))
+        except (ValueError, TypeError):
+            return qs.none()
+
+    status_value = query_params.get("status")
+    if status_value is not None:
+        normalized = str(status_value).strip().lower()
+        valid = {choice.value for choice in GeneratedEmail.Status}
+        if normalized not in valid:
+            return qs.none()
+        qs = qs.filter(status=normalized)
+
+    return qs
+
+
 def _list_navigation_for_generated_email(email):
     """
     Adjacent rows in the same order as the paginated list for this email's search
@@ -317,6 +352,9 @@ class SendEmailView(APIView):
 class GeneratedEmailListView(APIView):
     """
     GET /api/research_ai/expert-finder/emails/ - List. POST - Create draft (no LLM).
+
+    Optional query filters: ``search_id``, ``campaign_id`` (outreach campaign),
+    ``status`` (GeneratedEmail status value, e.g. ``sending``).
     """
 
     permission_classes = [
@@ -331,20 +369,14 @@ class GeneratedEmailListView(APIView):
             "created_by__author_profile",
             "note_invitation",
             "proposal_draft",
+            "outreach_campaign",
         ).order_by("-created_date")
 
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 20))))
         offset = max(0, int(request.query_params.get("offset", 0)))
         qs = self.get_queryset()
-        search_id = request.query_params.get("search_id")
-        if search_id is not None:
-            try:
-                sid = int(search_id)
-            except (ValueError, TypeError):
-                qs = qs.none()
-            else:
-                qs = qs.filter(expert_search_id=sid)
+        qs = _apply_generated_email_list_filters(qs, request.query_params)
         total = qs.count()
         items = list(qs[offset : offset + limit])
         ser = GeneratedEmailSerializer(

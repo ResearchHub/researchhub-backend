@@ -22,6 +22,7 @@ class OutreachCampaignListViewTests(APITestCase):
         self.campaign = OutreachCampaign.objects.create(
             editor=self.editor,
             template=self.template,
+            name="List campaign",
             external_campaign_id="camp-list-1",
             published_subject=self.template.email_subject,
             published_body=self.template.email_body,
@@ -72,6 +73,7 @@ class OutreachCampaignListViewTests(APITestCase):
         self.assertEqual(body["total"], 1)
         campaign = body["campaigns"][0]
         self.assertEqual(campaign["id"], self.campaign.id)
+        self.assertEqual(campaign["name"], "List campaign")
         self.assertEqual(
             campaign["counts"],
             {
