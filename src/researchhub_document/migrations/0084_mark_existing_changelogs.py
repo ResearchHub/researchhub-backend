@@ -4,15 +4,7 @@ Before the CHANGELOG type existed, changelogs were DISCUSSION posts whose IDs
 the frontend hard-coded. Exactly those posts are retyped, along with their
 unified documents and notes, and their feed entries are dropped because
 changelogs are no longer shown in feeds.
-
-Unpublished changelog drafts are retyped too. The notebook created them as
-DISCUSSION notes once it shipped, and only moderators could, so they are
-picked out by type, date and a moderator creator. That last check reads the
-creator's current role, which is acceptable for drafts only: a wrong guess
-changes how the notebook labels a draft, never what feeds or search show.
 """
-
-from datetime import UTC, datetime
 
 from django.db import migrations
 
@@ -62,9 +54,6 @@ LEGACY_CHANGELOG_POST_IDS = [
     4594,
 ]
 
-# The frontend's former `CHANGELOG_NOTEBOOK_ROLLOUT_AT`.
-NOTEBOOK_CHANGELOG_ROLLOUT_AT = datetime(2026, 8, 10, 20, 56, 32, tzinfo=UTC)
-
 
 def mark_changelogs(apps, schema_editor):
     FeedEntry = apps.get_model("feed", "FeedEntry")
@@ -81,20 +70,7 @@ def mark_changelogs(apps, schema_editor):
     post_rows = list(posts.values_list("id", "unified_document_id", "note_id"))
     post_ids = [post_id for post_id, _, _ in post_rows]
     unified_document_ids = [doc_id for _, doc_id, _ in post_rows if doc_id]
-
-    published_note_ids = ResearchhubPost.objects.exclude(note_id=None).values(
-        "note_id"
-    )
-    draft_note_ids = set(
-        Note.objects.filter(
-            created_by__moderator=True,
-            document_type=DISCUSSION,
-            created_date__gte=NOTEBOOK_CHANGELOG_ROLLOUT_AT,
-        )
-        .exclude(id__in=published_note_ids)
-        .values_list("id", flat=True)
-    )
-    note_ids = draft_note_ids | {note_id for _, _, note_id in post_rows if note_id}
+    note_ids = [note_id for _, _, note_id in post_rows if note_id]
 
     ResearchhubPost.objects.filter(id__in=post_ids).update(document_type=CHANGELOG)
     ResearchhubUnifiedDocument.objects.filter(id__in=unified_document_ids).update(
