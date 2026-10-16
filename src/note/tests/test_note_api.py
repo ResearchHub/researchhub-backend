@@ -14,6 +14,8 @@ from note.models import Note, NoteTemplate, PreregistrationSettings
 from organizations.models import NonprofitOrg
 from purchase.models import Fundraise, Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from research_ai.models import AgentConversation, NoteAgentConversation
+from research_ai.services.notebook_chat import NotebookChatService
 from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
@@ -1442,6 +1444,57 @@ class NoteTests(APITestCase):
             results[published["id"]]["post"], {"id": post.id, "slug": post.slug}
         )
         self.assertIsNone(results[draft["id"]]["post"])
+
+    def test_get_organization_notes_includes_latest_chat_on_each_note(self):
+        # Arrange: two of the user's chats on one note, the older one used
+        # last; newer chats that are not the user's notebook chats on it.
+        with_chats = Note.objects.get(id=self._create_org_note("With chats")["id"])
+        without_chats = self._create_org_note("Without chats")
+        chats = NotebookChatService()
+        used_last = chats.create_conversation(with_chats, self.user)
+        chats.create_conversation(with_chats, self.user)
+        AgentConversation.objects.filter(id=used_last.id).update(
+            updated_date=timezone.now() + timedelta(minutes=1)
+        )
+        other_user = get_user_model().objects.create_user(
+            username="other@researchhub_test.com", email="other@researchhub_test.com"
+        )
+        removed = chats.create_conversation(with_chats, self.user)
+        other_workflow = AgentConversation.objects.create(
+            user=self.user, workflow="proposal_draft"
+        )
+        NoteAgentConversation.objects.create(
+            note=with_chats, conversation=other_workflow
+        )
+        newer = [
+            chats.create_conversation(with_chats, other_user).id,
+            removed.id,
+            other_workflow.id,
+        ]
+        AgentConversation.objects.filter(id__in=newer).update(
+            updated_date=timezone.now() + timedelta(minutes=2)
+        )
+        AgentConversation.objects.filter(id=removed.id).update(is_removed=True)
+
+        # Act
+        data = self._get_organization_notes()
+
+        # Assert: the chat the note's chat listing would put first, or none.
+        results = {note["id"]: note for note in data["results"]}
+        self.assertEqual(results[with_chats.id]["latest_chat_id"], used_last.id)
+        self.assertIsNone(results[without_chats["id"]]["latest_chat_id"])
+
+    def test_note_responses_outside_the_listing_leave_out_latest_chat_id(self):
+        # Arrange
+        note = self._create_org_note("A note")
+
+        # Act
+        response = self.client.get(f"/api/note/{note['id']}/")
+
+        # Assert: unannotated, the field is absent rather than a misleading null.
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("latest_chat_id", response.data)
+        self.assertNotIn("latest_chat_id", note)
 
     def test_get_organization_notes_post_costs_no_query_per_note(self):
         # Arrange: count before the next request resets the query log. The
