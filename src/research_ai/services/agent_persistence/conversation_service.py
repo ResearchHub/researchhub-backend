@@ -77,14 +77,15 @@ class NoteAgentConversationService:
             .order_by("-updated_date", "-id")
         )
 
-    def latest_id_for_note(self, note, **filters) -> Subquery:
-        """The id of the conversation ``for_note`` lists first, narrowed by
-        ``filters``, as a subquery: ``note`` may be an ``OuterRef``, to
-        annotate each note of a queryset with it. Null when there is none.
+    def latest_conversation_id_subquery(self, note, *, user, workflow) -> Subquery:
+        """A subquery for the id of ``user``'s ``workflow`` conversation on
+        ``note`` with the newest activity, the one ``for_note`` lists first, or
+        null when there is none. ``note`` may be an ``OuterRef``, to annotate
+        each note of a queryset with it.
         """
         return Subquery(
             AgentConversation.objects.filter(
-                self._linked_to(note), is_removed=False, **filters
+                self._linked_to(note), is_removed=False, user=user, workflow=workflow
             )
             .order_by("-updated_date", "-id")
             .values("id")[:1]

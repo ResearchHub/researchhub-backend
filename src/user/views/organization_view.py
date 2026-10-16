@@ -380,10 +380,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             "unified_document__permissions",
             "invited_users",
         )
-        # The chat the workspace opens each document on, so it can open there
-        # without first listing the document's chats to find it.
+        # Including latest conversation ID allows the client to pick a
+        # conversation without needing to fire another network request to fetch
+        # list of conversations and hence slow the rendering down
         notes = notes.annotate(
-            latest_chat_id=NotebookChatService().latest_conversation_ids(user)
+            latest_chat_id=NotebookChatService().latest_conversation_id_subquery(user)
         )
         page = self.paginate_queryset(notes)
         context = self._get_org_notes_context()

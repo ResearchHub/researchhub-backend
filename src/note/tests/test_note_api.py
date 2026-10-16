@@ -1445,7 +1445,7 @@ class NoteTests(APITestCase):
         )
         self.assertIsNone(results[draft["id"]]["post"])
 
-    def test_get_organization_notes_names_the_users_latest_chat(self):
+    def test_get_organization_notes_includes_latest_chat_on_each_note(self):
         # Arrange: two of the user's chats on one note, the older one used
         # last; newer chats that are not the user's notebook chats on it.
         with_chats = Note.objects.get(id=self._create_org_note("With chats")["id"])
