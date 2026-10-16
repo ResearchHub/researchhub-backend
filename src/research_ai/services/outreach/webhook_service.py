@@ -10,17 +10,17 @@ from django.db.models import F
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from research_ai.models import GeneratedEmail, OutreachCampaign, OutreachMailbox
+from research_ai.models import GeneratedEmail, OutreachMailbox
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
-from research_ai.services.outreach.instantly_client import (
-    DEFAULT_ACCOUNT_DAILY_LIMIT,
-    InstantlyClient,
-)
+from research_ai.services.outreach.instantly_client import InstantlyClient
 from research_ai.services.outreach.invited_experts import (
     grant_invited_expert_access_for_send,
 )
-from research_ai.services.outreach.mailbox_service import normalize_gmail_address
+from research_ai.services.outreach.mailbox_service import (
+    OutreachMailboxService,
+    normalize_mailbox_email,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class InstantlyWebhookService:
         if email.sent_at is not None and email.status == GeneratedEmail.Status.SENT:
             return "email_sent_idempotent"
 
-        sender = normalize_gmail_address(str(payload.get("email_account") or ""))
+        sender = normalize_mailbox_email(str(payload.get("email_account") or ""))
         update_fields: dict[str, Any] = {
             "status": GeneratedEmail.Status.SENT,
             "channels": [GeneratedEmail.Channel.EMAIL],
@@ -143,7 +143,7 @@ class InstantlyWebhookService:
         return "reply_received"
 
     def _handle_account_error(self, payload: dict[str, Any]) -> str:
-        account = normalize_gmail_address(str(payload.get("email_account") or ""))
+        account = normalize_mailbox_email(str(payload.get("email_account") or ""))
         if not account:
             return "ignored_missing_account"
 
@@ -161,38 +161,14 @@ class InstantlyWebhookService:
 
             mailbox.status = OutreachMailbox.Status.ERROR
             mailbox.save(update_fields=["status", "updated_date"])
+            editor_id = mailbox.editor_id
+            mailbox_id = mailbox.id
 
-            remaining_emails = list(
-                OutreachMailbox.objects.filter(
-                    editor_id=mailbox.editor_id,
-                    status=OutreachMailbox.Status.ACTIVE,
-                )
-                .exclude(id=mailbox.id)
-                .values_list("email", flat=True)
-            )
-            remaining_limit = DEFAULT_ACCOUNT_DAILY_LIMIT * len(remaining_emails)
-
-            campaigns = list(
-                OutreachCampaign.objects.select_for_update().filter(
-                    editor_id=mailbox.editor_id
-                )
-            )
-            for campaign in campaigns:
-                if not campaign.external_campaign_id:
-                    if not remaining_emails:
-                        campaign.status = OutreachCampaign.Status.NO_ACTIVE_MAILBOXES
-                        campaign.save(update_fields=["status", "updated_date"])
-                    continue
-                self.client.update_campaign(
-                    campaign.external_campaign_id,
-                    email_list=remaining_emails,
-                    daily_limit=remaining_limit,
-                )
-                if not remaining_emails:
-                    self.client.pause_campaign(campaign.external_campaign_id)
-                    campaign.status = OutreachCampaign.Status.NO_ACTIVE_MAILBOXES
-                    campaign.save(update_fields=["status", "updated_date"])
-
+        OutreachMailboxService(client=self.client).sync_campaigns_to_active_mailboxes(
+            editor_id,
+            exclude_mailbox_id=mailbox_id,
+            pause_if_empty=True,
+        )
         return "account_error"
 
 

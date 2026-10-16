@@ -1,6 +1,7 @@
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+from django.core.cache import cache
 from django.test import TestCase
 
 from research_ai.models import EmailTemplate, OutreachCampaign, OutreachMailbox
@@ -11,10 +12,15 @@ from research_ai.services.outreach.instantly_client import (
     GMAIL_SMTP_HOST,
     GMAIL_SMTP_PORT,
     PROVIDER_CODE_CUSTOM_IMAP_SMTP,
+    InstantlyAPIError,
+    InstantlyNotFoundError,
 )
 from research_ai.services.outreach.mailbox_service import (
-    InsufficientDailyCapacityError,
+    OAUTH_DONE_KEY,
+    OAUTH_PENDING_KEY,
     MailboxAlreadyConnectedError,
+    MailboxError,
+    MailboxOAuthSessionNotFoundError,
     MailboxOwnedByOtherEditorError,
     OutreachMailboxService,
 )
@@ -55,6 +61,7 @@ class ConnectMailboxTests(TestCase):
         self.assertEqual(kwargs["app_password"], self.app_password)
         self.assertEqual(kwargs["daily_limit"], DEFAULT_ACCOUNT_DAILY_LIMIT)
         self.assertTrue(kwargs["enable_slow_ramp"])
+        self.assertIsNone(kwargs["reply_to"])
         self.assertEqual(kwargs["first_name"], self.editor.first_name)
         self.assertEqual(kwargs["last_name"], self.editor.last_name)
         self.client.get_account.assert_called_once_with(self.gmail)
@@ -64,10 +71,35 @@ class ConnectMailboxTests(TestCase):
         self.assertEqual(mailbox.email, self.gmail)
         self.assertEqual(mailbox.status, OutreachMailbox.Status.ACTIVE)
         self.assertEqual(mailbox.daily_limit, 30)
+        self.assertEqual(mailbox.reply_to, "")
         field_names = {f.name for f in mailbox._meta.get_fields()}
         self.assertNotIn("app_password", field_names)
         self.assertNotIn("password", field_names)
         self.assertNotIn(self.app_password, mailbox.__dict__.values())
+
+    def test_connect_sends_and_caches_reply_to(self):
+        # Arrange
+        self.client.create_gmail_account.return_value = {"email": self.gmail}
+        self.client.get_account.return_value = {
+            "email": self.gmail,
+            "status": 1,
+            "daily_limit": 30,
+            "provider_code": PROVIDER_CODE_CUSTOM_IMAP_SMTP,
+            "reply_to": "replies@researchhub.com",
+        }
+
+        # Act
+        mailbox = self.service.connect_mailbox(
+            self.editor,
+            email=self.gmail,
+            app_password=self.app_password,
+            reply_to="Replies@ResearchHub.com",
+        )
+
+        # Assert
+        kwargs = self.client.create_gmail_account.call_args.kwargs
+        self.assertEqual(kwargs["reply_to"], "replies@researchhub.com")
+        self.assertEqual(mailbox.reply_to, "replies@researchhub.com")
 
     def test_connect_rejects_address_owned_by_another_editor(self):
         # Arrange
@@ -216,6 +248,10 @@ class CapacityTests(TestCase):
     def setUp(self):
         self.editor = create_random_authenticated_user("om_cap")
         self.client = MagicMock()
+        self.client.get_account.side_effect = lambda email: {
+            "email": email,
+            "daily_limit": 30,
+        }
         self.service = OutreachMailboxService(client=self.client)
 
     @patch(
@@ -246,25 +282,6 @@ class CapacityTests(TestCase):
 
         # Assert
         self.assertEqual(remaining, 45)
-        self.assertEqual(self.service.assert_within_daily_capacity(self.editor, 45), 45)
-
-    def test_assert_within_daily_capacity_rejects_over_capacity(self):
-        # Arrange
-        OutreachMailbox.objects.create(
-            editor=self.editor,
-            email="a@gmail.com",
-            status=OutreachMailbox.Status.ACTIVE,
-            daily_limit=30,
-        )
-        self.client.get_daily_account_analytics.return_value = [
-            {"email_account": "a@gmail.com", "sent": 25},
-        ]
-
-        # Act / Assert
-        with self.assertRaises(InsufficientDailyCapacityError) as ctx:
-            self.service.assert_within_daily_capacity(self.editor, 10)
-        self.assertEqual(ctx.exception.remaining, 5)
-        self.assertEqual(ctx.exception.requested, 10)
 
     @patch(
         "research_ai.services.outreach.mailbox_service.timezone.localdate",
@@ -306,6 +323,146 @@ class CapacityTests(TestCase):
         emails_arg = self.client.get_daily_account_analytics.call_args.args[0]
         self.assertEqual(emails_arg, ["a@gmail.com"])
 
+    @patch(
+        "research_ai.services.outreach.mailbox_service.timezone.localdate",
+        return_value=date(2099, 1, 1),
+    )
+    def test_capacity_refreshes_daily_limit_from_instantly(self, _mock_localdate):
+        # Arrange
+        mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="a@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        self.client.get_account.side_effect = lambda email: {
+            "email": email,
+            "daily_limit": 75,
+        }
+        self.client.get_daily_account_analytics.return_value = [
+            {"date": "2099-01-01", "email_account": "a@gmail.com", "sent": 10},
+        ]
+
+        # Act
+        summary = self.service.get_capacity_summary(self.editor)
+
+        # Assert
+        mailbox.refresh_from_db()
+        self.assertEqual(mailbox.daily_limit, 75)
+        self.assertEqual(summary["daily_limit_total"], 75)
+        self.assertEqual(summary["remaining_today"], 65)
+
+    def test_update_daily_limit_patches_instantly_and_campaigns(self):
+        # Arrange
+        mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="a@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        OutreachCampaign.objects.create(
+            editor=self.editor,
+            template=EmailTemplate.objects.create(
+                created_by=self.editor,
+                name="T",
+                email_subject="S",
+                email_body="B",
+            ),
+            external_campaign_id="camp-1",
+            status=OutreachCampaign.Status.ACTIVE,
+        )
+        self.client.update_account.return_value = {
+            "email": "a@gmail.com",
+            "daily_limit": 50,
+        }
+
+        # Act
+        updated = self.service.update_daily_limit(mailbox.id, 50)
+
+        # Assert
+        self.client.update_account.assert_called_once_with(
+            "a@gmail.com", daily_limit=50
+        )
+        self.client.update_campaign.assert_called_once_with(
+            "camp-1",
+            email_list=["a@gmail.com"],
+            daily_limit=50,
+        )
+        self.assertEqual(updated.daily_limit, 50)
+        mailbox.refresh_from_db()
+        self.assertEqual(mailbox.daily_limit, 50)
+
+    def test_update_mailbox_reply_to_patches_instantly(self):
+        # Arrange
+        mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="a@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        self.client.update_account.return_value = {
+            "email": "a@gmail.com",
+            "reply_to": "replies@researchhub.com",
+        }
+
+        # Act
+        updated = self.service.update_mailbox(
+            self.editor,
+            mailbox.id,
+            reply_to="Replies@ResearchHub.com",
+        )
+
+        # Assert
+        self.client.update_account.assert_called_once_with(
+            "a@gmail.com", reply_to="replies@researchhub.com"
+        )
+        self.assertEqual(updated.reply_to, "replies@researchhub.com")
+        mailbox.refresh_from_db()
+        self.assertEqual(mailbox.reply_to, "replies@researchhub.com")
+
+    def test_update_mailbox_clears_reply_to_with_null(self):
+        # Arrange
+        mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="a@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+            reply_to="replies@researchhub.com",
+        )
+        self.client.update_account.return_value = {
+            "email": "a@gmail.com",
+            "reply_to": None,
+        }
+
+        # Act
+        updated = self.service.update_mailbox(
+            self.editor,
+            mailbox.id,
+            reply_to="",
+        )
+
+        # Assert
+        self.client.update_account.assert_called_once_with("a@gmail.com", reply_to=None)
+        self.assertEqual(updated.reply_to, "")
+        mailbox.refresh_from_db()
+        self.assertEqual(mailbox.reply_to, "")
+
+    def test_update_mailbox_rejects_daily_limit_for_non_moderator(self):
+        # Arrange
+        mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="a@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        self.editor.moderator = False
+        self.editor.save(update_fields=["moderator"])
+
+        # Act / Assert
+        with self.assertRaises(MailboxError):
+            self.service.update_mailbox(self.editor, mailbox.id, daily_limit=50)
+        self.client.update_account.assert_not_called()
+
 
 class InstantlyClientGmailPayloadTests(TestCase):
     def test_create_gmail_account_posts_imap_smtp_fields(self):
@@ -326,6 +483,7 @@ class InstantlyClientGmailPayloadTests(TestCase):
             first_name="Ada",
             last_name="Lovelace",
             app_password="secret-app-password",
+            reply_to="replies@researchhub.com",
         )
 
         # Assert
@@ -339,8 +497,345 @@ class InstantlyClientGmailPayloadTests(TestCase):
         self.assertEqual(kwargs["json"]["smtp_port"], GMAIL_SMTP_PORT)
         self.assertEqual(kwargs["json"]["imap_password"], "secret-app-password")
         self.assertEqual(kwargs["json"]["smtp_password"], "secret-app-password")
+        self.assertEqual(kwargs["json"]["reply_to"], "replies@researchhub.com")
         self.assertNotIn("provider_type", kwargs["json"])
         self.assertEqual(
             kwargs["headers"]["Authorization"],
             "Bearer test-key",
         )
+
+    def test_send_test_email_posts_expected_payload(self):
+        # Arrange
+        from research_ai.services.outreach.instantly_client import InstantlyClient
+
+        session = MagicMock()
+        response = MagicMock()
+        response.status_code = 200
+        response.content = b"{}"
+        response.json.return_value = {"status": "success"}
+        session.request.return_value = response
+        client = InstantlyClient(api_key="test-key", session=session)
+
+        # Act
+        client.send_test_email(
+            from_email="sender@gmail.com",
+            to_email="me@example.com",
+            subject="Hello",
+            html="<p>Hi</p>",
+        )
+
+        # Assert
+        args, kwargs = session.request.call_args
+        self.assertEqual(args[0], "POST")
+        self.assertTrue(args[1].endswith("/emails/test"))
+        self.assertEqual(
+            kwargs["json"],
+            {
+                "eaccount": "sender@gmail.com",
+                "to_address_email_list": "me@example.com",
+                "subject": "Hello",
+                "body": {"html": "<p>Hi</p>"},
+            },
+        )
+
+    def test_init_google_oauth_posts_expected_path(self):
+        # Arrange
+        from research_ai.services.outreach.instantly_client import InstantlyClient
+
+        session = MagicMock()
+        response = MagicMock()
+        response.status_code = 200
+        response.content = b"{}"
+        response.json.return_value = {
+            "session_id": "sess-1",
+            "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?x=1",
+            "expires_at": "2024-01-15T10:30:00.000Z",
+        }
+        session.request.return_value = response
+        client = InstantlyClient(api_key="test-key", session=session)
+
+        # Act
+        result = client.init_google_oauth()
+
+        # Assert
+        args, kwargs = session.request.call_args
+        self.assertEqual(args[0], "POST")
+        self.assertTrue(args[1].endswith("/oauth/google/init"))
+        self.assertEqual(kwargs.get("json"), {})
+        self.assertEqual(result["session_id"], "sess-1")
+        self.assertIn("auth_url", result)
+
+    def test_get_oauth_session_status_gets_encoded_path(self):
+        # Arrange
+        from research_ai.services.outreach.instantly_client import InstantlyClient
+
+        session = MagicMock()
+        response = MagicMock()
+        response.status_code = 200
+        response.content = b"{}"
+        response.json.return_value = {"status": "pending"}
+        session.request.return_value = response
+        client = InstantlyClient(api_key="test-key", session=session)
+
+        # Act
+        result = client.get_oauth_session_status("sess/with special")
+
+        # Assert
+        args, _ = session.request.call_args
+        self.assertEqual(args[0], "GET")
+        self.assertTrue(args[1].endswith("/oauth/session/status/sess%2Fwith%20special"))
+        self.assertEqual(result["status"], "pending")
+
+
+class StartOAuthTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.editor = create_random_authenticated_user("om_oauth_start")
+        self.client = MagicMock()
+        self.service = OutreachMailboxService(client=self.client)
+
+    def test_start_oauth_google_binds_pending_session(self):
+        # Arrange
+        self.client.init_google_oauth.return_value = {
+            "session_id": "sess-g",
+            "auth_url": "https://accounts.google.com/auth",
+            "expires_at": "2024-01-15T10:30:00.000Z",
+        }
+
+        # Act
+        result = self.service.start_oauth(
+            self.editor, reply_to="Replies@ResearchHub.com"
+        )
+
+        # Assert
+        self.client.init_google_oauth.assert_called_once_with()
+        self.assertEqual(result["session_id"], "sess-g")
+        self.assertEqual(result["auth_url"], "https://accounts.google.com/auth")
+        self.assertEqual(result["provider"], "google")
+        pending = cache.get(OAUTH_PENDING_KEY.format(session_id="sess-g"))
+        self.assertEqual(pending["editor_id"], self.editor.id)
+        self.assertEqual(pending["provider"], "google")
+        self.assertEqual(pending["reply_to"], "replies@researchhub.com")
+
+
+class PollOAuthTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.editor = create_random_authenticated_user("om_oauth_poll")
+        self.client = MagicMock()
+        self.service = OutreachMailboxService(client=self.client)
+        self.session_id = "sess-poll-1"
+        self.workspace_email = "editor@company.com"
+        cache.set(
+            OAUTH_PENDING_KEY.format(session_id=self.session_id),
+            {
+                "editor_id": self.editor.id,
+                "provider": "google",
+                "reply_to": "",
+            },
+            timeout=600,
+        )
+
+    def test_poll_pending_returns_pending_without_mailbox(self):
+        # Arrange
+        self.client.get_oauth_session_status.return_value = {"status": "pending"}
+
+        # Act
+        result = self.service.poll_oauth(self.editor, self.session_id)
+
+        # Assert
+        self.assertEqual(result, {"status": "pending"})
+        self.client.get_account.assert_not_called()
+        self.assertIsNone(cache.get(OAUTH_DONE_KEY.format(session_id=self.session_id)))
+
+    def test_poll_success_creates_mailbox_once_and_second_poll_uses_cache(self):
+        # Arrange
+        self.client.get_oauth_session_status.return_value = {
+            "status": "success",
+            "email": self.workspace_email,
+            "account_id": self.workspace_email,
+        }
+        self.client.get_account.return_value = {
+            "email": self.workspace_email,
+            "status": 1,
+            "daily_limit": 40,
+            "provider_code": 2,
+        }
+
+        # Act
+        first = self.service.poll_oauth(self.editor, self.session_id)
+        second = self.service.poll_oauth(self.editor, self.session_id)
+
+        # Assert
+        self.assertEqual(first["status"], "success")
+        self.assertEqual(first["email"], self.workspace_email)
+        mailbox = first["mailbox"]
+        self.assertEqual(mailbox.email, self.workspace_email)
+        self.assertEqual(mailbox.provider_code, 2)
+        self.assertEqual(mailbox.daily_limit, 40)
+        self.assertEqual(mailbox.status, OutreachMailbox.Status.ACTIVE)
+
+        self.assertEqual(second["status"], "success")
+        self.assertEqual(second["mailbox"].id, mailbox.id)
+        self.client.get_oauth_session_status.assert_called_once_with(self.session_id)
+        self.client.get_account.assert_called_once_with(self.workspace_email)
+        self.assertIsNone(
+            cache.get(OAUTH_PENDING_KEY.format(session_id=self.session_id))
+        )
+        self.assertIsNotNone(
+            cache.get(OAUTH_DONE_KEY.format(session_id=self.session_id))
+        )
+
+    def test_poll_applies_cached_reply_to_after_success(self):
+        # Arrange
+        cache.set(
+            OAUTH_PENDING_KEY.format(session_id=self.session_id),
+            {
+                "editor_id": self.editor.id,
+                "provider": "google",
+                "reply_to": "replies@researchhub.com",
+            },
+            timeout=600,
+        )
+        self.client.get_oauth_session_status.return_value = {
+            "status": "success",
+            "email": self.workspace_email,
+        }
+        self.client.get_account.return_value = {
+            "email": self.workspace_email,
+            "status": 1,
+            "daily_limit": 30,
+            "provider_code": 2,
+        }
+        self.client.update_account.return_value = {
+            "email": self.workspace_email,
+            "reply_to": "replies@researchhub.com",
+        }
+
+        # Act
+        result = self.service.poll_oauth(self.editor, self.session_id)
+
+        # Assert
+        self.client.update_account.assert_called_once_with(
+            self.workspace_email, reply_to="replies@researchhub.com"
+        )
+        self.assertEqual(result["mailbox"].reply_to, "replies@researchhub.com")
+
+    def test_poll_reply_to_patch_failure_still_returns_success(self):
+        # Arrange
+        cache.set(
+            OAUTH_PENDING_KEY.format(session_id=self.session_id),
+            {
+                "editor_id": self.editor.id,
+                "provider": "google",
+                "reply_to": "replies@researchhub.com",
+            },
+            timeout=600,
+        )
+        self.client.get_oauth_session_status.return_value = {
+            "status": "success",
+            "email": self.workspace_email,
+        }
+        self.client.get_account.return_value = {
+            "email": self.workspace_email,
+            "status": 1,
+            "daily_limit": 30,
+            "provider_code": 2,
+        }
+        self.client.update_account.side_effect = InstantlyAPIError(
+            "reply_to patch failed", status_code=502
+        )
+
+        # Act
+        result = self.service.poll_oauth(self.editor, self.session_id)
+
+        # Assert
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["email"], self.workspace_email)
+        mailbox = result["mailbox"]
+        self.assertIsNotNone(mailbox.id)
+        self.assertEqual(mailbox.email, self.workspace_email)
+        self.assertEqual(mailbox.reply_to, "")
+        self.client.update_account.assert_called_once_with(
+            self.workspace_email, reply_to="replies@researchhub.com"
+        )
+        self.assertTrue(
+            OutreachMailbox.objects.filter(
+                editor=self.editor, email=self.workspace_email
+            ).exists()
+        )
+        done = cache.get(OAUTH_DONE_KEY.format(session_id=self.session_id))
+        self.assertEqual(done["status"], "success")
+        self.assertEqual(done["mailbox_id"], mailbox.id)
+
+    def test_poll_editor_mismatch_raises_not_found(self):
+        # Arrange
+        other = create_random_authenticated_user("om_oauth_other")
+
+        # Act / Assert
+        with self.assertRaises(MailboxOAuthSessionNotFoundError):
+            self.service.poll_oauth(other, self.session_id)
+        self.client.get_oauth_session_status.assert_not_called()
+
+    def test_poll_rejects_email_owned_by_other_editor(self):
+        # Arrange
+        other = create_random_authenticated_user("om_oauth_owner")
+        OutreachMailbox.objects.create(
+            editor=other,
+            email=self.workspace_email,
+            status=OutreachMailbox.Status.ACTIVE,
+        )
+        self.client.get_oauth_session_status.return_value = {
+            "status": "success",
+            "email": self.workspace_email,
+        }
+
+        # Act / Assert
+        with self.assertRaises(MailboxOwnedByOtherEditorError):
+            self.service.poll_oauth(self.editor, self.session_id)
+        self.client.get_account.assert_not_called()
+        done = cache.get(OAUTH_DONE_KEY.format(session_id=self.session_id))
+        self.assertEqual(done["conflict"], "owned_by_other")
+
+    def test_poll_instantly_404_returns_expired_and_caches(self):
+        # Arrange
+        self.client.get_oauth_session_status.side_effect = InstantlyNotFoundError(
+            "gone", status_code=404
+        )
+
+        # Act
+        first = self.service.poll_oauth(self.editor, self.session_id)
+        second = self.service.poll_oauth(self.editor, self.session_id)
+
+        # Assert
+        self.assertEqual(first, {"status": "expired"})
+        self.assertEqual(second, {"status": "expired"})
+        self.client.get_oauth_session_status.assert_called_once()
+
+    def test_poll_restores_soft_deleted_mailbox_for_same_editor(self):
+        # Arrange
+        previous = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email=self.workspace_email,
+            status=OutreachMailbox.Status.DISCONNECTED,
+            provider_code=1,
+        )
+        previous.delete(soft=True)
+        self.client.get_oauth_session_status.return_value = {
+            "status": "success",
+            "email": self.workspace_email,
+        }
+        self.client.get_account.return_value = {
+            "email": self.workspace_email,
+            "status": 1,
+            "daily_limit": 30,
+            "provider_code": 3,
+        }
+
+        # Act
+        result = self.service.poll_oauth(self.editor, self.session_id)
+
+        # Assert
+        self.assertEqual(result["mailbox"].id, previous.id)
+        self.assertFalse(result["mailbox"].is_removed)
+        self.assertEqual(result["mailbox"].provider_code, 3)
