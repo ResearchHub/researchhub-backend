@@ -6,14 +6,11 @@ to ``settings.INSTANTLY_API_KEY``) so tests can supply a fake key and session.
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 from urllib.parse import quote
 
 import requests
 from django.conf import settings
-
-logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.instantly.ai/api/v2"
 DEFAULT_TIMEOUT = (5, 30)
@@ -48,7 +45,7 @@ DEFAULT_CAMPAIGN_SCHEDULE: dict[str, Any] = {
                 "5": False,
                 "6": False,
             },
-            "timezone": "America/New_York",
+            "timezone": "America/Detroit",
         }
     ]
 }
@@ -102,6 +99,7 @@ class InstantlyClient:
         app_password: str,
         daily_limit: int = DEFAULT_ACCOUNT_DAILY_LIMIT,
         enable_slow_ramp: bool = True,
+        reply_to: str | None = None,
     ) -> dict[str, Any]:
         """Create a custom IMAP/SMTP account for a personal Gmail address."""
         payload = {
@@ -120,11 +118,30 @@ class InstantlyClient:
             "daily_limit": daily_limit,
             "enable_slow_ramp": enable_slow_ramp,
         }
+        if reply_to:
+            payload["reply_to"] = reply_to
         return self._request("POST", "/accounts", json=payload)
 
     def get_account(self, email: str) -> dict[str, Any]:
         """Fetch a single account by email address."""
         return self._request("GET", f"/accounts/{quote(email, safe='')}")
+
+    def update_account(
+        self,
+        email: str,
+        *,
+        daily_limit: int | None = None,
+        **extra: Any,
+    ) -> dict[str, Any]:
+        """PATCH Instantly account fields (e.g. ``daily_limit``)."""
+        payload: dict[str, Any] = dict(extra)
+        if daily_limit is not None:
+            payload["daily_limit"] = daily_limit
+        if not payload:
+            raise InstantlyAPIError("No account fields to update")
+        return self._request(
+            "PATCH", f"/accounts/{quote(email, safe='')}", json=payload
+        )
 
     def delete_account(self, email: str) -> dict[str, Any] | None:
         """Delete an Instantly account. Returns None on empty 2xx bodies."""
@@ -240,6 +257,57 @@ class InstantlyClient:
         }
         return self._request("POST", "/leads/add", json=payload)
 
+    def delete_leads(
+        self,
+        *,
+        campaign_id: str,
+        lead_ids: list[str],
+    ) -> dict[str, Any] | None:
+        """
+        Bulk-delete leads from a campaign (``DELETE /leads``).
+
+        Only removes those leads from the given campaign.
+        """
+        if not lead_ids:
+            return None
+        payload = {
+            "campaign_id": campaign_id,
+            "ids": lead_ids,
+        }
+        return self._request("DELETE", "/leads", json=payload)
+
+    def send_test_email(
+        self,
+        *,
+        from_email: str,
+        to_email: str,
+        subject: str,
+        html: str,
+    ) -> dict[str, Any] | None:
+        """
+        Send a preview/test email via Instantly (``POST /emails/test``).
+        """
+        payload = {
+            "eaccount": from_email,
+            "to_address_email_list": to_email,
+            "subject": subject,
+            "body": {"html": html},
+        }
+        return self._request("POST", "/emails/test", json=payload)
+
+    def init_google_oauth(self) -> dict[str, Any]:
+        """
+        Start Google Workspace OAuth (``POST /oauth/google/init``).
+        """
+        return self._request("POST", "/oauth/google/init", json={})
+
+    def get_oauth_session_status(self, session_id: str) -> dict[str, Any]:
+        """
+        Poll an OAuth session (``GET /oauth/session/status/{session_id}``).
+        """
+        encoded = quote(session_id, safe="")
+        return self._request("GET", f"/oauth/session/status/{encoded}")
+
     def _request(
         self,
         method: str,
@@ -278,7 +346,8 @@ class InstantlyClient:
         if not (200 <= response.status_code < 300):
             body = _safe_json(response)
             raise InstantlyAPIError(
-                f"Instantly {method} {path} failed with {response.status_code}",
+                f"Instantly {method} {path} failed with {response.status_code}: "
+                f"{_truncate_error_detail(body)}",
                 status_code=response.status_code,
                 response_body=body,
             )
@@ -292,3 +361,10 @@ def _safe_json(response: requests.Response) -> Any:
         return response.json()
     except ValueError:
         return response.text
+
+
+def _truncate_error_detail(value: Any, *, max_len: int = 500) -> str:
+    text = str(value)
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 3] + "..."
