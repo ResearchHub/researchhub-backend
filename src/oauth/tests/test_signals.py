@@ -52,3 +52,18 @@ class UserSignupSignalTests(TestCase):
         call_args = mock_service.track_signup.call_args
         self.assertEqual(call_args[0][0], self.mock_request)
         self.assertEqual(call_args[0][1], self.user)
+
+    @patch("oauth.signals.UserSignupService")
+    @patch("oauth.signals.send_welcome_email")
+    def test_enqueues_welcome_email_on_commit(self, mock_task, mock_service_class):
+        """
+        Tests that the welcome email is enqueued once the signup is committed.
+        """
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            user_signed_up.send(
+                sender=self.__class__, request=self.mock_request, user=self.user
+            )
+
+        # Assert
+        mock_task.delay.assert_called_once_with(self.user.id)

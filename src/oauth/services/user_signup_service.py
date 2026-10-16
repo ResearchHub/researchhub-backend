@@ -5,8 +5,12 @@ from django.conf import settings
 from mailchimp_marketing import Client
 
 from analytics.amplitude import Amplitude
+from mailing_list.services import EmailService
+from user.models import User
 
 logger = logging.getLogger(__name__)
+
+WELCOME_EMAIL_SUBJECT = "Welcome to ResearchHub"
 
 
 class UserSignupService:
@@ -14,6 +18,7 @@ class UserSignupService:
     Service for handling user signup side effects:
      - Registration in Mailchimp.
      - Tracking in Amplitude.
+     - Sending the welcome email.
     """
 
     def __init__(
@@ -21,9 +26,11 @@ class UserSignupService:
         amplitude_client=None,
         mailchimp_client=None,
         mailchimp_enabled=None,
+        email_service: EmailService | None = None,
     ):
         self.amplitude_client = amplitude_client or Amplitude()
         self.mailchimp_client = mailchimp_client or Client()
+        self.email_service = email_service or EmailService()
 
         # By default, enable Mailchimp integration in production environment only
         self.mailchimp_enabled = (
@@ -93,3 +100,14 @@ class UserSignupService:
         if author_profile and not author_profile.profile_image:
             author_profile.profile_image = picture_url
             author_profile.save(update_fields=["profile_image"])
+
+    def send_welcome_email(self, user: User) -> None:
+        """
+        Send the welcome email inviting a new user to complete their profile.
+        """
+        self.email_service.send_email(
+            user.email,
+            WELCOME_EMAIL_SUBJECT,
+            {"first_name": user.first_name, "profile_url": user.frontend_view_link()},
+            template="welcome_email",
+        )

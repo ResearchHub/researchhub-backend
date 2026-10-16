@@ -355,3 +355,188 @@ body {
   background-color: #34D399;
   border-radius: 9999px;
 }
+
+/* Welcome email */
+.welcome-hero {
+  padding: 40px 40px 32px;
+  background-color: #3971FF;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.welcome-title,
+.welcome-stat-value,
+.welcome-heading,
+.welcome-operator,
+.welcome-badge-funded {
+  font-family: 'Cal Sans', 'Geist', Arial, sans-serif;
+}
+
+.welcome-title {
+  margin: 30px 0 12px;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 44px;
+  color: #FFFFFF;
+}
+
+.welcome-intro {
+  margin: 0 0 28px;
+  font-size: 16px;
+  line-height: 24px;
+  color: #DBE6FF;
+}
+
+.welcome-stats {
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.welcome-stat {
+  padding-top: 18px;
+}
+
+.welcome-stat-value {
+  font-size: 28px;
+  line-height: 34px;
+  color: #FFFFFF;
+}
+
+.welcome-stat-label {
+  font-size: 12px;
+  line-height: 16px;
+  color: #C7D2FE;
+}
+
+.welcome-section {
+  padding: 36px 40px 0;
+}
+
+.welcome-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #3971FF;
+}
+
+.welcome-eyebrow-muted {
+  margin-bottom: 14px;
+  color: #9CA3AF;
+}
+
+.welcome-heading {
+  margin: 6px 0 0;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 32px;
+  color: #111827;
+}
+
+.welcome-equation-cell {
+  padding: 24px 28px 0;
+}
+
+.welcome-equation {
+  border: 1px solid #F3F4F6;
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+
+.welcome-equation-inner {
+  padding: 30px 18px;
+}
+
+.welcome-avatar {
+  display: block;
+  margin: 0 auto;
+  border-radius: 50%;
+}
+
+.welcome-badge {
+  width: 104px;
+  height: 104px;
+  margin: 0 auto;
+  border-radius: 50%;
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 104px;
+  text-align: center;
+  color: #FFFFFF;
+}
+
+.welcome-badge-orcid {
+  background-color: #A6CE39;
+}
+
+.welcome-badge-funded {
+  background-color: #16A34A;
+  font-size: 44px;
+}
+
+.welcome-operator {
+  font-size: 40px;
+  text-align: center;
+  color: #9CA3AF;
+}
+
+.welcome-label {
+  padding-top: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.welcome-step {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: #374151;
+}
+
+.welcome-text-photo {
+  color: #3971FF;
+}
+
+.welcome-text-orcid {
+  color: #82A629;
+}
+
+.welcome-text-funded {
+  color: #16A34A;
+}
+
+.welcome-step-image {
+  display: block;
+  width: 100%;
+  height: 90px;
+  margin-bottom: 8px;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.welcome-actions {
+  padding: 36px 40px 44px;
+  text-align: center;
+}
+
+.welcome-button {
+  display: inline-block;
+  margin: 0 4px 8px;
+  padding: 14px 26px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  color: #FFFFFF;
+  text-decoration: none;
+}
+
+.welcome-button-photo {
+  background-color: #3971FF;
+}
+
+.welcome-button-orcid {
+  background-color: #82A629;
+}

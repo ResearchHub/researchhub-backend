@@ -130,6 +130,35 @@ class TrackSignupTests(TestCase):
             self.assertIn("Amplitude Error", call_args)
 
 
+class SendWelcomeEmailTests(TestCase):
+    def setUp(self):
+        self.mock_email_service = Mock()
+        self.service = UserSignupService(
+            amplitude_client=Mock(),
+            mailchimp_client=Mock(),
+            email_service=self.mock_email_service,
+        )
+        self.user = create_random_default_user("welcome_email_test")
+
+    def test_sends_welcome_email_with_profile_link(self):
+        """
+        Test that the welcome email is sent to the user with a link to their profile.
+        """
+        # Act
+        self.service.send_welcome_email(self.user)
+
+        # Assert
+        self.mock_email_service.send_email.assert_called_once_with(
+            self.user.email,
+            "Welcome to ResearchHub",
+            {
+                "first_name": self.user.first_name,
+                "profile_url": self.user.frontend_view_link(),
+            },
+            template="welcome_email",
+        )
+
+
 class SetGoogleProfileImageTests(TestCase):
     def setUp(self):
         self.mock_amplitude_client = Mock()
