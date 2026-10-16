@@ -341,6 +341,22 @@ class FundingCreditsReminderTest(TestCase):
         self.assertEqual(result["sent_count"], 1)
         self.assertEqual(len(mail.outbox), 0)
 
+    def test_rolls_back_notification_when_email_fails(self):
+        """Discard the alert when the email fails so a rerun retries both."""
+        # Arrange
+        self._add_funding_credit(self.user, Decimal(50))
+        first_of_month = datetime(2026, 11, 1, tzinfo=UTC)
+        # Act
+        with (
+            patch.object(timezone, "now", return_value=first_of_month),
+            patch.object(RscExchangeRate, "get_latest", side_effect=RuntimeError),
+        ):
+            result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+        self.assertFalse(self.notif_qs.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
     def test_no_reminder_without_funding_credits(self):
         # Arrange / Act
         result = send_funding_credits_reminders()

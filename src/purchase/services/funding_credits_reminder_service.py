@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 
 from django.conf import settings
+from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
 
@@ -58,17 +59,18 @@ class FundingCreditsReminderService:
                 continue
 
             try:
-                if self._notifications.send_once(
-                    Notification.FUNDING_CREDITS_REMINDER,
-                    recipient=user,
-                    action_user=user,
-                    item=user,
-                    extra={"amount": str(spendable)},
-                    since=start_of_today,
-                ):
-                    if now.day == 1:
-                        self._email_reminder(user, spendable, locked_balances)
-                    sent_count += 1
+                with transaction.atomic():
+                    if self._notifications.send_once(
+                        Notification.FUNDING_CREDITS_REMINDER,
+                        recipient=user,
+                        action_user=user,
+                        item=user,
+                        extra={"amount": str(spendable)},
+                        since=start_of_today,
+                    ):
+                        if now.day == 1:
+                            self._email_reminder(user, spendable, locked_balances)
+                        sent_count += 1
             except Exception:
                 logger.exception(
                     "Error sending funding credits reminder for user %s", user.id
