@@ -888,6 +888,7 @@ class NotebookChatService:
             native_tools=frozenset({"web_search"}),
             # One per turn: it keeps the images the turn's requests re-send.
             image_loader=PrivateStorageImageLoader(),
+            refusal_fallback=True,
             **provider_options,
         )
         # Decides the delivery plan and the page tool; the adapter agrees.

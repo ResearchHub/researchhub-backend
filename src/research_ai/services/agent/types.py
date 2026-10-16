@@ -165,6 +165,7 @@ class TurnUsage:
     counter the provider did not report stays ``None`` (distinct from a
     reported zero). When a provider reports the actual charge, it is retained
     in integer micro-USD so accounting does not have to reconstruct it.
+    ``model_ref`` names the model that answered when it is not the run's own.
     """
 
     input_tokens: int | None = None
@@ -173,6 +174,7 @@ class TurnUsage:
     cache_write_tokens: int | None = None
     web_search_requests: int | None = None
     provider_cost_microusd: int | None = None
+    model_ref: str | None = None
 
 
 @dataclass(frozen=True)

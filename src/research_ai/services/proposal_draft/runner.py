@@ -400,6 +400,7 @@ class _ProposalDraftRunner:
         provider = self.provider or resolve_provider(
             self.model_ref,
             native_tools=frozenset({"web_search"}),
+            refusal_fallback=True,
             **provider_options,
         )
         toolset = self._compose_toolset(provider)
