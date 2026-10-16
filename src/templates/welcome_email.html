@@ -1,0 +1,133 @@
+{% load inlinecss %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Welcome to ResearchHub</title>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&family=Cal+Sans&display=swap" rel="stylesheet">
+  <style>
+    @media (max-width: 600px) {
+      .canvas { padding: 16px 8px !important; }
+      .card, .footer { width: 100% !important; }
+      .welcome-hero, .welcome-section, .welcome-actions { padding-left: 24px !important; padding-right: 24px !important; }
+      .welcome-title { font-size: 30px !important; line-height: 34px !important; }
+      .welcome-badge, .welcome-avatar { width: 72px !important; height: 72px !important; }
+      .welcome-badge { line-height: 72px !important; font-size: 28px !important; }
+      .welcome-button { display: block !important; }
+    }
+  </style>
+</head>
+{% inlinecss "general_email.css" %}
+
+<body>
+  <table class="canvas" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center">
+        <table class="card" role="presentation" width="600" cellpadding="0" cellspacing="0">
+          <tr>
+            <td class="welcome-hero">
+              <img class="logo" src="{{ assets_base_url }}/email_assets/welcome/logo_white.png" alt="ResearchHub" width="113" height="26" />
+              <h1 class="welcome-title">Welcome to the <em>open</em><br />funding marketplace.</h1>
+              <p class="welcome-intro">Hi {{ first_name|default:"there" }} &mdash; you just joined a community rewriting how science gets funded.</p>
+              <table class="welcome-stats" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="welcome-stat" width="33%">
+                    <div class="welcome-stat-value">$1.5M+</div>
+                    <div class="welcome-stat-label">Research funding distributed</div>
+                  </td>
+                  <td class="welcome-stat" width="33%">
+                    <div class="welcome-stat-value">100k+</div>
+                    <div class="welcome-stat-label">Researchers &amp; readers</div>
+                  </td>
+                  <td class="welcome-stat" width="33%">
+                    <div class="welcome-stat-value">&lt;10d</div>
+                    <div class="welcome-stat-label">Avg. peer review turnaround</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td class="welcome-section">
+              <div class="welcome-eyebrow">Get a piece of it</div>
+              <h2 class="welcome-heading">Complete profiles are more likely to get funded.</h2>
+            </td>
+          </tr>
+          <tr>
+            <td class="welcome-equation-cell">
+              <table class="welcome-equation" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="welcome-equation-inner">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td width="26%" align="center">
+                          <img class="welcome-avatar" src="{{ assets_base_url }}/email_assets/welcome/avatar.png" alt="" width="104" height="104" />
+                        </td>
+                        <td class="welcome-operator" width="7%">+</td>
+                        <td width="26%" align="center">
+                          <div class="welcome-badge welcome-badge-orcid">iD</div>
+                        </td>
+                        <td class="welcome-operator" width="7%">=</td>
+                        <td width="34%" align="center">
+                          <div class="welcome-badge welcome-badge-funded">$</div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td class="welcome-label welcome-text-photo">Photo</td>
+                        <td></td>
+                        <td class="welcome-label welcome-text-orcid">ORCID</td>
+                        <td></td>
+                        <td class="welcome-label welcome-text-funded">Funded</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td class="welcome-section">
+              <div class="welcome-eyebrow welcome-eyebrow-muted">Your research, from idea to funded</div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="welcome-step" width="32%" valign="top">
+                    <img class="welcome-step-image" src="{{ assets_base_url }}/email_assets/welcome/preregister.png" alt="" width="160" height="90" />Preregister
+                  </td>
+                  <td width="2%"></td>
+                  <td class="welcome-step" width="32%" valign="top">
+                    <img class="welcome-step-image" src="{{ assets_base_url }}/email_assets/welcome/peer_review.png" alt="" width="160" height="90" />Get peer reviewed
+                  </td>
+                  <td width="2%"></td>
+                  <td class="welcome-step welcome-text-funded" width="32%" valign="top">
+                    <img class="welcome-step-image" src="{{ assets_base_url }}/email_assets/welcome/funded.png" alt="" width="160" height="90" />Get funded
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td class="welcome-actions">
+              <a class="welcome-button welcome-button-photo" href="{{ profile_url }}">Add photo</a>
+              <a class="welcome-button welcome-button-orcid" href="{{ profile_url }}">Connect ORCID</a>
+            </td>
+          </tr>
+        </table>
+        <table class="footer" role="presentation" width="600" cellpadding="0" cellspacing="0">
+          <tr>
+            <td>
+              {% if opt_out %}<a href="{{ opt_out }}">Unsubscribe</a> &nbsp;&middot;&nbsp; {% endif %}&copy; {% now "Y" %} ResearchHub
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>
+
+{% endinlinecss %}
