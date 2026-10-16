@@ -4,12 +4,16 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core import mail
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 
+import utils.locking as lock
 from notification.models import Notification
 from purchase.circle.client import CircleTransferError
-from purchase.models import Balance, Fundraise, Wallet
+from purchase.models import Balance, Fundraise, RscExchangeRate, Wallet
+from purchase.related_models.constants.currency import USD
 from purchase.services.fundraise_service import FundraiseService
 from purchase.tasks import (
     complete_eligible_fundraises,
@@ -39,8 +43,6 @@ class FundraiseTasksTest(TestCase):
         self.fundraise_service = FundraiseService()
 
         # Create required exchange rate for USD to RSC conversion
-        from purchase.models import RscExchangeRate
-
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
             rate=0.5,  # 1 USD = 2 RSC
             real_rate=0.5,
@@ -293,6 +295,7 @@ class FundingCreditsReminderTest(TestCase):
     def setUp(self):
         cache.clear()
         self.user = create_random_authenticated_user("funding_credits_reminder")
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency=USD)
         self.notif_qs = Notification.objects.filter(
             notification_type=Notification.FUNDING_CREDITS_REMINDER,
             recipient=self.user,
@@ -310,14 +313,33 @@ class FundingCreditsReminderTest(TestCase):
         )
 
     def test_sends_when_user_has_funding_credits(self):
+        """Alert and email a user holding funding credits on the 1st."""
         # Arrange
         self._add_funding_credit(self.user, Decimal(50))
+        first_of_month = datetime(2026, 11, 1, tzinfo=UTC)
         # Act
-        result = send_funding_credits_reminders()
+        with patch.object(timezone, "now", return_value=first_of_month):
+            result = send_funding_credits_reminders()
         # Assert
         self.assertEqual(result["sent_count"], 1)
         self.assertEqual(self.notif_qs.count(), 1)
         self.assertEqual(Decimal(self.notif_qs.first().extra["amount"]), Decimal(50))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.user.email])
+        self.assertIn("$25 in unused funding credits", mail.outbox[0].subject)
+        self.assertIn("/researchcoin", mail.outbox[0].alternatives[0].content)
+
+    def test_skips_email_outside_first_of_month(self):
+        """Alert a user holding funding credits on the 15th without emailing them."""
+        # Arrange
+        self._add_funding_credit(self.user, Decimal(50))
+        fifteenth_of_month = datetime(2026, 11, 15, tzinfo=UTC)
+        # Act
+        with patch.object(timezone, "now", return_value=fifteenth_of_month):
+            result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 1)
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_no_reminder_without_funding_credits(self):
         # Arrange / Act
@@ -336,7 +358,8 @@ class FundingCreditsReminderTest(TestCase):
         self.assertEqual(result["sent_count"], 0)
         self.assertFalse(self.notif_qs.exists())
 
-    def test_deduplicates_within_two_weeks(self):
+    def test_deduplicates_within_same_day(self):
+        """Skip a user who was already reminded earlier the same day."""
         # Arrange
         self._add_funding_credit(self.user, Decimal(25))
         send_funding_credits_reminders()
@@ -346,12 +369,24 @@ class FundingCreditsReminderTest(TestCase):
         self.assertEqual(result["sent_count"], 0)
         self.assertEqual(self.notif_qs.count(), 1)
 
-    def test_sends_again_after_two_weeks(self):
+    def test_skips_run_while_another_holds_lock(self):
+        """Skip the run entirely while another run holds the reminders lock."""
+        # Arrange
+        self._add_funding_credit(self.user, Decimal(25))
+        lock.acquire(lock.name("send_funding_credits_reminders"))
+        # Act
+        result = send_funding_credits_reminders()
+        # Assert
+        self.assertEqual(result["sent_count"], 0)
+        self.assertFalse(self.notif_qs.exists())
+
+    def test_sends_again_on_later_day(self):
+        """Remind a user again when their last reminder was on an earlier day."""
         # Arrange
         self._add_funding_credit(self.user, Decimal(25))
         send_funding_credits_reminders()
-        old = datetime.now(UTC) - timedelta(days=15)
-        self.notif_qs.update(created_date=old)
+        yesterday = datetime.now(UTC) - timedelta(days=1)
+        self.notif_qs.update(created_date=yesterday)
         # Act
         result = send_funding_credits_reminders()
         # Assert
