@@ -1050,6 +1050,7 @@ class OutreachCampaignSerializer(serializers.ModelSerializer):
         model = OutreachCampaign
         fields = [
             "id",
+            "name",
             "template_id",
             "template_name",
             "external_campaign_id",
@@ -1083,6 +1084,12 @@ class OutreachCampaignSerializer(serializers.ModelSerializer):
         }
 
 
+class OutreachCampaignPublishSerializer(serializers.Serializer):
+    """Request for POST /expert-finder/templates/<id>/publish/."""
+
+    name = serializers.CharField(max_length=100, trim_whitespace=True)
+
+
 class OutreachCampaignSendSerializer(serializers.Serializer):
     """Request for POST /expert-finder/outreach-campaigns/<id>/send/."""
 
@@ -1092,6 +1099,25 @@ class OutreachCampaignSendSerializer(serializers.Serializer):
         min_length=1,
         max_length=1000,
     )
+
+
+class OutreachCampaignCancelQueuedSerializer(serializers.Serializer):
+    """Request for POST /expert-finder/outreach-campaigns/<id>/cancel-queued/."""
+
+    generated_email_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        min_length=1,
+        max_length=1000,
+    )
+
+
+class OutreachCampaignPreviewSerializer(serializers.Serializer):
+    """Request for POST /expert-finder/outreach-campaigns/<id>/preview/."""
+
+    expert_email = serializers.EmailField()
+    to_email = serializers.EmailField()
+    expert_search_id = serializers.IntegerField(min_value=1, required=False)
+    from_mailbox_id = serializers.IntegerField(min_value=1, required=False)
 
 
 class OutreachMailboxSerializer(serializers.ModelSerializer):
@@ -1104,6 +1130,7 @@ class OutreachMailboxSerializer(serializers.ModelSerializer):
             "email",
             "status",
             "daily_limit",
+            "reply_to",
             "provider_code",
             "created_date",
             "updated_date",
@@ -1116,6 +1143,34 @@ class OutreachMailboxConnectSerializer(serializers.Serializer):
 
     email = serializers.EmailField()
     app_password = serializers.CharField(min_length=1, write_only=True)
+    reply_to = serializers.EmailField(required=False, allow_blank=True)
+
+
+class OutreachMailboxOAuthInitSerializer(serializers.Serializer):
+    """Optional body for POST .../outreach-mailboxes/oauth/google/init/."""
+
+    reply_to = serializers.EmailField(required=False, allow_blank=True)
+
+
+class OutreachMailboxUpdateSerializer(serializers.Serializer):
+    """
+    Request for PATCH /expert-finder/outreach-mailboxes/<id>/.
+
+    ``reply_to``: owner or moderator. ``daily_limit``: moderator only.
+    At least one field is required.
+    """
+
+    reply_to = serializers.EmailField(required=False, allow_blank=True)
+    daily_limit = serializers.IntegerField(
+        required=False, min_value=1, max_value=10_000
+    )
+
+    def validate(self, attrs):
+        if "reply_to" not in attrs and "daily_limit" not in attrs:
+            raise serializers.ValidationError(
+                "At least one of reply_to or daily_limit is required."
+            )
+        return attrs
 
 
 class ModelSelectionField(serializers.CharField):
