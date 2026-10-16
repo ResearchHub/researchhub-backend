@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from django.core.files.storage import default_storage
 from django.db import transaction
 from rest_framework.serializers import (
+    IntegerField,
     ModelSerializer,
     PrimaryKeyRelatedField,
     SerializerMethodField,
@@ -430,6 +431,9 @@ class NoteSerializer(ModelSerializer):
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
     access = SerializerMethodField()
     created_by = SerializerMethodField()
+    # Annotated by the organization's documents listing, and left out of
+    # responses whose notes were not annotated with it.
+    latest_chat_id = IntegerField(read_only=True)
     latest_version = SerializerMethodField()
     notes = SerializerMethodField()
     organization = SerializerMethodField()

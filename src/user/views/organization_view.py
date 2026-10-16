@@ -15,6 +15,7 @@ from invite.models import OrganizationInvitation
 from invite.serializers import DynamicOrganizationInvitationSerializer
 from note.models import Note, NoteTemplate
 from note.serializers import DynamicNoteSerializer, NoteTemplateSerializer
+from research_ai.services.notebook_chat import NotebookChatService
 from researchhub.pagination import MediumPageLimitPagination
 from researchhub_access_group.constants import ADMIN, MEMBER
 from researchhub_access_group.models import Permission
@@ -379,6 +380,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             "unified_document__permissions",
             "invited_users",
         )
+        # Including latest conversation ID allows the client to pick a
+        # conversation without needing to fire another network request to fetch
+        # list of conversations and hence slow the rendering down
+        notes = notes.annotate(
+            latest_chat_id=NotebookChatService().latest_conversation_id_subquery(user)
+        )
         page = self.paginate_queryset(notes)
         context = self._get_org_notes_context()
         # Resolve which posts on the page the viewer may see in one query,
@@ -395,6 +402,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 "created_date",
                 "document_type",
                 "id",
+                "latest_chat_id",
                 "organization",
                 "post",
                 "title",
