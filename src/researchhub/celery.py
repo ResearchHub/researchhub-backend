@@ -96,8 +96,8 @@ app.conf.beat_schedule = {
     },
     "purchase_send-funding-credits-reminders": {
         "task": "purchase.tasks.send_funding_credits_reminders",
-        # Runs on the 1st and 15th; the task itself dedupes to at most one
-        # reminder per user every 14 days.
+        # Notifies on the 1st and 15th, emailing on the 1st only; the task
+        # itself dedupes to at most one reminder per user per day.
         "schedule": crontab(day_of_month="1,15", hour=16, minute=0),
         "options": {
             "priority": 3,
