@@ -22,9 +22,9 @@ class PurchaseQuerySet(models.QuerySet):
         """Filter purchases by user."""
         return self.filter(user_id=user_id)
 
-    def exclude_user(self, user_id: int):
-        """Exclude purchases by user."""
-        return self.exclude(user_id=user_id)
+    def exclude_direct_contributions_by(self, user_id: int):
+        """Exclude a user's own purchases, keeping pool distributions they made."""
+        return self.exclude(user_id=user_id, funding_distribution__isnull=True)
 
     def funding_contributions(self):
         """Filter for fundraise contribution purchases."""
@@ -32,6 +32,10 @@ class PurchaseQuerySet(models.QuerySet):
             purchase_type="FUNDRAISE_CONTRIBUTION",
             content_type=ContentType.objects.get_for_model(Fundraise),
         )
+
+    def exclude_pool_distributions(self):
+        """Exclude audit purchases created when a funding pool distributes RSC."""
+        return self.filter(funding_distribution__isnull=True)
 
     def for_fundraises(self, fundraise_ids: list[int]):
         """Filter by fundraise IDs."""

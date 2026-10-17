@@ -4,7 +4,14 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
-from purchase.models import Fundraise, Grant, GrantApplication, Purchase
+from purchase.models import (
+    FundingDistribution,
+    FundingPool,
+    Fundraise,
+    Grant,
+    GrantApplication,
+    Purchase,
+)
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
@@ -94,7 +101,61 @@ class TestFundingOverviewService(TestCase):
             {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0},
         )
         self.assertEqual(result["supported_proposals"], [])
+        self.assertEqual(result["supported_funding_pools"], [])
         self.assertEqual(result["supported_nonprofits"], [])
+
+    def test_includes_funding_pool_contributions(self) -> None:
+        """Pool contributions count toward distributed funds and list the RFP."""
+        # Arrange
+        rfp_creator = create_random_authenticated_user("rfp_creator")
+        grant, _, _, _ = self._create_grant_with_proposal(funder=rfp_creator)
+        pool = FundingPool.objects.create(grant=grant, created_by=rfp_creator)
+        Purchase.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(FundingPool),
+            object_id=pool.id,
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            paid_status=Purchase.PAID,
+            amount="100",
+            rsc_usd_rate=0.10,
+        )
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        expected_amount = {"rsc": 100.0, "rsc_usd_snapshot": 10.0, "usd": 0.0}
+        self.assertEqual(result["distributed_funds"], expected_amount)
+        self.assertEqual(len(result["supported_funding_pools"]), 1)
+        supported_pool = result["supported_funding_pools"][0]
+        self.assertEqual(
+            supported_pool["unified_document"]["id"], grant.unified_document_id
+        )
+        self.assertEqual(supported_pool["funded_amount"], expected_amount)
+
+    def test_counts_pool_distributions_as_matched_funds(self) -> None:
+        """RSC distributed from a funding pool counts as matched, not as given."""
+        # Arrange
+        grant, _, fundraise, _ = self._create_grant_with_proposal()
+        pool = FundingPool.objects.create(grant=grant, created_by=self.user)
+        self._contribute(self.user, fundraise, rsc=100)
+        FundingDistribution.objects.create(
+            pool=pool,
+            distributed_by=self.user,
+            amount=Decimal(100),
+            application=grant.applications.get(),
+            target_fundraise=fundraise,
+            fundraise_purchase=Purchase.objects.get(object_id=fundraise.id),
+        )
+        self._contribute(self.user, fundraise, rsc=50)
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(result["distributed_funds"]["rsc"], 50.0)
+        self.assertEqual(result["matched_funds"]["rsc"], 100.0)
 
     def test_distributed_funds_tracks_funder_contributions(self):
         # Arrange
