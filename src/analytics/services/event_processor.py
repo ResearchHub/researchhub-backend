@@ -79,9 +79,6 @@ class EventProcessor:
                     "user_id": interaction.user_id,
                     "external_user_id": interaction.external_user_id,
                     "event_timestamp": interaction.event_timestamp,
-                    "is_synced_with_personalize": False,
-                    "personalize_rec_id": interaction.personalize_rec_id,
-                    "impression": interaction.impression,
                 },
             )
 
@@ -144,9 +141,6 @@ class EventProcessor:
                             "user_id": interaction.user_id,
                             "external_user_id": interaction.external_user_id,
                             "event_timestamp": interaction.event_timestamp,
-                            "is_synced_with_personalize": False,
-                            "personalize_rec_id": interaction.personalize_rec_id,
-                            "impression": interaction.impression,
                         },
                     )
 

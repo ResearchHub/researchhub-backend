@@ -145,35 +145,6 @@ class UserInteractionsModelTests(TestCase):
 
         self.assertNotEqual(interaction1.id, interaction2.id)
 
-    def test_impression_field_can_be_set(self):
-        """Test that impression field can be set on UserInteractions."""
-        impression = "123|456|789"
-        interaction = UserInteractions.objects.create(
-            user=self.user,
-            event=PAGE_VIEW,
-            unified_document=self.unified_document,
-            content_type=self.content_type,
-            object_id=self.post.id,
-            event_timestamp=timezone.now(),
-            impression=impression,
-        )
-
-        self.assertEqual(interaction.impression, impression)
-
-    def test_impression_field_can_be_none(self):
-        """Test that impression field can be None."""
-        interaction = UserInteractions.objects.create(
-            user=self.user,
-            event=PAGE_VIEW,
-            unified_document=self.unified_document,
-            content_type=self.content_type,
-            object_id=self.post.id,
-            event_timestamp=timezone.now(),
-            impression=None,
-        )
-
-        self.assertIsNone(interaction.impression)
-
     def test_feed_item_abstract_expanded_is_repeatable_event(self):
         """Test that FEED_ITEM_ABSTRACT_EXPANDED cannot be duplicated on same day."""
         # Create abstract expanded event at 10am
