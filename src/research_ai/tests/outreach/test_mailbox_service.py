@@ -4,7 +4,12 @@ from unittest.mock import MagicMock, patch
 from django.core.cache import cache
 from django.test import TestCase
 
-from research_ai.models import EmailTemplate, OutreachCampaign, OutreachMailbox
+from research_ai.models import (
+    EmailTemplate,
+    GeneratedEmail,
+    OutreachCampaign,
+    OutreachMailbox,
+)
 from research_ai.services.outreach.instantly_client import (
     DEFAULT_ACCOUNT_DAILY_LIMIT,
     GMAIL_IMAP_HOST,
@@ -463,6 +468,143 @@ class CapacityTests(TestCase):
             self.service.update_mailbox(self.editor, mailbox.id, daily_limit=50)
         self.client.update_account.assert_not_called()
 
+    def test_update_mailbox_enables_warmup_for_moderator(self):
+        # Arrange
+        mod = create_random_authenticated_user("om_wu_mod", moderator=True)
+        mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="a@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        self.client.enable_warmup.return_value = {"id": "job-1"}
+        self.client.get_account.side_effect = None
+        self.client.get_account.return_value = {
+            "email": "a@gmail.com",
+            "warmup_status": 1,
+        }
+
+        # Act
+        updated = self.service.update_mailbox(mod, mailbox.id, warmup_enabled=True)
+
+        # Assert
+        self.client.enable_warmup.assert_called_once_with(["a@gmail.com"])
+        self.client.disable_warmup.assert_not_called()
+        self.client.update_account.assert_not_called()
+        self.assertTrue(updated.warmup_enabled)
+
+    def test_update_mailbox_disables_warmup_for_moderator(self):
+        # Arrange
+        mod = create_random_authenticated_user("om_wu_off", moderator=True)
+        mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="a@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        self.client.disable_warmup.return_value = {"id": "job-2"}
+        self.client.get_account.side_effect = None
+        self.client.get_account.return_value = {
+            "email": "a@gmail.com",
+            "warmup_status": 0,
+        }
+
+        # Act
+        updated = self.service.update_mailbox(mod, mailbox.id, warmup_enabled=False)
+
+        # Assert
+        self.client.disable_warmup.assert_called_once_with(["a@gmail.com"])
+        self.assertFalse(updated.warmup_enabled)
+
+    def test_update_mailbox_rejects_warmup_for_non_moderator(self):
+        # Arrange
+        mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="a@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        self.editor.moderator = False
+        self.editor.save(update_fields=["moderator"])
+
+        # Act / Assert
+        with self.assertRaises(MailboxError):
+            self.service.update_mailbox(self.editor, mailbox.id, warmup_enabled=True)
+        self.client.enable_warmup.assert_not_called()
+
+    def test_list_all_mailboxes_for_moderator_attaches_warmup(self):
+        # Arrange
+        other = create_random_authenticated_user("om_list_other")
+        mine = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="mine@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        OutreachMailbox.objects.create(
+            editor=other,
+            email="other@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=40,
+        )
+        self.client.iter_accounts.return_value = iter(
+            [
+                {"email": "mine@gmail.com", "warmup_status": 1},
+                {"email": "other@gmail.com", "warmup_status": 0},
+            ]
+        )
+
+        # Act
+        rows = self.service.list_all_mailboxes_for_moderator()
+
+        # Assert
+        self.assertEqual(len(rows), 2)
+        by_email = {m.email: m for m in rows}
+        self.assertEqual(by_email["mine@gmail.com"].id, mine.id)
+        self.assertTrue(by_email["mine@gmail.com"].warmup_enabled)
+        self.assertFalse(by_email["other@gmail.com"].warmup_enabled)
+        self.assertEqual(by_email["other@gmail.com"].editor.email, other.email)
+        self.assertEqual(by_email["mine@gmail.com"].total_sent, 0)
+        self.assertEqual(by_email["other@gmail.com"].total_sent, 0)
+
+    def test_list_all_mailboxes_for_moderator_attaches_total_sent(self):
+        # Arrange
+        OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="mine@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        for _ in range(3):
+            GeneratedEmail.objects.create(
+                created_by=self.editor,
+                expert_email="expert@uni.edu",
+                status=GeneratedEmail.Status.SENT,
+                sender_account="mine@gmail.com",
+            )
+        GeneratedEmail.objects.create(
+            created_by=self.editor,
+            expert_email="queued@uni.edu",
+            status=GeneratedEmail.Status.SENDING,
+            sender_account="mine@gmail.com",
+        )
+        GeneratedEmail.objects.create(
+            created_by=self.editor,
+            expert_email="other@uni.edu",
+            status=GeneratedEmail.Status.SENT,
+            sender_account="someone-else@gmail.com",
+        )
+        self.client.iter_accounts.return_value = iter(
+            [{"email": "mine@gmail.com", "warmup_status": 0}]
+        )
+
+        # Act
+        rows = self.service.list_all_mailboxes_for_moderator()
+
+        # Assert
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].total_sent, 3)
+
 
 class InstantlyClientGmailPayloadTests(TestCase):
     def test_create_gmail_account_posts_imap_smtp_fields(self):
@@ -585,6 +727,77 @@ class InstantlyClientGmailPayloadTests(TestCase):
         self.assertEqual(args[0], "GET")
         self.assertTrue(args[1].endswith("/oauth/session/status/sess%2Fwith%20special"))
         self.assertEqual(result["status"], "pending")
+
+    def test_enable_warmup_posts_emails(self):
+        # Arrange
+        from research_ai.services.outreach.instantly_client import InstantlyClient
+
+        session = MagicMock()
+        response = MagicMock()
+        response.status_code = 200
+        response.content = b"{}"
+        response.json.return_value = {"id": "job-1"}
+        session.request.return_value = response
+        client = InstantlyClient(api_key="test-key", session=session)
+
+        # Act
+        client.enable_warmup(["a@gmail.com"])
+
+        # Assert
+        args, kwargs = session.request.call_args
+        self.assertEqual(args[0], "POST")
+        self.assertTrue(args[1].endswith("/accounts/warmup/enable"))
+        self.assertEqual(kwargs["json"], {"emails": ["a@gmail.com"]})
+
+    def test_disable_warmup_posts_emails(self):
+        # Arrange
+        from research_ai.services.outreach.instantly_client import InstantlyClient
+
+        session = MagicMock()
+        response = MagicMock()
+        response.status_code = 200
+        response.content = b"{}"
+        response.json.return_value = {"id": "job-2"}
+        session.request.return_value = response
+        client = InstantlyClient(api_key="test-key", session=session)
+
+        # Act
+        client.disable_warmup(["a@gmail.com"])
+
+        # Assert
+        args, kwargs = session.request.call_args
+        self.assertEqual(args[0], "POST")
+        self.assertTrue(args[1].endswith("/accounts/warmup/disable"))
+        self.assertEqual(kwargs["json"], {"emails": ["a@gmail.com"]})
+
+    def test_iter_accounts_follows_pagination(self):
+        # Arrange
+        from research_ai.services.outreach.instantly_client import InstantlyClient
+
+        session = MagicMock()
+        page1 = MagicMock()
+        page1.status_code = 200
+        page1.content = b"{}"
+        page1.json.return_value = {
+            "items": [{"email": "a@gmail.com", "warmup_status": 1}],
+            "next_starting_after": "cursor-1",
+        }
+        page2 = MagicMock()
+        page2.status_code = 200
+        page2.content = b"{}"
+        page2.json.return_value = {
+            "items": [{"email": "b@gmail.com", "warmup_status": 0}],
+            "next_starting_after": None,
+        }
+        session.request.side_effect = [page1, page2]
+        client = InstantlyClient(api_key="test-key", session=session)
+
+        # Act
+        emails = [row["email"] for row in client.iter_accounts()]
+
+        # Assert
+        self.assertEqual(emails, ["a@gmail.com", "b@gmail.com"])
+        self.assertEqual(session.request.call_count, 2)
 
 
 class StartOAuthTests(TestCase):
