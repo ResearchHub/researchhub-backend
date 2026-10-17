@@ -238,8 +238,6 @@ INSTALLED_APPS = [
     "ai_peer_review",
     # Health checks
     "health_check",
-    "health_check.db",
-    "health_check.cache",
 ]
 
 SITE_ID = 1

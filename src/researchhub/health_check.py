@@ -1,28 +1,26 @@
+import dataclasses
 import os
 
-from health_check.backends import BaseHealthCheckBackend
+from health_check import HealthCheck
 
 
-class GitHashBackend(BaseHealthCheckBackend):
+@dataclasses.dataclass
+class GitHashHealthCheck(HealthCheck):
     """
-    No-op health check backend that returns the current Git hash.
+    No-op health check that reports the current Git hash.
     The Git hash is either read from a file called `git_hash.txt` in the
     current working directory, or by running `git rev-parse HEAD`.
     """
 
-    critical_service = False  # always respond with HTTP 200 OK
-    git_hash = None
+    git_hash: str = dataclasses.field(init=False)
 
-    def __init__(self):
+    def __post_init__(self):
         git_hash = self._get_git_hash()
         self.git_hash = git_hash[:7] if git_hash else "unknown"
 
-    def check_status(self):
+    async def run(self):
         # no-op: no active checks
         pass
-
-    def identifier(self):
-        return f"🔢 Git Hash: {self.git_hash}"
 
     def _get_git_hash(self):
         long_hash = self._read_git_hash_from_file()
