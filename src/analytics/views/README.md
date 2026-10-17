@@ -28,8 +28,7 @@ The analytics module provides webhook endpoints for receiving and processing eve
   "event_properties": {
     "user_id": "12345",
     "related_work.unified_document_id": "doc_123",
-    "related_work.content_type": "paper",
-    "impression": ["123", "456", "789"]
+    "related_work.content_type": "paper"
   },
   "user_properties": {...},
   "time": 1234567890000
@@ -99,8 +98,7 @@ curl -X POST http://localhost:8000/webhooks/amplitude/ \
     "event_properties": {
       "user_id": "12345",
       "related_work.unified_document_id": "doc_123",
-      "related_work.content_type": "paper",
-      "impression": ["123", "456", "789"]
+      "related_work.content_type": "paper"
     },
     "time": 1234567890000
   }'
@@ -131,21 +129,9 @@ The `EventProcessor` service handles event processing logic:
 
 TODO
 
-### Event Properties
+### Ignored Event Properties
 
-#### `impression` (optional)
-
-An array of unified document IDs that were shown to the user (impressions). This property is extracted from `event_properties.impression` and stored as a pipe-delimited string in the database.
-
-**Format**: Array of strings (unified document IDs)
-**Example**: `["123", "456", "789"]`
-**Storage**: Converted to pipe-delimited string: `"123|456|789"`
-
-**Notes**:
-- If `impression` is missing or not an array, it will be stored as `None`
-- Empty arrays result in `None`
-- Non-array values are ignored
-- Works with all event types (no filtering)
+`event_properties.impression`, `event_properties.recommendation_id`, and `recommendationId` on `bulk_feed_impression` entries were used for the AWS Personalize integration, which has been removed. They are accepted but no longer stored.
 
 ## Troubleshooting
 

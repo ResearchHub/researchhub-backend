@@ -72,8 +72,6 @@ class AmplitudeEvent:
     external_user_id: str | None = None
     content_type: ContentType | None = None
     object_id: int | None = None
-    personalize_rec_id: str | None = None
-    impression: str | None = None
 
 
 class AmplitudeEventParser:
@@ -218,17 +216,6 @@ class AmplitudeEventParser:
 
             event_timestamp = self._extract_timestamp(event, "_time")
 
-            # Extract optional fields
-            recommendation_id = event_props.get("recommendation_id")
-            personalize_rec_id = (
-                str(recommendation_id) if recommendation_id is not None else None
-            )
-
-            impression = None
-            impression_array = event_props.get("impression")
-            if impression_array and isinstance(impression_array, list):
-                impression = "|".join(str(item) for item in impression_array)
-
             return AmplitudeEvent(
                 event_type=db_event_type,
                 unified_document_id=unified_doc_id,
@@ -237,8 +224,6 @@ class AmplitudeEventParser:
                 external_user_id=external_user_id,
                 content_type=content_type,
                 object_id=object_id,
-                personalize_rec_id=personalize_rec_id,
-                impression=impression,
             )
 
         except Exception as e:
@@ -286,7 +271,6 @@ class AmplitudeEventParser:
         amplitude_events = []
         for impression_data in impressions:
             unified_doc_id = impression_data.get("unifiedDocumentId")
-            recommendation_id = impression_data.get("recommendationId")
 
             if not unified_doc_id:
                 logger.warning("Missing unifiedDocumentId in impression, skipping")
@@ -305,7 +289,6 @@ class AmplitudeEventParser:
                     event_timestamp=event_timestamp,
                     user_id=user_id,
                     external_user_id=external_user_id,
-                    personalize_rec_id=recommendation_id,
                 )
             )
 
