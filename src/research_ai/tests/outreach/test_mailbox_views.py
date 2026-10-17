@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from rest_framework import status
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from research_ai.models import OutreachMailbox
@@ -11,7 +12,7 @@ from research_ai.services.outreach.mailbox_service import (
     MailboxOAuthSessionNotFoundError,
     MailboxOwnedByOtherEditorError,
 )
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
 class OutreachMailboxListCreateViewTests(APITestCase):
@@ -53,6 +54,62 @@ class OutreachMailboxListCreateViewTests(APITestCase):
         self.assertIn("updated_date", row)
         self.assertNotIn("app_password", row)
         self.assertNotIn("password", row)
+        self.assertNotIn("warmup_enabled", row)
+        self.assertNotIn("editor_email", row)
+
+    @patch("research_ai.views.template_views.OutreachMailboxService")
+    def test_list_scope_all_returns_all_mailboxes_for_moderator(self, mock_service_cls):
+        # Arrange
+        other = create_random_authenticated_user("om_scope_other", moderator=False)
+        mine = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="mine@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=30,
+        )
+        theirs = OutreachMailbox.objects.create(
+            editor=other,
+            email="other@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+            daily_limit=40,
+        )
+        mine.warmup_enabled = True
+        mine.total_sent = 12
+        theirs.warmup_enabled = False
+        theirs.total_sent = 0
+        service = mock_service_cls.return_value
+        service.list_all_mailboxes_for_moderator.return_value = [mine, theirs]
+        self.client.force_authenticate(self.editor)
+
+        # Act
+        response = self.client.get(self.url, {"scope": "all"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(len(body["mailboxes"]), 2)
+        by_email = {row["email"]: row for row in body["mailboxes"]}
+        self.assertEqual(by_email["mine@gmail.com"]["editor_id"], self.editor.id)
+        self.assertEqual(by_email["mine@gmail.com"]["editor_email"], self.editor.email)
+        self.assertTrue(by_email["mine@gmail.com"]["warmup_enabled"])
+        self.assertEqual(by_email["mine@gmail.com"]["total_sent"], 12)
+        self.assertNotIn("warmup_score", by_email["mine@gmail.com"])
+        self.assertEqual(by_email["other@gmail.com"]["editor_id"], other.id)
+        self.assertFalse(by_email["other@gmail.com"]["warmup_enabled"])
+        self.assertEqual(by_email["other@gmail.com"]["total_sent"], 0)
+        service.list_all_mailboxes_for_moderator.assert_called_once_with()
+
+    def test_list_scope_all_forbidden_for_non_moderator(self):
+        # Arrange
+        editor, _hub = create_hub_editor("om_scope_ed", "om_scope_hub")
+        Token.objects.create(user=editor)
+        self.client.force_authenticate(editor)
+
+        # Act
+        response = self.client.get(self.url, {"scope": "all"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @patch("research_ai.views.template_views.OutreachMailboxService")
     def test_connect_returns_created_mailbox_without_password(self, mock_service_cls):
@@ -258,6 +315,7 @@ class OutreachMailboxDetailViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.json()["daily_limit"], 50)
+        self.assertNotIn("warmup_enabled", response.json())
         service.update_mailbox.assert_called_once_with(
             self.editor, self.mailbox.id, daily_limit=50
         )
@@ -283,6 +341,27 @@ class OutreachMailboxDetailViewTests(APITestCase):
             self.editor,
             self.mailbox.id,
             reply_to="replies@researchhub.com",
+        )
+
+    @patch("research_ai.views.template_views.OutreachMailboxService")
+    def test_patch_warmup_enabled_as_moderator(self, mock_service_cls):
+        # Arrange
+        self.mailbox.warmup_enabled = True
+        service = mock_service_cls.return_value
+        service.update_mailbox.return_value = self.mailbox
+        self.client.force_authenticate(self.editor)
+
+        # Act
+        response = self.client.patch(self.url, {"warmup_enabled": True}, format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertTrue(body["warmup_enabled"])
+        self.assertNotIn("warmup_score", body)
+        self.assertEqual(body["editor_id"], self.editor.id)
+        service.update_mailbox.assert_called_once_with(
+            self.editor, self.mailbox.id, warmup_enabled=True
         )
 
     def test_patch_daily_limit_validates_body(self):

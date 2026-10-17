@@ -30,6 +30,13 @@ ACCOUNT_STATUS_ACTIVE = 1
 ACCOUNT_STATUS_PAUSED = frozenset({2, 3})
 ACCOUNT_STATUS_ERROR = frozenset({-1, -2, -3})
 
+# Instantly account warmup_status codes.
+WARMUP_STATUS_PAUSED = 0
+WARMUP_STATUS_ACTIVE = 1
+WARMUP_STATUS_ERROR = frozenset({-1, -2, -3})
+
+LIST_ACCOUNTS_PAGE_SIZE = 100
+
 # Weekday business-hours schedule used when creating/updating campaigns.
 DEFAULT_CAMPAIGN_SCHEDULE: dict[str, Any] = {
     "schedules": [
@@ -146,6 +153,57 @@ class InstantlyClient:
     def delete_account(self, email: str) -> dict[str, Any] | None:
         """Delete an Instantly account. Returns None on empty 2xx bodies."""
         return self._request("DELETE", f"/accounts/{quote(email, safe='')}")
+
+    def list_accounts(
+        self,
+        *,
+        limit: int = LIST_ACCOUNTS_PAGE_SIZE,
+        starting_after: str | None = None,
+    ) -> dict[str, Any]:
+        """List Instantly accounts (one page). Response has ``items`` + cursor."""
+        params: dict[str, Any] = {"limit": limit}
+        if starting_after:
+            params["starting_after"] = starting_after
+        result = self._request("GET", "/accounts", params=params)
+        if not isinstance(result, dict):
+            raise InstantlyAPIError(
+                "Unexpected list accounts response shape",
+                response_body=result,
+            )
+        return result
+
+    def iter_accounts(self, *, page_size: int = LIST_ACCOUNTS_PAGE_SIZE):
+        """Yield all Instantly accounts, following ``next_starting_after``."""
+        starting_after: str | None = None
+        while True:
+            page = self.list_accounts(limit=page_size, starting_after=starting_after)
+            items = page.get("items") or []
+            if not isinstance(items, list):
+                raise InstantlyAPIError(
+                    "Unexpected list accounts items shape",
+                    response_body=page,
+                )
+            for item in items:
+                if isinstance(item, dict):
+                    yield item
+            next_cursor = page.get("next_starting_after")
+            if not next_cursor or not items:
+                break
+            starting_after = str(next_cursor)
+
+    def enable_warmup(self, emails: list[str]) -> dict[str, Any] | None:
+        """Start warmup for accounts (background job)."""
+        if not emails:
+            raise InstantlyAPIError("emails is required to enable warmup")
+        return self._request("POST", "/accounts/warmup/enable", json={"emails": emails})
+
+    def disable_warmup(self, emails: list[str]) -> dict[str, Any] | None:
+        """Pause/disable warmup for accounts (background job)."""
+        if not emails:
+            raise InstantlyAPIError("emails is required to disable warmup")
+        return self._request(
+            "POST", "/accounts/warmup/disable", json={"emails": emails}
+        )
 
     def get_daily_account_analytics(
         self,
