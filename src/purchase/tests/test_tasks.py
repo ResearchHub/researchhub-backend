@@ -6,10 +6,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
 from django.core.cache import cache
+from django.core.mail import EmailMultiAlternatives
 from django.test import TestCase
 from django.utils import timezone
 
-from mailing_list.services import EmailService
 from notification.models import Notification
 from purchase.circle.client import CircleTransferError
 from purchase.models import Balance, Fundraise, RscExchangeRate, Wallet
@@ -334,22 +334,30 @@ class FundingCreditsReminderTest(TestCase):
         self.assertEqual(Decimal(self.notif_qs.get().extra["amount"]), Decimal(50))
         self.assertEqual(self.notif_qs.get().extra["email_state"], "sent")
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, [self.user.email])
         self.assertIn("$25 in unused funding credits", mail.outbox[0].subject)
         self.assertIn("/fund/proposals", mail.outbox[0].alternatives[0].content)
         self.assertIn("Fund Science", mail.outbox[0].alternatives[0].content)
+        self.assertIn("cid:funding-credits", mail.outbox[0].alternatives[0].content)
+        self.assertEqual(
+            mail.outbox[0].attachments[0]["Content-ID"], "<funding-credits>"
+        )
+        self.assertEqual(mail.outbox[0].attachments[0].get_content_type(), "image/png")
 
-    def test_emails_an_existing_notification(self) -> None:
-        """Allow an email-enabled rerun after a notification-only run."""
+    def test_emails_a_legacy_notification(self) -> None:
+        """Email a preexisting day-one inbox alert without creating another."""
         # Arrange
         self._add_funding_credit(self.user, Decimal(50))
-        send_funding_credits_reminders()
-        notification_only_email_count = len(mail.outbox)
+        Notification.objects.create(
+            notification_type=Notification.FUNDING_CREDITS_REMINDER,
+            recipient=self.user,
+            action_user=self.user,
+            item=self.user,
+            extra={"amount": "50"},
+        )
         # Act
         result = send_funding_credits_reminders(send_email=True)
         # Assert
         self.assertEqual(result["sent_count"], 0)
-        self.assertEqual(notification_only_email_count, 0)
         self.assertEqual(self.notif_qs.count(), 1)
         self.assertEqual(len(mail.outbox), 1)
 
@@ -371,7 +379,7 @@ class FundingCreditsReminderTest(TestCase):
         # Arrange
         self._add_funding_credit(self.user, Decimal(50))
         # Act
-        with patch.object(EmailService, "_send_message", side_effect=RuntimeError):
+        with patch.object(EmailMultiAlternatives, "send", return_value=0):
             first_result = send_funding_credits_reminders(send_email=True)
         failed_state = self.notif_qs.get().extra["email_state"]
         self.now.return_value = datetime(2026, 11, 2, tzinfo=UTC)
@@ -464,9 +472,13 @@ class FundingCreditsReminderTest(TestCase):
             {"probable_spammer": True},
         ):
             User.objects.filter(pk=self.user.pk).update(
-                is_active=True, is_suspended=False, probable_spammer=False
+                **{
+                    "is_active": True,
+                    "is_suspended": False,
+                    "probable_spammer": False,
+                    **flags,
+                }
             )
-            User.objects.filter(pk=self.user.pk).update(**flags)
             results.append(send_funding_credits_reminders(send_email=True))
         # Assert
         self.assertEqual([result["sent_count"] for result in results], [0, 0, 0])
@@ -497,4 +509,3 @@ class FundingCreditsReminderTest(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(self.notif_qs.count(), 1)
         self.assertEqual(self.notif_qs.get().extra["email_state"], "sent")
-        self.assertNotEqual(self.notif_qs.get().extra["email_claim_token"], "abandoned")

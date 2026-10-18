@@ -1,6 +1,8 @@
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
+from email.message import MIMEPart
+from pathlib import Path
 from uuid import uuid4
 
 from django.conf import settings
@@ -38,13 +40,9 @@ class FundingCreditsReminderService:
 
     def send_reminders(self, *, send_email: bool = False) -> int:
         """Create one alert per half-month and optionally attempt its monthly email."""
-        candidate_user_ids = (
-            Balance.objects.filter(
-                is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
-            )
-            .values_list("user_id", flat=True)
-            .distinct()
-        )
+        candidate_user_ids = Balance.objects.filter(
+            is_locked=True, lock_type=Balance.LockType.FUNDING_CREDIT
+        ).values_list("user_id", flat=True)
         candidates = User.objects.filter(
             id__in=candidate_user_ids,
             is_active=True,
@@ -69,7 +67,9 @@ class FundingCreditsReminderService:
                     user, funding_credits, period_start
                 )
                 sent_count += int(created)
-                email = self._build_email(funding_credits) if send_email else None
+                if not send_email or reminder.extra["email_state"] == "sent":
+                    continue
+                email = self._build_email(funding_credits)
                 if email is not None:
                     self._email_reminder(user, reminder, *email)
             except Exception:
@@ -113,19 +113,13 @@ class FundingCreditsReminderService:
                     .first()
                 )
                 if reminder is not None:
-                    # Legacy day-one alerts already attempted the monthly email.
-                    email_state = (
-                        "sent"
-                        if period_start.day == 1 and reminder.created_date.day == 1
-                        else "pending"
-                    )
                     reminders.filter(pk=reminder.pk).exclude(
                         extra__has_key="reminder_period"
                     ).update(
                         extra={
                             **reminder.extra,
                             "reminder_period": period,
-                            "email_state": email_state,
+                            "email_state": "pending",
                         }
                     )
                     reminder.refresh_from_db(fields=["extra"])
@@ -155,9 +149,7 @@ class FundingCreditsReminderService:
         if funding_credits_usd < 1:
             return None
         amount = format_compact_usd(funding_credits_usd)
-        message = render_to_string(
-            "email_funding_credits_card.html", {"amount": amount}
-        )
+        message = render_to_string("email_funding_credits_card.html")
         return f"You have {amount} in unused funding credits", message
 
     def _email_reminder(
@@ -187,6 +179,16 @@ class FundingCreditsReminderService:
             extra__email_claim_token=claimed_extra["email_claim_token"],
         )
         try:
+            # Rasterized from the web's green outlined ResearchCoinIcon.
+            icon_path = Path(__file__).parent.parent / "assets/funding-credits.png"
+            icon = MIMEPart()
+            icon.set_content(
+                icon_path.read_bytes(),
+                maintype="image",
+                subtype="png",
+                disposition="inline",
+                cid="<funding-credits>",
+            )
             self._emails.send_email(
                 [user.email],
                 subject,
@@ -198,6 +200,7 @@ class FundingCreditsReminderService:
                 },
                 template="general_branded_email",
                 raise_on_error=True,
+                attachments=[icon],
             )
         except Exception:
             owned_claim.update(extra={**claimed_extra, "email_state": "pending"})

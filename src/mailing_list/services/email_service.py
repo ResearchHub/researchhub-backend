@@ -1,5 +1,6 @@
 import logging
 import re
+from email.message import MIMEPart
 from time import sleep
 from typing import Any
 
@@ -53,6 +54,7 @@ class EmailService:
         reply_to: str | list[str] | None = None,
         cc: list[str] | None = None,
         raise_on_error: bool = False,
+        attachments: list[MIMEPart] | None = None,
     ) -> None:
         """
         Send optional email, skipping addresses that have opted out.
@@ -68,6 +70,7 @@ class EmailService:
         Undeliverable and complained-about addresses are handled separately by the
         SES backend's blacklist, which applies to both methods.
         Set `raise_on_error` when the caller manages delivery retries.
+        Pass MIMEPart attachments for inline images or other message parts.
         """
         self._send(
             recipients=recipients,
@@ -79,6 +82,7 @@ class EmailService:
             cc=cc,
             unsubscribable=True,
             raise_on_error=raise_on_error,
+            attachments=attachments,
         )
 
     def send_transactional_email(
@@ -179,6 +183,7 @@ class EmailService:
         cc: list[str] | None,
         unsubscribable: bool,
         raise_on_error: bool = False,
+        attachments: list[MIMEPart] | None = None,
     ) -> None:
         """
         Render and send one message per recipient.
@@ -233,6 +238,7 @@ class EmailService:
                     reply_to=reply_to,
                     cc=cc,
                     headers=headers,
+                    attachments=attachments,
                 )
                 if raise_on_error and message_id is None:
                     raise RuntimeError("Email backend did not send the message")
@@ -254,6 +260,7 @@ class EmailService:
         reply_to: str | list[str] | None,
         cc: list[str] | None,
         headers: dict[str, str] | None = None,
+        attachments: list[MIMEPart] | None = None,
     ) -> str | None:
         """Send one multipart message, logging and returning None when skipped."""
         subject = subject.replace("\n", "").replace("\r", "")
@@ -267,6 +274,7 @@ class EmailService:
             reply_to=reply_to,
             cc=cc,
             headers=headers,
+            attachments=attachments,
         )
         message.attach_alternative(html_body, "text/html")
         if message.send(fail_silently=False) != 1:
