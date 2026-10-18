@@ -4,7 +4,7 @@ from django.db import models
 class NoteAuthorManager(models.Manager):
     """Load author links with their author, so bylines cost a single query."""
 
-    def get_queryset(self) -> "models.QuerySet[NoteAuthor]":
+    def get_queryset(self) -> models.QuerySet[NoteAuthor]:
         """Return links with the credited author already loaded."""
         return super().get_queryset().select_related("author")
 

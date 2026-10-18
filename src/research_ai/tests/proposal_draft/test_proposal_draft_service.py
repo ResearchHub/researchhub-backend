@@ -455,6 +455,7 @@ class ProposalDraftServiceTests(TestCase):
         resolve.assert_called_once_with(
             "openrouter:openai/gpt-5.6-terra",
             native_tools=frozenset({"web_search"}),
+            refusal_fallback=True,
             effort="high",
             thinking="adaptive",
         )

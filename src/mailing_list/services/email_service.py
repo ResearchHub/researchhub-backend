@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import get_template
+from django.utils.safestring import mark_safe
 
 from mailing_list.models import EmailOptOut
 from mailing_list.services.email_subscription_service import EmailSubscriptionService
@@ -15,6 +16,14 @@ from mailing_list.services.email_subscription_service import EmailSubscriptionSe
 logger = logging.getLogger(__name__)
 
 DEFAULT_SEND_INTERVAL_SECONDS = 0.2
+EMAIL_PREVIEW_LENGTH = 250
+
+
+def truncate_preview(text: str, max_length: int = EMAIL_PREVIEW_LENGTH) -> str:
+    """Cut text to `max_length` characters, marking a cut with an ellipsis."""
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rstrip() + "..."
 
 
 class EmailService:
@@ -108,16 +117,20 @@ class EmailService:
         *,
         link: str | None = None,
         heading: str | None = None,
+        is_html: bool = False,
     ) -> None:
-        """Send an opt-out-aware message with an optional action link."""
+        """Send an opt-out-aware message with an optional action link.
+
+        Set `is_html` only for messages already escaped by the caller.
+        """
         self.send_email(
             recipients,
             subject,
             {
                 "subject": heading or subject,
-                "body": message,
+                "body": mark_safe(message) if is_html else message,
                 "cta_url": link,
-                "preserve_linebreaks": True,
+                "preserve_linebreaks": not is_html,
             },
             template="general_branded_email",
         )

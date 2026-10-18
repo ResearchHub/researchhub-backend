@@ -400,6 +400,7 @@ class _ProposalDraftRunner:
         provider = self.provider or resolve_provider(
             self.model_ref,
             native_tools=frozenset({"web_search"}),
+            refusal_fallback=True,
             **provider_options,
         )
         toolset = self._compose_toolset(provider)
@@ -691,7 +692,7 @@ def _needs_profile(profile) -> bool:
         return True
     try:
         return int(profile.get("schema_version") or 0) < PROFILE_SCHEMA_VERSION
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return True
 
 

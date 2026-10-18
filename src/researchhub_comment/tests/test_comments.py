@@ -14,12 +14,17 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee
 from reputation.views.bounty_view import _create_bounty_checks
+from researchhub_access_group.constants import ADMIN
+from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
     GENERIC_COMMENT,
     PEER_REVIEW,
 )
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.services.comment_notification_service import (
+    notify_mentioned_users,
+)
 from researchhub_comment.tasks import celery_create_mention_notification
 from researchhub_comment.tests.helpers import create_rh_comment
 from review.models import Review
@@ -371,15 +376,45 @@ class CommentViewTests(APITestCase):
         # Assert
         self.assertEqual(notification_res.status_code, 200)
         self.assertEqual(notification_res.data["count"], 1)
-        send_email.assert_called_once_with(
-            [recipient.email],
-            "You were Mentioned in a Comment",
-            f"{creator.first_name} {creator.last_name} mentioned you in their comment",
-            link=(
-                f"{self.paper.unified_document.frontend_view_link()}"
-                f"/conversation#comment-{comment.data['id']}"
-            ),
+        send_email.assert_called_once()
+        recipients, subject, message = send_email.call_args.args
+        self.assertEqual(recipients, [recipient.email])
+        self.assertEqual(subject, f"{creator.full_name()} mentioned you in a comment")
+        self.assertIn(
+            '<div class="activity-comment"><p>this is a test comment</p></div>', message
         )
+        self.assertEqual(
+            send_email.call_args.kwargs,
+            {
+                "link": (
+                    f"{self.paper.unified_document.frontend_view_link()}"
+                    f"/conversation#comment-{comment.data['id']}"
+                ),
+                "is_html": True,
+            },
+        )
+
+    def test_omits_private_comment_text_from_mention_email(self) -> None:
+        """Mentions in a private thread email the card without the comment text."""
+        # Arrange
+        comment_id = self._create_paper_comment(self.paper.id, self.user_1).data["id"]
+        Permission.objects.create(
+            access_type=ADMIN,
+            source=RhCommentModel.objects.get(id=comment_id).thread,
+            user=self.user_1,
+        )
+
+        # Act
+        with (
+            patch.object(NotificationService, "_send_notification"),
+            patch.object(EmailService, "send_message_email") as send_email,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            notify_mentioned_users(comment_id, [self.user_2.id])
+
+        # Assert
+        send_email.assert_called_once()
+        self.assertNotIn("this is a test comment", send_email.call_args.args[2])
 
     def test_get_frontend_view_link_opens_the_tab_of_the_root_comment(self) -> None:
         """Replies under reviews open the reviews tab and others the conversation."""

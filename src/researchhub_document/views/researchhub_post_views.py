@@ -8,7 +8,12 @@ from django.utils.text import slugify
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, PermissionDenied
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -27,13 +32,13 @@ from purchase.serializers.fundraise_create_serializer import FundraiseCreateSeri
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
-from purchase.services.funding_pool_service import FundingPoolService
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
 from researchhub.settings import TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
+    CHANGELOG,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
     GRANT,
@@ -56,6 +61,9 @@ from researchhub_document.services.journal_entry_service import (
     RegisteredReportDOIRegistrationError,
 )
 from researchhub_document.services.journey_service import JourneyService
+from researchhub_document.services.note_publication_service import (
+    NotePublicationService,
+)
 from researchhub_document.services.proposal_visibility_service import (
     ProposalVisibilityService,
 )
@@ -73,6 +81,12 @@ logger = logging.getLogger(__name__)
 
 MIN_POST_TITLE_LENGTH = 20
 MIN_POST_BODY_LENGTH = 50
+
+
+class ChangelogPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class RegisteredReportDOIRegistrationFailed(APIException):
@@ -151,6 +165,41 @@ class ResearchhubPostViewSet(
             ).data,
             status=status.HTTP_200_OK,
         )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        pagination_class=ChangelogPagination,
+    )
+    def changelog(self, request: Request) -> Response:
+        """List published changelog posts, newest first."""
+        posts = (
+            ResearchhubPost.objects.public_changelogs()
+            .select_related("created_by", "note", "unified_document")
+            .prefetch_related(
+                "author_links",
+                "unified_document__hubs",
+            )
+        )
+        page = self.paginate_queryset(posts)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        url_path="changelog/latest",
+    )
+    def changelog_latest(self, request: Request) -> Response:
+        """Identify the newest changelog, for "new changelog" indicators."""
+        latest = (
+            ResearchhubPost.objects.public_changelogs()
+            .values("id", "created_date")
+            .first()
+        )
+        return Response(latest)
 
     @action(detail=True, methods=["get"])
     def registered_report_work(
@@ -314,6 +363,8 @@ class ResearchhubPostViewSet(
             raise PermissionDenied(
                 "Only moderators or hub editors can publish registered reports."
             )
+        if document_type == CHANGELOG and not request.user.moderator:
+            raise PermissionDenied("Only moderators can publish changelogs.")
 
         if (
             document_type != REGISTERED_REPORT
@@ -332,6 +383,11 @@ class ResearchhubPostViewSet(
         try:
             with transaction.atomic():
                 created_by = request.user
+                if note_id is not None and document_type != REGISTERED_REPORT:
+                    note = NotePublicationService().get_note_for_publication(
+                        note_id, created_by
+                    )
+                    note_id = note.pk
                 journey_service = JourneyService()
                 registered_report_proposal = None
                 journal_entry_service = None
@@ -376,8 +432,8 @@ class ResearchhubPostViewSet(
                 # enters the moderation queue as PENDING. Grants gate via their
                 # own Grant.status, so the post itself stays APPROVED. Registered
                 # Reports will always be auto approved, as they require the attached
-                # completed proposal.
-                if document_type in (GRANT, REGISTERED_REPORT):
+                # completed proposal. Changelogs are published by moderators.
+                if document_type in (CHANGELOG, GRANT, REGISTERED_REPORT):
                     work_status = ResearchhubUnifiedDocument.APPROVED
                 else:
                     work_status = risk_score_service.initial_work_status(created_by)
@@ -389,7 +445,7 @@ class ResearchhubPostViewSet(
                 if grant_id and document_type == PREREGISTRATION:
                     try:
                         target_grant = Grant.objects.get(id=grant_id)
-                    except (Grant.DoesNotExist, ValueError, TypeError):
+                    except Grant.DoesNotExist, ValueError, TypeError:
                         raise serializers.ValidationError("Grant not found")
                     if not target_grant.is_active():
                         raise serializers.ValidationError(
@@ -485,34 +541,7 @@ class ResearchhubPostViewSet(
 
                     grant_serializer = GrantCreateSerializer(data=grant_data)
                     grant_serializer.is_valid(raise_exception=True)
-
-                    grant_create_kwargs = {
-                        "created_by": created_by,
-                        "unified_document": unified_document,
-                        "amount": grant_serializer.validated_data["amount"],
-                        "currency": grant_serializer.validated_data["currency"],
-                        "organization": grant_serializer.validated_data["organization"],
-                        "description": grant_serializer.validated_data["description"],
-                        "end_date": grant_serializer.validated_data.get("end_date"),
-                    }
-                    if "application_visibility" in grant_serializer.validated_data:
-                        grant_create_kwargs["application_visibility"] = (
-                            grant_serializer.validated_data["application_visibility"]
-                        )
-
-                    # Create grant without contacts first
-                    grant = Grant.objects.create(**grant_create_kwargs)
-
-                    # Handle contacts properly
-                    # get contact_ids and convert to User objects
-                    contact_ids = grant_serializer.validated_data.get("contact_ids", [])
-                    if contact_ids:
-                        contacts = User.objects.filter(id__in=contact_ids)
-                        grant.contacts.set(contacts)
-                    else:
-                        grant.contacts.clear()
-
-                    FundingPoolService().create_pool_for_grant(grant)
+                    grant = grant_serializer.save(created_by=created_by)
 
                     # Trusted users skip the grant moderation queue.
                     if risk_score_service.is_trusted(created_by):
@@ -636,6 +665,20 @@ class ResearchhubPostViewSet(
                     status=400,
                 )
 
+            is_changelog = rh_post.document_type == CHANGELOG
+            if is_changelog and not request.user.moderator:
+                raise PermissionDenied("Only moderators can edit changelogs.")
+            if not is_changelog and data.get("document_type") == CHANGELOG:
+                return Response(
+                    {"msg": "An existing post cannot become a changelog"},
+                    status=400,
+                )
+            if is_changelog:
+                # A changelog stays a changelog: its unified document, feed
+                # suppression and listing all key off the type.
+                data = data.copy()
+                data.pop("document_type", None)
+
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
 
@@ -644,7 +687,7 @@ class ResearchhubPostViewSet(
                 return validation_response
 
             serializer = ResearchhubPostSerializer(
-                rh_post, data=request.data, partial=True, context={"request": request}
+                rh_post, data=data, partial=True, context={"request": request}
             )
             serializer.is_valid(raise_exception=True)
             serializer.save()
@@ -827,5 +870,5 @@ class ResearchhubPostViewSet(
                 document_type=document_type,
                 is_public=is_public,
             )
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             logger.exception("Error creating unified document")
