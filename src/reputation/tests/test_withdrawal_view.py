@@ -19,10 +19,7 @@ from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.tests.helpers import create_deposit, create_withdrawal
 from reputation.views.withdrawal_view import WithdrawalViewSet
 from user.related_models.user_verification_model import UserVerification
-from user.tests.helpers import (
-    create_random_authenticated_user,
-    create_random_authenticated_user_with_reputation,
-)
+from user.tests.helpers import create_random_authenticated_user, create_trusted_user
 
 VALID_TEST_TO_ADDRESS = "0xabcdef1234567890abcdef1234567890abcdef12"
 VALID_TEST_TO_ADDRESS_CHECKSUM = normalize_ethereum_address(VALID_TEST_TO_ADDRESS)
@@ -92,7 +89,7 @@ class WithdrawalViewSetTests(APITestCase):
         self.requests_get_patcher.stop()
 
     def _create_withdrawer(self, name):
-        user = create_random_authenticated_user_with_reputation(name, 1000)
+        user = create_trusted_user(name)
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
@@ -407,7 +404,7 @@ class WithdrawalViewSetTests(APITestCase):
 
     def test_withdrawal_suspended(self):
         """Test that withdrawals are blocked when the withdrawal switch is on."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         moderator = create_random_authenticated_user("moderator")
         moderator.is_staff = True
         moderator.save()

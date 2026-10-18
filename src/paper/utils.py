@@ -1,13 +1,7 @@
 import cloudscraper
 from bs4 import BeautifulSoup
 from django.core.files.base import ContentFile
-from django.db.models import Count, Q
 
-from discussion.models import Vote
-
-PAPER_SCORE_Q_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
-    "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
-)
 SIMILARITY_THRESHOLD = 0.9
 MAX_TITLE_PAGES = 5
 

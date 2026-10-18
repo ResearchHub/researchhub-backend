@@ -1,9 +1,11 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from mailing_list.services import EmailService
 from purchase.models import (
     Balance,
     FundingDistribution,
@@ -416,9 +418,18 @@ class FundingPoolServiceTests(TestCase):
         author_balance_before = applicant.get_available_balance()
 
         # Act
-        FundraiseService().complete_fundraise(fundraise)
+        with (
+            patch.object(EmailService, "send_message_email") as send_email,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            FundraiseService().complete_fundraise(fundraise)
 
         # Assert
+        send_email.assert_called_once()
+        self.assertEqual(
+            send_email.call_args.args[:2],
+            ([applicant.email], "Your proposal is fully funded 🎉"),
+        )
         fundraise.refresh_from_db()
         self.assertEqual(fundraise.status, Fundraise.COMPLETED)
         fundraise.escrow.refresh_from_db()

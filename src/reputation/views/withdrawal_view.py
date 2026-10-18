@@ -35,6 +35,7 @@ from reputation.serializers import WithdrawalSerializer
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
+from user.services.risk_score_service import RiskScoreService
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
 
 NETWORKS = {
@@ -124,10 +125,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         if not self._can_withdraw(user):
             return Response(
-                "Your reputation is too low to withdraw. "
-                "Please claim papers you have authored and contribute to the "
-                "community to increase your reputation. "
-                "Alternatively, verify your identity to withdraw.",
+                "Your account is not eligible to withdraw yet. "
+                "Please verify your identity to withdraw.",
                 status=400,
             )
 
@@ -206,8 +205,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         return None
 
     def _can_withdraw(self, user: User) -> bool:
-        # User can withdraw if rep score is 10 or more
-        if user.author_profile.get_rep_score() >= 10:
+        if RiskScoreService().is_trusted(user):
             return True
 
         # ...or if the user's identity has been verified
