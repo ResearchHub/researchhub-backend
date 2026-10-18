@@ -57,6 +57,18 @@ body {
   color: #2563EB;
 }
 
+.body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.body blockquote {
+  margin: 16px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid #E5E7EB;
+  color: #6B7280;
+}
+
 .cta-wrapper {
   margin-top: 28px;
 }
@@ -154,4 +166,192 @@ body {
   font-size: 14px;
   line-height: 22px;
   color: #4B5563;
+}
+
+.content .body p,
+.content .body h1,
+.content .body h2,
+.content .body h3,
+.content .body blockquote {
+  margin: 8px 0 0;
+}
+
+.content .body h1,
+.content .body h2,
+.content .body h3 {
+  font-size: 15px;
+  line-height: 22px;
+}
+
+/* Activity card, matching the web app's home feed */
+.activity-avatar-cell {
+  padding-right: 12px;
+}
+
+.activity-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: #E5E7EB;
+}
+
+.activity-avatar-image {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+}
+
+.activity-name {
+  font-size: 15px;
+  line-height: 20px;
+  color: #111827;
+}
+
+.author-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background-color: #FFFBEB;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: #D97706;
+  vertical-align: 1px;
+}
+
+.activity-time {
+  font-size: 13px;
+  color: #6B7280;
+  white-space: nowrap;
+}
+
+.activity-action {
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 20px;
+  color: #4B5563;
+}
+
+.activity-amount {
+  font-size: 15px;
+  font-weight: 600;
+  color: #15803D;
+}
+
+.activity-comment {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #EDEEF1;
+  font-size: 15px;
+  line-height: 24px;
+  color: #374151;
+}
+
+.activity-comment p,
+.activity-comment h1,
+.activity-comment h2,
+.activity-comment h3,
+.activity-comment blockquote {
+  margin: 0 0 8px;
+}
+
+.activity-comment h1,
+.activity-comment h2,
+.activity-comment h3 {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.work-cover {
+  margin-top: 12px;
+}
+
+.work-cover-art {
+  background-color: #111827;
+  background-position: center;
+  background-size: cover;
+  border-radius: 12px;
+}
+
+.work-cover-placeholder {
+  background-color: #16213E;
+  background-image: radial-gradient(ellipse at 25% 35%, rgba(251, 146, 60, 0.55) 0%, transparent 50%), radial-gradient(ellipse at 55% 55%, rgba(59, 130, 246, 0.45) 0%, transparent 45%), radial-gradient(ellipse at 80% 20%, rgba(244, 63, 94, 0.35) 0%, transparent 40%), linear-gradient(135deg, #1A1A2E 0%, #16213E 50%, #0F3460 100%);
+}
+
+.work-cover-brand {
+  background-color: #12224A;
+  background-image: radial-gradient(ellipse at 50% 40%, rgba(57, 113, 255, 0.45) 0%, transparent 60%), linear-gradient(135deg, #0B1530 0%, #12224A 55%, #16305F 100%);
+}
+
+.work-cover-bar {
+  padding: 8px 16px 10px;
+  background-color: rgba(0, 0, 0, 0.52);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0 0 12px 12px;
+}
+
+.work-cover-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.work-cover-title {
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
+  letter-spacing: -0.2px;
+  color: #FFFFFF;
+}
+
+.work-cover-stat {
+  padding-left: 16px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.work-cover-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 12px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.work-cover-stat-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.work-cover-star {
+  font-size: 12px;
+  color: #FBBF24;
+}
+
+.work-cover-amount {
+  color: #6EE7B7;
+}
+
+.work-cover-progress {
+  margin-top: 8px;
+  height: 3px;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+
+.work-cover-progress-fill {
+  height: 3px;
+  background-color: #34D399;
+  border-radius: 9999px;
 }

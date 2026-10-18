@@ -171,6 +171,37 @@ class FeedTasksTest(AWSMockTestCase):
             ).exists()
         )
 
+    def test_create_feed_entry_skips_changelog(self):
+        """Changelogs are kept out of feeds, comments on them included."""
+        # Arrange
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.CHANGELOG,
+        )
+        post = ResearchhubPost.objects.create(
+            created_by=self.user,
+            document_type=document_type.CHANGELOG,
+            unified_document=unified_doc,
+        )
+        FeedEntry.objects.filter(object_id=post.id).delete()
+
+        # Act
+        result = create_feed_entry(
+            item_id=post.id,
+            item_content_type_id=post_content_type.id,
+            action=FeedEntry.PUBLISH,
+            hub_ids=[self.hub.id],
+            user_id=self.user.id,
+        )
+
+        # Assert
+        self.assertIsNone(result)
+        self.assertFalse(
+            FeedEntry.objects.filter(
+                object_id=post.id, content_type=post_content_type
+            ).exists()
+        )
+
     def test_create_feed_entry_twice(self):
         """Test that attempting to create the same feed entry twice
         doesn't raise an error.

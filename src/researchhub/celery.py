@@ -129,14 +129,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_BOUNTIES,
         },
     },
-    "reputation_recalculate-rep-all-users": {
-        "task": "reputation.tasks.recalculate_rep_all_users",
-        "schedule": crontab(hour=0, minute=0),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_REPUTATION,
-        },
-    },
     # User
     "user_execute-editor-daily-payout-task": {
         "task": "user.tasks.tasks.execute_editor_daily_payout_task",

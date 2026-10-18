@@ -10,8 +10,9 @@ def send_message_email(
     *,
     link: str | None = None,
     heading: str | None = None,
+    is_html: bool = False,
 ) -> None:
     """Send a prepared message to an email audience."""
     EmailService().send_message_email(
-        recipients, subject, message, link=link, heading=heading
+        recipients, subject, message, link=link, heading=heading, is_html=is_html
     )

@@ -42,7 +42,7 @@ def _bounded_json(value: Any, *, limit: int) -> tuple[Any, bool, int]:
     try:
         encoded = _encode_json(value)
         normalized = json.loads(encoded)
-    except (TypeError, ValueError, RecursionError):
+    except TypeError, ValueError, RecursionError:
         return {"_serialization_error": True}, True, 0
 
     original_size = len(encoded.encode("utf-8"))
