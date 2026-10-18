@@ -1,6 +1,5 @@
 import math
 from datetime import UTC, datetime, timedelta
-from typing import TypedDict
 
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
@@ -10,7 +9,6 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from reputation.related_models.escrow import Escrow
-from reputation.related_models.score import Score
 from utils.models import DefaultModel
 
 
@@ -18,11 +16,6 @@ def get_default_expiration_date():
     now = datetime.now(UTC)
     date = now + timedelta(days=14)
     return date
-
-
-class AnnotatedBounty(TypedDict):
-    user_hub_score: int
-    matching_hub_id: int
 
 
 class Bounty(DefaultModel):
@@ -161,12 +154,13 @@ class Bounty(DefaultModel):
 
         return proportions
 
-    def approve(self, recipient=None, payout_amount=None):
+    def approve(self, recipient=None, payout_amount=None, solution_id=None):
         """
         Approve a bounty payout to a recipient
         Args:
             recipient: User to receive the payout
             payout_amount: Amount to pay out
+            solution_id: The awarded BountySolution, shown in the payout email
         Returns:
             bool: Whether the payout was successful
         """
@@ -178,7 +172,7 @@ class Bounty(DefaultModel):
             return False
 
         escrow_paid = self.escrow.payout(
-            recipient=recipient, payout_amount=payout_amount
+            recipient=recipient, payout_amount=payout_amount, solution_id=solution_id
         )
         return escrow_paid
 
@@ -214,72 +208,6 @@ class Bounty(DefaultModel):
         # Status func will update the status and call save on the bounty
         status_func()
         return True
-
-    @classmethod
-    def find_bounties_for_user(
-        cls, user, include_unrelated=False
-    ) -> list[AnnotatedBounty]:
-        from django.db.models import F, IntegerField, OuterRef, Subquery, Value
-
-        # Get user's expertise hubs and their scores
-        user_expertise_scores = (
-            Score.objects.filter(author_id=user.author_profile.id)
-            .order_by("-score")
-            .only("hub_id", "score")
-        )
-
-        # Subquery to get the highest score for each bounty
-        max_score_subquery = user_expertise_scores.filter(
-            hub_id=OuterRef("unified_document__hubs__id")
-        ).values("score")[:1]
-
-        # Filter bounties by hubs that match the user's expertise
-        bounties = (
-            Bounty.objects.filter(status=Bounty.OPEN)
-            .select_related("unified_document")
-            .prefetch_related("unified_document__hubs")
-            .filter(
-                unified_document__hubs__id__in=user_expertise_scores.values_list(
-                    "hub_id", flat=True
-                )
-            )
-            .annotate(
-                user_hub_score=Subquery(
-                    max_score_subquery, output_field=IntegerField()
-                ),
-                matching_hub_id=F("unified_document__hubs__id"),
-                result_group=Value(1, output_field=IntegerField()),
-            )
-        )
-
-        if include_unrelated:
-            bounties = bounties.union(
-                Bounty.objects.filter(status=Bounty.OPEN)
-                .select_related("unified_document")
-                .prefetch_related("unified_document__hubs")
-                .annotate(
-                    user_hub_score=Value(None, output_field=IntegerField()),
-                    matching_hub_id=Value(None, output_field=IntegerField()),
-                    result_group=Value(2, output_field=IntegerField()),
-                )
-                .exclude(
-                    unified_document__hubs__id__in=user_expertise_scores.values_list(
-                        "hub_id", flat=True
-                    )
-                )
-            )
-
-        bounties = bounties.order_by("result_group", "-user_hub_score", "-created_date")
-
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_bounties = []
-        for bounty in bounties:
-            if bounty.id not in seen:
-                seen.add(bounty.id)
-                unique_bounties.append(bounty)
-
-        return unique_bounties
 
 
 class BountySolution(DefaultModel):

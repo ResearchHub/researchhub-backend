@@ -24,7 +24,6 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
 )
-from user.models import User
 
 DEFAULT_REWARD = 1000000
 
@@ -200,16 +199,6 @@ def check_open_bounties():
         if refund_status is False:
             ids = expired_assessment_bounties.values_list("id", flat=True)
             logger.error("Failed to refund bounties: %s", ids)
-
-
-@app.task
-def recalculate_rep_all_users():
-    for user in User.objects.iterator():
-        try:
-            user.calculate_hub_scores()
-        except Exception:
-            logger.exception("Error calculating rep for user %s", user.id)
-            continue
 
 
 @app.task(queue=QUEUE_PURCHASES)

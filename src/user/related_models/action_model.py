@@ -123,7 +123,7 @@ class Action(DefaultModel):
         doc_type = ""
         try:
             doc_type = self.item.unified_document.document_type
-            if doc_type == "DISCUSSION":
+            if doc_type in ("CHANGELOG", "DISCUSSION"):
                 doc_type = "post"
             elif doc_type == "PAPER":
                 doc_type = "paper"
@@ -159,7 +159,7 @@ class Action(DefaultModel):
         try:
             item = self.item
             doc_type = item.unified_document.document_type
-            if doc_type == "DISCUSSION":
+            if doc_type in ("CHANGELOG", "DISCUSSION"):
                 summary = item.renderable_text
             elif doc_type == "PAPER":
                 summary = item.abstract
@@ -195,7 +195,12 @@ class Action(DefaultModel):
                 uni_doc = self.item.unified_document
                 doc = uni_doc.get_document()
 
-                if uni_doc.document_type in ("DISCUSSION", "QUESTION", "BOUNTY"):
+                if uni_doc.document_type in (
+                    "CHANGELOG",
+                    "DISCUSSION",
+                    "QUESTION",
+                    "BOUNTY",
+                ):
                     link += f"/post/{doc.id}/{doc.slug}#comments"
                 else:
                     link += f"/paper/{doc.id}/{doc.slug}#comments"

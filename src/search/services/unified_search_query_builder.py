@@ -132,7 +132,7 @@ class DocumentQueryBuilder:
         except Exception:
             pass
 
-    def add_author_title_combination_strategy(self) -> "DocumentQueryBuilder":
+    def add_author_title_combination_strategy(self) -> DocumentQueryBuilder:
         truncated_query = self._limit_query_to_max_words(
             self.query, self.MAX_QUERY_WORDS_FOR_AUTHOR_TITLE_COMBO
         )
@@ -187,7 +187,7 @@ class DocumentQueryBuilder:
 
     def add_phrase_strategy(
         self, fields: list[FieldConfig], slop: int = 1
-    ) -> "DocumentQueryBuilder":
+    ) -> DocumentQueryBuilder:
         queries = []
         for field in fields:
             if "phrase" in (field.query_types or []):
@@ -218,7 +218,7 @@ class DocumentQueryBuilder:
 
     def add_prefix_strategy(
         self, fields: list[FieldConfig], max_expansions: int = 20
-    ) -> "DocumentQueryBuilder":
+    ) -> DocumentQueryBuilder:
         prefix_boost = self.STRATEGY_BOOSTS[("prefix", "all")]
         queries = [
             Q(
@@ -266,7 +266,7 @@ class DocumentQueryBuilder:
 
     def add_fuzzy_strategy(
         self, fields: list[FieldConfig], operator: str = "and"
-    ) -> "DocumentQueryBuilder":
+    ) -> DocumentQueryBuilder:
         field_list = []
         restrict_to_author_title_only = not self._is_short_enough_for_fuzzy_content()
         author_title_names = {f.name for f in (self.AUTHOR_FIELDS + self.TITLE_FIELDS)}
@@ -295,7 +295,7 @@ class DocumentQueryBuilder:
 
     def add_fuzzy_strategy_single_word(
         self, fields: list[FieldConfig]
-    ) -> "DocumentQueryBuilder":
+    ) -> DocumentQueryBuilder:
         field_list = []
         for field in fields:
             if "fuzzy" in (field.query_types or []):
@@ -320,7 +320,7 @@ class DocumentQueryBuilder:
             self.should_clauses.append(fuzzy_query)
         return self
 
-    def add_author_name_strategy(self) -> "DocumentQueryBuilder":
+    def add_author_name_strategy(self) -> DocumentQueryBuilder:
         author_fields = [field.get_boosted_name() for field in self.AUTHOR_FIELDS]
 
         if author_fields:
@@ -345,7 +345,7 @@ class DocumentQueryBuilder:
 
     def add_simple_match_strategy(
         self, fields: list[FieldConfig]
-    ) -> "DocumentQueryBuilder":
+    ) -> DocumentQueryBuilder:
         for field in fields:
             category = self._get_field_category(field)
             strategy_boost = self.STRATEGY_BOOSTS[("simple_match", category)]
@@ -388,7 +388,7 @@ class DocumentQueryBuilder:
                 )
         return self
 
-    def add_cross_field_fallback_strategy(self) -> "DocumentQueryBuilder":
+    def add_cross_field_fallback_strategy(self) -> DocumentQueryBuilder:
         all_fields = [
             field.get_boosted_name() for field in self.AUTHOR_FIELDS + self.TITLE_FIELDS
         ]

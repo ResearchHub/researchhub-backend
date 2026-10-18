@@ -1,5 +1,3 @@
-import logging
-
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import HashIndex
@@ -9,9 +7,7 @@ from django.db.models import Func, Index, JSONField, Q
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
-from paper.related_models.citation_model import Citation
 from paper.storage.figure_storage import FigureStorage
-from reputation.models import Score, ScoreChange
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.user_model import User
 from utils.models import ModeratedDocumentMixin
@@ -22,11 +18,8 @@ HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
-logger = logging.getLogger(__name__)
-
-
 class PaperQuerySet(models.QuerySet):
-    def visible_to(self, user: User | None) -> "PaperQuerySet":
+    def visible_to(self, user: User | None) -> PaperQuerySet:
         """Restrict to papers by moderation status the given user may see.
 
         This is a moderation-status gate, not the full privacy gate: papers
@@ -288,41 +281,6 @@ class Paper(AbstractGenericReactionModel):
                 pass
 
         return None
-
-    def update_scores_citations(self, author):
-        hub = self.unified_document.get_primary_hub()
-        if hub is None:
-            logger.warning("Paper %s has no primary hub", self.id)
-            return
-
-        citation_entries = Citation.objects.filter(paper=self).order_by("created_date")
-        content_type = ContentType.objects.get_for_model(Citation)
-        score = Score.get_or_create_score(author=author, hub=hub)
-
-        recent_citations_score = ScoreChange.get_latest_score_change_objects(
-            score,
-            citation_entries.values_list("id", flat=True),
-            content_type,
-        )
-        if recent_citations_score:
-            citation_entries = [
-                citation
-                for citation in citation_entries
-                if citation.created_date > recent_citations_score.created_date
-            ]
-
-        for citation in citation_entries:
-            citation_change = citation.citation_change
-            if citation_change == 0:
-                continue
-
-            Score.update_score_citations(
-                author,
-                hub,
-                citation_change,
-                citation.id,
-                self.work_type,
-            )
 
     @property
     def hubs(self):

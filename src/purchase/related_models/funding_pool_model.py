@@ -18,7 +18,7 @@ RSC_AMOUNT_FIELD = DecimalField(max_digits=19, decimal_places=10)
 
 
 class FundingPoolContributor(TypedDict):
-    user: "User"
+    user: User
     total_rsc: Decimal
 
 

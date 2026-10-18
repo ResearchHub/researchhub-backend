@@ -63,6 +63,15 @@ _OPENROUTER_GPT6_CHAT_TOOLS = ModelCapabilities(
     # This adapter always uses that API, including for agent tool calls.
     effort=("none",),
 )
+_OPENROUTER_GPT_MANDATORY_REASONING = ModelCapabilities(
+    effort=("low", "medium", "high", "xhigh", "max"),
+    thinking=("adaptive",),
+)
+_OPENROUTER_MUSE = ModelCapabilities(
+    effort=("minimal", "low", "medium", "high", "xhigh", "max"),
+    thinking=("adaptive",),
+    temperature=True,
+)
 _OPENROUTER_QWEN_MANDATORY_REASONING = ModelCapabilities(
     effort=("minimal", "low", "medium", "high", "xhigh"),
     thinking=("adaptive",),
@@ -85,6 +94,11 @@ _OPENROUTER_MANDATORY_REASONING = ModelCapabilities(
 )
 _OPENROUTER_OPEN_WEIGHT = ModelCapabilities(
     effort=("none", "low", "high", "max"),
+    thinking=THINKING_MODES,
+    temperature=True,
+)
+_OPENROUTER_REASONING_TOGGLE = ModelCapabilities(
+    # Reasoning switches on or off; the listing offers no effort levels.
     thinking=THINKING_MODES,
     temperature=True,
 )
@@ -142,7 +156,7 @@ _CLAUDE_MODELS = {
     "claude-sonnet-5": _model(_CLAUDE_ADAPTIVE, 128_000),
 }
 
-# No longer in the picker; retained for conversations pinned to these models.
+# Most are no longer in the picker; retained for conversations pinned to them.
 _OPENROUTER_MODELS = {
     "anthropic/claude-opus-5": _model(_OPENROUTER_REASONING, 128_000),
     "anthropic/claude-sonnet-5": _model(_OPENROUTER_REASONING, 128_000),
@@ -151,10 +165,13 @@ _OPENROUTER_MODELS = {
     "openai/gpt-5.6-luna": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-6-sol": _model(_OPENROUTER_GPT6_CHAT_TOOLS, 128_000),
     "openai/gpt-6-luna": _model(_OPENROUTER_GPT6_CHAT_TOOLS, 128_000),
+    "openai/gpt-6.1-sol": _model(_OPENROUTER_GPT_MANDATORY_REASONING, 128_000),
+    "meta/muse-spark-1.3": _model(_OPENROUTER_MUSE, 943_718),
     "google/gemini-3.1-pro-preview": _model(_OPENROUTER_GEMINI, 65_536),
     "google/gemini-3.7-flash": _model(_OPENROUTER_GEMINI, 65_536),
     "google/gemini-3.8-flash": _model(_OPENROUTER_GEMINI, 65_536),
     "x-ai/grok-4.6": _model(_OPENROUTER_GROK, 450_000),
+    "x-ai/grok-4.7": _model(_OPENROUTER_GROK, 450_000),
     "z-ai/glm-5.3-flash": _model(_OPENROUTER_MANDATORY_REASONING, 131_072),
     "deepseek/deepseek-v4-flash-0731": _model(
         _OPENROUTER_OPEN_WEIGHT, 393_216, vision=False
@@ -163,6 +180,7 @@ _OPENROUTER_MODELS = {
         _OPENROUTER_OPEN_WEIGHT, 384_000, vision=False
     ),
     "moonshotai/kimi-k3": _model(_OPENROUTER_OPEN_WEIGHT, 943_718),
+    "xiaomi/mimo-v2.6-pro": _model(_OPENROUTER_REASONING_TOGGLE, 131_072),
     "qwen/qwen3.8-max-0902": _model(_OPENROUTER_QWEN_MANDATORY_REASONING, 131_072),
 }
 
