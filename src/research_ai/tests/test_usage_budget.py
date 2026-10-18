@@ -271,6 +271,25 @@ class AgentLoopBudgetRecorderTests(TestCase):
         self.assertEqual(event.input_tokens, 100)
         self.assertEqual(LLMUsageEvent.objects.count(), 1)
 
+    def test_usage_from_another_model_is_charged_to_that_model(self):
+        # Arrange
+        recorder = AgentLoopBudgetRecorder(
+            user=self.user,
+            feature="notebook_chat",
+            provider="claude_platform",
+            model_id="claude-opus-5-5",
+        )
+
+        # Act
+        recorder.record_usage(
+            TurnUsage(input_tokens=100, model_ref="openrouter:moonshotai/kimi-k3")
+        )
+
+        # Assert
+        event = LLMUsageEvent.objects.get()
+        self.assertEqual(event.provider, "openrouter")
+        self.assertEqual(event.model, "moonshotai/kimi-k3")
+
     def test_pre_spend_guard_reloads_a_soft_deleted_user(self):
         # Arrange: keep the stale instance a running job would hold while a
         # separate request changes the authoritative database row.

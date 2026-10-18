@@ -55,7 +55,7 @@ class AgentFileConfig:
     unsent_ttl_seconds: int = 24 * 60 * 60
 
     @classmethod
-    def from_settings(cls) -> "AgentFileConfig":
+    def from_settings(cls) -> AgentFileConfig:
         defaults = cls()
         return cls(
             **{

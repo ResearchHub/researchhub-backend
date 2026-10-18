@@ -76,7 +76,7 @@ def get_votes_from_metrics(metrics: dict) -> int:
     votes = safe_get_nested(metrics, "votes", default=0) or 0
     try:
         return int(votes)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0
 
 
@@ -98,7 +98,7 @@ def get_peer_review_count_from_metrics(metrics: dict) -> int:
     count = safe_get_nested(metrics, "review_metrics", "count", default=0) or 0
     try:
         return int(count)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0
 
 
@@ -123,7 +123,7 @@ def get_comment_count_from_metrics(metrics: dict) -> int:
 
     try:
         return int(replies)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0
 
 
@@ -173,7 +173,7 @@ def calculate_x_engagement(x_data: dict) -> float:
             + float(replies) * weights["replies"]
         )
         return raw_score * weights["platform_multiplier"]
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0.0
 
 
@@ -196,7 +196,7 @@ def calculate_bluesky_engagement(bluesky_data: dict) -> float:
             + float(replies) * weights["replies"]
         )
         return raw_score * weights["platform_multiplier"]
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0.0
 
 
@@ -211,7 +211,7 @@ def calculate_github_engagement(github_data: dict) -> float:
     try:
         raw_score = float(mentions) * weights["mentions"]
         return raw_score * weights["platform_multiplier"]
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return 0.0
 
 
@@ -329,7 +329,7 @@ def get_bounties_from_content(
         try:
             amount = float(amount_str)
             total_amount += amount
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.warning(f"Failed to parse bounty amount: {amount_str}")
             continue
 
@@ -391,7 +391,7 @@ def get_tips_from_content(content: dict, feed_entry) -> float:
             amount_str = safe_get_nested(purchase, "amount", default="0")
             try:
                 total += float(amount_str)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 logger.warning(f"Failed to parse purchase amount: {amount_str}")
                 continue
 
@@ -464,7 +464,7 @@ def get_fundraise_amount_from_content(content: dict) -> float:
     if rsc_amount is not None:
         try:
             return float(rsc_amount)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             pass
 
     # Fallback to USD
@@ -472,7 +472,7 @@ def get_fundraise_amount_from_content(content: dict) -> float:
     if usd_amount is not None:
         try:
             return float(usd_amount)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             pass
 
     return 0.0

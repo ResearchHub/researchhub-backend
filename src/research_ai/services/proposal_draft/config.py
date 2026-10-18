@@ -71,7 +71,7 @@ class ProposalDraftConfig:
     max_judge_abstract_chars: int = 1200
 
     @classmethod
-    def from_settings(cls) -> "ProposalDraftConfig":
+    def from_settings(cls) -> ProposalDraftConfig:
         defaults = cls()
         return cls(
             **{

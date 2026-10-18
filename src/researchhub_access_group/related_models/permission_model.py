@@ -103,6 +103,14 @@ class Permission(DefaultModel):
 
     objects = PermissionManager()
 
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["content_type", "object_id"],
+                name="access_perm_ct_object_idx",
+            ),
+        ]
+
     def __str__(self):
         user = self.user
         org = self.organization

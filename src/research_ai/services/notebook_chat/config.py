@@ -40,7 +40,7 @@ class NotebookChatConfig:
     max_message_chars: int = 20000
 
     @classmethod
-    def from_settings(cls) -> "NotebookChatConfig":
+    def from_settings(cls) -> NotebookChatConfig:
         defaults = cls()
         return cls(
             **{
