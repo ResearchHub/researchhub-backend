@@ -8,6 +8,19 @@ from research_ai.serializers import (
     EmailTemplateCreateSerializer,
     EmailTemplateSerializer,
     EmailTemplateUpdateSerializer,
+    OutreachCampaignSerializer,
+)
+from research_ai.services.outreach.campaign_service import (
+    CampaignError,
+    CampaignTemplateNotFoundError,
+    OutreachCampaignService,
+)
+from research_ai.services.outreach.instantly_client import InstantlyAPIError
+from research_ai.services.outreach.template_rewrite_service import (
+    PlaceholderMismatchError,
+    TemplateNotFoundError,
+    TemplateRewriteError,
+    TemplateRewriteService,
 )
 from research_ai.services.outreach.template_service import (
     create_template,
@@ -128,3 +141,118 @@ class TemplateDetailView(APIView):
             return err
         delete_template(template_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TemplateRewriteView(APIView):
+    """
+    POST /api/research_ai/expert-finder/templates/<template_id>/rewrite/
+    Rephrase subject/body via Bedrock and save a new EmailTemplate.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def post(self, request, template_id):
+        try:
+            tid = int(template_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Invalid template ID."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            template = TemplateRewriteService().rewrite_template(request.user, tid)
+        except TemplateNotFoundError:
+            return Response(
+                {"detail": "Template not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except PlaceholderMismatchError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except TemplateRewriteError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        except RuntimeError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        out = EmailTemplateSerializer(template)
+        return Response(out.data, status=status.HTTP_201_CREATED)
+
+
+class TemplatePublishView(APIView):
+    """
+    POST /api/research_ai/expert-finder/templates/<template_id>/publish/
+    Idempotent upsert of the requesting editor's Instantly campaign.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def post(self, request, template_id):
+        try:
+            tid = int(template_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Invalid template ID."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            campaign = OutreachCampaignService().publish_template(request.user, tid)
+        except CampaignTemplateNotFoundError:
+            return Response(
+                {"detail": "Template not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except (CampaignError, InstantlyAPIError) as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        out = OutreachCampaignSerializer(campaign)
+        return Response(out.data, status=status.HTTP_200_OK)
+
+
+class OutreachCampaignListView(APIView):
+    """
+    GET /api/research_ai/expert-finder/outreach-campaigns/
+    List campaigns published by the requesting editor.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def get(self, request):
+        limit = max(1, min(100, int(request.query_params.get("limit", 20))))
+        offset = max(0, int(request.query_params.get("offset", 0)))
+        qs = OutreachCampaignService().list_campaigns(request.user)
+        total = qs.count()
+        items = list(qs[offset : offset + limit])
+        ser = OutreachCampaignSerializer(items, many=True)
+        return Response(
+            {
+                "campaigns": ser.data,
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            }
+        )
