@@ -32,7 +32,7 @@ def is_cacheable_page(request: Request) -> bool:
     try:
         page = int(request.query_params.get("page", "1"))
         size = int(request.query_params.get("page_size", str(FEED_CACHE_PAGE_SIZE)))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
     return size == FEED_CACHE_PAGE_SIZE and 1 <= page <= FEED_CACHE_MAX_CACHED_PAGE
 

@@ -113,6 +113,44 @@ class NoteToolsetTests(TestCase):
         )
         self.assertNotIn("plain_text", result)
 
+    def test_read_note_null_version_returns_latest_content(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
+        # Act
+        result, _ = self.toolset.dispatch(
+            READ_NOTE,
+            {"note_id": self.note.id, "start_block": 0, "version_id": None},
+        )
+
+        # Assert
+        self.assertEqual(result["version_id"], seeded.id)
+        self.assertEqual(result["blocks"]["1"], "Original body")
+
+    def test_read_note_invalid_version_explains_how_to_recover(self):
+        # Arrange
+        seeded = self._seed_version(EDITOR_DOC)
+
+        for version_id in (0, -1, "1"):
+            with self.subTest(version_id=version_id):
+                # Act
+                failed, _ = self.toolset.dispatch(
+                    READ_NOTE,
+                    {"note_id": self.note.id, "version_id": version_id},
+                )
+                recovered, _ = self.toolset.dispatch(
+                    READ_NOTE, {"note_id": self.note.id, "start_block": 0}
+                )
+
+                # Assert: invalid ids fail and give an actionable fresh read.
+                self.assertIn("error", failed)
+                self.assertNotIn("blocks", failed)
+                self.assertIn("omit version_id or set it to null", failed["error"])
+                self.assertIn('"start_block": 0', failed["error"])
+                self.assertIn("never guess version ids", failed["error"])
+                self.assertEqual(recovered["version_id"], seeded.id)
+                self.assertEqual(recovered["blocks"]["1"], "Original body")
+
     def test_read_note_without_content_returns_null_blocks(self):
         # Act: the seeded note from create_note has no content JSON.
         result, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
@@ -217,13 +255,15 @@ class NoteToolsetTests(TestCase):
         self.assertEqual(continuation["blocks"]["50"], "Block 50")
 
     def test_read_note_continuation_requires_version_id(self):
-        # Act
-        result, _ = self.toolset.dispatch(
-            READ_NOTE, {"note_id": self.note.id, "start_block": 1}
-        )
+        # Arrange
+        first_page = {"note_id": self.note.id, "start_block": 1}
+        for arguments in (first_page, {**first_page, "version_id": None}):
+            with self.subTest(arguments=arguments):
+                # Act
+                result, _ = self.toolset.dispatch(READ_NOTE, arguments)
 
-        # Assert
-        self.assertIn("version_id is required", result["error"])
+                # Assert
+                self.assertIn("version_id is required", result["error"])
 
     def test_read_note_rejects_version_from_another_note(self):
         # Arrange

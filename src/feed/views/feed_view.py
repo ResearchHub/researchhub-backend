@@ -10,7 +10,6 @@ from feed.ordering import FeedOrderingBackend
 from feed.serializers import FeedEntrySerializer
 from feed.views.common import FeedPagination as BaseFeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
-from utils.throttles import FeedRecommendationRefreshThrottle
 
 
 class FeedPagination(BaseFeedPagination):
@@ -23,51 +22,16 @@ class FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [FeedFilteringBackend, FeedOrderingBackend]
-    throttle_classes = [FeedRecommendationRefreshThrottle]
-
-    def dispatch(self, request, *args, **kwargs):
-        from personalize.services.feed_service import FeedService
-
-        self.personalize_feed_service = FeedService()
-        return super().dispatch(request, *args, **kwargs)
+    # Exempt from the default anonymous rate throttle
+    throttle_classes = []
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update(self.get_common_serializer_context())
-
-        if hasattr(self, "_personalize_recommendation_id"):
-            context["recommendation_id"] = self._personalize_recommendation_id
-
         return context
 
     def list(self, request, *args, **kwargs):
         feed_view = request.query_params.get("feed_view", "popular")
-
-        if feed_view == "personalized":
-            return self._get_personalized_response(request)
-
-        return self._get_non_personalized_feed_response(request, feed_view)
-
-    def _get_personalized_response(self, request):
-        """Handle personalized feed (Personalize recommendations)."""
-        response = super().list(request)
-
-        if request.user.is_authenticated:
-            self.add_user_votes_to_response(request.user, response.data)
-
-        # Add feed source header - may be overridden on Personalize error
-        feed_source = getattr(self, "_feed_source", "aws-personalize")
-        response["RH-Feed-Source"] = feed_source
-
-        cache_status = (
-            "partial-cache-hit"
-            if self.personalize_feed_service.cache_hit
-            else "partial-cache-miss"
-        )
-        response["RH-Cache"] = self._with_auth_suffix(request, cache_status)
-        return response
-
-    def _get_non_personalized_feed_response(self, request, feed_view):
         feed_config = FEED_CONFIG.get(feed_view, {})
         use_cache = self._should_use_cache(request, feed_config)
         cache_key = self.get_cache_key(request, feed_type="researchhub")
@@ -97,8 +61,7 @@ class FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         return response
 
     def _should_use_cache(self, request, feed_config):
-        # Feed/ordering config check
-        if not self._feed_allows_caching(request, feed_config):
+        if not feed_config.get("use_cache", False):
             return False
 
         # Environment check
@@ -113,25 +76,6 @@ class FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         # Page limit check
         page_num = int(request.query_params.get("page", "1"))
         return page_num <= FEED_DEFAULTS["cache"]["num_pages_to_cache"]
-
-    def _feed_allows_caching(self, request, feed_config):
-        """
-        Check if feed type/ordering allows caching (from config).
-
-        - aws_trending: No full-page cache (IDs cached separately in FeedService)
-        - hot_score_v2/hot_score: Full-page cache enabled
-        """
-        cache_by_ordering = feed_config.get("cache_by_ordering")
-        if cache_by_ordering:
-            ordering = request.query_params.get("ordering")
-            allowed = feed_config.get("allowed_sorts", [])
-            effective_ordering = (
-                ordering if ordering in allowed else (allowed[0] if allowed else None)
-            )
-            return cache_by_ordering.get(effective_ordering, False)
-
-        # Fall back to simple use_cache setting
-        return feed_config.get("use_cache", False)
 
     def _with_auth_suffix(self, request, status):
         """Add auth suffix to cache status."""

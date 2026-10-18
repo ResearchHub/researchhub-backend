@@ -1,7 +1,7 @@
 import logging
 from ipaddress import ip_address
 
-from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from rest_framework.throttling import AnonRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -34,15 +34,3 @@ class CloudflareAnonRateThrottle(CloudflareClientIPMixin, AnonRateThrottle):
     Throttle class for anonymous users that uses the Cloudflare connecting IP address
     for identification.
     """
-
-
-class FeedRecommendationRefreshThrottle(CloudflareClientIPMixin, UserRateThrottle):
-    scope = "force_refresh"
-    rate = "5/min"
-
-    def allow_request(self, request, view):
-        # Only throttle if the force refresh header is present and set to "true"
-        force_refresh = request.META.get("HTTP_RH_FORCE_REFRESH", "").lower() == "true"
-        if not force_refresh:
-            return True
-        return super().allow_request(request, view)

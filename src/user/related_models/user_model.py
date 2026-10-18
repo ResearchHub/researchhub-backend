@@ -492,11 +492,6 @@ class User(SoftDeletableModel, AbstractUser):
     def frontend_view_link(self):
         return f"{BASE_FRONTEND_URL}/user/{self.author_profile.id}/overview"
 
-    def calculate_hub_scores(self):
-        author = self.author_profile
-
-        author.calculate_hub_scores()
-
     @property
     def is_verified(self):
         """
