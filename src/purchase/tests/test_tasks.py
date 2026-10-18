@@ -497,6 +497,4 @@ class FundingCreditsReminderTest(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(self.notif_qs.count(), 1)
         self.assertEqual(self.notif_qs.get().extra["email_state"], "sent")
-        self.assertNotEqual(
-            self.notif_qs.get().extra["email_claim_token"], "abandoned"
-        )
+        self.assertNotEqual(self.notif_qs.get().extra["email_claim_token"], "abandoned")
