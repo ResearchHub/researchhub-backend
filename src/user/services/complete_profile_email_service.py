@@ -53,7 +53,7 @@ class CompleteProfileEmailService:
         ).select_related("author_profile")
 
     def _send(self, user: User) -> None:
-        """Claim the user's single send, then email them the edit-profile link."""
+        """Claim the user's single send, then email them their profile link."""
         claimed = User.objects.filter(
             id=user.id, complete_profile_email_sent_date__isnull=True
         ).update(complete_profile_email_sent_date=timezone.now())
@@ -64,7 +64,7 @@ class CompleteProfileEmailService:
             "Finish your ResearchHub profile",
             {
                 "profile_url": f"{settings.BASE_FRONTEND_URL}/author/"
-                f"{user.author_profile.id}?edit_profile=true"
+                f"{user.author_profile.id}"
             },
             template="complete_profile_email",
         )

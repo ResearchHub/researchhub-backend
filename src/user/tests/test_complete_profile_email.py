@@ -26,8 +26,8 @@ class CompleteProfileEmailServiceTests(TestCase):
             date_joined=timezone.now() - timedelta(days=days_ago)
         )
 
-    def test_sends_edit_profile_link_when_profile_is_incomplete(self):
-        """The email links an incomplete profile to the edit-profile modal."""
+    def test_sends_profile_link_when_profile_is_incomplete(self):
+        """The email links an incomplete profile to their author profile."""
         # Act
         self.service.send_if_eligible(self.user.id)
 
@@ -36,10 +36,7 @@ class CompleteProfileEmailServiceTests(TestCase):
         self.email_service.send_email.assert_called_once_with(
             self.user.email,
             "Finish your ResearchHub profile",
-            {
-                "profile_url": f"{settings.BASE_FRONTEND_URL}/author/"
-                f"{author_id}?edit_profile=true"
-            },
+            {"profile_url": f"{settings.BASE_FRONTEND_URL}/author/{author_id}"},
             template="complete_profile_email",
         )
 
