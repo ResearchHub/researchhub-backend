@@ -13,7 +13,6 @@ from discussion.models import Flag
 from feed.models import FeedEntry
 from hub.models import Hub, HubMembership
 from reputation.related_models.distribution import Distribution
-from reputation.related_models.score import AlgorithmVariables, Score
 from researchhub_document.related_models.featured_content_model import FeaturedContent
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -34,10 +33,8 @@ class Command(BaseCommand):
         "follows",
         "memberships",
         "flags",
-        "scores",
         "distributions",
         "featured_content",
-        "algorithm_vars",
         "actions",
         "feed_entries",
     ]
@@ -224,9 +221,9 @@ class Command(BaseCommand):
             type=str,
             help=(
                 "Comma-separated list of steps to run. "
-                "Available: documents, follows, memberships, flags, scores, "
-                "distributions, featured_content, algorithm_vars, "
-                "actions, feed_entries. If not specified, all steps will run."
+                "Available: documents, follows, memberships, flags, "
+                "distributions, featured_content, actions, feed_entries. "
+                "If not specified, all steps will run."
             ),
         )
 
@@ -296,10 +293,8 @@ class Command(BaseCommand):
         total_follows_deleted = 0
         total_memberships_deleted = 0
         total_flags_updated = 0
-        total_scores_deleted = 0
         total_distributions_deleted = 0
         total_featured_content_deleted = 0
-        total_algorithm_vars_deleted = 0
         total_actions_updated = 0
         total_feed_entries_updated = 0
 
@@ -379,10 +374,8 @@ class Command(BaseCommand):
                 total_follows_deleted += result["follows"]
                 total_memberships_deleted += result["memberships"]
                 total_flags_updated += result["flags"]
-                total_scores_deleted += result["scores"]
                 total_distributions_deleted += result["distributions"]
                 total_featured_content_deleted += result["featured_content"]
-                total_algorithm_vars_deleted += result["algorithm_vars"]
                 total_actions_updated += result["actions"]
                 total_feed_entries_updated += result["feed_entries"]
                 total_hubs_removed += 1
@@ -412,10 +405,8 @@ class Command(BaseCommand):
             total_follows_deleted,
             total_memberships_deleted,
             total_flags_updated,
-            total_scores_deleted,
             total_distributions_deleted,
             total_featured_content_deleted,
-            total_algorithm_vars_deleted,
             total_actions_updated,
             total_feed_entries_updated,
         )
@@ -606,10 +597,8 @@ class Command(BaseCommand):
         total_follows_deleted,
         total_memberships_deleted,
         total_flags_updated,
-        total_scores_deleted,
         total_distributions_deleted,
         total_featured_content_deleted,
-        total_algorithm_vars_deleted,
         total_actions_updated,
         total_feed_entries_updated,
     ):
@@ -654,11 +643,6 @@ class Command(BaseCommand):
             )
             self.stdout.write(
                 self.style.WARNING(
-                    f"DRY RUN: Would delete {total_scores_deleted} reputation scores"
-                )
-            )
-            self.stdout.write(
-                self.style.WARNING(
                     f"DRY RUN: Would delete {total_distributions_deleted} "
                     f"reputation distributions"
                 )
@@ -667,12 +651,6 @@ class Command(BaseCommand):
                 self.style.WARNING(
                     f"DRY RUN: Would delete {total_featured_content_deleted} "
                     f"featured content entries"
-                )
-            )
-            self.stdout.write(
-                self.style.WARNING(
-                    f"DRY RUN: Would delete {total_algorithm_vars_deleted} "
-                    f"algorithm variables"
                 )
             )
             self.stdout.write(
@@ -713,9 +691,6 @@ class Command(BaseCommand):
                 self.style.SUCCESS(f"Updated {total_flags_updated} flag associations")
             )
             self.stdout.write(
-                self.style.SUCCESS(f"Deleted {total_scores_deleted} reputation scores")
-            )
-            self.stdout.write(
                 self.style.SUCCESS(
                     f"Deleted {total_distributions_deleted} reputation distributions"
                 )
@@ -723,11 +698,6 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS(
                     f"Deleted {total_featured_content_deleted} featured content entries"
-                )
-            )
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Deleted {total_algorithm_vars_deleted} algorithm variables"
                 )
             )
             self.stdout.write(
@@ -766,32 +736,22 @@ class Command(BaseCommand):
         if "flags" in self.steps_to_run:
             flag_count = self._remove_flag_associations(hub, dry_run)
 
-        # Step 5: Delete reputation scores
-        score_count = 0
-        if "scores" in self.steps_to_run:
-            score_count = self._delete_scores(hub, dry_run)
-
-        # Step 6: Delete reputation distributions
+        # Step 5: Delete reputation distributions
         distribution_count = 0
         if "distributions" in self.steps_to_run:
             distribution_count = self._delete_distributions(hub, dry_run)
 
-        # Step 7: Delete featured content
+        # Step 6: Delete featured content
         featured_count = 0
         if "featured_content" in self.steps_to_run:
             featured_count = self._delete_featured_content(hub, dry_run)
 
-        # Step 8: Delete algorithm variables
-        algo_count = 0
-        if "algorithm_vars" in self.steps_to_run:
-            algo_count = self._delete_algorithm_vars(hub, dry_run)
-
-        # Step 9: Remove action associations
+        # Step 7: Remove action associations
         action_count = 0
         if "actions" in self.steps_to_run:
             action_count = self._remove_action_associations(hub, dry_run)
 
-        # Step 10: Remove feed entry associations
+        # Step 8: Remove feed entry associations
         feed_count = 0
         if "feed_entries" in self.steps_to_run:
             feed_count = self._remove_feed_entry_associations(hub, dry_run)
@@ -801,10 +761,8 @@ class Command(BaseCommand):
             "follows": follow_count,
             "memberships": membership_count,
             "flags": flag_count,
-            "scores": score_count,
             "distributions": distribution_count,
             "featured_content": featured_count,
-            "algorithm_vars": algo_count,
             "actions": action_count,
             "feed_entries": feed_count,
         }
@@ -892,26 +850,6 @@ class Command(BaseCommand):
 
         return flag_count
 
-    def _delete_scores(self, hub, dry_run):
-        """
-        Delete reputation scores associated with this hub.
-
-        Returns the number of scores deleted.
-        """
-        scores = Score.objects.filter(hub=hub)
-        score_count = scores.count()
-
-        if score_count > 0:
-            self.stdout.write(
-                f"  → Deleting {score_count} reputation scores for hub "
-                f"{hub.id} ({hub.slug})"
-            )
-
-            if not dry_run:
-                scores.delete()
-
-        return score_count
-
     def _delete_distributions(self, hub, dry_run):
         """
         Delete reputation distributions associated with this hub (many-to-many).
@@ -952,26 +890,6 @@ class Command(BaseCommand):
                 featured_content.delete()
 
         return featured_count
-
-    def _delete_algorithm_vars(self, hub, dry_run):
-        """
-        Delete algorithm variables associated with this hub.
-
-        Returns the number of algorithm variable entries deleted.
-        """
-        algorithm_vars = AlgorithmVariables.objects.filter(hub=hub)
-        algo_count = algorithm_vars.count()
-
-        if algo_count > 0:
-            self.stdout.write(
-                f"  → Deleting {algo_count} algorithm variables for hub "
-                f"{hub.id} ({hub.slug})"
-            )
-
-            if not dry_run:
-                algorithm_vars.delete()
-
-        return algo_count
 
     def _remove_action_associations(self, hub, dry_run):
         """

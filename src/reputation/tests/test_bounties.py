@@ -765,40 +765,6 @@ class BountyViewTests(APITestCase):
         # Verify assessment_end_date is included in response
         self.assertIn("assessment_end_date", res.data["results"][0])
 
-    def test_get_bounties_personalized(self):
-        # Arrange
-        self._authenticate_bounty_manager()
-        self.comment2 = create_rh_comment(created_by=self.user)
-
-        res = self.client.post(
-            "/api/bounty/",
-            {
-                "amount": 1000,
-                "item_content_type": self.comment._meta.model_name,
-                "item_object_id": self.comment.id,
-            },
-        )
-
-        self.assertEqual(res.status_code, 201)
-
-        res = self.client.post(
-            "/api/bounty/",
-            {
-                "amount": 2000,
-                "item_content_type": self.comment2._meta.model_name,
-                "item_object_id": self.comment2.id,
-            },
-        )
-
-        self.assertEqual(res.status_code, 201)
-
-        # Act
-        res = self.client.get("/api/bounty/?personalized=true")
-
-        # Assert
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data["results"]), 2)
-
     def _create_open_bounty(self, item, amount=100):
         """Create an open bounty on ``item`` and return its unified document."""
         self._authenticate_bounty_manager()
@@ -850,20 +816,6 @@ class BountyViewTests(APITestCase):
 
         # Act
         res = self.client.get("/api/bounty/")
-
-        # Assert
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data["results"]), 0)
-
-    def test_personalized_list_excludes_bounties_on_private_documents(self):
-        # Arrange
-        unified_document = self._create_open_bounty(self.comment)
-        unified_document.is_public = False
-        unified_document.save(update_fields=["is_public"])
-        self.client.force_authenticate(self.user_2)
-
-        # Act
-        res = self.client.get("/api/bounty/?sort=personalized")
 
         # Assert
         self.assertEqual(res.status_code, 200)
@@ -1941,33 +1893,6 @@ class BountyViewTests(APITestCase):
         self.assertEqual(proposal_bounty_res.status_code, 201)
 
         return paper_bounty_res.data["id"], proposal_bounty_res.data["id"]
-
-    def test_personalized_sort_falls_back_to_default_when_logged_out(self):
-        """Logged-out user requesting personalized sort gets default sort."""
-        # Arrange
-        self._authenticate_bounty_manager()
-        paper_id, proposal_id = self._create_paper_and_proposal_bounties()
-        self.client.logout()
-
-        # Act
-        res = self.client.get("/api/bounty/", {"sort": "personalized"})
-
-        # Assert
-        ids = [b["id"] for b in res.data["results"]]
-        self.assertLess(ids.index(proposal_id), ids.index(paper_id))
-
-    def test_preregistration_first_with_personalized_sort(self):
-        """Personalized sort should prioritize proposal reviews."""
-        # Arrange
-        self._authenticate_bounty_manager()
-        paper_id, proposal_id = self._create_paper_and_proposal_bounties()
-
-        # Act
-        res = self.client.get("/api/bounty/", {"sort": "personalized"})
-
-        # Assert
-        ids = [b["id"] for b in res.data["results"]]
-        self.assertLess(ids.index(proposal_id), ids.index(paper_id))
 
     def test_preregistration_first_with_default_sort(self):
         """Default sort (-created_date) should prioritize proposal reviews."""

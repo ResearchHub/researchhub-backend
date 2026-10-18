@@ -8,7 +8,11 @@ from mailing_list.services.email_insights_service import (
     confidence_verdict,
     parse_mailbox_validation,
 )
-from mailing_list.services.email_service import EmailService
+from mailing_list.services.email_service import (
+    EMAIL_PREVIEW_LENGTH,
+    EmailService,
+    truncate_preview,
+)
 from mailing_list.services.email_subscription_service import (
     EmailSubscriptionService,
     InvalidUnsubscribeCodeError,
@@ -18,6 +22,7 @@ __all__ = [
     "CONFIDENCE_HIGH",
     "CONFIDENCE_LOW",
     "CONFIDENCE_MEDIUM",
+    "EMAIL_PREVIEW_LENGTH",
     "EmailAddressInsights",
     "EmailInsightsService",
     "EmailService",
@@ -26,4 +31,5 @@ __all__ = [
     "confidence_at_least",
     "confidence_verdict",
     "parse_mailbox_validation",
+    "truncate_preview",
 ]

@@ -95,3 +95,18 @@ class ModeratorTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_user_list_leaves_out_the_research_ai_tier(self):
+        # Arrange
+        moderator = create_user(email="mod@example.com", moderator=True)
+        create_user(email="listed@example.com")
+        self.client.force_authenticate(user=moderator)
+
+        # Act
+        response = self.client.get("/api/moderator/")
+
+        # Assert: resolving each listed user's tier would cost queries per row.
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        rows = response.data.get("results", response.data)
+        self.assertTrue(rows)
+        self.assertNotIn("research_ai_tier", rows[0])

@@ -1,8 +1,11 @@
+import io
+import random
 import threading
 import time
 from unittest import TestCase
 
 from django.test import SimpleTestCase, override_settings
+from PIL import Image
 
 from research_ai.services.agent_files.extraction import (
     DOCX,
@@ -18,12 +21,15 @@ from research_ai.services.agent_files.extraction_service import (
     TextExtractionService,
 )
 from research_ai.services.agent_files.ocr import OcrError
+from research_ai.services.agent_files.page_images import PageRenderConfig
 from research_ai.tests.agent_files.helpers import (
     SCAN,
     docx_bytes,
     image_bytes,
     pdf_bytes,
     pdf_with_scans,
+    picture,
+    picture_parts,
     stamped_scan,
 )
 
@@ -397,6 +403,32 @@ class FullyScannedPdfTests(TestCase):
         with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
             service.extract(data, DOCX, max_chars=MAX_CHARS)
         self.assertEqual(ocr.images, [])
+
+
+class WordImageTests(TestCase):
+    def test_a_word_files_images_are_sized_as_page_images_are(self):
+        # Arrange: one image over the edge limit, and noise over the byte limit.
+        noise = io.BytesIO()
+        Image.frombytes("RGB", (600, 600), random.Random(0).randbytes(1080000)).save(
+            noise, "PNG"
+        )
+        parts = picture_parts(
+            {"rId1": image_bytes((1000, 500)), "rId2": noise.getvalue()}
+        )
+        body = f"<w:p>{picture('rId1')}</w:p><w:p>{picture('rId2')}</w:p>"
+        config = PageRenderConfig(max_edge_px=500, max_bytes=150_000)
+        service = TextExtractionService(image_config=config)
+
+        # Act
+        extracted = service.extract(
+            docx_bytes(body, parts=parts), DOCX, max_chars=MAX_CHARS
+        )
+
+        # Assert
+        wide, detailed = extracted.embedded_images
+        self.assertEqual((wide.width, wide.height), (500, 250))
+        self.assertLessEqual(len(detailed.data), 150_000)
+        self.assertLess(detailed.width, 500)
 
 
 class OcrConfigTests(SimpleTestCase):
