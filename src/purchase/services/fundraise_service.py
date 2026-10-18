@@ -150,7 +150,7 @@ class FundraiseService:
             # USD contributions use cents
             try:
                 amount_cents = int(amount)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 return None, "Invalid amount"
 
             # Check if amount is within limits
@@ -246,7 +246,7 @@ class FundraiseService:
         """
         try:
             amount = Decimal(str(amount))
-        except (ArithmeticError, TypeError, ValueError):
+        except ArithmeticError, TypeError, ValueError:
             return None, "Invalid amount"
 
         if not amount.is_finite() or amount <= 0:
@@ -432,7 +432,7 @@ class FundraiseService:
         for allocation in allocations:
             try:
                 allocated_amount = Decimal(str(allocation["amount"]))
-            except (ArithmeticError, KeyError, TypeError, ValueError):
+            except ArithmeticError, KeyError, TypeError, ValueError:
                 return False
 
             is_locked = allocation.get("is_locked")
@@ -551,7 +551,7 @@ class FundraiseService:
         """Refund a single debit entry. Returns True on success, False on failure."""
         try:
             debit_amount = Decimal(debit.amount)
-        except (ArithmeticError, TypeError, ValueError):
+        except ArithmeticError, TypeError, ValueError:
             logger.error("Invalid contribution balance amount for row %s", debit.id)
             return False
 
@@ -609,7 +609,7 @@ class FundraiseService:
         """
         try:
             amount = Decimal(str(distribution.amount))
-        except (ArithmeticError, TypeError, ValueError):
+        except ArithmeticError, TypeError, ValueError:
             logger.error(
                 "Invalid funding distribution amount for distribution %s",
                 distribution.id,

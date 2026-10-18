@@ -348,6 +348,8 @@ class AgentChatService:
                 # The model ref this turn was submitted with, so a client can
                 # label which model produced each answer.
                 "model": execution.model,
+                # The model that answered instead, after ``model`` refused.
+                "routed_model": execution.routed_model or None,
                 "effort": (
                     execution.configuration.get("effort")
                     if isinstance(execution.configuration, dict)

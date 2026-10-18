@@ -36,6 +36,6 @@ class ToolDraftBlocks:
             # without limit. Incomplete nodes are handled by the preview UI.
             if len(json.dumps(expanded).encode("utf-8")) <= MAX_INPUT_BYTES:
                 self._last = expanded
-        except (ValueError, TypeError, RecursionError):
+        except ValueError, TypeError, RecursionError:
             pass
         return self._last

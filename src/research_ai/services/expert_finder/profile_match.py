@@ -37,7 +37,7 @@ def parse_profile_match_response(
         return None
     try:
         index = int(selected)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if index < 1 or index > len(candidates):
         return None

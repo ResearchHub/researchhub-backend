@@ -14,6 +14,7 @@ from research_ai.models import (
     AgentExecutionMessage,
 )
 from research_ai.services.agent.errors import IterationLimitError
+from research_ai.services.agent.providers.router import written_by
 from research_ai.services.agent.types import (
     AssistantTurn,
     Message,
@@ -217,13 +218,12 @@ class DatabaseAgentRecorder:
             )
             execution.next_context_sequence += 1
             execution.last_activity_at = now
-            execution.save(
-                update_fields=[
-                    "next_context_sequence",
-                    "last_activity_at",
-                    "updated_date",
-                ]
-            )
+            update_fields = ["next_context_sequence", "last_activity_at"]
+            routed_model = written_by(message)
+            if routed_model and routed_model != execution.routed_model:
+                execution.routed_model = routed_model
+                update_fields.append("routed_model")
+            execution.save(update_fields=[*update_fields, "updated_date"])
         self._recorded_messages += 1
 
         try:
