@@ -24,6 +24,11 @@ class ModeratorView(ModelViewSet):
     serializer_class = ModeratorUserSerializer
     permission_classes = [UserIsEditor | IsModerator]
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["include_research_ai_tier"] = self.action == "user_details"
+        return context
+
     @action(detail=True, methods=["get"])
     def user_details(
         self, request: Request, pk: str | None = None, **kwargs
