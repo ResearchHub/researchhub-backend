@@ -331,7 +331,7 @@ class FundingCreditsReminderTest(TestCase):
         # Assert
         self.assertEqual(result["sent_count"], 1)
         self.assertEqual(self.notif_qs.count(), 1)
-        self.assertEqual(self.notif_qs.get().extra["amount"], "50")
+        self.assertEqual(Decimal(self.notif_qs.get().extra["amount"]), Decimal(50))
         self.assertEqual(self.notif_qs.get().extra["email_state"], "sent")
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.user.email])
