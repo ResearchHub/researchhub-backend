@@ -12,9 +12,12 @@ from .service import (
     check_budget_admission,
     check_turn_admission,
     effective_generation_options,
+    grant_invited_tier,
+    has_manual_invited_grant,
     record,
     resolve_ai_tier,
     resolve_default_model,
+    revoke_invited_tier,
 )
 
 __all__ = [
@@ -31,8 +34,11 @@ __all__ = [
     "check_budget_admission",
     "check_turn_admission",
     "effective_generation_options",
+    "grant_invited_tier",
+    "has_manual_invited_grant",
     "record",
     "resolve_ai_tier",
     "resolve_default_model",
+    "revoke_invited_tier",
     "tier_policies",
 ]

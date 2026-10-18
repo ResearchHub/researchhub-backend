@@ -424,7 +424,7 @@ class GeneratedEmailDetailView(APIView):
                 "proposal_draft",
             ).get(id=int(email_id))
             return email, None
-        except (ValueError, TypeError, GeneratedEmail.DoesNotExist):
+        except ValueError, TypeError, GeneratedEmail.DoesNotExist:
             return None, Response(
                 {"detail": "Generated email not found."},
                 status=status.HTTP_404_NOT_FOUND,

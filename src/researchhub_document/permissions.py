@@ -12,10 +12,17 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
             or view.action == "upsert"
         ) and request.data.get("post_id") is not None:
             post = ResearchhubPost.objects.get(id=request.data.get("post_id"))
-            if post.created_by_id == request.user.id or request.user.moderator:
-                return True
-            if post.note_id is not None:
-                return post.note.organization.org_has_member_user(request.user)
-            return False
+            return self.can_edit_post(post, request.user)
 
         return True
+
+    @staticmethod
+    def can_edit_post(post, user):
+        """Apply the same editing rule outside the HTTP permission boundary."""
+        if user is None or not user.is_authenticated:
+            return False
+        if post.created_by_id == user.id or user.moderator:
+            return True
+        if post.note_id is not None and post.note.organization is not None:
+            return post.note.organization.org_has_member_user(user)
+        return False

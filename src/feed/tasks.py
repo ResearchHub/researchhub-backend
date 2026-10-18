@@ -14,6 +14,7 @@ from paper.related_models.paper_model import Paper
 from paper.tasks.figure_tasks import trigger_figure_extraction_for_paper
 from paper.utils import pdf_copyright_allows_display
 from researchhub.celery import app
+from researchhub_document.related_models.constants.document_type import CHANGELOG
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -52,6 +53,10 @@ def create_feed_entry(
     # Suppress feed entries for items attached to a private unified document.
     # Covers posts, comments, bounties, and fundraise contributions in one place.
     if unified_document is not None and not unified_document.is_public:
+        return None
+
+    # Changelogs are listed on the changelog page only, never in feeds.
+    if unified_document is not None and unified_document.document_type == CHANGELOG:
         return None
 
     # Defense-in-depth: never publish a work still awaiting moderation. The

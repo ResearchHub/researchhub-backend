@@ -36,7 +36,8 @@ class TextDelivery(StrEnum):
 
 class PageImages(StrEnum):
     NONE = "none"
-    # Every page, or an uploaded image itself, is sent with the message.
+    # Every page or embedded image, or an uploaded image itself, is sent with
+    # the message.
     ATTACHED = "attached"
     # The model is shown the pages, or the image, it asks a tool for.
     ON_REQUEST = "on_request"
@@ -51,11 +52,13 @@ class Document:
     page_count: int | None = None
     # An image the user uploaded, shown as it is: one image.
     image: bool = False
+    # Images kept from a Word document; they are attached as a PDF's pages are.
+    embedded_images: int = 0
 
     @property
     def images(self) -> int:
         """How many images the file can be shown as."""
-        return 1 if self.image else self.page_count or 0
+        return 1 if self.image else (self.page_count or 0) + self.embedded_images
 
 
 @dataclass(frozen=True)
@@ -117,7 +120,7 @@ class DeliveryConfig:
         return max(0, self.page_images_max_per_conversation - used.page_images)
 
     @classmethod
-    def from_settings(cls) -> "DeliveryConfig":
+    def from_settings(cls) -> DeliveryConfig:
         defaults = cls()
         return cls(
             **{

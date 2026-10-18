@@ -525,7 +525,7 @@ class PaymentService:
         try:
             fundraise = Fundraise.objects.get(id=int(fundraise_id_str))
             user = User.objects.get(id=user_id)
-        except (Fundraise.DoesNotExist, User.DoesNotExist):
+        except Fundraise.DoesNotExist, User.DoesNotExist:
             return None
 
         contribution, error = fundraise_service.create_contribution(
@@ -556,7 +556,7 @@ class PaymentService:
         try:
             pool = FundingPool.objects.get(id=int(funding_pool_id_str))
             user = User.objects.get(id=user_id)
-        except (FundingPool.DoesNotExist, User.DoesNotExist):
+        except FundingPool.DoesNotExist, User.DoesNotExist:
             return None
 
         try:
