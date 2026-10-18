@@ -19,6 +19,10 @@ from hub.serializers import HubSerializer, SimpleHubSerializer
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from referral.models import ReferralSignup
 from reputation.models import Contribution, Distribution, Withdrawal
+from research_ai.services.usage_budget import (
+    has_manual_invited_grant,
+    resolve_ai_tier,
+)
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
@@ -77,6 +81,8 @@ class ModeratorUserSerializer(ModelSerializer):
     verification = SerializerMethodField()
     risk_score = SerializerMethodField()
     author_profile_id = SerializerMethodField()
+    research_ai_tier = SerializerMethodField()
+    research_ai_invited_manually = SerializerMethodField()
 
     class Meta:
         model = User
@@ -91,6 +97,8 @@ class ModeratorUserSerializer(ModelSerializer):
             "orcid_verified_edu_email",
             "risk_score",
             "author_profile_id",
+            "research_ai_tier",
+            "research_ai_invited_manually",
         ]
 
     def __init__(self, *args, **kwargs) -> None:
@@ -100,10 +108,21 @@ class ModeratorUserSerializer(ModelSerializer):
         requester = getattr(self.context.get("request"), "user", None)
         if not (requester and getattr(requester, "moderator", False)):
             self.fields.pop("risk_score", None)
+        # Resolving the tier takes several queries per user, so only the
+        # single-user view asks for it.
+        if not self.context.get("include_research_ai_tier"):
+            self.fields.pop("research_ai_tier", None)
+            self.fields.pop("research_ai_invited_manually", None)
 
     def get_author_profile_id(self, user: User) -> int | None:
         author = getattr(user, "author_profile", None)
         return author.id if author else None
+
+    def get_research_ai_tier(self, user: User) -> str:
+        return resolve_ai_tier(user).name
+
+    def get_research_ai_invited_manually(self, user: User) -> bool:
+        return has_manual_invited_grant(user)
 
     def get_verification(self, user: User) -> dict | None:
         try:

@@ -2,8 +2,8 @@ from datetime import UTC, datetime
 
 from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Q
 from rest_framework.serializers import (
+    IntegerField,
     ModelSerializer,
     PrimaryKeyRelatedField,
     SerializerMethodField,
@@ -38,6 +38,7 @@ from researchhub_document.registered_report_note_metadata import (
     get_registered_report_prefill_metadata,
 )
 from researchhub_document.related_models.constants.document_type import (
+    CHANGELOG,
     GRANT,
     PREREGISTRATION,
     REGISTERED_REPORT,
@@ -211,6 +212,7 @@ class NoteSerializer(ModelSerializer):
         document_type = attrs.get(
             "document_type", getattr(self.instance, "document_type", None)
         )
+        self._validate_changelog_author(attrs)
         self._validate_funding_details(attrs, document_type)
 
         selection_requires_validation = "selected_grant" in attrs or (
@@ -229,6 +231,20 @@ class NoteSerializer(ModelSerializer):
         except GrantSelectionError as exc:
             raise ValidationError({"selected_grant": str(exc)}) from exc
         return attrs
+
+    def _validate_changelog_author(self, attrs: dict) -> None:
+        """Only moderators may make a note a changelog."""
+        becomes_changelog = attrs.get("document_type") == CHANGELOG and (
+            getattr(self.instance, "document_type", None) != CHANGELOG
+        )
+        if not becomes_changelog:
+            return
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not getattr(user, "moderator", False):
+            raise ValidationError(
+                {"document_type": "Only moderators can create changelogs."}
+            )
 
     def _validate_funding_details(self, attrs: dict, document_type: str | None) -> None:
         """Reject a funding form the resulting document type does not use."""
@@ -290,22 +306,31 @@ class NoteSerializer(ModelSerializer):
         return data
 
     def get_access(self, note):
-        permissions = note.permissions
+        # Decided over the loaded rows, so a listing that prefetched
+        # `unified_document__permissions` and `invited_users` serializes a
+        # page without a query per note; a detail view spends one per relation.
+        permissions = list(note.permissions.all())
 
-        is_workspace = permissions.filter(
-            organization__isnull=False, access_type=ADMIN
-        ).exists()
+        is_workspace = any(
+            permission.organization_id is not None and permission.access_type == ADMIN
+            for permission in permissions
+        )
 
         is_private = (
-            permissions.filter(
-                Q(access_type__in=[ADMIN, MEMBER, EDITOR]) & Q(user__isnull=False)
-            ).count()
+            sum(
+                1
+                for permission in permissions
+                if permission.user_id is not None
+                and permission.access_type in (ADMIN, MEMBER, EDITOR)
+            )
             <= 1
         )
 
-        has_invited_users = note.invited_users.filter(
-            accepted=False, expiration_date__gt=datetime.now(UTC)
-        ).exists()
+        now = datetime.now(UTC)
+        has_invited_users = any(
+            not invite.accepted and invite.expiration_date > now
+            for invite in note.invited_users.all()
+        )
 
         if is_workspace:
             return WORKSPACE
@@ -406,6 +431,9 @@ class NoteSerializer(ModelSerializer):
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
     access = SerializerMethodField()
     created_by = SerializerMethodField()
+    # Annotated by the organization's documents listing, and left out of
+    # responses whose notes were not annotated with it.
+    latest_chat_id = IntegerField(read_only=True)
     latest_version = SerializerMethodField()
     notes = SerializerMethodField()
     organization = SerializerMethodField()
@@ -418,22 +446,31 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
     def get_access(self, note):
-        permissions = note.permissions
+        # Decided over the loaded rows, so a listing that prefetched
+        # `unified_document__permissions` and `invited_users` serializes a
+        # page without a query per note; a detail view spends one per relation.
+        permissions = list(note.permissions.all())
 
-        is_workspace = permissions.filter(
-            organization__isnull=False, access_type=ADMIN
-        ).exists()
+        is_workspace = any(
+            permission.organization_id is not None and permission.access_type == ADMIN
+            for permission in permissions
+        )
 
         is_private = (
-            permissions.filter(
-                Q(access_type__in=[ADMIN, MEMBER, EDITOR]) & Q(user__isnull=False)
-            ).count()
+            sum(
+                1
+                for permission in permissions
+                if permission.user_id is not None
+                and permission.access_type in (ADMIN, MEMBER, EDITOR)
+            )
             <= 1
         )
 
-        has_invited_users = note.invited_users.filter(
-            accepted=False, expiration_date__gt=datetime.now(UTC)
-        ).exists()
+        now = datetime.now(UTC)
+        has_invited_users = any(
+            not invite.accepted and invite.expiration_date > now
+            for invite in note.invited_users.all()
+        )
 
         if is_workspace:
             return WORKSPACE

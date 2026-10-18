@@ -7,7 +7,10 @@ from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
 from feed.models import FeedEntry
-from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.constants.document_type import (
+    CHANGELOG,
+    GRANT,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -164,6 +167,9 @@ class PostDocument(BaseDocument):
     @override
     def should_index_object(self, obj) -> bool:  # type: ignore[override]
         if obj.is_removed or not obj.unified_document.is_public:
+            return False
+        # Changelogs are listed on the changelog page only, never in search.
+        if obj.document_type == CHANGELOG:
             return False
         # Grants gate on Grant.status; their backing post stays APPROVED.
         if obj.document_type == GRANT:
