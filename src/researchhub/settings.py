@@ -445,7 +445,7 @@ if ELASTIC_BEANSTALK and not CELERY_PREFORK_WORKER:
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
 
 if TESTING:
-    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]  # NOSONAR
 
 AUTH_PASSWORD_VALIDATORS = [
     {
