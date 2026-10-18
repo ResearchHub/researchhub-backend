@@ -185,40 +185,70 @@ class OutreachMailboxService:
             mailbox.delete(soft=True)
             return mailbox
 
+    def get_capacity_summary(self, editor: User) -> dict:
+        """
+        Editor-level and per-mailbox daily send capacity for settings / send UI.
+
+        Instantly daily analytics are only queried for active mailboxes.
+        Non-active mailboxes are included with ``sent_today`` /
+        ``remaining_today`` of 0 so the UI can still show error/disconnected
+        rows without treating them as sendable capacity.
+        """
+        mailboxes = list(
+            OutreachMailbox.objects.filter(editor=editor).order_by("-created_date")
+        )
+        active = [m for m in mailboxes if m.status == OutreachMailbox.Status.ACTIVE]
+        sent_by_email: dict[str, int] = {}
+        if active:
+            today = timezone.localdate().isoformat()
+            analytics = self.client.get_daily_account_analytics(
+                [m.email for m in active],
+                start_date=today,
+                end_date=today,
+            )
+            for row in analytics:
+                if not isinstance(row, dict):
+                    continue
+                if row.get("date") and row.get("date") != today:
+                    continue
+                account = row.get("email_account")
+                if not account:
+                    continue
+                sent_by_email[str(account).lower()] = int(row.get("sent") or 0)
+
+        mailbox_rows: list[dict] = []
+        sent_today_total = 0
+        remaining_today = 0
+        daily_limit_total = 0
+        for mailbox in mailboxes:
+            is_active = mailbox.status == OutreachMailbox.Status.ACTIVE
+            sent = sent_by_email.get(mailbox.email.lower(), 0) if is_active else 0
+            remaining = max(0, mailbox.daily_limit - sent) if is_active else 0
+            if is_active:
+                daily_limit_total += mailbox.daily_limit
+                sent_today_total += sent
+                remaining_today += remaining
+            mailbox_rows.append(
+                {
+                    "email": mailbox.email,
+                    "status": mailbox.status,
+                    "daily_limit": mailbox.daily_limit,
+                    "sent_today": sent,
+                    "remaining_today": remaining,
+                }
+            )
+
+        return {
+            "active_mailbox_count": len(active),
+            "daily_limit_total": daily_limit_total,
+            "sent_today": sent_today_total,
+            "remaining_today": remaining_today,
+            "mailboxes": mailbox_rows,
+        }
+
     def get_remaining_daily_capacity(self, editor: User) -> int:
         """Sum of (daily_limit - sent_today) across the editor's active mailboxes."""
-        mailboxes = list(
-            OutreachMailbox.objects.filter(
-                editor=editor,
-                status=OutreachMailbox.Status.ACTIVE,
-            )
-        )
-        if not mailboxes:
-            return 0
-
-        today = timezone.localdate().isoformat()
-        emails = [m.email for m in mailboxes]
-        analytics = self.client.get_daily_account_analytics(
-            emails,
-            start_date=today,
-            end_date=today,
-        )
-        sent_by_email: dict[str, int] = {}
-        for row in analytics:
-            if not isinstance(row, dict):
-                continue
-            if row.get("date") and row.get("date") != today:
-                continue
-            account = row.get("email_account")
-            if not account:
-                continue
-            sent_by_email[str(account).lower()] = int(row.get("sent") or 0)
-
-        remaining = 0
-        for mailbox in mailboxes:
-            sent = sent_by_email.get(mailbox.email.lower(), 0)
-            remaining += max(0, mailbox.daily_limit - sent)
-        return remaining
+        return int(self.get_capacity_summary(editor)["remaining_today"])
 
     def assert_within_daily_capacity(self, editor: User, lead_count: int) -> int:
         """

@@ -492,6 +492,54 @@ class GeneratedEmailSerializerTests(TestCase):
         self.assertEqual(ser.data["email_body"], "Body")
         self.assertEqual(ser.data["sources"], [])
         self.assertEqual(ser.data["channels"], [])
+        self.assertIsNone(ser.data["outreach_campaign"])
+        self.assertEqual(ser.data["external_lead_id"], "")
+        self.assertEqual(ser.data["sender_account"], "")
+        self.assertIsNone(ser.data["sent_at"])
+        self.assertIsNone(ser.data["replied_at"])
+
+    def test_serialize_includes_instantly_outreach_fields(self):
+        from django.utils import timezone
+
+        from research_ai.models import EmailTemplate, OutreachCampaign
+
+        # Arrange
+        template = EmailTemplate.objects.create(
+            created_by=self.user,
+            name="Invite",
+            email_subject="Hi",
+            email_body="Body",
+        )
+        campaign = OutreachCampaign.objects.create(
+            editor=self.user,
+            template=template,
+            external_campaign_id="camp-ser-1",
+            published_subject="Hi",
+            published_body="Body",
+            published_variable_keys=[],
+            status=OutreachCampaign.Status.ACTIVE,
+        )
+        sent_at = timezone.now()
+        email = GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.search,
+            outreach_campaign=campaign,
+            external_lead_id="lead-123",
+            sender_account="sender@gmail.com",
+            sent_at=sent_at,
+            expert_name="Dr. Foo",
+            expert_email="foo@bar.com",
+        )
+
+        # Act
+        ser = GeneratedEmailSerializer(email)
+
+        # Assert
+        self.assertEqual(ser.data["outreach_campaign"], campaign.id)
+        self.assertEqual(ser.data["external_lead_id"], "lead-123")
+        self.assertEqual(ser.data["sender_account"], "sender@gmail.com")
+        self.assertIsNotNone(ser.data["sent_at"])
+        self.assertIsNone(ser.data["replied_at"])
 
     def test_marking_outreach_sent_requires_at_least_one_channel(self):
         from research_ai.serializers import GeneratedEmailCreateUpdateSerializer

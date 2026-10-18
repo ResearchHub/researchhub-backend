@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from research_ai.permissions import ResearchAIPermission
+from research_ai.models import OutreachMailbox
 from research_ai.serializers import (
     EmailTemplateCreateSerializer,
     EmailTemplateSerializer,
@@ -12,6 +13,8 @@ from research_ai.serializers import (
     GeneratedEmailSerializer,
     OutreachCampaignSendSerializer,
     OutreachCampaignSerializer,
+    OutreachMailboxConnectSerializer,
+    OutreachMailboxSerializer,
 )
 from research_ai.services.outreach.campaign_service import (
     CampaignError,
@@ -22,7 +25,14 @@ from research_ai.services.outreach.campaign_service import (
     OutreachCampaignService,
 )
 from research_ai.services.outreach.instantly_client import InstantlyAPIError
-from research_ai.services.outreach.mailbox_service import InsufficientDailyCapacityError
+from research_ai.services.outreach.mailbox_service import (
+    InsufficientDailyCapacityError,
+    MailboxAlreadyConnectedError,
+    MailboxError,
+    MailboxNotFoundError,
+    MailboxOwnedByOtherEditorError,
+    OutreachMailboxService,
+)
 from research_ai.services.outreach.template_rewrite_service import (
     PlaceholderMismatchError,
     TemplateNotFoundError,
@@ -328,6 +338,116 @@ class OutreachCampaignSendView(APIView):
             {"emails": out.data, "queued": len(emails)},
             status=status.HTTP_202_ACCEPTED,
         )
+
+
+class OutreachMailboxListCreateView(APIView):
+    """
+    GET  /api/research_ai/expert-finder/outreach-mailboxes/ - List mailboxes.
+    POST /api/research_ai/expert-finder/outreach-mailboxes/ - Connect Gmail.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def get(self, request):
+        qs = OutreachMailbox.objects.filter(editor=request.user).order_by(
+            "-created_date"
+        )
+        ser = OutreachMailboxSerializer(qs, many=True)
+        return Response({"mailboxes": ser.data})
+
+    def post(self, request):
+        ser = OutreachMailboxConnectSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+
+        try:
+            mailbox = OutreachMailboxService().connect_mailbox(
+                request.user,
+                email=data["email"],
+                app_password=data["app_password"],
+            )
+        except (MailboxAlreadyConnectedError, MailboxOwnedByOtherEditorError) as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except MailboxError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except InstantlyAPIError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        out = OutreachMailboxSerializer(mailbox)
+        return Response(out.data, status=status.HTTP_201_CREATED)
+
+
+class OutreachMailboxDetailView(APIView):
+    """
+    DELETE /api/research_ai/expert-finder/outreach-mailboxes/<mailbox_id>/
+    Detach a connected Gmail mailbox from Instantly and soft-delete locally.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def delete(self, request, mailbox_id):
+        try:
+            mid = int(mailbox_id)
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Invalid mailbox ID."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            OutreachMailboxService().detach_mailbox(request.user, mid)
+        except MailboxNotFoundError:
+            return Response(
+                {"detail": "Outreach mailbox not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except InstantlyAPIError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OutreachCapacityView(APIView):
+    """
+    GET /api/research_ai/expert-finder/outreach-capacity/
+    Editor daily send capacity summary from local mailboxes + Instantly analytics.
+    """
+
+    permission_classes = [
+        IsAuthenticated,
+        ResearchAIPermission,
+        UserIsEditor | IsModerator,
+    ]
+
+    def get(self, request):
+        try:
+            summary = OutreachMailboxService().get_capacity_summary(request.user)
+        except InstantlyAPIError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(summary)
 
 
 class InstantlyWebhookView(APIView):

@@ -53,6 +53,9 @@ from research_ai.views.template_views import (
     InstantlyWebhookView,
     OutreachCampaignListView,
     OutreachCampaignSendView,
+    OutreachCapacityView,
+    OutreachMailboxDetailView,
+    OutreachMailboxListCreateView,
     TemplateDetailView,
     TemplateListView,
     TemplatePublishView,
@@ -137,6 +140,18 @@ urlpatterns = [
     path(
         "expert-finder/outreach-campaigns/<int:campaign_id>/send/",
         OutreachCampaignSendView.as_view(),
+    ),
+    path(
+        "expert-finder/outreach-mailboxes/",
+        OutreachMailboxListCreateView.as_view(),
+    ),
+    path(
+        "expert-finder/outreach-mailboxes/<int:mailbox_id>/",
+        OutreachMailboxDetailView.as_view(),
+    ),
+    path(
+        "expert-finder/outreach-capacity/",
+        OutreachCapacityView.as_view(),
     ),
     path(
         "expert-finder/instantly/webhook/",
