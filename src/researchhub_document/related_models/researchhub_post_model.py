@@ -13,6 +13,7 @@ from researchhub_access_group.constants import NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
+    CHANGELOG,
     DISCUSSION,
     DOCUMENT_TYPES,
     REGISTERED_REPORT,
@@ -34,15 +35,23 @@ logger = logging.getLogger(__name__)
 
 
 class ResearchhubPostQuerySet(models.QuerySet):
-    def publicly_visible(self) -> "ResearchhubPostQuerySet":
+    def publicly_visible(self) -> ResearchhubPostQuerySet:
         """Restrict to posts safe for anonymous/public discovery surfaces."""
         return self.filter(self._public_visibility_filter())
+
+    def public_changelogs(self) -> ResearchhubPostQuerySet:
+        """Changelog posts every viewer sees on the changelog page, newest first."""
+        return (
+            self.publicly_visible()
+            .filter(document_type=CHANGELOG, unified_document__is_removed=False)
+            .order_by("-created_date")
+        )
 
     def visible_to(
         self,
         user: User | None,
         shared_unified_document_id: int | None = None,
-    ) -> "ResearchhubPostQuerySet":
+    ) -> ResearchhubPostQuerySet:
         """Restrict to posts the given user is allowed to see.
 
         Anonymous users only see public posts that cleared moderation. Authors
@@ -312,7 +321,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 class ResearchhubPostAuthorManager(models.Manager):
     """Load author links with their author, so bylines cost a single query."""
 
-    def get_queryset(self) -> "models.QuerySet[ResearchhubPostAuthor]":
+    def get_queryset(self) -> models.QuerySet[ResearchhubPostAuthor]:
         """Return links with the credited author already loaded."""
         return super().get_queryset().select_related("author")
 

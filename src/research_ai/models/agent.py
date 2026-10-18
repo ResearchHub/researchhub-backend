@@ -127,6 +127,14 @@ class AgentExecution(DefaultModel):
     )
     provider = models.CharField(max_length=64, blank=True)
     model = models.CharField(max_length=255, blank=True)
+    routed_model = models.CharField(
+        max_length=255,
+        blank=True,
+        db_comment=(
+            "Model ref that answered instead of ``model`` after it refused; "
+            "blank when ``model`` answered."
+        ),
+    )
     configuration = models.JSONField(default=dict, blank=True)
     system_prompt = models.TextField(blank=True)
     final_output = models.JSONField(default=dict, blank=True)

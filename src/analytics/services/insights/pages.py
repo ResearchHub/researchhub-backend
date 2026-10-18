@@ -83,7 +83,7 @@ def get_page_metrics(period):
         try:
             document = unified_doc.get_document()
             url = unified_doc.frontend_view_link()
-        except (ObjectDoesNotExist, ValueError, AttributeError):
+        except ObjectDoesNotExist, ValueError, AttributeError:
             document = None
             url = None
 
