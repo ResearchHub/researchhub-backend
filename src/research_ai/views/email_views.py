@@ -16,14 +16,11 @@ from research_ai.serializers import (
     GeneratedEmailSerializer,
     GenerateEmailRequestSerializer,
     InviteRfpApplicantsSerializer,
-    PreviewEmailRequestSerializer,
-    SendEmailRequestSerializer,
     build_expert_sources_map_for_emails,
 )
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.outreach.email_generator import create_expert_email_draft
-from research_ai.services.outreach.email_sender import SES_OUTREACH_DISABLED_DETAIL
 from research_ai.services.outreach.proposal_draft_outreach import (
     prepare_proposal_outreach,
 )
@@ -270,50 +267,6 @@ class BulkGenerateEmailView(APIView):
         )
 
 
-class PreviewEmailView(APIView):
-    """
-    POST /api/research_ai/expert-finder/emails/preview/
-
-    Legacy SES preview. Disabled; outreach previews/sends use Instantly campaigns.
-    """
-
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
-
-    def post(self, request):
-        ser = PreviewEmailRequestSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        return Response(
-            {"detail": SES_OUTREACH_DISABLED_DETAIL},
-            status=status.HTTP_410_GONE,
-        )
-
-
-class SendEmailView(APIView):
-    """
-    POST /api/research_ai/expert-finder/emails/send/
-
-    Legacy SES send. Disabled; use POST outreach-campaigns/<id>/send/ instead.
-    """
-
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
-
-    def post(self, request):
-        ser = SendEmailRequestSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        return Response(
-            {"detail": SES_OUTREACH_DISABLED_DETAIL},
-            status=status.HTTP_410_GONE,
-        )
-
-
 class GeneratedEmailListView(APIView):
     """
     GET /api/research_ai/expert-finder/emails/ - List. POST - Create draft (no LLM).
@@ -432,9 +385,9 @@ class GeneratedEmailDetailView(APIView):
 class InviteRfpApplicantsView(APIView):
     """POST /api/research_ai/expert-finder/rfp/<grant_id>/invite-applicants/.
 
-    Create DRAFT invitation emails for RFP applicants. SES auto-send is
-    retired; sending goes through Instantly campaigns. Authorized for the
-    grant creator, listed grant contacts, and moderators.
+    Create DRAFT invitation emails for RFP applicants. Sending goes through
+    Instantly campaigns. Authorized for the grant creator, listed grant
+    contacts, and moderators.
     """
 
     permission_classes = [IsAuthenticated, ResearchAIPermission]
@@ -483,7 +436,6 @@ class InviteRfpApplicantsView(APIView):
                 {"detail": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
-        # SES enqueue is retired; drafts are created for the Instantly campaign flow.
         return Response(
             {
                 "queued": len(result.generated_email_ids),

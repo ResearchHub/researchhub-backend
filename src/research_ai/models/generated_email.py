@@ -86,12 +86,6 @@ class GeneratedEmail(DefaultModel):
             "(email / linkedin / x). Empty until sent."
         ),
     )
-    ses_message_id = models.CharField(
-        max_length=255,
-        blank=True,
-        db_index=True,
-        db_comment="SES message ID to correlate email events.",
-    )
     opened_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -105,11 +99,6 @@ class GeneratedEmail(DefaultModel):
         null=True,
         blank=True,
         db_comment="Timestamp of bounce email event.",
-    )
-    complained_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        db_comment="Timestamp of complaint (spam report) email event.",
     )
     outreach_campaign = models.ForeignKey(
         "research_ai.OutreachCampaign",

@@ -562,7 +562,6 @@ EMAIL_DOMAIN = (
     "researchhub.com" if APP_ENV == "production" else f"{APP_ENV}.researchhub.com"
 )
 DEFAULT_FROM_EMAIL = f"noreply@{EMAIL_DOMAIN}"
-EXPERT_FINDER_FROM_EMAIL = f"outreach@{EMAIL_DOMAIN}"
 
 # Storage
 STORAGES = {
@@ -841,10 +840,6 @@ TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", keys.TURNSTILE_SEC
 
 # Amplitude
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
-
-EXPERT_FINDER_OUTREACH_ENABLED = (
-    os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
-)
 
 # Instantly (Expert Finder outreach sending)
 INSTANTLY_API_KEY = os.environ.get(
