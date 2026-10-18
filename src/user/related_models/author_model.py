@@ -2,18 +2,12 @@ import logging
 
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField
 from django.contrib.postgres.indexes import GinIndex
-from django.db import models, transaction
-from django.db.models import JSONField, Sum
+from django.db import models
+from django.db.models import JSONField
 from django.db.models.deletion import SET_NULL
 
-from paper.models import Paper
-from paper.related_models.authorship_model import Authorship
-from paper.utils import PAPER_SCORE_Q_ANNOTATION
-from reputation.models import Score
-from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
@@ -191,93 +185,3 @@ class Author(SoftDeletableModel):
             return None
         emails = account.extra_data.get("verified_edu_emails", [])
         return emails[0] if emails else None
-
-    def calculate_score(self):
-        aggregated_score = self.papers.annotate(
-            paper_score=PAPER_SCORE_Q_ANNOTATION
-        ).aggregate(total_score=Sum("paper_score"))
-        aggregated_discussion_count = self.papers.aggregate(
-            total_score=Sum("discussion_count")
-        )
-        paper_count = self.papers.count()
-        paper_scores = 0
-        if aggregated_score["total_score"]:
-            paper_scores = aggregated_score["total_score"]
-
-        if aggregated_discussion_count["total_score"]:
-            paper_scores += 2 * aggregated_discussion_count["total_score"]
-
-        return paper_scores + paper_count
-
-    def calculate_hub_scores(self):
-        with transaction.atomic():
-            Score.reset_scores(self)
-            self._calculate_score_hub_citations()
-            self._calculate_score_hub_paper_votes()
-            self._calculate_score_hub_comments()
-
-    def _calculate_score_hub_paper_votes(self):
-        authored_papers = Paper.objects.filter(
-            authorships__author=self,
-            work_type__in=["preprint", "article", "review"],
-        ).only("id", "votes", "unified_document")
-
-        for paper in authored_papers:
-            votes = paper.votes.filter(vote_type__in=[1, 2])
-            if votes.count() == 0:
-                continue
-
-            hub = paper.unified_document.get_primary_hub()
-            if hub is None:
-                logger.warning("Paper %s has no primary hub", paper.id)
-                continue
-
-            for vote in votes:
-                Score.update_score_vote(self, hub, vote)
-
-    def _calculate_score_hub_comments(self):
-        threads = RhCommentThreadModel.objects.filter(
-            content_type=ContentType.objects.get(model="paper"),
-            created_by=self.user,
-        ).only("rh_comments")
-
-        paper_ids = [thread.object_id for thread in threads]
-        papers = Paper.objects.filter(
-            id__in=paper_ids, work_type__in=["preprint", "article", "review"]
-        ).order_by("created_date")
-
-        paper_dict = {paper.id: paper for paper in papers}
-
-        for thread in threads:
-            comments = thread.rh_comments.all()
-            for comment in comments:
-                paper = paper_dict.get(thread.object_id)
-                if paper is None:
-                    continue
-
-                votes = comment.votes.filter(vote_type__in=[1, 2])
-                if votes.count() == 0:
-                    continue
-
-                hub = paper.unified_document.get_primary_hub()
-                if hub is None:
-                    logger.warning("Paper %s has no primary hub", paper.id)
-                    continue
-
-                for vote in votes:
-                    Score.update_score_vote(self, hub, vote)
-
-    def _calculate_score_hub_citations(self):
-        authorships = Authorship.objects.filter(author=self).select_related(
-            "paper", "author"
-        )
-
-        for authorship in authorships:
-            authorship.paper.update_scores_citations(authorship.author)
-
-    def get_rep_score(self):
-        score = Score.get_max_score(self)
-        if score is None:
-            return 0
-
-        return score.score

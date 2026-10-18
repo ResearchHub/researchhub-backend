@@ -16,10 +16,7 @@ from reputation.tests.helpers import create_deposit, create_withdrawals
 from reputation.views.withdrawal_view import WithdrawalViewSet
 from user.related_models.user_verification_model import UserVerification
 from user.rsc_exchange_rate_record_tasks import RSC_COIN_GECKO_ID
-from user.tests.helpers import (
-    create_random_authenticated_user,
-    create_random_authenticated_user_with_reputation,
-)
+from user.tests.helpers import create_random_authenticated_user, create_trusted_user
 
 VALID_TEST_TO_ADDRESS = "0xabcdef1234567890abcdef1234567890abcdef12"
 VALID_TEST_TO_ADDRESS_SHARED = "0x1111111111111111111111111111111111111111"
@@ -123,7 +120,7 @@ class ReputationViewsTests(APITestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_regular_user_can_withdraw_rsc(self):
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
@@ -146,7 +143,7 @@ class ReputationViewsTests(APITestCase):
             self.assertEqual(response.status_code, 201)
 
     def test_verified_user_cannot_rewithdraw_rsc_within_24_hours(self):
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -187,7 +184,7 @@ class ReputationViewsTests(APITestCase):
             self.assertEqual(response.status_code, 400)
 
     def test_verified_user_can_rewithdraw_rsc_after_24_hours(self):
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -232,7 +229,7 @@ class ReputationViewsTests(APITestCase):
         # Mock with float to validate it doesn't throw.
         self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "30.1"}})
 
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         withdrawal = Withdrawal.objects.create(
             user=user,
             token_address="0x0123",
@@ -271,7 +268,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_verified_address_cannot_rewithdraw_rsc_within_24_hours(self):
         other_user = create_random_authenticated_user("other_user")
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -312,7 +309,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_verified_address_can_rewithdraw_rsc_after_24_hours(self):
         other_user = create_random_authenticated_user("other_user")
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -353,7 +350,7 @@ class ReputationViewsTests(APITestCase):
             self.assertEqual(response.status_code, 201)
 
     def test_new_verified_user_can_withdraw_rsc_immediately(self):
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -417,9 +414,9 @@ class ReputationViewsTests(APITestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_can_withdraw_with_sufficient_reputation(self):
+    def test_can_withdraw_when_trusted(self):
         # Arrange
-        user = create_random_authenticated_user_with_reputation("user1", 1000)
+        user = create_trusted_user("user1")
 
         # Act
         actual = self.withdrawal_view._can_withdraw(user)
@@ -429,7 +426,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_can_withdraw_with_verification(self):
         # Arrange
-        user = create_random_authenticated_user_with_reputation("user2", 0)
+        user = create_random_authenticated_user("user2")
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -442,7 +439,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_can_withdraw_fails_with_declined_status(self):
         # Arrange
-        user = create_random_authenticated_user_with_reputation("user2", 0)
+        user = create_random_authenticated_user("user2")
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.DECLINED
         )
@@ -455,7 +452,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_can_withdraw_fails_without_verification_record(self):
         # Arrange
-        user = create_random_authenticated_user_with_reputation("user2", 0)
+        user = create_random_authenticated_user("user2")
 
         # Act
         actual = self.withdrawal_view._can_withdraw(user)
@@ -465,7 +462,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_min_time_between_withdrawals_verified(self):
         # Arrange
-        user = create_random_authenticated_user_with_reputation("user2", 0)
+        user = create_random_authenticated_user("user2")
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -481,7 +478,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_min_time_between_withdrawals_non_verified(self):
         # Arrange
-        user = create_random_authenticated_user_with_reputation("user2", 0)
+        user = create_random_authenticated_user("user2")
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
@@ -494,7 +491,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_min_time_between_withdrawals_message_verified(self):
         # Arrange
-        user = create_random_authenticated_user_with_reputation("user2", 0)
+        user = create_random_authenticated_user("user2")
         UserVerification.objects.create(
             user=user, status=UserVerification.Status.APPROVED
         )
@@ -510,7 +507,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_min_time_between_withdrawals_message_non_verified(self):
         # Arrange
-        user = create_random_authenticated_user_with_reputation("user2", 0)
+        user = create_random_authenticated_user("user2")
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
@@ -522,7 +519,7 @@ class ReputationViewsTests(APITestCase):
         self.assertEqual(actual, "You're limited to 1 withdrawal every 2 weeks.")
 
     def test_withdrawal_fails_with_insufficient_hotwallet_balance(self):
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
@@ -551,7 +548,7 @@ class ReputationViewsTests(APITestCase):
             )
 
     def test_base_network_withdrawal_succeeds(self):
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
@@ -577,7 +574,7 @@ class ReputationViewsTests(APITestCase):
             self.assertEqual(withdrawal.network, "BASE")
 
     def test_invalid_network_withdrawal_fails(self):
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
@@ -601,7 +598,7 @@ class ReputationViewsTests(APITestCase):
         )
 
     def test_base_network_withdrawal_fails_with_insufficient_hotwallet_balance(self):
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         user.save()
@@ -632,7 +629,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_base_network_transaction_fee_is_lower(self):
         """Test that Base network transaction fees are lower than Ethereum."""
-        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_trusted_user("rep_user")
         self.client.force_authenticate(user)
 
         # Reset the mocker to clear existing mocks

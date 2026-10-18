@@ -68,6 +68,26 @@ def _build_provider(responses=None, model_id="google/gemini-3.8-flash", **kwargs
     )
 
 
+def _raising_client(error):
+    """A client whose every request fails with ``error``."""
+
+    def create(**kwargs):
+        raise error
+
+    completions = SimpleNamespace(create=create)
+    return SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+
+def _forbidden(metadata):
+    """The SDK error for an OpenRouter 403 carrying ``metadata``."""
+    request = httpx.Request("POST", "https://openrouter.test/v1/chat")
+    return openai.PermissionDeniedError(
+        "forbidden",
+        response=httpx.Response(403, request=request),
+        body={"code": 403, "message": "forbidden", "metadata": metadata},
+    )
+
+
 def _complete(provider, messages=None, rendered_tools=None):
     return provider.complete(
         system_prompt="sys",
@@ -453,6 +473,22 @@ class CompleteRequestTests(SimpleTestCase):
                     kwargs["extra_body"], {"reasoning": {"effort": "none"}}
                 )
 
+    def test_gpt6_1_tool_calls_keep_reasoning_and_omit_sampling(self):
+        # Arrange
+        rendered_tools = [{"type": "function", "function": {"name": "search"}}]
+        provider = _build_provider(
+            [_response(content="ok")], model_id="openai/gpt-6.1-sol"
+        )
+
+        # Act
+        _complete(provider, rendered_tools=rendered_tools)
+
+        # Assert
+        kwargs = provider._client.calls[0]
+        self.assertNotIn("temperature", kwargs)
+        self.assertEqual(kwargs["tools"], rendered_tools)
+        self.assertEqual(kwargs["extra_body"], {"reasoning": {"effort": "low"}})
+
     def test_gpt6_tool_calls_reject_higher_reasoning_effort(self):
         # Arrange
         provider = _build_provider(
@@ -707,6 +743,37 @@ class ErrorTests(SimpleTestCase):
 
         # Assert
         self.assertTrue(ctx.exception.retryable)
+
+    def test_refusals_reported_as_errors_are_refused_turns(self):
+        # Arrange
+        cases = {
+            "model refusal": {"error_type": "refusal"},
+            "content filter": {"error_type": "content_policy_violation"},
+            "moderation": {"reasons": ["violence"], "flagged_input": "..."},
+        }
+        for case, metadata in cases.items():
+            with self.subTest(case):
+                provider = OpenRouterProvider(
+                    client=_raising_client(_forbidden(metadata)),
+                    model_id="openai/gpt-6.1-sol",
+                )
+
+                # Act
+                turn = _complete(provider)
+
+                # Assert
+                self.assertEqual(turn.stop_reason, StopReason.CONTENT_FILTERED)
+
+    def test_other_forbidden_requests_still_fail(self):
+        # Arrange: a guardrail on our own key blocks every model alike.
+        error = _forbidden({"patterns": ["ignore all previous instructions"]})
+        provider = OpenRouterProvider(
+            client=_raising_client(error), model_id="openai/gpt-6.1-sol"
+        )
+
+        # Act / Assert
+        with self.assertRaises(ProviderError):
+            _complete(provider)
 
 
 class DefaultsTests(SimpleTestCase):

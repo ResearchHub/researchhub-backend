@@ -3,7 +3,7 @@ import logging
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.utils.formats import localize
+from django.template.loader import render_to_string
 from django.utils.html import format_html
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -19,7 +19,6 @@ from notification.models import Notification
 from notification.services import NotificationService
 from reputation.models import Distribution
 from reputation.serializers import DynamicDistributionSerializer
-from researchhub.settings import EMAIL_DOMAIN
 from researchhub_comment.models import RhCommentModel
 from user.filters import AUTO_PAYMENT_TYPES, AuditDashboardFilterBackend
 from user.models import Action, User, Verdict
@@ -482,7 +481,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         """Send the existing moderation email after the removal commits."""
         action = Action.objects.get(
             content_type=flag.content_type, object_id=flag.object_id
-        )
+        ).email_context()
         email_context = {
             "subject": "Flagged and Removed Content",
             "body": format_html(
@@ -496,7 +495,16 @@ class AuditViewSet(viewsets.GenericViewSet):
                 recipient.first_name,
                 recipient.last_name,
                 verdict.verdict_choice.replace("_", " "),
-                self._render_removed_item(action.email_context()),
+                render_to_string(
+                    "email_content_card.html",
+                    {
+                        "author": action.user.author_profile,
+                        "action": action.label,
+                        "title": action.title,
+                        "created_date": action.created_date,
+                        "body": action.doc_summary,
+                    },
+                ),
                 HELP_PAGE_URL,
             ),
         }
@@ -509,39 +517,6 @@ class AuditViewSet(viewsets.GenericViewSet):
                 subject,
                 email_context,
                 template="general_branded_email",
-                sender=f"ResearchHub Digest <digest@{EMAIL_DOMAIN}>",
             ),
             robust=True,
-        )
-
-    @staticmethod
-    def _render_removed_item(action: Action) -> str:
-        """Render the removed item as an author, title, and summary card."""
-        author = action.user.author_profile
-        avatar = (
-            format_html('<img class="author-avatar" src="{0}" alt="{0}" />', image)
-            if (image := author.profile_image)
-            else ""
-        )
-        return format_html(
-            '<div class="content">'
-            '<div class="meta">'
-            '<div class="avatar-wrapper">{}</div>'
-            '<div class="notification-wrapper">'
-            '<div class="notification-title">'
-            '<span class="first-line"><b>{} {}</b> {}:</span>'
-            '<div class="paper">{}</div>'
-            '<div class="timestamp">{}</div>'
-            "</div>"
-            "</div>"
-            "</div>"
-            '<div class="body">{}</div>'
-            "</div>",
-            avatar,
-            author.first_name,
-            author.last_name,
-            action.label,
-            action.title,
-            localize(action.created_date),
-            action.doc_summary,
         )

@@ -27,7 +27,7 @@ APP_ENV = os.environ.get("APP_ENV") or "development"
 DEVELOPMENT = "development" in APP_ENV
 PRODUCTION = "production" in APP_ENV
 STAGING = "staging" in APP_ENV
-CELERY_WORKER = os.environ.get("CELERY_WORKER", False)
+CELERY_WORKER = os.environ.get("CELERY_WORKER", "false").strip().lower() == "true"
 ELASTIC_APM_OFF = os.environ.get("ELASTIC_APM_OFF", False)
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -207,7 +207,6 @@ INSTALLED_APPS = [
     "django_celery_results",
     # Custom apps
     "analytics",
-    "personalize",
     "discussion",
     "feed",
     "institution",
@@ -422,7 +421,13 @@ DATABASES = {
     }
 }
 
-if ELASTIC_BEANSTALK:
+CELERY_POOL = os.environ.get("CELERY_POOL") or "prefork"
+CELERY_PREFORK_WORKER = CELERY_WORKER and CELERY_POOL in ("prefork", "processes")
+
+# Prefork workers create their own database connections per task invocation,
+# so no connection pooling must be configured for prefork workers.
+# Otherwise every task would create a new connection pool.
+if ELASTIC_BEANSTALK and not CELERY_PREFORK_WORKER:
     # Connection pooling
     # See: https://docs.djangoproject.com/en/5.1/ref/databases/#connection-pool
     # See psycopg3 connection pool docs:
@@ -438,6 +443,9 @@ if ELASTIC_BEANSTALK:
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
+
+if TESTING:
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]  # NOSONAR
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -524,6 +532,12 @@ MISTRAL_API_KEY = os.environ.get(
 # names its own model and inference knobs as module constants.
 RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
     "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
+)
+
+# Model a research_ai conversation moves to once its own model refuses a turn;
+# it needs reviewed pricing. Empty stops new moves, not ones already made.
+RESEARCH_AI_REFUSAL_FALLBACK_MODEL = os.environ.get(
+    "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3"
 )
 
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
@@ -853,9 +867,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
 
-# Transpose API
-TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
-
 # OpenAlex API
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
 
@@ -940,54 +951,6 @@ RESEARCHHUB_JOURNAL_ID = os.environ.get(
 PAPER_INGESTION_ENABLED = (
     os.environ.get("PAPER_INGESTION_ENABLED", "false").lower() == "true"
 )
-
-# AWS Personalize
-if PRODUCTION:
-    AWS_PERSONALIZE_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:campaign/personalized-recs"
-    )
-    AWS_PERSONALIZE_DATASET_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:"
-        "dataset/prod-dataset-group-12-17/ITEMS"
-    )
-    AWS_PERSONALIZE_EVENT_TRACKER_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:event-tracker/dae2cc98"
-    )
-    AWS_PERSONALIZE_TRACKING_ID = "53602814-318f-497a-a717-6f6c8595394d"
-    AWS_PERSONALIZE_TRENDING_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:975049929542:campaign/trending-recs"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS = (
-        "arn:aws:personalize:us-west-2:975049929542:filter/recent-preprints"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS_PER_HUB = (
-        "arn:aws:personalize:us-west-2:975049929542:filter/recent-preprints-per-hub"
-    )
-else:
-    AWS_PERSONALIZE_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:058264226692:campaign/Personalization"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_GTE_DATE = (
-        "arn:aws:personalize:us-west-2:058264226692:filter/filter-gte-date"
-    )
-    AWS_PERSONALIZE_DATASET_ARN = (
-        "arn:aws:personalize:us-west-2:058264226692:"
-        "dataset/staging-researchhub-recommendations/ITEMS"
-    )
-    AWS_PERSONALIZE_EVENT_TRACKER_ARN = (
-        "arn:aws:personalize:us-west-2:058264226692:"
-        "event-tracker/977ca9c1-8518-4408-bb82-efaa0e744c15"
-    )
-    AWS_PERSONALIZE_TRACKING_ID = "977ca9c1-8518-4408-bb82-efaa0e744c15"
-    AWS_PERSONALIZE_TRENDING_CAMPAIGN_ARN = (
-        "arn:aws:personalize:us-west-2:058264226692:campaign/trending"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS = (
-        "arn:aws:personalize:us-west-2:058264226692:filter/recent-preprints"
-    )
-    AWS_PERSONALIZE_FILTER_ARN_RECENT_PREPRINTS_PER_HUB = (
-        "arn:aws:personalize:us-west-2:058264226692:filter/recent-preprints-per-hub"
-    )
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", getattr(keys, "GITHUB_TOKEN", ""))
 

@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.model_pricing import model_pricing
+from research_ai.services.agent.providers.registry import split_model_ref
 from research_ai.services.agent.types import AssistantTurn, Message, TurnUsage
 from research_ai.services.usage_budget.reservation import renew_active_reservation
 from research_ai.services.usage_budget.service import ensure_budget_available, record
@@ -89,12 +90,16 @@ class AgentLoopBudgetRecorder:
             callback()
 
     def record_usage(self, usage: TurnUsage) -> None:
+        provider, model_id = self.provider, self.model_id
+        if usage.model_ref:
+            # A refused turn re-sent to another model is charged to that model.
+            provider, model_id = split_model_ref(usage.model_ref)
         if self.user is not None:
             record(
                 self.user,
                 self.feature,
-                self.provider,
-                self.model_id,
+                provider,
+                model_id or "",
                 usage,
                 execution=self.execution,
                 tier=self._checked_tier,

@@ -119,6 +119,7 @@ class NoteViewSet(ModelViewSet):
             "unified_document",
         ).prefetch_related(
             "unified_document__permissions",
+            "invited_users",
         )
 
         page = self.paginate_queryset(notes)
@@ -139,22 +140,7 @@ class NoteViewSet(ModelViewSet):
         return self.get_paginated_response(serializer_data)
 
     def _get_accessible_notes(self, user) -> QuerySet[Note]:
-        return (
-            self.queryset.filter(
-                (
-                    Q(unified_document__permissions__user=user)
-                    & ~Q(unified_document__permissions__access_type=NO_ACCESS)
-                )
-                | (
-                    Q(
-                        unified_document__permissions__organization__permissions__user=user
-                    )
-                    & ~Q(unified_document__permissions__access_type=NO_ACCESS)
-                )
-            )
-            .distinct()
-            .order_by("-created_date")
-        )
+        return self.queryset.accessible_to(user).order_by("-created_date")
 
     def _filter_accessible_notes(
         self, notes: QuerySet[Note], request
@@ -618,7 +604,7 @@ class NoteContentViewSet(
         """The referenced version, or ``None`` when it is not one of ``note``'s."""
         try:
             parent_version_id = int(parent_version_id)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         return NoteContent.objects.filter(id=parent_version_id, note=note).first()
 
