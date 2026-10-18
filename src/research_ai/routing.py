@@ -11,4 +11,8 @@ websocket_urlpatterns = [
         r"ws/assistant/chats/(?P<conversation_id>[0-9]+)/$",
         consumers.AssistantChatConsumer.as_asgi(),
     ),
+    re_path(
+        r"ws/expert-finder/searches/(?P<search_id>[0-9]+)/$",
+        consumers.ExpertFinderConsumer.as_asgi(),
+    ),
 ]
