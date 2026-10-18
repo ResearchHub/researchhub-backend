@@ -26,7 +26,6 @@ from research_ai.services.outreach.campaign_service import (
 )
 from research_ai.services.outreach.instantly_client import InstantlyAPIError
 from research_ai.services.outreach.mailbox_service import (
-    InsufficientDailyCapacityError,
     MailboxAlreadyConnectedError,
     MailboxError,
     MailboxNotFoundError,
@@ -176,7 +175,7 @@ class TemplateRewriteView(APIView):
     def post(self, request, template_id):
         try:
             tid = int(template_id)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return Response(
                 {"detail": "Invalid template ID."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -224,7 +223,7 @@ class TemplatePublishView(APIView):
     def post(self, request, template_id):
         try:
             tid = int(template_id)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return Response(
                 {"detail": "Invalid template ID."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -291,7 +290,7 @@ class OutreachCampaignSendView(APIView):
     def post(self, request, campaign_id):
         try:
             cid = int(campaign_id)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return Response(
                 {"detail": "Invalid campaign ID."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -312,15 +311,6 @@ class OutreachCampaignSendView(APIView):
             return Response(
                 {"detail": "Outreach campaign not found."},
                 status=status.HTTP_404_NOT_FOUND,
-            )
-        except InsufficientDailyCapacityError as exc:
-            return Response(
-                {
-                    "detail": str(exc),
-                    "remaining": exc.remaining,
-                    "requested": exc.requested,
-                },
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
         except (CampaignNotReadyError, CampaignValidationError) as exc:
             return Response(
@@ -405,7 +395,7 @@ class OutreachMailboxDetailView(APIView):
     def delete(self, request, mailbox_id):
         try:
             mid = int(mailbox_id)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return Response(
                 {"detail": "Invalid mailbox ID."},
                 status=status.HTTP_400_BAD_REQUEST,
