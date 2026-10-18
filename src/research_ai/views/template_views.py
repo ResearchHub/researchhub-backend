@@ -4,8 +4,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from research_ai.permissions import ResearchAIPermission
 from research_ai.models import OutreachMailbox
+from research_ai.permissions import ResearchAIPermission
 from research_ai.serializers import (
     EmailTemplateCreateSerializer,
     EmailTemplateSerializer,
