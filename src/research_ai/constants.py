@@ -46,6 +46,7 @@ EXPERT_FINDER_DEFAULT_STATE = "All States"
 EXPERT_FINDER_SEEN_WORK_IDS_CAP = 80
 EXPERT_FINDER_SEEN_WORK_IDS_CONFIG_KEY = "seen_openalex_work_ids"
 
+
 def expert_finder_web_search_budget(expert_count: int) -> int:
     """Brave web_search ceiling for one EF run (scales with target size)."""
     return min(150, max(24, int(expert_count) + 25))
