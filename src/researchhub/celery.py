@@ -94,11 +94,19 @@ app.conf.beat_schedule = {
             "queue": QUEUE_NOTIFICATION,
         },
     },
-    "purchase_send-funding-credits-reminders": {
+    "purchase_email-funding-credits-reminders": {
         "task": "purchase.tasks.send_funding_credits_reminders",
-        # Notifies on the 1st and 15th, emailing on the 1st only; the task
-        # itself dedupes to at most one reminder per user per day.
-        "schedule": crontab(day_of_month="1,15", hour=16, minute=0),
+        "schedule": crontab(day_of_month="1", hour=16, minute=0),
+        "kwargs": {"send_email": True},
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_NOTIFICATION,
+        },
+    },
+    "purchase_notify-funding-credits-reminders": {
+        "task": "purchase.tasks.send_funding_credits_reminders",
+        "schedule": crontab(day_of_month="15", hour=16, minute=0),
+        "kwargs": {"send_email": False},
         "options": {
             "priority": 3,
             "queue": QUEUE_NOTIFICATION,

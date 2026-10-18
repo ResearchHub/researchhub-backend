@@ -52,6 +52,7 @@ class EmailService:
         sender: str | None = None,
         reply_to: str | list[str] | None = None,
         cc: list[str] | None = None,
+        raise_on_error: bool = False,
     ) -> None:
         """
         Send optional email, skipping addresses that have opted out.
@@ -66,6 +67,7 @@ class EmailService:
 
         Undeliverable and complained-about addresses are handled separately by the
         SES backend's blacklist, which applies to both methods.
+        Set `raise_on_error` when the caller manages delivery retries.
         """
         self._send(
             recipients=recipients,
@@ -76,6 +78,7 @@ class EmailService:
             reply_to=reply_to,
             cc=cc,
             unsubscribable=True,
+            raise_on_error=raise_on_error,
         )
 
     def send_transactional_email(
@@ -175,12 +178,12 @@ class EmailService:
         reply_to: str | list[str] | None,
         cc: list[str] | None,
         unsubscribable: bool,
+        raise_on_error: bool = False,
     ) -> None:
         """
         Render and send one message per recipient.
 
-        Sends are best-effort: a recipient that fails is logged and skipped so one
-        bad address cannot abort the rest of the batch.
+        Log and skip failed recipients unless the caller manages retries.
         """
         if not isinstance(recipients, list):
             recipients = [recipients]
@@ -221,7 +224,7 @@ class EmailService:
             plain_body = self._html_to_text(html_body)
 
             try:
-                self._send_message(
+                message_id = self._send_message(
                     recipient,
                     subject,
                     html_body,
@@ -231,7 +234,11 @@ class EmailService:
                     cc=cc,
                     headers=headers,
                 )
+                if raise_on_error and message_id is None:
+                    raise RuntimeError("Email backend did not send the message")
             except Exception:
+                if raise_on_error:
+                    raise
                 logger.exception("Email send failed to %s", recipient)
 
             sleep(self._send_interval_seconds)

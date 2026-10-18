@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
-import utils.locking as lock
 from notification.models import Notification
 from notification.services import NotificationService
 from purchase.circle.service import CircleWalletService
@@ -136,18 +135,13 @@ def send_monthly_preregistration_update_reminders():
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
-def send_funding_credits_reminders() -> dict[str, int]:
-    """Remind users who still hold unspent funding credits to spend them."""
-    key = lock.name("send_funding_credits_reminders")
-    if not lock.acquire(key):
-        logger.warning("Already locked %s, skipping task", key)
-        return {"sent_count": 0}
-
-    try:
-        return {"sent_count": FundingCreditsReminderService().send_reminders()}
-    finally:
-        lock.release(key)
-        logger.info("Released lock %s", key)
+def send_funding_credits_reminders(*, send_email: bool = False) -> dict[str, int]:
+    """Remind eligible funding-credit holders, optionally sending monthly email."""
+    return {
+        "sent_count": FundingCreditsReminderService().send_reminders(
+            send_email=send_email
+        )
+    }
 
 
 def dispatch_sweep(wallet, amount, network, circle_transaction_id):
