@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
@@ -61,6 +62,9 @@ class CompleteProfileEmailService:
         self.email_service.send_email(
             user.email,
             "Finish your ResearchHub profile",
-            {"profile_url": f"{user.frontend_view_link()}?edit_profile=true"},
+            {
+                "profile_url": f"{settings.BASE_FRONTEND_URL}/author/"
+                f"{user.author_profile.id}?edit_profile=true"
+            },
             template="complete_profile_email",
         )

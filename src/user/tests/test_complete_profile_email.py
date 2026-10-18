@@ -1,6 +1,7 @@
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
+from django.conf import settings
 from django.test import TestCase
 from django.utils import timezone
 
@@ -31,10 +32,14 @@ class CompleteProfileEmailServiceTests(TestCase):
         self.service.send_if_eligible(self.user.id)
 
         # Assert
+        author_id = self.user.author_profile.id
         self.email_service.send_email.assert_called_once_with(
             self.user.email,
             "Finish your ResearchHub profile",
-            {"profile_url": f"{self.user.frontend_view_link()}?edit_profile=true"},
+            {
+                "profile_url": f"{settings.BASE_FRONTEND_URL}/author/"
+                f"{author_id}?edit_profile=true"
+            },
             template="complete_profile_email",
         )
 
