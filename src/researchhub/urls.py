@@ -58,6 +58,9 @@ from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_availability_view import ReviewAvailabilityView
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
+from user.views.complete_profile_email_test_view import (
+    send_complete_profile_test_email,
+)
 from user.views.custom_verify_email_view import CustomVerifyEmailView
 from user_lists.views import ListItemViewSet, ListViewSet
 
@@ -248,6 +251,10 @@ urlpatterns = [
     ),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
+    path(
+        "api/complete_profile_email/test/",
+        send_complete_profile_test_email,
+    ),
     path(
         "api/moderators/get_editors_by_contributions/",
         editor_views.get_editors_by_contributions,
