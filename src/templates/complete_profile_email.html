@@ -1,0 +1,125 @@
+{% load inlinecss %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Almost there</title>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    @media (max-width: 640px) {
+      .profile-email, .footer { width: 100% !important; }
+      .profile-email-inner { padding: 24px 16px 0 !important; }
+      .profile-card, .profile-arrow { display: block !important; width: auto !important; }
+      .profile-arrow { padding: 8px 0 !important; }
+    }
+  </style>
+</head>
+{% inlinecss "general_email.css" %}
+
+<body class="profile-email-body">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td class="profile-email-canvas" align="center">
+        <table class="profile-email" role="presentation" width="640" cellpadding="0" cellspacing="0">
+          <tr>
+            <td class="profile-email-inner">
+              <img class="profile-logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" alt="ResearchHub" width="104" height="24" />
+              <h1 class="profile-title">Almost there</h1>
+              <p class="profile-tagline">Funders fund people, not blank profiles. Finish yours to give yourself the best chance of raising research funds.</p>
+
+              <table class="profile-panel" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="profile-panel-inner">
+                    <table role="presentation" align="center" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td class="profile-step">
+                          <div class="profile-step-circle">1</div>
+                          <div class="profile-step-label">Sign up</div>
+                        </td>
+                        <td class="profile-step-line"><div class="profile-step-rule"></div></td>
+                        <td class="profile-step">
+                          <div class="profile-step-circle profile-step-circle-current">2</div>
+                          <div class="profile-step-label profile-step-label-current">Finish your profile</div>
+                        </td>
+                        <td class="profile-step-line"><div class="profile-step-rule"></div></td>
+                        <td class="profile-step">
+                          <div class="profile-step-circle">3</div>
+                          <div class="profile-step-label">Get funded</div>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <table class="profile-pair" role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td class="profile-card" width="50%">
+                          <div class="profile-caption">Your profile &middot; not likely to get funded</div>
+                          <table role="presentation" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td class="profile-face">
+                                <div class="profile-face-empty">
+                                  <img src="{{ assets_base_url }}/email_assets/complete_profile/person.png" alt="" width="24" height="24" />
+                                </div>
+                              </td>
+                              <td class="profile-details">
+                                <div class="profile-name">You</div>
+                                <div class="profile-bio">No bio</div>
+                                <img class="profile-social" src="{{ assets_base_url }}/email_assets/complete_profile/scholar_muted.png" alt="" width="16" height="16" />
+                                <img class="profile-social" src="{{ assets_base_url }}/email_assets/complete_profile/linkedin_muted.png" alt="" width="16" height="16" />
+                                <img class="profile-social" src="{{ assets_base_url }}/email_assets/complete_profile/orcid_muted.png" alt="" width="16" height="16" />
+                                <img class="profile-social" src="{{ assets_base_url }}/email_assets/complete_profile/x_muted.png" alt="" width="16" height="16" />
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                        <td class="profile-arrow" width="40">
+                          <img src="{{ assets_base_url }}/email_assets/complete_profile/arrow.png" alt="" width="16" height="16" />
+                        </td>
+                        <td class="profile-card profile-card-complete" width="50%">
+                          <div class="profile-caption profile-caption-complete">Much more likely to get funded</div>
+                          <table role="presentation" cellpadding="0" cellspacing="0">
+                            <tr>
+                              <td class="profile-face">
+                                <img class="profile-face-image" src="{{ assets_base_url }}/email_assets/complete_profile/ruslan.jpeg" alt="Ruslan Rust, PhD" width="56" height="56" />
+                              </td>
+                              <td class="profile-details">
+                                <div class="profile-name profile-name-complete">Ruslan Rust, PhD <img class="profile-verified" src="{{ assets_base_url }}/email_assets/complete_profile/verified.png" alt="Verified" width="16" height="16" /></div>
+                                <div class="profile-bio profile-bio-complete">Asst Prof in Neuroscience and Physiology at USC</div>
+                                <img class="profile-social" src="{{ assets_base_url }}/email_assets/complete_profile/scholar.png" alt="Google Scholar" width="16" height="16" />
+                                <img class="profile-social" src="{{ assets_base_url }}/email_assets/complete_profile/linkedin.png" alt="LinkedIn" width="16" height="16" />
+                                <img class="profile-social" src="{{ assets_base_url }}/email_assets/complete_profile/orcid.png" alt="ORCID" width="16" height="16" />
+                                <img class="profile-social" src="{{ assets_base_url }}/email_assets/complete_profile/x.png" alt="X" width="16" height="16" />
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <div class="profile-cta-row">
+                      <a class="profile-cta" href="{{ profile_url }}">Finish your profile</a>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+        <table class="footer" role="presentation" width="640" cellpadding="0" cellspacing="0">
+          <tr>
+            <td>
+              {% if opt_out %}<a href="{{ opt_out }}">Unsubscribe</a> &nbsp;&middot;&nbsp; {% endif %}&copy; {% now "Y" %} ResearchHub
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>
+
+{% endinlinecss %}
