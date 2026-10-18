@@ -842,16 +842,36 @@ TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", keys.TURNSTILE_SEC
 # Amplitude
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
 
+# Instantly / Expert Finder outreach.
+# TEMPORARY hardcodes for staging deploy until Beanstalk env vars exist.
+# Prefer env → keys → these fallbacks. Remove hardcoded secrets ASAP.
+_INSTANTLY_API_KEY_FALLBACK = (
+    "NGQ5ODJmZDAtNGMxNC00OTlhLWFkNjMtZDc2MzNlYzM1NjNkOmkxN1FhcDRaSjhpc19zNW1ZUF9QME1KVmNVN2NJNzJ6"
+)
+_INSTANTLY_WEBHOOK_SECRET_FALLBACK = (
+    "489adeebf7154d35ba0bee570490929c8672133a6a6e1a93c8bcdd5585ad2ea9"
+)
+
 EXPERT_FINDER_OUTREACH_ENABLED = (
-    os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
+    os.environ.get(
+        "EXPERT_FINDER_OUTREACH_ENABLED",
+        str(getattr(keys, "EXPERT_FINDER_OUTREACH_ENABLED", True)),
+    ).lower()
+    == "true"
 )
 
 # Instantly (Expert Finder outreach sending)
-INSTANTLY_API_KEY = os.environ.get(
-    "INSTANTLY_API_KEY", getattr(keys, "INSTANTLY_API_KEY", "")
+INSTANTLY_API_KEY = (
+    os.environ.get("INSTANTLY_API_KEY")
+    or getattr(keys, "INSTANTLY_API_KEY", "")
+    or _INSTANTLY_API_KEY_FALLBACK
 )
-INSTANTLY_WEBHOOK_SECRET = os.environ.get(
-    "INSTANTLY_WEBHOOK_SECRET", getattr(keys, "INSTANTLY_WEBHOOK_SECRET", "")
+# Shared secret configured in Instantly webhook UI. Compared to
+# Authorization: Bearer <secret> or X-Instantly-Webhook-Secret / X-Webhook-Secret.
+INSTANTLY_WEBHOOK_SECRET = (
+    os.environ.get("INSTANTLY_WEBHOOK_SECRET")
+    or getattr(keys, "INSTANTLY_WEBHOOK_SECRET", "")
+    or _INSTANTLY_WEBHOOK_SECRET_FALLBACK
 )
 
 # Crossref
