@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
@@ -337,11 +338,10 @@ class FundingCreditsReminderTest(TestCase):
         self.assertIn("$25 in unused funding credits", mail.outbox[0].subject)
         self.assertIn("/fund/proposals", mail.outbox[0].alternatives[0].content)
         self.assertIn("Fund Science", mail.outbox[0].alternatives[0].content)
-        self.assertIn("cid:funding-credits", mail.outbox[0].alternatives[0].content)
-        self.assertEqual(
-            mail.outbox[0].attachments[0]["Content-ID"], "<funding-credits>"
+        self.assertIn(
+            f"{settings.ASSETS_BASE_URL}/email_assets/funding-credits.png",
+            mail.outbox[0].alternatives[0].content,
         )
-        self.assertEqual(mail.outbox[0].attachments[0].get_content_type(), "image/png")
 
     def test_emails_a_legacy_notification(self) -> None:
         """Email a preexisting day-one inbox alert without creating another."""

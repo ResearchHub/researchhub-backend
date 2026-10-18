@@ -1,8 +1,6 @@
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
-from email.message import MIMEPart
-from pathlib import Path
 from uuid import uuid4
 
 from django.conf import settings
@@ -149,7 +147,10 @@ class FundingCreditsReminderService:
         if funding_credits_usd < 1:
             return None
         amount = format_compact_usd(funding_credits_usd)
-        message = render_to_string("email_funding_credits_card.html")
+        message = render_to_string(
+            "email_funding_credits_card.html",
+            {"assets_base_url": settings.ASSETS_BASE_URL},
+        )
         return f"You have {amount} in unused funding credits", message
 
     def _email_reminder(
@@ -179,16 +180,6 @@ class FundingCreditsReminderService:
             extra__email_claim_token=claimed_extra["email_claim_token"],
         )
         try:
-            # Rasterized from the web's green outlined ResearchCoinIcon.
-            icon_path = Path(__file__).parent.parent / "assets/funding-credits.png"
-            icon = MIMEPart()
-            icon.set_content(
-                icon_path.read_bytes(),
-                maintype="image",
-                subtype="png",
-                disposition="inline",
-                cid="<funding-credits>",
-            )
             self._emails.send_email(
                 [user.email],
                 subject,
@@ -200,7 +191,6 @@ class FundingCreditsReminderService:
                 },
                 template="general_branded_email",
                 raise_on_error=True,
-                attachments=[icon],
             )
         except Exception:
             owned_claim.update(extra={**claimed_extra, "email_state": "pending"})
