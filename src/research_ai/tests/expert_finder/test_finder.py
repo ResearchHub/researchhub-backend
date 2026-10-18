@@ -332,6 +332,117 @@ class ExpertFinderRunSearchIntegrationTests(TestCase):
             None,
         )
 
+    @override_settings(PRODUCTION=False, TESTING=False)
+    @patch(
+        "research_ai.services.expert_finder.finder.upload_report_to_storage",
+        return_value="https://x/r",
+    )
+    @patch(
+        "research_ai.services.expert_finder.finder.generate_csv_file",
+        return_value=b"c",
+    )
+    @patch(
+        "research_ai.services.expert_finder.finder.generate_pdf_report",
+        return_value=b"p",
+    )
+    @patch("research_ai.services.expert_finder.finder.resolve_provider")
+    @patch("research_ai.services.expert_finder.finder.run_expert_finder_agent")
+    def test_content_filtered_retries_openrouter(
+        self, mock_agent, mock_resolve, _pdf, _csv, _up
+    ):
+        # Arrange
+        from research_ai.constants import EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL
+
+        mock_resolve.return_value = MagicMock(name="openrouter_provider")
+        mock_agent.side_effect = [
+            {
+                "experts": [],
+                "errors": [
+                    "agent: Provider stopped without completing "
+                    "the agent run: content_filtered"
+                ],
+                "author_work_ids": {},
+                "content_filtered": True,
+            },
+            {
+                "experts": [
+                    {
+                        "email": "u@mit.edu",
+                        "first_name": "U",
+                        "last_name": "V",
+                        "academic_title": "Prof",
+                        "affiliation": "MIT",
+                        "expertise": "X",
+                        "notes": "N",
+                        "sources": [
+                            {
+                                "text": "OpenAlex",
+                                "url": "https://openalex.org/A123",
+                            }
+                        ],
+                        "openalex_author_id": "https://openalex.org/A123",
+                    }
+                ],
+                "errors": [],
+                "author_work_ids": {},
+                "content_filtered": False,
+            },
+        ]
+
+        # Act
+        r = run_expert_finder_search(
+            str(self.search.id),
+            "sensitive topic query",
+            {
+                "expert_count": 1,
+                "expertise_level": [ExpertiseLevel.ALL_LEVELS],
+                "region": Region.ALL_REGIONS,
+            },
+        )
+
+        # Assert
+        self.assertEqual(r["status"], ExpertSearch.Status.COMPLETED)
+        self.assertEqual(mock_agent.call_count, 2)
+        mock_resolve.assert_called_once_with(
+            EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL
+        )
+        self.assertIs(
+            mock_agent.call_args_list[1].kwargs.get("provider"),
+            mock_resolve.return_value,
+        )
+        self.assertEqual(r["llm_model"], EXPERT_FINDER_CONTENT_FILTER_FALLBACK_MODEL)
+
+    @patch("research_ai.services.expert_finder.finder.resolve_provider")
+    @patch("research_ai.services.expert_finder.finder.run_expert_finder_agent")
+    def test_content_filtered_both_models_fail(self, mock_agent, mock_resolve):
+        # Arrange
+        mock_resolve.return_value = MagicMock(name="openrouter_provider")
+        filtered = {
+            "experts": [],
+            "errors": [
+                "agent: Provider stopped without completing "
+                "the agent run: content_filtered"
+            ],
+            "author_work_ids": {},
+            "content_filtered": True,
+        }
+        mock_agent.side_effect = [filtered, filtered]
+
+        # Act
+        r = run_expert_finder_search(
+            str(self.search.id),
+            "sensitive topic query",
+            {
+                "expert_count": 1,
+                "expertise_level": [ExpertiseLevel.ALL_LEVELS],
+                "region": Region.ALL_REGIONS,
+            },
+        )
+
+        # Assert
+        self.assertEqual(r["status"], ExpertSearch.Status.FAILED)
+        self.assertEqual(mock_agent.call_count, 2)
+
 
 class PriorDocumentExpertExclusionTests(TestCase):
     def setUp(self):

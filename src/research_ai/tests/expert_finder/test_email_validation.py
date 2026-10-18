@@ -88,17 +88,17 @@ class EmailValidationServiceTests(SimpleTestCase):
             EmailAddress="jane.doe@university.edu"
         )
 
-    def test_rejects_medium_is_valid(self):
+    def test_accepts_medium_is_valid(self):
         # Arrange
         self.client.get_email_address_insights.return_value = _insights(
             is_valid=CONFIDENCE_MEDIUM,
-            mailbox_exists=CONFIDENCE_HIGH,
+            mailbox_exists=CONFIDENCE_MEDIUM,
         )
         # Act
         result = self.service.validate("jane@university.edu")
         # Assert
-        self.assertFalse(result.accepted)
-        self.assertIn("IsValid", result.reason or "")
+        self.assertTrue(result.accepted)
+        self.assertIsNone(result.reason)
 
     def test_rejects_low_is_valid(self):
         # Arrange

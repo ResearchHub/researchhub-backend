@@ -7,6 +7,8 @@ from rest_framework import serializers
 from paper.serializers import PaperSerializer
 from research_ai.constants import (
     EXPERT_FINDER_DEFAULT_STATE,
+    EXPERT_FINDER_MAX_EXPERT_COUNT,
+    EXPERT_FINDER_MIN_EXPERT_COUNT,
     EmailTemplateType,
     ExpertiseLevel,
     Region,
@@ -66,7 +68,10 @@ def _apply_generate_template_rules(attrs, initial_data):
 
 
 class ExpertSearchConfigSerializer(serializers.Serializer):
-    expert_count = serializers.IntegerField(min_value=5, max_value=25)
+    expert_count = serializers.IntegerField(
+        min_value=EXPERT_FINDER_MIN_EXPERT_COUNT,
+        max_value=EXPERT_FINDER_MAX_EXPERT_COUNT,
+    )
     expertise_level = serializers.ListField(
         child=serializers.ChoiceField(choices=ExpertiseLevel.choices),
         required=False,
@@ -115,7 +120,10 @@ class ExpertSearchCreateSerializer(serializers.Serializer):
 class ExpertSearchFindMoreSerializer(serializers.Serializer):
     """POST body for ``/expert-finder/searches/<id>/find-more/``."""
 
-    expert_count = serializers.IntegerField(min_value=5, max_value=25)
+    expert_count = serializers.IntegerField(
+        min_value=EXPERT_FINDER_MIN_EXPERT_COUNT,
+        max_value=EXPERT_FINDER_MAX_EXPERT_COUNT,
+    )
     additional_context = serializers.CharField(
         required=False,
         allow_blank=True,
