@@ -18,6 +18,7 @@ from research_ai.serializers import (
     OutreachCampaignPublishSerializer,
     OutreachCampaignSendSerializer,
     OutreachCampaignSerializer,
+    OutreachMailboxAdminSerializer,
     OutreachMailboxConnectSerializer,
     OutreachMailboxOAuthInitSerializer,
     OutreachMailboxSerializer,
@@ -559,12 +560,28 @@ class OutreachCampaignPreviewView(APIView):
 class OutreachMailboxListCreateView(APIView):
     """
     GET  /api/research_ai/expert-finder/outreach-mailboxes/ - List mailboxes.
+        Default: caller's mailboxes. ``?scope=all`` (moderators only): every
+        mailbox with editor identity + live Instantly warmup state.
     POST /api/research_ai/expert-finder/outreach-mailboxes/ - Connect Gmail.
     """
 
     permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def get(self, request):
+        scope = (request.query_params.get("scope") or "").strip().lower()
+        if scope == "all":
+            if not getattr(request.user, "moderator", False):
+                return Response(
+                    {"detail": "Only moderators can list all outreach mailboxes."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            try:
+                mailboxes = OutreachMailboxService().list_all_mailboxes_for_moderator()
+            except InstantlyAPIError as exc:
+                return _outreach_provider_error_response(exc)
+            ser = OutreachMailboxAdminSerializer(mailboxes, many=True)
+            return Response({"mailboxes": ser.data})
+
         qs = OutreachMailbox.objects.filter(editor=request.user).order_by(
             "-created_date"
         )
@@ -662,7 +679,7 @@ class OutreachMailboxDetailView(APIView):
     """
     PATCH /api/research_ai/expert-finder/outreach-mailboxes/<mailbox_id>/
         Update provider + local fields. ``reply_to`` for owner/moderator;
-        ``daily_limit`` moderator-only.
+        ``daily_limit`` / ``warmup_enabled`` moderator-only.
     DELETE /api/research_ai/expert-finder/outreach-mailboxes/<mailbox_id>/
         Detach a connected Gmail mailbox from the outreach provider and
         soft-delete locally.
@@ -684,6 +701,8 @@ class OutreachMailboxDetailView(APIView):
             update_kwargs["reply_to"] = data["reply_to"]
         if "daily_limit" in data:
             update_kwargs["daily_limit"] = data["daily_limit"]
+        if "warmup_enabled" in data:
+            update_kwargs["warmup_enabled"] = data["warmup_enabled"]
 
         try:
             mailbox = OutreachMailboxService().update_mailbox(
@@ -704,6 +723,8 @@ class OutreachMailboxDetailView(APIView):
         except InstantlyAPIError as exc:
             return _outreach_provider_error_response(exc)
 
+        if "warmup_enabled" in data:
+            return Response(OutreachMailboxAdminSerializer(mailbox).data)
         return Response(OutreachMailboxSerializer(mailbox).data)
 
     def delete(self, request, mailbox_id):

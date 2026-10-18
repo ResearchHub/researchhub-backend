@@ -446,6 +446,46 @@ class ExpertSearchDetailSerializerOutreachTests(TestCase):
         self.assertIsNone(expert["emailed_for_current_document"])
         self.assertEqual(expert["emailed_on_other_documents"], [])
 
+    def test_sending_email_counts_as_messaged_on_current_document(self):
+        # Arrange — campaign queue / pending Instantly lead
+        GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.search_a,
+            expert_email="scoped@uni.edu",
+            status=GeneratedEmail.Status.SENDING,
+        )
+
+        # Act
+        ser = ExpertSearchDetailSerializer(self.search_a)
+        expert = ser.data["experts"][0]
+
+        # Assert
+        self.assertIsNotNone(expert["emailed_for_current_document"])
+        self.assertEqual(
+            expert["emailed_for_current_document"]["search_id"], self.search_a.id
+        )
+        self.assertEqual(expert["emailed_on_other_documents"], [])
+
+    def test_sending_email_on_other_document_appears_in_other_list(self):
+        # Arrange
+        GeneratedEmail.objects.create(
+            created_by=self.user,
+            expert_search=self.search_b,
+            expert_email="scoped@uni.edu",
+            status=GeneratedEmail.Status.SENDING,
+        )
+
+        # Act
+        ser = ExpertSearchDetailSerializer(self.search_a)
+        expert = ser.data["experts"][0]
+
+        # Assert
+        self.assertIsNone(expert["emailed_for_current_document"])
+        self.assertEqual(len(expert["emailed_on_other_documents"]), 1)
+        self.assertEqual(
+            expert["emailed_on_other_documents"][0]["search_id"], self.search_b.id
+        )
+
 
 class ExpertSearchListItemSerializerTests(TestCase):
     def setUp(self):

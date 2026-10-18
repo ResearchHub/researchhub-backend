@@ -63,7 +63,11 @@ def build_expert_outreach_history_map(
     current_unified_document_id: int | None,
 ) -> dict[str, ExpertOutreachHistory]:
     """
-    Return per-email outreach history from sent ``GeneratedEmail`` rows.
+    Return per-email outreach history from sent or queued ``GeneratedEmail`` rows.
+
+    Includes ``sent`` and ``sending`` (campaign queue / pending provider lead)
+    so experts already in a campaign show the same “messaged” flags. Drafts
+    and failed states are excluded.
 
     ``emailed_for_current_document`` is scoped to ``current_unified_document_id``.
     ``emailed_on_other_documents`` lists the latest send per other linked document.
@@ -82,7 +86,10 @@ def build_expert_outreach_history_map(
     rows = (
         GeneratedEmail.objects.filter(
             expert_email__in=normalized,
-            status=GeneratedEmail.Status.SENT,
+            status__in=(
+                GeneratedEmail.Status.SENT,
+                GeneratedEmail.Status.SENDING,
+            ),
             expert_search__isnull=False,
         )
         .select_related("expert_search__unified_document")

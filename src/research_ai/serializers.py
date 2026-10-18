@@ -1138,6 +1138,32 @@ class OutreachMailboxSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class OutreachMailboxAdminSerializer(OutreachMailboxSerializer):
+    """
+    Moderator list/detail: owner identity, Instantly warmup on/off, RH totals.
+
+    ``warmup_enabled`` comes from Instantly account list/get.
+    ``total_sent`` is lifetime ``GeneratedEmail`` count for ``sender_account``.
+    """
+
+    editor_id = serializers.IntegerField(read_only=True)
+    editor_email = serializers.EmailField(source="editor.email", read_only=True)
+    warmup_enabled = serializers.BooleanField(read_only=True)
+    total_sent = serializers.SerializerMethodField()
+
+    class Meta(OutreachMailboxSerializer.Meta):
+        fields = OutreachMailboxSerializer.Meta.fields + [
+            "editor_id",
+            "editor_email",
+            "warmup_enabled",
+            "total_sent",
+        ]
+        read_only_fields = fields
+
+    def get_total_sent(self, obj) -> int:
+        return int(getattr(obj, "total_sent", 0) or 0)
+
+
 class OutreachMailboxConnectSerializer(serializers.Serializer):
     """Request for POST /expert-finder/outreach-mailboxes/."""
 
@@ -1156,19 +1182,24 @@ class OutreachMailboxUpdateSerializer(serializers.Serializer):
     """
     Request for PATCH /expert-finder/outreach-mailboxes/<id>/.
 
-    ``reply_to``: owner or moderator. ``daily_limit``: moderator only.
-    At least one field is required.
+    ``reply_to``: owner or moderator. ``daily_limit`` / ``warmup_enabled``:
+    moderator only. At least one field is required.
     """
 
     reply_to = serializers.EmailField(required=False, allow_blank=True)
     daily_limit = serializers.IntegerField(
         required=False, min_value=1, max_value=10_000
     )
+    warmup_enabled = serializers.BooleanField(required=False)
 
     def validate(self, attrs):
-        if "reply_to" not in attrs and "daily_limit" not in attrs:
+        if (
+            "reply_to" not in attrs
+            and "daily_limit" not in attrs
+            and "warmup_enabled" not in attrs
+        ):
             raise serializers.ValidationError(
-                "At least one of reply_to or daily_limit is required."
+                "At least one of reply_to, daily_limit, or warmup_enabled is required."
             )
         return attrs
 
