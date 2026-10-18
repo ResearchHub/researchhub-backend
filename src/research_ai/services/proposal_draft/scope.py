@@ -34,7 +34,7 @@ def _usd_amount(amount: object, currency: object) -> Decimal | None:
         return None
     try:
         value = Decimal(str(amount))
-    except (InvalidOperation, TypeError, ValueError):
+    except InvalidOperation, TypeError, ValueError:
         return None
     return value if value > 0 else None
 

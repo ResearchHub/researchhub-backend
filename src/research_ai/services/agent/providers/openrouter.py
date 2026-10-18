@@ -79,7 +79,7 @@ _TOOL_IMAGES_NOTE = "[Images returned by tool result {position} above (id {id}).
 # provider verbatim, so omit them for those models.
 _NO_SAMPLING_PARAMS = (
     "openai/gpt-5",
-    "openai/gpt-6-",
+    "openai/gpt-6",
     "opus-4-7",
     "opus-4-8",
     "opus-4.7",
@@ -116,6 +116,24 @@ def _is_retryable_error(error: Exception) -> bool:
     return False
 
 
+# 403 ``error_type``s for a request the model or a content filter declined.
+_REFUSAL_ERROR_TYPES = frozenset({"refusal", "content_policy_violation"})
+
+
+def _refusal_error(error: Exception) -> dict | None:
+    """The error body when OpenRouter reports a refusal or flagged input."""
+    if not isinstance(error, openai.PermissionDeniedError):
+        return None
+    body = error.body if isinstance(error.body, dict) else {}
+    metadata = body.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    if metadata.get("error_type") in _REFUSAL_ERROR_TYPES:
+        return body
+    # A moderation flag carries the flagged text instead of an error type.
+    return body if "flagged_input" in metadata else None
+
+
 # Chat Completions ``finish_reason`` -> neutral ``StopReason``.
 _FINISH_REASONS = {
     "stop": StopReason.END_TURN,
@@ -136,7 +154,7 @@ def _parse_arguments(raw: str | None) -> dict:
         return {}
     try:
         parsed = json.loads(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         logger.warning("OpenRouter tool arguments are not valid JSON: %.200r", raw)
         return {}
     return parsed if isinstance(parsed, dict) else {}
@@ -242,11 +260,7 @@ class OpenRouterProvider(LLMProvider):
                     retryable=False,
                 )
             kwargs["tools"] = rendered_tools
-        reasoning: dict = {}
-        if self.thinking is not None:
-            reasoning["enabled"] = self.thinking == "adaptive"
-        if self.effort and self.thinking != "disabled":
-            reasoning["effort"] = self.effort
+        reasoning = self._reasoning()
         if reasoning:
             # ``reasoning`` is an OpenRouter extension rather than an OpenAI
             # Chat Completions argument, so the OpenAI client forwards it via
@@ -257,6 +271,21 @@ class OpenRouterProvider(LLMProvider):
         try:
             response = self._client.chat.completions.create(**kwargs)
         except Exception as e:
+            refusal = _refusal_error(e)
+            if refusal is not None:
+                # The same outcome as a refusal the model writes, so it is
+                # reported the same way.
+                logger.warning(
+                    "openrouter: request refused (model=%s, error=%r)",
+                    self.model_id,
+                    refusal,
+                )
+                return AssistantTurn(
+                    text_blocks=[],
+                    tool_calls=[],
+                    stop_reason=StopReason.CONTENT_FILTERED,
+                    stop_details=refusal,
+                )
             logger.exception("OpenRouter complete failed")
             raise ProviderError(
                 f"OpenRouter complete failed: {e}",
@@ -271,6 +300,15 @@ class OpenRouterProvider(LLMProvider):
         return self._parse_turn(response, latency_ms=latency_ms)
 
     # -- private helpers --------------------------------------------------
+
+    def _reasoning(self) -> dict:
+        """OpenRouter's ``reasoning`` option for this provider's settings."""
+        reasoning: dict = {}
+        if self.thinking is not None:
+            reasoning["enabled"] = self.thinking == "adaptive"
+        if self.effort and self.thinking != "disabled":
+            reasoning["effort"] = self.effort
+        return reasoning
 
     def _render_messages(
         self, system_prompt: str, messages: list[Message]
@@ -481,7 +519,7 @@ class OpenRouterProvider(LLMProvider):
             return None
         try:
             cost = Decimal(str(raw_cost))
-        except (InvalidOperation, TypeError, ValueError):
+        except InvalidOperation, TypeError, ValueError:
             return None
         if not cost.is_finite() or cost < 0:
             return None

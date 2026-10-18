@@ -33,7 +33,7 @@ class MistralOcr:
         self.session = requests.Session() if session is None else session
 
     @classmethod
-    def from_settings(cls) -> "MistralOcr | None":
+    def from_settings(cls) -> MistralOcr | None:
         """The engine when ``MISTRAL_API_KEY`` is set, else ``None``."""
         api_key = getattr(settings, "MISTRAL_API_KEY", "") or ""
         return cls(api_key) if api_key else None

@@ -8,7 +8,10 @@ from django.test import TestCase
 from hub.models import Hub
 from paper.models import Paper
 from paper.tests.helpers import create_paper
-from researchhub_document.related_models.constants.document_type import DISCUSSION
+from researchhub_document.related_models.constants.document_type import (
+    CHANGELOG,
+    DISCUSSION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -103,6 +106,37 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
         # Assert
         for cls, mock_update in mocks.items():
             mock_update.assert_called_once()
+
+    def test_changelog_posts_are_sent_to_update(self):
+        # Arrange
+        changelog = ResearchhubPost.objects.create(
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type=CHANGELOG
+            ),
+            created_by=self.user,
+            document_type=CHANGELOG,
+            title="Changelog Post",
+        )
+        discussion = ResearchhubPost.objects.create(
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type=DISCUSSION
+            ),
+            created_by=self.user,
+            title="Live Post",
+        )
+
+        # Act
+        with (
+            self._patch_connection("PostDocument"),
+            patch(f"{PATCH_PREFIX}.PostDocument.update") as mock_update,
+        ):
+            call_command(COMMAND, "--index=post", stdout=StringIO())
+
+        # Assert
+        ids = _get_updated_ids(mock_update)
+        self.assertIn(changelog.id, ids)
+        self.assertIn(self.post_removed.id, ids)
+        self.assertNotIn(discussion.id, ids)
 
     def test_index_flag_restricts_to_single_index(self):
         # Arrange / Act
