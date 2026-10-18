@@ -12,7 +12,7 @@ from research_ai.services.outreach.template_variables import (
     build_replacement_context,
     custom_variables_for_published_keys,
     extract_placeholder_pairs,
-    flatten_placeholders_for_instantly,
+    flatten_placeholders_for_provider,
     format_expert_name_from_raw,
     missing_published_variables,
     published_variable_keys,
@@ -195,13 +195,13 @@ class BuildReplacementContextTests(TestCase):
 
 
 class InstantlyPlaceholderFlattenTests(TestCase):
-    def test_flatten_placeholders_for_instantly(self):
+    def test_flatten_placeholders_for_provider(self):
         # Arrange
         text = "Hi {{expert.name}} re {{rfp.title}}"
 
         # Act / Assert
         self.assertEqual(
-            flatten_placeholders_for_instantly(text),
+            flatten_placeholders_for_provider(text),
             "Hi {{expert_name}} re {{rfp_title}}",
         )
 

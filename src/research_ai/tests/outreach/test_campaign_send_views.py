@@ -96,6 +96,143 @@ class OutreachCampaignSendViewTests(APITestCase):
         )
 
 
+class OutreachCampaignCancelQueuedViewTests(APITestCase):
+    def setUp(self):
+        self.editor = create_random_authenticated_user("camp_cancel_v", moderator=True)
+        self.template = EmailTemplate.objects.create(
+            created_by=self.editor,
+            name="Invite",
+            email_subject="Hello",
+            email_body="Body",
+        )
+        self.campaign = OutreachCampaign.objects.create(
+            editor=self.editor,
+            template=self.template,
+            name="Cancel test",
+            external_campaign_id="camp-cancel-1",
+            published_subject=self.template.email_subject,
+            published_body=self.template.email_body,
+            status=OutreachCampaign.Status.ACTIVE,
+        )
+        self.url = (
+            f"/api/research_ai/expert-finder/outreach-campaigns/"
+            f"{self.campaign.id}/cancel-queued/"
+        )
+
+    @patch("research_ai.views.template_views.OutreachCampaignService")
+    def test_cancel_queued_returns_cancelled_and_skipped(self, mock_service_cls):
+        # Arrange
+        row = GeneratedEmail.objects.create(
+            created_by=self.editor,
+            outreach_campaign=self.campaign,
+            expert_email="jane@example.edu",
+            status=GeneratedEmail.Status.CLOSED,
+        )
+        service = mock_service_cls.return_value
+        service.cancel_queued_emails.return_value = {
+            "cancelled": [row],
+            "cancelled_ids": [row.id],
+            "cancelled_count": 1,
+            "skipped_ids": [99],
+        }
+        self.client.force_authenticate(self.editor)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {"generated_email_ids": [row.id, 99]},
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(body["cancelled"], 1)
+        self.assertEqual(body["cancelled_ids"], [row.id])
+        self.assertEqual(body["skipped_ids"], [99])
+        self.assertEqual(len(body["emails"]), 1)
+        service.cancel_queued_emails.assert_called_once_with(
+            self.editor,
+            self.campaign.id,
+            generated_email_ids=[row.id, 99],
+        )
+
+
+class OutreachCampaignPreviewViewTests(APITestCase):
+    def setUp(self):
+        self.editor = create_random_authenticated_user("camp_preview_v", moderator=True)
+        self.template = EmailTemplate.objects.create(
+            created_by=self.editor,
+            name="Invite",
+            email_subject="Hello {{expert.name}}",
+            email_body="Body",
+        )
+        self.campaign = OutreachCampaign.objects.create(
+            editor=self.editor,
+            template=self.template,
+            name="Preview test",
+            external_campaign_id="camp-preview-api",
+            published_subject=self.template.email_subject,
+            published_body=self.template.email_body,
+            published_variable_keys=["expert_name"],
+            status=OutreachCampaign.Status.ACTIVE,
+        )
+        self.url = (
+            f"/api/research_ai/expert-finder/outreach-campaigns/"
+            f"{self.campaign.id}/preview/"
+        )
+
+    @patch("research_ai.views.template_views.OutreachCampaignService")
+    def test_preview_returns_rendered_copy(self, mock_service_cls):
+        # Arrange
+        service = mock_service_cls.return_value
+        service.preview_campaign.return_value = {
+            "subject": "Hello Jane",
+            "html": "Body",
+            "to_email": "me@example.com",
+            "from_email": "sender@gmail.com",
+            "from_mailbox_id": 7,
+            "expert_id": 42,
+            "expert_email": "jane@example.edu",
+            "expert_search_id": 9,
+            "instantly": {"status": "success"},
+        }
+        self.client.force_authenticate(self.editor)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {
+                "expert_email": "jane@example.edu",
+                "to_email": "me@example.com",
+                "expert_search_id": 9,
+                "from_mailbox_id": 7,
+            },
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.json()
+        self.assertEqual(body["subject"], "Hello Jane")
+        self.assertEqual(body["html"], "Body")
+        self.assertEqual(body["to_email"], "me@example.com")
+        self.assertEqual(body["from_email"], "sender@gmail.com")
+        self.assertEqual(body["from_mailbox_id"], 7)
+        self.assertEqual(body["expert_id"], 42)
+        self.assertEqual(body["expert_email"], "jane@example.edu")
+        self.assertEqual(body["expert_search_id"], 9)
+        self.assertNotIn("instantly", body)
+        service.preview_campaign.assert_called_once_with(
+            self.editor,
+            self.campaign.id,
+            expert_email="jane@example.edu",
+            to_email="me@example.com",
+            expert_search_id=9,
+            from_mailbox_id=7,
+        )
+
+
 class InstantlyWebhookViewTests(APITestCase):
     def setUp(self):
         self.url = "/api/research_ai/expert-finder/instantly/webhook/"

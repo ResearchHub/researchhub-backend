@@ -12,6 +12,7 @@ from research_ai.models import (
     SearchExpert,
 )
 from research_ai.services.outreach.campaign_service import (
+    CampaignNotFoundError,
     CampaignValidationError,
     OutreachCampaignService,
 )
@@ -120,3 +121,194 @@ class SendCampaignLeadsTests(TestCase):
             )
         self.assertIn("rfp_title", str(ctx.exception))
         self.client.add_leads.assert_not_called()
+
+    def test_cancel_queued_deletes_instantly_leads_and_local_rows(self):
+        # Arrange
+        pending = GeneratedEmail.objects.create(
+            created_by=self.editor,
+            outreach_campaign=self.campaign,
+            expert_email="jane@example.edu",
+            status=GeneratedEmail.Status.SENDING,
+            external_lead_id="lead-1",
+        )
+        already_sent = GeneratedEmail.objects.create(
+            created_by=self.editor,
+            outreach_campaign=self.campaign,
+            expert_email="sent@example.edu",
+            status=GeneratedEmail.Status.SENT,
+            external_lead_id="lead-2",
+        )
+        pending_id = pending.id
+        self.client.delete_leads.return_value = {"deleted": 1}
+
+        # Act
+        result = self.service.cancel_queued_emails(
+            self.editor,
+            self.campaign.id,
+            generated_email_ids=[pending_id, already_sent.id],
+        )
+
+        # Assert
+        self.client.delete_leads.assert_called_once_with(
+            campaign_id="camp-1",
+            lead_ids=["lead-1"],
+        )
+        self.assertEqual(result["cancelled_count"], 1)
+        self.assertEqual(result["cancelled_ids"], [pending_id])
+        self.assertEqual(result["skipped_ids"], [already_sent.id])
+        self.assertFalse(GeneratedEmail.objects.filter(id=pending_id).exists())
+        already_sent.refresh_from_db()
+        self.assertEqual(already_sent.status, GeneratedEmail.Status.SENT)
+
+    def test_cancel_queued_deletes_local_when_instantly_lead_missing(self):
+        # Arrange
+        from research_ai.services.outreach.instantly_client import (
+            InstantlyNotFoundError,
+        )
+
+        pending = GeneratedEmail.objects.create(
+            created_by=self.editor,
+            outreach_campaign=self.campaign,
+            expert_email="jane@example.edu",
+            status=GeneratedEmail.Status.SENDING,
+            external_lead_id="lead-gone",
+        )
+        pending_id = pending.id
+        self.client.delete_leads.side_effect = InstantlyNotFoundError(
+            "missing", status_code=404
+        )
+
+        # Act
+        result = self.service.cancel_queued_emails(
+            self.editor,
+            self.campaign.id,
+            generated_email_ids=[pending_id],
+        )
+
+        # Assert
+        self.assertEqual(result["cancelled_count"], 1)
+        self.assertFalse(GeneratedEmail.objects.filter(id=pending_id).exists())
+
+
+class PreviewCampaignTests(TestCase):
+    def setUp(self):
+        self.editor = create_random_authenticated_user("camp_preview")
+        self.client = MagicMock()
+        self.service = OutreachCampaignService(client=self.client)
+        self.template = EmailTemplate.objects.create(
+            created_by=self.editor,
+            name="Invite",
+            email_subject="Hello {{expert.name}}",
+            email_body="Join us at {{expert.affiliation}}.",
+        )
+        self.campaign = OutreachCampaign.objects.create(
+            editor=self.editor,
+            template=self.template,
+            external_campaign_id="camp-preview-1",
+            published_subject=self.template.email_subject,
+            published_body=self.template.email_body,
+            published_variable_keys=["expert_affiliation", "expert_name"],
+            status=OutreachCampaign.Status.ACTIVE,
+        )
+        self.mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="sender@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+        )
+        self.expert = Expert.objects.create(
+            email="jane@example.edu",
+            first_name="Jane",
+            last_name="Smith",
+            affiliation="MIT",
+        )
+
+    def test_preview_renders_from_real_expert_and_sends_test_email(self):
+        # Arrange
+        self.client.send_test_email.return_value = {"status": "success"}
+
+        # Act
+        result = self.service.preview_campaign(
+            self.editor,
+            self.campaign.id,
+            expert_email="Jane@Example.edu",
+            to_email="me@example.com",
+        )
+
+        # Assert
+        self.client.send_test_email.assert_called_once_with(
+            from_email="sender@gmail.com",
+            to_email="me@example.com",
+            subject="Hello Jane Smith",
+            html="Join us at MIT.",
+        )
+        self.assertEqual(result["subject"], "Hello Jane Smith")
+        self.assertEqual(result["html"], "Join us at MIT.")
+        self.assertEqual(result["from_mailbox_id"], self.mailbox.id)
+        self.assertEqual(result["from_email"], "sender@gmail.com")
+        self.assertEqual(result["expert_id"], self.expert.id)
+        self.assertEqual(result["expert_email"], "jane@example.edu")
+        self.assertIsNone(result["expert_search_id"])
+        self.assertEqual(GeneratedEmail.objects.count(), 0)
+
+    def test_preview_uses_mailbox_id_and_search_membership(self):
+        # Arrange
+        other = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="other@gmail.com",
+            status=OutreachMailbox.Status.ACTIVE,
+        )
+        search = ExpertSearch.objects.create(
+            created_by=self.editor,
+            name="Search",
+            query="ML",
+            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
+            status=ExpertSearch.Status.COMPLETED,
+        )
+        SearchExpert.objects.create(
+            expert_search=search,
+            expert=self.expert,
+            position=0,
+        )
+        self.client.send_test_email.return_value = {"status": "success"}
+
+        # Act
+        result = self.service.preview_campaign(
+            self.editor,
+            self.campaign.id,
+            expert_email="jane@example.edu",
+            to_email="me@example.com",
+            expert_search_id=search.id,
+            from_mailbox_id=other.id,
+        )
+
+        # Assert
+        self.client.send_test_email.assert_called_once_with(
+            from_email="other@gmail.com",
+            to_email="me@example.com",
+            subject="Hello Jane Smith",
+            html="Join us at MIT.",
+        )
+        self.assertEqual(result["from_mailbox_id"], other.id)
+        self.assertEqual(result["expert_search_id"], search.id)
+
+    def test_preview_rejects_unknown_expert_email(self):
+        # Act / Assert
+        with self.assertRaises(CampaignValidationError) as ctx:
+            self.service.preview_campaign(
+                self.editor,
+                self.campaign.id,
+                expert_email="missing@example.edu",
+                to_email="me@example.com",
+            )
+        self.assertIn("No expert found", str(ctx.exception))
+        self.client.send_test_email.assert_not_called()
+
+    def test_preview_rejects_unknown_campaign(self):
+        # Act / Assert
+        with self.assertRaises(CampaignNotFoundError):
+            self.service.preview_campaign(
+                self.editor,
+                999999,
+                expert_email="jane@example.edu",
+                to_email="me@example.com",
+            )
