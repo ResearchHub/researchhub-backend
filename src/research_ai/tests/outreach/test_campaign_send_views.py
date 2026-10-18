@@ -12,7 +12,6 @@ from research_ai.models import (
     OutreachMailbox,
     SearchExpert,
 )
-from research_ai.services.outreach.mailbox_service import InsufficientDailyCapacityError
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -95,31 +94,6 @@ class OutreachCampaignSendViewTests(APITestCase):
             expert_search_id=self.search.id,
             expert_ids=[self.expert.id],
         )
-
-    @patch("research_ai.views.template_views.OutreachCampaignService")
-    def test_send_over_capacity_returns_429(self, mock_service_cls):
-        # Arrange
-        service = mock_service_cls.return_value
-        service.send_to_experts.side_effect = InsufficientDailyCapacityError(
-            remaining=0, requested=1
-        )
-        self.client.force_authenticate(self.editor)
-
-        # Act
-        response = self.client.post(
-            self.url,
-            {
-                "expert_search_id": self.search.id,
-                "expert_ids": [self.expert.id],
-            },
-            format="json",
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
-        body = response.json()
-        self.assertEqual(body["remaining"], 0)
-        self.assertEqual(body["requested"], 1)
 
 
 class InstantlyWebhookViewTests(APITestCase):

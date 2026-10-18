@@ -15,7 +15,6 @@ from research_ai.services.outreach.campaign_service import (
     CampaignValidationError,
     OutreachCampaignService,
 )
-from research_ai.services.outreach.mailbox_service import InsufficientDailyCapacityError
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -23,12 +22,7 @@ class SendCampaignLeadsTests(TestCase):
     def setUp(self):
         self.editor = create_random_authenticated_user("camp_send")
         self.client = MagicMock()
-        self.mailbox_service = MagicMock()
-        self.mailbox_service.assert_within_daily_capacity.return_value = 30
-        self.service = OutreachCampaignService(
-            client=self.client,
-            mailbox_service=self.mailbox_service,
-        )
+        self.service = OutreachCampaignService(client=self.client)
         self.template = EmailTemplate.objects.create(
             created_by=self.editor,
             name="Invite",
@@ -87,9 +81,6 @@ class SendCampaignLeadsTests(TestCase):
         )
 
         # Assert
-        self.mailbox_service.assert_within_daily_capacity.assert_called_once_with(
-            self.editor, 1
-        )
         self.client.add_leads.assert_called_once()
         kwargs = self.client.add_leads.call_args.kwargs
         self.assertEqual(kwargs["campaign_id"], "camp-1")
@@ -109,24 +100,6 @@ class SendCampaignLeadsTests(TestCase):
         self.assertEqual(row.external_lead_id, "lead-1")
         self.assertEqual(row.expert_email, "jane@example.edu")
         self.assertEqual(row.email_subject, self.campaign.published_subject)
-
-    def test_send_rejects_when_over_daily_capacity(self):
-        # Arrange
-        self.mailbox_service.assert_within_daily_capacity.side_effect = (
-            InsufficientDailyCapacityError(remaining=0, requested=1)
-        )
-
-        # Act / Assert
-        with self.assertRaises(InsufficientDailyCapacityError) as ctx:
-            self.service.send_to_experts(
-                self.editor,
-                self.campaign.id,
-                expert_search_id=self.search.id,
-                expert_ids=[self.expert.id],
-            )
-        self.assertEqual(ctx.exception.remaining, 0)
-        self.assertEqual(ctx.exception.requested, 1)
-        self.client.add_leads.assert_not_called()
 
     def test_send_rejects_missing_published_variables(self):
         # Arrange

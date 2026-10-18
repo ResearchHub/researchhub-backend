@@ -26,7 +26,6 @@ from research_ai.services.outreach.instantly_client import (
     InstantlyClient,
     InstantlyNotFoundError,
 )
-from research_ai.services.outreach.mailbox_service import OutreachMailboxService
 from research_ai.services.outreach.template_service import get_template
 from research_ai.services.outreach.template_variables import (
     build_replacement_context,
@@ -68,18 +67,8 @@ class CampaignValidationError(CampaignError):
 class OutreachCampaignService:
     """Publish, list, and send per-editor Instantly campaigns from shared templates."""
 
-    def __init__(
-        self,
-        *,
-        client: InstantlyClient | None = None,
-        mailbox_service: OutreachMailboxService | None = None,
-    ):
+    def __init__(self, *, client: InstantlyClient | None = None):
         self.client = client if client is not None else InstantlyClient()
-        self.mailbox_service = (
-            mailbox_service
-            if mailbox_service is not None
-            else OutreachMailboxService(client=self.client)
-        )
 
     def list_campaigns(self, editor: User):
         """Return the editor's published campaigns, newest first."""
@@ -327,7 +316,6 @@ class OutreachCampaignService:
             raise CampaignValidationError("Expert search not found.") from exc
 
         experts = _load_experts_for_search(expert_search, expert_ids)
-        self.mailbox_service.assert_within_daily_capacity(editor, len(experts))
 
         doc_ctx = resolve_expert_search_email_document_context(expert_search)
         published_keys = list(campaign.published_variable_keys or [])
