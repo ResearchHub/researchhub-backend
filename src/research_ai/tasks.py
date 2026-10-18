@@ -9,14 +9,9 @@ from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft, Sear
 from research_ai.services.agent_files import AgentFileService
 from research_ai.services.expert_finder import finder as expert_finder_mod
 from research_ai.services.expert_finder.display import ExpertDisplay
-from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.outreach.email_generator import generate_expert_email
-from research_ai.services.outreach.email_sender import send_outreach_email
-from research_ai.services.outreach.invited_experts import (
-    grant_invited_expert_access_for_send,
-    link_experts_for_new_user,
-)
+from research_ai.services.outreach.invited_experts import link_experts_for_new_user
 from research_ai.services.outreach.proposal_draft_outreach import (
     build_proposal_draft_prompt_context,
 )
@@ -619,58 +614,24 @@ def send_queued_emails_task(
     from_email: str | None = None,
 ):
     """
-    Send generated emails that are in SENDING status. Updates each to SENT on
-    success or SEND_FAILED on failure.
-    """
+    Legacy SES queue drain.
 
-    cc_list = list(cc or [])
-    reply_to_list = list(reply_to or [])
+    Expert Finder outreach now sends via Instantly. Rows left in SENDING from
+    the old path are reverted to DRAFT so they can be resent through a published
+    campaign; SES is never called.
+    """
+    _ = (reply_to, cc, from_email)
     qs = GeneratedEmail.objects.filter(
         id__in=generated_email_ids,
         status=GeneratedEmail.Status.SENDING,
-    ).order_by("id")
-    sent = 0
-    failed = 0
-    for rec in qs:
-        if not (rec.expert_email or "").strip():
-            rec.status = GeneratedEmail.Status.SEND_FAILED
-            rec.save(update_fields=["status", "updated_date"])
-            failed += 1
-            continue
-        try:
-            ses_message_id = send_outreach_email(
-                rec.expert_email,
-                rec.email_subject,
-                rec.email_body,
-                reply_to=reply_to_list or None,
-                cc=cc_list or None,
-                from_email=from_email,
-            )
-            if ses_message_id is None:
-                GeneratedEmail.objects.filter(id=rec.id).update(
-                    status=GeneratedEmail.Status.SEND_FAILED,
-                    updated_date=timezone.now(),
-                )
-                failed += 1
-                continue
-            GeneratedEmail.objects.filter(id=rec.id).update(
-                status=GeneratedEmail.Status.SENT,
-                channels=[GeneratedEmail.Channel.EMAIL],
-                ses_message_id=ses_message_id,
-                updated_date=timezone.now(),
-            )
-            ExpertPersist.mark_last_email_sent_at(rec.expert_email or "")
-            try:
-                grant_invited_expert_access_for_send(generated_email=rec)
-            except Exception:
-                # Don't let an access-grant failure mask a successful send.
-                logger.exception("Grant access on send failed id=%s", rec.id)
-            sent += 1
-        except Exception:
-            logger.exception("Send to expert failed id=%s", rec.id)
-            GeneratedEmail.objects.filter(id=rec.id).update(
-                status=GeneratedEmail.Status.SEND_FAILED,
-                updated_date=timezone.now(),
-            )
-            failed += 1
-    return {"sent": sent, "failed": failed}
+    )
+    reverted = qs.update(
+        status=GeneratedEmail.Status.DRAFT,
+        updated_date=timezone.now(),
+    )
+    if reverted:
+        logger.warning(
+            "SES outreach send path disabled; reverted %s SENDING row(s) to DRAFT",
+            reverted,
+        )
+    return {"sent": 0, "failed": 0, "reverted": reverted}

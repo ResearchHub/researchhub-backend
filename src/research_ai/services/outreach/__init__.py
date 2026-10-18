@@ -1,10 +1,11 @@
 """Expert outreach: generating, templating, and sending emails to experts.
 
 - ``email_generator`` -- LLM generation of outreach emails for an expert.
-- ``email_sender`` -- SES send of a finished email.
+- ``email_sender`` -- legacy SES send (disabled; Instantly owns outreach).
 - ``instantly_client`` -- Instantly API v2 HTTP client.
 - ``mailbox_service`` -- connect/detach Gmail accounts and capacity checks.
-- ``campaign_service`` -- idempotent per-editor Instantly campaign publish.
+- ``campaign_service`` -- publish campaigns and bulk-add Instantly leads.
+- ``webhook_service`` -- Instantly status webhooks for sends and mailboxes.
 - ``template_rewrite_service`` -- Bedrock rewrite of shared EmailTemplates.
 - ``template_service`` -- CRUD/rendering of user-defined email templates.
 - ``template_variables`` -- ``{{entity.field}}`` variable substitution (see

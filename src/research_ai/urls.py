@@ -50,7 +50,9 @@ from research_ai.views.proposal_draft_views import (
     ProposalDraftDetailView,
 )
 from research_ai.views.template_views import (
+    InstantlyWebhookView,
     OutreachCampaignListView,
+    OutreachCampaignSendView,
     TemplateDetailView,
     TemplateListView,
     TemplatePublishView,
@@ -131,6 +133,14 @@ urlpatterns = [
     path(
         "expert-finder/outreach-campaigns/",
         OutreachCampaignListView.as_view(),
+    ),
+    path(
+        "expert-finder/outreach-campaigns/<int:campaign_id>/send/",
+        OutreachCampaignSendView.as_view(),
+    ),
+    path(
+        "expert-finder/instantly/webhook/",
+        InstantlyWebhookView.as_view(),
     ),
     path(
         "expert-finder/rfp/<int:grant_id>/invite-applicants/",
