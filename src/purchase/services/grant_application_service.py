@@ -1,7 +1,8 @@
-from django.utils.html import format_html
+from django.template.loader import render_to_string
 
 from mailing_list.services import EmailService
 from purchase.models import GrantApplication
+from researchhub_document.services.work_cover_service_for_email import build_work_cover
 
 
 class GrantApplicationService:
@@ -12,25 +13,33 @@ class GrantApplicationService:
         self._emails = email_service or EmailService()
 
     def send_application_email(self, application_id: int) -> None:
-        """Email the grant owner the applicant's name and proposal link."""
+        """Email the grant owner a preview card of the applicant's proposal."""
         application = GrantApplication.objects.select_related(
-            "applicant",
+            "applicant__author_profile",
             "grant__created_by",
             "grant__unified_document",
             "preregistration_post__unified_document",
         ).get(id=application_id)
-        document = application.preregistration_post.unified_document
+        applicant = application.applicant
+        proposal = application.preregistration_post
+        document = proposal.unified_document
         if document is None:
             document = application.grant.unified_document
 
-        subject = "Someone applied to your RFP"
+        subject = (
+            f"{applicant.full_name()} has applied to your RFP "
+            f"{application.grant.unified_document.get_display_title()}"
+        )
         context = {
             "subject": subject,
-            "body": format_html(
-                "<p>A new research proposal has been submitted</p>"
-                "<p>{} submitted proposal: {}</p>",
-                application.applicant.first_name,
-                document.get_display_title(),
+            "body": render_to_string(
+                "email_activity_card.html",
+                {
+                    "author": applicant.author_profile,
+                    "action": "Submitted a proposal for funding",
+                    "created_date": application.created_date,
+                    "cover": build_work_cover(proposal),
+                },
             ),
             "cta_url": document.frontend_view_link(),
             "cta_label": "View Proposal",

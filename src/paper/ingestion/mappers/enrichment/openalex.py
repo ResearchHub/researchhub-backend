@@ -213,7 +213,7 @@ class OpenAlexMapper(BaseMapper):
             # Parse and validate date
             dt = datetime.fromisoformat(date_str)
             return dt.strftime("%Y-%m-%d")
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.warning(f"Invalid date format: {date_str}")
             return None
 

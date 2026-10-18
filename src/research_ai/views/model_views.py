@@ -6,6 +6,7 @@ catalog, and a submitted ``model`` must name one of these refs. Gated like
 those workflows so the roster is not readable outside the rollout group.
 """
 
+from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -23,9 +24,14 @@ from research_ai.services.credit_service import model_credit_rates
 from research_ai.services.usage_budget import (
     ModelNotAllowedError,
     budget_status,
+    grant_invited_tier,
+    has_manual_invited_grant,
     resolve_ai_tier,
     resolve_default_model,
+    revoke_invited_tier,
 )
+from user.models import User
+from user.permissions import IsModerator, UserIsEditor
 
 
 class AvailableModelsView(APIView):
@@ -107,3 +113,28 @@ class UsageBudgetStatusView(APIView):
 
     def get(self, request):
         return Response(budget_status(request.user).as_dict())
+
+
+class InvitedTierGrantView(APIView):
+    """Let moderators and hub editors put a user on the invited tier by hand."""
+
+    permission_classes = [UserIsEditor | IsModerator]
+
+    def post(self, request, user_id):
+        user = get_object_or_404(User, pk=user_id)
+        grant_invited_tier(user)
+        return self._state(user)
+
+    def delete(self, request, user_id):
+        user = get_object_or_404(User, pk=user_id)
+        revoke_invited_tier(user)
+        return self._state(user)
+
+    @staticmethod
+    def _state(user):
+        return Response(
+            {
+                "research_ai_tier": resolve_ai_tier(user).name,
+                "research_ai_invited_manually": has_manual_invited_grant(user),
+            }
+        )

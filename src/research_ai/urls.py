@@ -33,7 +33,11 @@ from research_ai.views.expert_finder_views import (
     InvitedExpertEditorsOverviewView,
     InvitedExpertOverviewView,
 )
-from research_ai.views.model_views import AvailableModelsView, UsageBudgetStatusView
+from research_ai.views.model_views import (
+    AvailableModelsView,
+    InvitedTierGrantView,
+    UsageBudgetStatusView,
+)
 from research_ai.views.notebook_chat_views import (
     NotebookChatCancelView,
     NotebookChatDetailView,
@@ -58,6 +62,7 @@ from research_ai.views.template_views import (
 urlpatterns = [
     path("models/", AvailableModelsView.as_view()),
     path("usage-budget/", UsageBudgetStatusView.as_view()),
+    path("invited-tier/<int:user_id>/", InvitedTierGrantView.as_view()),
     path("expert-finder/searches/", ExpertSearchListCreateView.as_view()),
     path(
         "expert-finder/searches/<int:search_id>/",
