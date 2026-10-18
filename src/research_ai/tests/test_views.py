@@ -543,6 +543,7 @@ class ExpertSearchListCreateViewTests(APITestCase):
             {
                 "unified_document_id": paper.unified_document_id,
                 "input_type": "abstract",
+                "config": {"expert_count": 10},
             },
             format="json",
         )
@@ -601,6 +602,7 @@ class ExpertSearchListCreateViewTests(APITestCase):
             {
                 "unified_document_id": paper.unified_document_id,
                 "input_type": "abstract",
+                "config": {"expert_count": 10},
             },
             format="json",
         )

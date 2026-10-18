@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -75,7 +75,7 @@ class GenerateReportFromExpertModelTests(TestCase):
 class UploadReportToStorageTests(TestCase):
     @patch("research_ai.services.expert_finder.report_generator.default_storage")
     def test_upload_report_returns_url(self, mock_storage):
-        mock_storage.save = MagicMock()
+        mock_storage.save.return_value = "research_ai/expert-finder/123/report.pdf"
         mock_storage.url.return_value = (
             "https://bucket.s3.amazonaws.com/research_ai/expert-finder/123/report.pdf"
         )
@@ -83,3 +83,6 @@ class UploadReportToStorageTests(TestCase):
         self.assertIn("123", url)
         self.assertIn("report.pdf", url)
         mock_storage.save.assert_called_once()
+        mock_storage.url.assert_called_once_with(
+            "research_ai/expert-finder/123/report.pdf"
+        )
