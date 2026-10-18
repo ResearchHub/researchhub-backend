@@ -29,6 +29,11 @@ class OutreachCampaign(DefaultModel):
         related_name="outreach_campaigns",
         db_comment="Shared EmailTemplate this campaign was published from.",
     )
+    name = models.CharField(
+        max_length=100,
+        blank=True,
+        db_comment="Editor-chosen campaign name shown in RH and the outreach provider.",
+    )
     external_campaign_id = models.CharField(
         max_length=255,
         blank=True,
@@ -80,4 +85,5 @@ class OutreachCampaign(DefaultModel):
         ]
 
     def __str__(self):
-        return f"OutreachCampaign {self.id} (editor={self.editor_id})"
+        label = (self.name or "").strip() or f"id={self.id}"
+        return f"OutreachCampaign {label} (editor={self.editor_id})"

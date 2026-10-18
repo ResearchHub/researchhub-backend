@@ -5,8 +5,11 @@ from utils.models import DefaultModel, SoftDeletableModel
 
 class OutreachMailbox(DefaultModel, SoftDeletableModel):
     """
-    Editor-owned Gmail account connected for outreach sending.
-    The Google app password is sent to the outreach provider and never persisted here.
+    Editor-owned email account connected for outreach sending.
+
+    May be personal Gmail (app password / IMAP-SMTP) or a Google Workspace
+    account connected via provider OAuth. Credentials and OAuth tokens are
+    stored by the outreach provider and never persisted here.
     """
 
     class Status(models.TextChoices):
@@ -19,17 +22,18 @@ class OutreachMailbox(DefaultModel, SoftDeletableModel):
         "user.User",
         on_delete=models.CASCADE,
         related_name="outreach_mailboxes",
-        db_comment="ResearchHub editor who connected this Gmail account.",
+        db_comment="ResearchHub editor who connected this outreach account.",
     )
     email = models.EmailField(
         unique=True,
-        db_comment="Normalized Gmail address; provider account key.",
+        db_comment="Normalized email address; outreach provider account key.",
     )
     provider_code = models.PositiveSmallIntegerField(
         default=1,
         db_comment=(
-            "Outreach provider account type. 1 = custom IMAP/SMTP "
-            "(personal Gmail with app password)."
+            "Outreach provider account type code. 1 = custom IMAP/SMTP "
+            "(personal Gmail app password); other values are OAuth Google "
+            "Workspace codes as returned by the provider accounts API."
         ),
     )
     status = models.CharField(
@@ -41,6 +45,11 @@ class OutreachMailbox(DefaultModel, SoftDeletableModel):
     daily_limit = models.PositiveIntegerField(
         default=30,
         db_comment="Cached daily send limit for this account.",
+    )
+    reply_to = models.EmailField(
+        blank=True,
+        default="",
+        db_comment="Cached custom Reply-To address synced to the outreach provider.",
     )
 
     class Meta:
