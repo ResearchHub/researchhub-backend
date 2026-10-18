@@ -30,7 +30,7 @@ def get_template(template_id):
             .filter(id=tid)
             .first()
         )
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 

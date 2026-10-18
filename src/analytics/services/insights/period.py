@@ -22,7 +22,7 @@ class ReportPeriod:
             "end": self.end,
         }
 
-    def previous(self) -> "ReportPeriod":
+    def previous(self) -> ReportPeriod:
         """Return the immediately prior window of the same length."""
         duration = self.end - self.start
         return ReportPeriod(

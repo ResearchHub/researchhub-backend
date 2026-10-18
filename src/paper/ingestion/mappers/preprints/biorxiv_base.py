@@ -71,7 +71,7 @@ class BioRxivBaseMapper(BaseMapper):
         # Validate date format
         try:
             datetime.strptime(record["date"], "%Y-%m-%d")
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.warning(
                 f"Invalid date format in record {record['doi']}: {record['date']}"
             )
@@ -160,7 +160,7 @@ class BioRxivBaseMapper(BaseMapper):
             # Validate and return in same format
             datetime.strptime(date_str, "%Y-%m-%d")
             return date_str
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             logger.warning(f"Invalid date format: {date_str}")
             return None
 

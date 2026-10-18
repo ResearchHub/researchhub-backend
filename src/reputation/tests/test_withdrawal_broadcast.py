@@ -20,7 +20,7 @@ from reputation.tasks import broadcast_withdrawal
 from reputation.tests.helpers import create_deposit
 from reputation.tests.test_withdrawal_view import VALID_TEST_TO_ADDRESS
 from reputation.views.withdrawal_view import WithdrawalViewSet
-from user.tests.helpers import create_random_authenticated_user_with_reputation
+from user.tests.helpers import create_random_authenticated_user, create_trusted_user
 from utils.test_helpers import AWSMockTransactionTestCase
 
 TEST_RSC_CONTRACT_ADDRESS = "0x1234567890123456789012345678901234567890"
@@ -52,9 +52,7 @@ class EvaluateTransactionHashTests(AWSMockTransactionTestCase):
 
 class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
     def setUp(self):
-        self.user = create_random_authenticated_user_with_reputation(
-            "broadcast_user", 1000
-        )
+        self.user = create_random_authenticated_user("broadcast_user")
         create_deposit(self.user, amount="2000.0")
         self.initial_balance = self.user.get_balance()
 
@@ -189,7 +187,7 @@ class CheckPendingWithdrawalRecoveryTests(AWSMockTransactionTestCase):
     @mock.patch("reputation.tasks.broadcast_withdrawal.delay")
     def test_stuck_initiated_enqueues_broadcast(self, mock_delay):
         withdrawal = Withdrawal.objects.create(
-            user=create_random_authenticated_user_with_reputation("stuck_user", 100),
+            user=create_random_authenticated_user("stuck_user"),
             token_address="0xtoken",
             from_address="0xfrom",
             to_address="0xto",
@@ -206,9 +204,7 @@ class CheckPendingWithdrawalRecoveryTests(AWSMockTransactionTestCase):
     @mock.patch("reputation.tasks.broadcast_withdrawal.delay")
     def test_pending_without_hash_enqueues_broadcast(self, mock_delay):
         withdrawal = Withdrawal.objects.create(
-            user=create_random_authenticated_user_with_reputation(
-                "stuck_pending_user", 100
-            ),
+            user=create_random_authenticated_user("stuck_pending_user"),
             token_address="0xtoken",
             from_address="0xfrom",
             to_address="0xto",
@@ -247,9 +243,7 @@ class WithdrawalOnCommitTests(AWSMockTransactionTestCase):
         self.eth_to_rsc_patcher.start()
         RscExchangeRate.objects.create(rate=0.5, real_rate=0.5)
 
-        self.user = create_random_authenticated_user_with_reputation(
-            "on_commit_user", 1000
-        )
+        self.user = create_trusted_user("on_commit_user")
         self.user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         self.user.created_date = datetime(year=2020, month=1, day=1, tzinfo=UTC)
         self.user.save()

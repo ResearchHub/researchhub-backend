@@ -1,9 +1,10 @@
 from django.core.management.base import BaseCommand, CommandParser
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from opensearchpy import NotFoundError
 
 from hub.models import Hub
 from paper.models import Paper
+from researchhub_document.related_models.constants.document_type import CHANGELOG
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.documents.base import BaseDocument
 from search.documents.hub import HubDocument
@@ -21,8 +22,9 @@ INDEX_CONFIGS = {
     },
     "post": {
         "document": PostDocument,
+        # Changelogs are never searchable, so they are cleared out too.
         "queryset": lambda: ResearchhubPost.objects.filter(
-            unified_document__is_removed=True
+            Q(unified_document__is_removed=True) | Q(document_type=CHANGELOG)
         ).only("id"),
         "label": "Posts",
     },
