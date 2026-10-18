@@ -10,6 +10,16 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    groups:
+      base-images:
+        patterns: ["*"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

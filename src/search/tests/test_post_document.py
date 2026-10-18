@@ -8,6 +8,7 @@ from django.utils import timezone
 from feed.models import FeedEntry
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import (
+    CHANGELOG,
     DISCUSSION,
     GRANT,
 )
@@ -101,6 +102,12 @@ class PostDocumentTests(TestCase):
         post = self._create_post("Public Post")
 
         self.assertTrue(self.document.should_index_object(post))
+
+    def test_should_index_object_excludes_changelog(self):
+        post = self._create_post("Changelog Post")
+        post.document_type = CHANGELOG
+
+        self.assertFalse(self.document.should_index_object(post))
 
     def test_should_index_object_excludes_pending_post(self):
         post = self._create_post("Pending Post")

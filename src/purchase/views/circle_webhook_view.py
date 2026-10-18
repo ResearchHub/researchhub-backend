@@ -76,7 +76,7 @@ class CircleWebhookView(APIView):
         # --- Parse payload ---
         try:
             payload = json.loads(body)
-        except (json.JSONDecodeError, ValueError):
+        except json.JSONDecodeError, ValueError:
             return Response(
                 {"message": "Invalid payload"},
                 status=status.HTTP_400_BAD_REQUEST,

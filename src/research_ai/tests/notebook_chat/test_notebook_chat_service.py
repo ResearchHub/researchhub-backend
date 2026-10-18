@@ -164,14 +164,14 @@ class NotebookChatServiceTests(TestCase):
         self.assertIn("update_rfp_details", execution.system_prompt)
         self.assertNotIn("read_selected_rfp", execution.system_prompt)
 
-    def test_submit_message_stamps_the_generator_default_model(self):
+    def test_submit_message_stamps_the_default_model(self):
         # Act
         execution, _delay = self._submit()
 
-        # Assert: no selection runs the configured generator, recorded as a
+        # Assert: no selection runs the tier's default, recorded as a
         # provider-prefixed ref the worker resolves from.
-        self.assertEqual(execution.model, "claude_platform:claude-opus-5-5")
-        self.assertEqual(execution.provider, "claude_platform")
+        self.assertEqual(execution.model, "openrouter:openai/gpt-6.1-sol")
+        self.assertEqual(execution.provider, "openrouter")
 
     @override_settings(
         ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
@@ -331,6 +331,7 @@ class NotebookChatServiceTests(TestCase):
             "claude_platform:claude-sonnet-5",
             native_tools=frozenset({"web_search"}),
             image_loader=ANY,
+            refusal_fallback=True,
             effort="low",
         )
 
@@ -622,7 +623,7 @@ class NotebookChatServiceTests(TestCase):
         # the row still names the model it was submitted with.
         execution, _delay = self._submit()
         AgentExecution.objects.filter(id=execution.id).update(
-            model="claude_platform:claude-sonnet-5"
+            provider="claude_platform", model="claude_platform:claude-sonnet-5"
         )
         provider = FakeProvider([text_turn("Done.")])
         service = _make_service()
@@ -639,6 +640,7 @@ class NotebookChatServiceTests(TestCase):
             "claude_platform:claude-sonnet-5",
             native_tools=frozenset({"web_search"}),
             image_loader=ANY,
+            refusal_fallback=True,
             effort="low",
         )
         self.assertEqual(result["final_text"], "Done.")
