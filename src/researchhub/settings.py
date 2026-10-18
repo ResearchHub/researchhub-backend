@@ -846,6 +846,14 @@ EXPERT_FINDER_OUTREACH_ENABLED = (
     os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
 )
 
+# Instantly (Expert Finder outreach sending)
+INSTANTLY_API_KEY = os.environ.get(
+    "INSTANTLY_API_KEY", getattr(keys, "INSTANTLY_API_KEY", "")
+)
+INSTANTLY_WEBHOOK_SECRET = os.environ.get(
+    "INSTANTLY_WEBHOOK_SECRET", getattr(keys, "INSTANTLY_WEBHOOK_SECRET", "")
+)
+
 # Crossref
 CROSSREF_DOI_RSC_FEE = 5
 CROSSREF_DOI_PREFIX = "10.55277/researchhub."
