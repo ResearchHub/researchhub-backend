@@ -606,7 +606,7 @@ class OutreachMailboxService:
                     if raw_limit is not None
                     else int(mailbox.daily_limit or DEFAULT_ACCOUNT_DAILY_LIMIT)
                 )
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
             if limit < 1:
                 continue
@@ -714,7 +714,7 @@ def mailbox_status_from_provider(provider_status: object) -> str:
     """
     try:
         status = int(provider_status)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return OutreachMailbox.Status.ERROR
 
     if status == ACCOUNT_STATUS_ACTIVE:

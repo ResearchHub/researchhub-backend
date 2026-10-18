@@ -1,18 +1,8 @@
-import logging
-
 from django.core.cache import cache
 from rest_framework.filters import BaseFilterBackend
 
-from feed.feed_config import FEED_CONFIG
 from feed.feed_visibility import exclude_hidden_feed_entries
-from feed.models import FeedEntry
-from feed.views.feed_view_mixin import get_moderator_view_as_user_id
 from hub.models import Hub
-from personalize.config.settings import PERSONALIZE_CONFIG
-from personalize.services.feed_service import DEFAULT_NUM_RESULTS
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-
-logger = logging.getLogger(__name__)
 
 # Allowed preprint hub slugs for feed filtering
 ALLOWED_PREPRINT_HUB_SLUGS = frozenset({"biorxiv", "arxiv", "chemrxiv", "medrxiv"})
@@ -52,8 +42,6 @@ class FeedFilteringBackend(BaseFilterBackend):
 
         if feed_view == "following":
             return self._filter_following(request, queryset, view)
-        elif feed_view == "personalized":
-            return self._filter_personalized(request, queryset, view)
         elif feed_view == "latest":
             return self._filter_latest(request, queryset, view)
         else:
@@ -86,148 +74,8 @@ class FeedFilteringBackend(BaseFilterBackend):
         if hub_slug:
             queryset = self._filter_by_hub(hub_slug, queryset)
 
-        ordering = request.query_params.get("ordering")
-        allowed_sorts = FEED_CONFIG.get("popular", {}).get("allowed_sorts", [])
-        default = allowed_sorts[0] if allowed_sorts else None
-        effective_ordering = ordering if ordering in allowed_sorts else default
-
-        if effective_ordering == "aws_trending":
-            return self._filter_popular_with_aws_trending(request, queryset, view)
-
-        # For hot_score or hot_score_v2, return queryset for ordering backend to handle
         view._feed_source = "rh-popular"
         return queryset
-
-    def _filter_popular_with_aws_trending(self, request, queryset, view):
-        """
-        Fetch trending IDs from AWS Personalize and return sorted entries.
-        Falls back to queryset ordering on failure.
-        """
-        personalize_feed_service = getattr(view, "personalize_feed_service", None)
-        if not personalize_feed_service:
-            logger.warning("personalize_feed_service not available, using fallback")
-            view._feed_source = "rh-popular"
-            return queryset
-
-        try:
-            result = personalize_feed_service.get_trending_ids(
-                num_results=PERSONALIZE_CONFIG.get(
-                    "trending_num_results", DEFAULT_NUM_RESULTS
-                ),
-            )
-
-            trending_ids = result.get("item_ids", [])
-
-            if not trending_ids:
-                logger.warning("No trending IDs returned, using fallback")
-                view._feed_source = "rh-popular"
-                return queryset
-
-            view._feed_source = "aws-trending"
-
-            return self._fetch_and_order_entries_for_trending(
-                trending_ids, queryset, view
-            )
-
-        except Exception:
-            logger.exception(
-                "Personalize trending failed, falling back to hot_score_v2"
-            )
-            view._feed_source = "rh-popular"
-            return queryset
-
-    def _fetch_and_order_entries_for_trending(
-        self, document_ids: list[int], queryset, view
-    ) -> list[FeedEntry]:
-        """
-        Fetch and order entries based on trending document IDs.
-        Filters by the documents in the trending list and sorts in-memory.
-        Excludes PREREGISTRATION documents from results.
-        """
-        position_map = {pk: pos for pos, pk in enumerate(document_ids)}
-
-        # Apply the document ID filter while preserving other queryset filters
-        # Exclude PREREGISTRATION documents from trending results
-        entries = list(
-            queryset.filter(
-                unified_document_id__in=document_ids,
-            ).exclude(
-                unified_document__document_type=PREREGISTRATION,
-            )
-        )
-
-        entries.sort(
-            key=lambda entry: position_map.get(entry.unified_document_id, float("inf"))
-        )
-
-        return entries
-
-    def _filter_personalized(self, request, queryset, view):
-        """
-        Personalized recommendations or fallback to following feed.
-        """
-        if not request.user.is_authenticated:
-            return queryset.none()
-
-        user_id = get_moderator_view_as_user_id(request) or request.user.id
-
-        personalize_feed_service = getattr(view, "personalize_feed_service", None)
-        if not personalize_feed_service:
-            # Fallback to following if Personalize unavailable
-            view._feed_source = "rh-following"
-            return self._filter_following(request, queryset, view)
-
-        filter_param = request.query_params.get("filter", None)
-        hub_id_param = request.query_params.get("hub_id", None)
-        hub_id = int(hub_id_param) if hub_id_param else None
-        force_refresh_header = request.META.get("HTTP_RH_FORCE_REFRESH", "false")
-        force_refresh = force_refresh_header.lower() == "true"
-
-        try:
-            result = personalize_feed_service.get_recommendation_ids(
-                user_id=user_id,
-                filter_param=filter_param,
-                hub_id=hub_id,
-                num_results=PERSONALIZE_CONFIG["num_results"],
-                force_refresh=force_refresh,
-            )
-
-            recommended_ids = result.get("item_ids", [])
-            view._personalize_recommendation_id = result.get("recommendation_id")
-
-            if not recommended_ids:
-                # Fallback to following if no recommendations
-                view._feed_source = "rh-following"
-                return self._filter_following(request, queryset, view)
-
-            view._feed_source = "aws-personalize"
-            return self._fetch_and_order_entries(recommended_ids, queryset, view)
-
-        except Exception as e:
-            logger.error(f"Personalized feed error for user {user_id}: {e}")
-            # Fallback to following on error
-            view._feed_source = "rh-following"
-            return self._filter_following(request, queryset, view)
-
-    def _fetch_and_order_entries(
-        self, document_ids: list[int], queryset, view
-    ) -> list[FeedEntry]:
-        """
-        Fetch and order entries based on recommended document IDs.
-        """
-        position_map = {pk: pos for pos, pk in enumerate(document_ids)}
-
-        entries = list(
-            queryset.filter(
-                unified_document_id__in=document_ids,
-            )
-        )
-
-        entries.sort(
-            key=lambda entry: position_map.get(entry.unified_document_id, float("inf"))
-        )
-
-        return entries
 
     def _filter_by_allowed_preprint_hubs(self, queryset, view):
         """

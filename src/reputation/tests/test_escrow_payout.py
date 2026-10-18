@@ -12,9 +12,11 @@ from rest_framework.test import APIClient, APITestCase
 from mailing_list.services import EmailService
 from notification.models import Notification
 from paper.tests.helpers import create_paper
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee, Distribution, Escrow
+from reputation.models import Bounty, BountyFee, BountySolution, Distribution, Escrow
 from researchhub_comment.tests.helpers import create_rh_comment
 from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import create_random_default_user, create_user
@@ -71,12 +73,23 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
     ) -> None:
         """Notify and email the paid-out user once the bounty payout commits."""
         # Arrange
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency=USD)
         bounty = Bounty.objects.get(id=self._create_bounty().data["id"])
+        answer = create_rh_comment(created_by=self.recipient)
+        solution = BountySolution.objects.create(
+            bounty=bounty,
+            created_by=self.recipient,
+            content_type=ContentType.objects.get_for_model(answer),
+            object_id=answer.id,
+            status=BountySolution.Status.AWARDED,
+        )
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
             bounty.escrow.payout(
-                recipient=self.recipient, payout_amount=decimal.Decimal(100)
+                recipient=self.recipient,
+                payout_amount=decimal.Decimal(100),
+                solution_id=solution.id,
             )
 
         # Assert
@@ -85,8 +98,11 @@ class EscrowPayoutDistributionTypeTests(APITestCase):
         )
         self.assertEqual(notification.recipient, self.recipient)
         mock_send_message_email.assert_called_once()
-        self.assertEqual(
-            mock_send_message_email.call_args.args[0], [self.recipient.email]
+        recipients, subject, message = mock_send_message_email.call_args.args
+        self.assertEqual(recipients, [self.recipient.email])
+        self.assertEqual(subject, "You've earned $50 for your peer review 🎉")
+        self.assertIn(
+            'Earned <span class="activity-amount">$50</span> for a peer review', message
         )
 
     def test_author_rsc_escrow_payout_is_rejected(self):
