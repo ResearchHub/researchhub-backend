@@ -7,14 +7,16 @@ from typing import TYPE_CHECKING, Any
 
 from django.core.cache import cache
 from django.db import transaction
+from django.db.models import Count
 from django.utils import timezone
 
-from research_ai.models import OutreachCampaign, OutreachMailbox
+from research_ai.models import GeneratedEmail, OutreachCampaign, OutreachMailbox
 from research_ai.services.outreach.instantly_client import (
     ACCOUNT_STATUS_ACTIVE,
     ACCOUNT_STATUS_ERROR,
     ACCOUNT_STATUS_PAUSED,
     DEFAULT_ACCOUNT_DAILY_LIMIT,
+    WARMUP_STATUS_ACTIVE,
     InstantlyAPIError,
     InstantlyClient,
     InstantlyNotFoundError,
@@ -464,6 +466,26 @@ class OutreachMailboxService:
             mailbox.delete(soft=True)
             return mailbox
 
+    def list_all_mailboxes_for_moderator(self) -> list[OutreachMailbox]:
+        """
+        All local outreach mailboxes with live provider warmup + RH send totals.
+
+        Sets ephemeral ``warmup_enabled`` (Instantly) and ``total_sent``
+        (count of ``GeneratedEmail`` with ``status=sent`` and matching
+        ``sender_account``) for admin serialization.
+        """
+        mailboxes = list(
+            OutreachMailbox.objects.select_related("editor").order_by("-created_date")
+        )
+        account_by_email = self._provider_accounts_by_email()
+        total_sent_by_email = total_sent_by_sender_account(
+            [m.email for m in mailboxes]
+        )
+        for mailbox in mailboxes:
+            apply_warmup_attrs(mailbox, account_by_email.get(mailbox.email.lower()))
+            mailbox.total_sent = total_sent_by_email.get(mailbox.email.lower(), 0)
+        return mailboxes
+
     def update_daily_limit(self, mailbox_id: int, daily_limit: int) -> OutreachMailbox:
         """
         Set provider account ``daily_limit``.
@@ -482,15 +504,24 @@ class OutreachMailboxService:
         *,
         reply_to: object = _UNSET,
         daily_limit: object = _UNSET,
+        warmup_enabled: object = _UNSET,
         require_moderator_for_daily_limit: bool = True,
     ) -> OutreachMailbox:
         """
         Patch provider account fields.
+
+        ``reply_to``: owner or moderator. ``daily_limit`` / ``warmup_enabled``:
+        moderator only (unless ``require_moderator_for_daily_limit`` is False
+        for internal daily_limit updates).
         """
-        if reply_to is _UNSET and daily_limit is _UNSET:
+        if reply_to is _UNSET and daily_limit is _UNSET and warmup_enabled is _UNSET:
             raise MailboxError("No mailbox fields to update.")
 
-        mailbox = OutreachMailbox.objects.filter(id=mailbox_id).first()
+        mailbox = (
+            OutreachMailbox.objects.select_related("editor")
+            .filter(id=mailbox_id)
+            .first()
+        )
         if mailbox is None:
             raise MailboxNotFoundError("Outreach mailbox not found.")
 
@@ -523,21 +554,48 @@ class OutreachMailboxService:
                 )
             patch["daily_limit"] = daily_limit
 
-        account = self.client.update_account(mailbox.email, **patch)
-        if "daily_limit" in patch:
-            synced = int(account.get("daily_limit") or patch["daily_limit"])
-            mailbox.daily_limit = synced
-            update_fields.append("daily_limit")
-        if reply_to is not _UNSET:
-            if isinstance(account, dict) and "reply_to" in account:
-                mailbox.reply_to = normalize_reply_to(account.get("reply_to"))
-            else:
-                mailbox.reply_to = local_reply_to or ""
+        if warmup_enabled is not _UNSET:
+            if actor is not None and not is_moderator:
+                raise MailboxError("Only moderators can update warmup_enabled.")
+            if not isinstance(warmup_enabled, bool):
+                raise MailboxError("warmup_enabled must be a boolean.")
 
-        mailbox.save(update_fields=update_fields)
-        if "daily_limit" in patch:
-            self.sync_editor_campaign_daily_limits(mailbox.editor_id)
+        if patch:
+            account = self.client.update_account(mailbox.email, **patch)
+            if "daily_limit" in patch:
+                synced = int(account.get("daily_limit") or patch["daily_limit"])
+                mailbox.daily_limit = synced
+                update_fields.append("daily_limit")
+            if reply_to is not _UNSET:
+                if isinstance(account, dict) and "reply_to" in account:
+                    mailbox.reply_to = normalize_reply_to(account.get("reply_to"))
+                else:
+                    mailbox.reply_to = local_reply_to or ""
+            mailbox.save(update_fields=update_fields)
+            if "daily_limit" in patch:
+                self.sync_editor_campaign_daily_limits(mailbox.editor_id)
+
+        if warmup_enabled is not _UNSET:
+            if warmup_enabled:
+                self.client.enable_warmup([mailbox.email])
+            else:
+                self.client.disable_warmup([mailbox.email])
+            try:
+                warmup_account = self.client.get_account(mailbox.email)
+            except InstantlyNotFoundError:
+                warmup_account = None
+            apply_warmup_attrs(mailbox, warmup_account)
+
         return mailbox
+
+    def _provider_accounts_by_email(self) -> dict[str, dict[str, Any]]:
+        """Map normalized email → Instantly account dict."""
+        by_email: dict[str, dict[str, Any]] = {}
+        for account in self.client.iter_accounts():
+            email = normalize_mailbox_email(account.get("email") or "")
+            if email:
+                by_email[email] = account
+        return by_email
 
     def sync_campaigns_to_active_mailboxes(
         self,
@@ -689,6 +747,48 @@ def normalize_reply_to(email: object) -> str:
     if email is None:
         return ""
     return str(email).strip().lower()
+
+
+def apply_warmup_attrs(
+    mailbox: OutreachMailbox, account: dict[str, Any] | None
+) -> None:
+    """Set ``warmup_enabled`` from Instantly account ``warmup_status`` (1 = on)."""
+    status: int | None = None
+    if isinstance(account, dict) and account.get("warmup_status") is not None:
+        try:
+            status = int(account["warmup_status"])
+        except (TypeError, ValueError):
+            status = None
+    mailbox.warmup_enabled = status == WARMUP_STATUS_ACTIVE
+
+
+def total_sent_by_sender_account(emails: list[str]) -> dict[str, int]:
+    """
+    Lifetime RH campaign sends per mailbox email.
+
+    Counts ``GeneratedEmail`` rows with ``status=sent`` whose
+    ``sender_account`` matches (set from Instantly ``email_sent`` webhooks).
+    Warmup / non-RH Instantly traffic is not included.
+    """
+    normalized = sorted(
+        {normalize_mailbox_email(e) for e in emails if normalize_mailbox_email(e)}
+    )
+    if not normalized:
+        return {}
+    rows = (
+        GeneratedEmail.objects.filter(
+            status=GeneratedEmail.Status.SENT,
+            sender_account__in=normalized,
+        )
+        .values("sender_account")
+        .annotate(total=Count("id"))
+    )
+    out: dict[str, int] = {}
+    for row in rows:
+        key = normalize_mailbox_email(row.get("sender_account") or "")
+        if key:
+            out[key] = int(row["total"])
+    return out
 
 
 def editor_display_names(editor: User) -> tuple[str, str]:

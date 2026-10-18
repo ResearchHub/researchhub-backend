@@ -51,11 +51,16 @@ from research_ai.views.proposal_draft_views import (
 )
 from research_ai.views.template_views import (
     InstantlyWebhookView,
+    OutreachCampaignActivateView,
+    OutreachCampaignCancelQueuedView,
     OutreachCampaignListView,
+    OutreachCampaignPreviewView,
     OutreachCampaignSendView,
     OutreachCapacityView,
     OutreachMailboxDetailView,
     OutreachMailboxListCreateView,
+    OutreachMailboxOAuthInitView,
+    OutreachMailboxOAuthSessionView,
     TemplateDetailView,
     TemplateListView,
     TemplatePublishView,
@@ -138,12 +143,32 @@ urlpatterns = [
         OutreachCampaignListView.as_view(),
     ),
     path(
+        "expert-finder/outreach-campaigns/<int:campaign_id>/activate/",
+        OutreachCampaignActivateView.as_view(),
+    ),
+    path(
         "expert-finder/outreach-campaigns/<int:campaign_id>/send/",
         OutreachCampaignSendView.as_view(),
     ),
     path(
+        "expert-finder/outreach-campaigns/<int:campaign_id>/cancel-queued/",
+        OutreachCampaignCancelQueuedView.as_view(),
+    ),
+    path(
+        "expert-finder/outreach-campaigns/<int:campaign_id>/preview/",
+        OutreachCampaignPreviewView.as_view(),
+    ),
+    path(
         "expert-finder/outreach-mailboxes/",
         OutreachMailboxListCreateView.as_view(),
+    ),
+    path(
+        "expert-finder/outreach-mailboxes/oauth/google/init/",
+        OutreachMailboxOAuthInitView.as_view(),
+    ),
+    path(
+        "expert-finder/outreach-mailboxes/oauth/session/<str:session_id>/",
+        OutreachMailboxOAuthSessionView.as_view(),
     ),
     path(
         "expert-finder/outreach-mailboxes/<int:mailbox_id>/",
