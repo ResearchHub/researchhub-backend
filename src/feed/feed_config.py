@@ -3,17 +3,9 @@ FEED_CONFIG = {
         "use_cache": True,
         "allowed_sorts": ["hot_score_v2", "hot_score", "latest"],
     },
-    "personalized": {
-        "use_cache": False,
-        "allowed_sorts": [],
-    },
     "popular": {
-        "allowed_sorts": ["aws_trending", "hot_score_v2", "hot_score"],
-        "cache_by_ordering": {
-            "aws_trending": False,
-            "hot_score_v2": True,
-            "hot_score": True,
-        },
+        "use_cache": True,
+        "allowed_sorts": ["hot_score_v2", "hot_score"],
     },
     "latest": {
         "use_cache": True,

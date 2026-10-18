@@ -21,6 +21,7 @@ from researchhub_access_group.models import Permission
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
+    CHANGELOG,
     DISCUSSION,
     DOCUMENT_TYPES,
     GRANT,
@@ -233,6 +234,7 @@ class ResearchhubUnifiedDocument(
             return self.paper
         if self.document_type in (
             BOUNTY,
+            CHANGELOG,
             DISCUSSION,
             GRANT,
             QUESTION,
@@ -313,6 +315,7 @@ class ResearchhubUnifiedDocument(
             path_segment = "proposal"
         elif document_type in (
             QUESTION,
+            CHANGELOG,
             DISCUSSION,
             POSTS,
             BOUNTY,
@@ -408,7 +411,7 @@ class ResearchhubUnifiedDocument(
         if tips:
             try:
                 return float(tips)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 return 0
         return 0
 
