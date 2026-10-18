@@ -1,6 +1,11 @@
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 
 from research_ai.models import EmailTemplate
+
+
+class TemplateHasCampaignsError(Exception):
+    """Raised when deleting a template that still has outreach campaigns."""
 
 
 def list_templates():
@@ -73,10 +78,20 @@ def update_template(template_id, **data):
 def delete_template(template_id):
     """
     Delete the EmailTemplate (shared: any editor/moderator can delete).
+
     Returns True if deleted, False if not found.
+
+    Raises:
+        TemplateHasCampaignsError: template is linked to one or more
+            OutreachCampaign rows (FK is PROTECT).
     """
     template = get_template(template_id)
     if not template:
         return False
-    template.delete()
+    try:
+        template.delete()
+    except ProtectedError as exc:
+        raise TemplateHasCampaignsError(
+            "Cannot delete template while outreach campaigns still reference it."
+        ) from exc
     return True

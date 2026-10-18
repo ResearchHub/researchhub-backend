@@ -62,6 +62,15 @@ class OutreachCampaignListViewTests(APITestCase):
             status=GeneratedEmail.Status.BOUNCED,
             bounced_at=timezone.now(),
         )
+        # Delivered then bounced: still counts as sent via sent_at.
+        GeneratedEmail.objects.create(
+            created_by=self.editor,
+            outreach_campaign=self.campaign,
+            expert_email="e@example.edu",
+            status=GeneratedEmail.Status.BOUNCED,
+            sent_at=timezone.now(),
+            bounced_at=timezone.now(),
+        )
         self.client.force_authenticate(self.editor)
 
         # Act
@@ -78,9 +87,9 @@ class OutreachCampaignListViewTests(APITestCase):
             campaign["counts"],
             {
                 "queued": 1,
-                "sent": 2,
+                "sent": 3,
                 "opened": 1,
                 "replied": 1,
-                "bounced": 1,
+                "bounced": 2,
             },
         )

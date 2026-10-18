@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.functions import Lower
 
 from utils.models import DefaultModel, SoftDeletableModel
 
@@ -25,8 +26,9 @@ class OutreachMailbox(DefaultModel, SoftDeletableModel):
         db_comment="ResearchHub editor who connected this outreach account.",
     )
     email = models.EmailField(
-        unique=True,
-        db_comment="Normalized email address; outreach provider account key.",
+        max_length=254,
+        db_index=True,
+        db_comment="Normalized lowercase email; outreach provider account key.",
     )
     provider_code = models.PositiveSmallIntegerField(
         default=1,
@@ -55,6 +57,12 @@ class OutreachMailbox(DefaultModel, SoftDeletableModel):
     class Meta:
         db_table = "research_ai_outreach_mailbox"
         ordering = ["-created_date"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("email"),
+                name="ra_om_email_lower_unique",
+            ),
+        ]
         indexes = [
             models.Index(
                 fields=["editor", "status"],
@@ -64,3 +72,10 @@ class OutreachMailbox(DefaultModel, SoftDeletableModel):
 
     def __str__(self):
         return f"OutreachMailbox {self.id} ({self.email})"
+
+    def save(self, *args, **kwargs):
+        if self.email:
+            self.email = self.email.strip().lower()
+        if self.reply_to:
+            self.reply_to = self.reply_to.strip().lower()
+        super().save(*args, **kwargs)

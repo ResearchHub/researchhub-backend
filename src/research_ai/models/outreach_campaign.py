@@ -25,9 +25,13 @@ class OutreachCampaign(DefaultModel):
     )
     template = models.ForeignKey(
         EmailTemplate,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="outreach_campaigns",
-        db_comment="Shared EmailTemplate this campaign was published from.",
+        db_comment=(
+            "Shared EmailTemplate this campaign was published from. "
+            "PROTECT keeps the local external_campaign_id mapping if the "
+            "template is deleted while campaigns still exist."
+        ),
     )
     name = models.CharField(
         max_length=100,

@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from research_ai.models import EmailTemplate
+from research_ai.models import EmailTemplate, OutreachCampaign
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -215,3 +215,30 @@ class TemplateDetailViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(EmailTemplate.objects.filter(pk=t.id).exists())
+
+    def test_delete_returns_409_when_campaigns_reference_template(self):
+        """PROTECT keeps campaigns (and external ids) when a template is deleted."""
+        # Arrange
+        t = self._create_template()
+        OutreachCampaign.objects.create(
+            editor=self.moderator,
+            template=t,
+            external_campaign_id="camp-protect-1",
+            status=OutreachCampaign.Status.ACTIVE,
+        )
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.delete(
+            f"/api/research_ai/expert-finder/templates/{t.id}/"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertIn("campaign", response.json().get("detail", "").lower())
+        self.assertTrue(EmailTemplate.objects.filter(pk=t.id).exists())
+        self.assertTrue(
+            OutreachCampaign.objects.filter(
+                template=t, external_campaign_id="camp-protect-1"
+            ).exists()
+        )
