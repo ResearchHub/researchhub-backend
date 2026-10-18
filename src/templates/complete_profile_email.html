@@ -10,11 +10,16 @@
   <title>Almost there</title>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    @media (max-width: 640px) {
+    @media (max-width: 672px) {
+      .profile-email-canvas { padding: 16px 8px !important; }
       .profile-email, .footer { width: 100% !important; }
-      .profile-email-inner { padding: 24px 16px 0 !important; }
-      .profile-card, .profile-arrow { display: block !important; width: auto !important; }
-      .profile-arrow { padding: 8px 0 !important; }
+      .profile-email-inner { padding: 24px 16px 28px !important; }
+      .profile-title { font-size: 26px !important; line-height: 32px !important; }
+      .profile-panel-inner { padding: 24px 12px !important; }
+      .profile-card { display: block !important; width: auto !important; }
+      .profile-card-complete { margin-top: 16px !important; }
+      .profile-arrow { display: none !important; }
+      .profile-cta { display: block !important; text-align: center !important; }
     }
   </style>
 </head>
@@ -26,8 +31,11 @@
       <td class="profile-email-canvas" align="center">
         <table class="profile-email" role="presentation" width="640" cellpadding="0" cellspacing="0">
           <tr>
+            <td class="accent-bar" height="4">&nbsp;</td>
+          </tr>
+          <tr>
             <td class="profile-email-inner">
-              <img class="profile-logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" alt="ResearchHub" width="104" height="24" />
+              <img class="profile-logo" src="https://www.researchhub.com/ResearchHubLogo.png" alt="ResearchHub" width="104" height="24" />
               <h1 class="profile-title">Almost there</h1>
               <p class="profile-tagline">Funders fund people, not blank profiles. Finish yours to give yourself the best chance of raising research funds.</p>
 
@@ -83,7 +91,7 @@
                           <table role="presentation" cellpadding="0" cellspacing="0">
                             <tr>
                               <td class="profile-face">
-                                <img class="profile-face-image" src="{{ assets_base_url }}/email_assets/complete_profile/ruslan.jpeg" alt="Ruslan Rust, PhD" width="56" height="56" />
+                                <img class="profile-face-image" src="https://www.researchhub.com/people/ruslan.jpeg" alt="Ruslan Rust, PhD" width="56" height="56" />
                               </td>
                               <td class="profile-details">
                                 <div class="profile-name profile-name-complete">Ruslan Rust, PhD <img class="profile-verified" src="{{ assets_base_url }}/email_assets/complete_profile/verified.png" alt="Verified" width="16" height="16" /></div>
