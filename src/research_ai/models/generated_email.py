@@ -111,12 +111,44 @@ class GeneratedEmail(DefaultModel):
         blank=True,
         db_comment="Timestamp of complaint (spam report) email event.",
     )
+    outreach_campaign = models.ForeignKey(
+        "research_ai.OutreachCampaign",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="generated_emails",
+        db_comment="Outreach campaign this lead was added to.",
+    )
+    external_lead_id = models.CharField(
+        max_length=255,
+        blank=True,
+        db_index=True,
+        db_comment="Provider lead id for this outreach send.",
+    )
+    sender_account = models.EmailField(
+        blank=True,
+        db_comment="Sending mailbox account used for this lead.",
+    )
+    sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment="Timestamp of the email_sent delivery event.",
+    )
+    replied_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_comment="Timestamp of the first reply_received event.",
+    )
 
     class Meta:
         db_table = "research_ai_generated_email"
         ordering = ["-created_date"]
         indexes = [
             models.Index(fields=["created_by"], name="research_ai_ge_created_by"),
+            models.Index(
+                fields=["outreach_campaign", "expert_email"],
+                name="ra_ge_campaign_expert_email",
+            ),
         ]
 
     def __str__(self):

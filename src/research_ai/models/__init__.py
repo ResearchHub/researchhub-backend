@@ -11,6 +11,8 @@ from .email_template import EmailTemplate
 from .expert import Expert
 from .expert_search import ExpertSearch
 from .generated_email import GeneratedEmail
+from .outreach_campaign import OutreachCampaign
+from .outreach_mailbox import OutreachMailbox
 from .proposal_draft import ProposalDraft
 from .search_expert import SearchExpert
 from .usage_event import LLMUsageEvent
@@ -28,6 +30,8 @@ __all__ = [
     "GeneratedEmail",
     "LLMUsageEvent",
     "NoteAgentConversation",
+    "OutreachCampaign",
+    "OutreachMailbox",
     "ProposalDraft",
     "SearchExpert",
 ]
