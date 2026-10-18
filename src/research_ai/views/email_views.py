@@ -1,6 +1,5 @@
 import logging
 
-from django.conf import settings
 from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -24,7 +23,7 @@ from research_ai.serializers import (
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
 from research_ai.services.outreach.email_generator import create_expert_email_draft
-from research_ai.services.outreach.email_sender import send_outreach_email
+from research_ai.services.outreach.email_sender import SES_OUTREACH_DISABLED_DETAIL
 from research_ai.services.outreach.proposal_draft_outreach import (
     prepare_proposal_outreach,
 )
@@ -33,7 +32,7 @@ from research_ai.services.outreach.rfp_email_context import (
 )
 from research_ai.services.outreach.rfp_invite import invite_applicants
 from research_ai.services.outreach.template_variables import format_expert_name_from_raw
-from research_ai.tasks import process_bulk_generate_emails_task, send_queued_emails_task
+from research_ai.tasks import process_bulk_generate_emails_task
 from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
@@ -274,7 +273,8 @@ class BulkGenerateEmailView(APIView):
 class PreviewEmailView(APIView):
     """
     POST /api/research_ai/expert-finder/emails/preview/
-    Send generated email(s) to current user.
+
+    Legacy SES preview. Disabled; outreach previews/sends use Instantly campaigns.
     """
 
     permission_classes = [
@@ -286,53 +286,17 @@ class PreviewEmailView(APIView):
     def post(self, request):
         ser = PreviewEmailRequestSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        data = ser.validated_data
-
-        recipient = (getattr(request.user, "email", None) or "").strip()
-        if not recipient or "@" not in recipient:
-            return Response(
-                {"detail": "User has no email address for preview."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        get_full_name = getattr(request.user, "get_full_name", None)
-        display_name = (
-            (get_full_name() if callable(get_full_name) else "") or ""
-        ).strip() or "ResearchHub"
-        from_email = (
-            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
+        return Response(
+            {"detail": SES_OUTREACH_DISABLED_DETAIL},
+            status=status.HTTP_410_GONE,
         )
-
-        ids = data["generated_email_ids"]
-        reply_to = list(data["reply_to"])
-        qs = GeneratedEmail.objects.filter(id__in=ids).exclude(
-            status=GeneratedEmail.Status.PROCESSING
-        )
-        sent = 0
-        for rec in qs:
-            try:
-                message_id = send_outreach_email(
-                    recipient,
-                    rec.email_subject,
-                    rec.email_body,
-                    reply_to=reply_to,
-                    from_email=from_email,
-                )
-                if message_id is not None:
-                    sent += 1
-            except Exception as e:
-                logger.exception("Preview send failed for email id=%s", rec.id)
-                return Response(
-                    {"detail": str(e)},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
-        return Response({"sent": sent})
 
 
 class SendEmailView(APIView):
     """
     POST /api/research_ai/expert-finder/emails/send/
-    Send generated emails to experts via SES.
+
+    Legacy SES send. Disabled; use POST outreach-campaigns/<id>/send/ instead.
     """
 
     permission_classes = [
@@ -344,36 +308,10 @@ class SendEmailView(APIView):
     def post(self, request):
         ser = SendEmailRequestSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        data = ser.validated_data
-
-        reply_to = list(data["reply_to"])
-        cc_list = list(data.get("cc") or [])
-        ids = data["generated_email_ids"]
-
-        get_full_name = getattr(request.user, "get_full_name", None)
-        display_name = (
-            (get_full_name() if callable(get_full_name) else "") or ""
-        ).strip() or "ResearchHub"
-        from_email = (
-            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
+        return Response(
+            {"detail": SES_OUTREACH_DISABLED_DETAIL},
+            status=status.HTTP_410_GONE,
         )
-
-        qs = GeneratedEmail.objects.filter(
-            id__in=ids,
-            status=GeneratedEmail.Status.DRAFT,
-        )
-        queued_ids = list(qs.values_list("id", flat=True))
-        if queued_ids:
-            GeneratedEmail.objects.filter(id__in=queued_ids).update(
-                status=GeneratedEmail.Status.SENDING
-            )
-            send_queued_emails_task.delay(
-                generated_email_ids=queued_ids,
-                reply_to=reply_to,
-                cc=cc_list,
-                from_email=from_email,
-            )
-        return Response({"sent": len(queued_ids)})
 
 
 class GeneratedEmailListView(APIView):
@@ -494,9 +432,9 @@ class GeneratedEmailDetailView(APIView):
 class InviteRfpApplicantsView(APIView):
     """POST /api/research_ai/expert-finder/rfp/<grant_id>/invite-applicants/.
 
-    Send a fixed-template invitation to each email address inviting them to
-    apply to the RFP. Authorized for the grant creator, listed grant contacts,
-    and moderators.
+    Create DRAFT invitation emails for RFP applicants. SES auto-send is
+    retired; sending goes through Instantly campaigns. Authorized for the
+    grant creator, listed grant contacts, and moderators.
     """
 
     permission_classes = [IsAuthenticated, ResearchAIPermission]
@@ -545,28 +483,7 @@ class InviteRfpApplicantsView(APIView):
                 {"detail": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
 
-        reply_to = (data.get("reply_to") or request.user.email or "").strip() or None
-        cc_list = list(data.get("cc") or [])
-        get_full_name = getattr(request.user, "get_full_name", None)
-        display_name = (
-            (get_full_name() if callable(get_full_name) else "") or ""
-        ).strip() or "ResearchHub"
-        from_email = (
-            f"{display_name} via ResearchHub <{settings.EXPERT_FINDER_FROM_EMAIL}>"
-        )
-
-        if result.generated_email_ids:
-            GeneratedEmail.objects.filter(
-                id__in=result.generated_email_ids,
-                status=GeneratedEmail.Status.DRAFT,
-            ).update(status=GeneratedEmail.Status.SENDING)
-            send_queued_emails_task.delay(
-                generated_email_ids=result.generated_email_ids,
-                reply_to=[reply_to] if reply_to else None,
-                cc=cc_list,
-                from_email=from_email,
-            )
-
+        # SES enqueue is retired; drafts are created for the Instantly campaign flow.
         return Response(
             {
                 "queued": len(result.generated_email_ids),

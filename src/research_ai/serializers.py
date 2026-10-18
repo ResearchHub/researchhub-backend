@@ -763,8 +763,9 @@ class BulkGenerateEmailRequestSerializer(serializers.Serializer):
 
 class PreviewEmailRequestSerializer(serializers.Serializer):
     """
-    Request for POST /expert-finder/emails/preview/. Send existing generated emails to
-    current user.
+    Request for POST /expert-finder/emails/preview/.
+
+    Legacy SES preview endpoint (returns 410; use Instantly campaigns).
     """
 
     generated_email_ids = serializers.ListField(
@@ -780,7 +781,11 @@ class PreviewEmailRequestSerializer(serializers.Serializer):
 
 
 class SendEmailRequestSerializer(serializers.Serializer):
-    """Request for POST /expert-finder/emails/send/."""
+    """
+    Request for POST /expert-finder/emails/send/.
+
+    Legacy SES send endpoint (returns 410; use Instantly campaigns).
+    """
 
     generated_email_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1),
