@@ -5,6 +5,7 @@ call time so per-test ``override_settings`` applies.
 """
 
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 from django.conf import settings
 
@@ -18,6 +19,7 @@ _SETTING_OVERRIDES = {
     "fallback_timeout_seconds": "RESEARCH_AI_WEB_FETCH_FALLBACK_TIMEOUT_SECONDS",
     "max_fetches_per_turn": "RESEARCH_AI_WEB_FETCH_MAX_PER_TURN",
     "max_files_per_conversation": "RESEARCH_AI_WEB_FETCH_MAX_PER_CONVERSATION",
+    "direct_hosts": "RESEARCH_AI_WEB_FETCH_DIRECT_HOSTS",
 }
 
 
@@ -45,6 +47,28 @@ class WebFetchConfig:
 
     # Every fetched page is searched with the chat's attachments.
     max_files_per_conversation: int = 30
+
+    # Open-access hosts (and their subdomains) requested directly to keep the
+    # original file; every other URL goes to the fetch API.
+    direct_hosts: tuple[str, ...] = (
+        "aclanthology.org",
+        "arxiv.org",
+        "biorxiv.org",
+        "bmj.com",
+        "jmlr.org",
+        "medrxiv.org",
+        "mlr.press",
+        "nature.com",
+        "neurips.cc",
+        "nih.gov",
+        "nips.cc",
+        "plos.org",
+        "thecvf.com",
+    )
+
+    def allows_direct(self, url: str) -> bool:
+        host = (urlsplit(url).hostname or "").rstrip(".")
+        return any(host == h or host.endswith(f".{h}") for h in self.direct_hosts)
 
     @classmethod
     def from_settings(cls) -> WebFetchConfig:

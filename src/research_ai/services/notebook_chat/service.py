@@ -366,6 +366,15 @@ class NotebookChatService:
             for conversation in conversations
         ]
 
+    def latest_conversation_id_subquery(self, user) -> Subquery:
+        """For annotating a queryset of notes: the id of ``user``'s chat on
+        each that ``list_conversations`` would list first, or null when they
+        have none on it.
+        """
+        return self.note_conversations.latest_conversation_id_subquery(
+            OuterRef("pk"), user=user, workflow=self.workflow
+        )
+
     @staticmethod
     def listing(conversations):
         """Annotate a conversation queryset for a chat picker, in one query."""
@@ -894,6 +903,7 @@ class NotebookChatService:
             native_tools=frozenset({"web_search"}),
             # One per turn: it keeps the images the turn's requests re-send.
             image_loader=PrivateStorageImageLoader(),
+            refusal_fallback=True,
             **provider_options,
         )
         # Decides the delivery plan and the page tool; the adapter agrees.

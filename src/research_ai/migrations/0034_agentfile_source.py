@@ -7,7 +7,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("research_ai", "0032_agentfile_embedded_image_count"),
+        ("research_ai", "0033_agentexecution_routed_model"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

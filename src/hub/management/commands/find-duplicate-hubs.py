@@ -14,7 +14,6 @@ from discussion.models import Flag
 from feed.models import FeedEntry
 from hub.models import Hub, HubMembership
 from reputation.related_models.distribution import Distribution
-from reputation.related_models.score import AlgorithmVariables, Score
 from researchhub_document.related_models.featured_content_model import FeaturedContent
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -35,10 +34,8 @@ class Command(BaseCommand):
         "follows",
         "memberships",
         "flags",
-        "scores",
         "distributions",
         "featured_content",
-        "algorithm_vars",
         "actions",
         "feed_entries",
     ]
@@ -87,9 +84,9 @@ class Command(BaseCommand):
             type=str,
             help=(
                 "Comma-separated list of steps to run. "
-                "Available: documents, follows, memberships, flags, scores, "
-                "distributions, featured_content, algorithm_vars, "
-                "actions, feed_entries. If not specified, all steps will run."
+                "Available: documents, follows, memberships, flags, "
+                "distributions, featured_content, actions, feed_entries. "
+                "If not specified, all steps will run."
             ),
         )
 
@@ -200,10 +197,8 @@ class Command(BaseCommand):
         total_follows_updated = 0
         total_memberships_updated = 0
         total_flags_updated = 0
-        total_scores_updated = 0
         total_distributions_updated = 0
         total_featured_content_updated = 0
-        total_algorithm_vars_updated = 0
         total_actions_updated = 0
         total_feed_entries_updated = 0
 
@@ -256,10 +251,8 @@ class Command(BaseCommand):
                 total_follows_updated += result["follows_updated"]
                 total_memberships_updated += result["memberships_updated"]
                 total_flags_updated += result["flags_updated"]
-                total_scores_updated += result["scores_updated"]
                 total_distributions_updated += result["distributions_updated"]
                 total_featured_content_updated += result["featured_content_updated"]
-                total_algorithm_vars_updated += result["algorithm_vars_updated"]
                 total_actions_updated += result["actions_updated"]
                 total_feed_entries_updated += result["feed_entries_updated"]
 
@@ -306,12 +299,6 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(
                     self.style.WARNING(
-                        f"DRY RUN: Would consolidate {total_scores_updated} "
-                        f"reputation scores"
-                    )
-                )
-                self.stdout.write(
-                    self.style.WARNING(
                         f"DRY RUN: Would update {total_distributions_updated} "
                         f"reputation distributions"
                     )
@@ -320,12 +307,6 @@ class Command(BaseCommand):
                     self.style.WARNING(
                         f"DRY RUN: Would update {total_featured_content_updated} "
                         f"featured content entries"
-                    )
-                )
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"DRY RUN: Would update {total_algorithm_vars_updated} "
-                        f"algorithm variables"
                     )
                 )
                 self.stdout.write(
@@ -373,11 +354,6 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(
                     self.style.SUCCESS(
-                        f"Consolidated {total_scores_updated} reputation scores"
-                    )
-                )
-                self.stdout.write(
-                    self.style.SUCCESS(
                         f"Updated {total_distributions_updated} "
                         f"reputation distributions"
                     )
@@ -385,11 +361,6 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"Updated {total_featured_content_updated} featured content"
-                    )
-                )
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Updated {total_algorithm_vars_updated} algorithm variables"
                     )
                 )
                 self.stdout.write(
@@ -474,10 +445,8 @@ class Command(BaseCommand):
         follows_updated = 0
         memberships_updated = 0
         flags_updated = 0
-        scores_updated = 0
         distributions_updated = 0
         featured_content_updated = 0
-        algorithm_vars_updated = 0
         actions_updated = 0
         feed_entries_updated = 0
         duplicate_hub_ids = []
@@ -505,10 +474,8 @@ class Command(BaseCommand):
                 follows_updated += result["follows"]
                 memberships_updated += result["memberships"]
                 flags_updated += result["flags"]
-                scores_updated += result["scores"]
                 distributions_updated += result["distributions"]
                 featured_content_updated += result["featured_content"]
-                algorithm_vars_updated += result["algorithm_vars"]
                 actions_updated += result["actions"]
                 feed_entries_updated += result["feed_entries"]
                 hubs_consolidated += 1
@@ -539,10 +506,8 @@ class Command(BaseCommand):
             "follows_updated": follows_updated,
             "memberships_updated": memberships_updated,
             "flags_updated": flags_updated,
-            "scores_updated": scores_updated,
             "distributions_updated": distributions_updated,
             "featured_content_updated": featured_content_updated,
-            "algorithm_vars_updated": algorithm_vars_updated,
             "actions_updated": actions_updated,
             "feed_entries_updated": feed_entries_updated,
             "duplicate_hub_ids": duplicate_hub_ids,
@@ -581,47 +546,35 @@ class Command(BaseCommand):
         if "flags" in self.steps_to_run:
             flag_count = self._consolidate_flags(duplicate_hub, primary_hub, dry_run)
 
-        # Step 5: Consolidate reputation scores
-        score_count = 0
-        if "scores" in self.steps_to_run:
-            score_count = self._consolidate_scores(duplicate_hub, primary_hub, dry_run)
-
-        # Step 6: Consolidate reputation distributions
+        # Step 5: Consolidate reputation distributions
         distribution_count = 0
         if "distributions" in self.steps_to_run:
             distribution_count = self._consolidate_distributions(
                 duplicate_hub, primary_hub, dry_run
             )
 
-        # Step 7: Consolidate featured content
+        # Step 6: Consolidate featured content
         featured_count = 0
         if "featured_content" in self.steps_to_run:
             featured_count = self._consolidate_featured_content(
                 duplicate_hub, primary_hub, dry_run
             )
 
-        # Step 8: Consolidate algorithm variables
-        algo_count = 0
-        if "algorithm_vars" in self.steps_to_run:
-            algo_count = self._consolidate_algorithm_vars(
-                duplicate_hub, primary_hub, dry_run
-            )
-
-        # Step 9: Consolidate user actions
+        # Step 7: Consolidate user actions
         action_count = 0
         if "actions" in self.steps_to_run:
             action_count = self._consolidate_actions(
                 duplicate_hub, primary_hub, dry_run
             )
 
-        # Step 10: Consolidate feed entries
+        # Step 8: Consolidate feed entries
         feed_count = 0
         if "feed_entries" in self.steps_to_run:
             feed_count = self._consolidate_feed_entries(
                 duplicate_hub, primary_hub, dry_run
             )
 
-        # Step 11: Mark duplicate hub as removed (only if running all steps)
+        # Step 9: Mark duplicate hub as removed (only if running all steps)
         if self.steps_to_run == set(self.AVAILABLE_STEPS):
             self._mark_hub_as_removed(duplicate_hub, dry_run)
         else:
@@ -636,10 +589,8 @@ class Command(BaseCommand):
             "follows": follow_count,
             "memberships": membership_count,
             "flags": flag_count,
-            "scores": score_count,
             "distributions": distribution_count,
             "featured_content": featured_count,
-            "algorithm_vars": algo_count,
             "actions": action_count,
             "feed_entries": feed_count,
         }
@@ -772,49 +723,6 @@ class Command(BaseCommand):
 
         return flag_count
 
-    def _consolidate_scores(self, duplicate_hub, primary_hub, dry_run):
-        """
-        Consolidate reputation scores from duplicate hub to primary hub.
-
-        For each author with a score in the duplicate hub:
-        - If author has a score in primary hub: merge by adding scores together
-        - If author has no score in primary hub: update to point to primary hub
-
-        Returns the number of scores processed.
-        """
-        duplicate_scores = Score.objects.filter(hub=duplicate_hub)
-        score_count = duplicate_scores.count()
-
-        if score_count > 0:
-            self.stdout.write(
-                f"  → Consolidating {score_count} reputation scores from hub "
-                f"{duplicate_hub.id} ({duplicate_hub.slug})"
-            )
-
-            if not dry_run:
-                for dup_score in duplicate_scores:
-                    # Check if author already has a score for primary hub
-                    primary_score = Score.objects.filter(
-                        author=dup_score.author, hub=primary_hub
-                    ).first()
-
-                    if primary_score:
-                        # Merge: Add duplicate score to primary score
-                        primary_score.score += dup_score.score
-                        primary_score.save()
-                        # Delete the duplicate score
-                        dup_score.delete()
-                        self.stdout.write(
-                            f"    ✓ Merged score for author {dup_score.author.id}: "
-                            f"+{dup_score.score} points to primary hub"
-                        )
-                    else:
-                        # No conflict: just update hub reference
-                        dup_score.hub = primary_hub
-                        dup_score.save()
-
-        return score_count
-
     def _consolidate_distributions(self, duplicate_hub, primary_hub, dry_run):
         """
         Consolidate reputation distributions from duplicate hub to primary hub.
@@ -863,28 +771,6 @@ class Command(BaseCommand):
                 featured_content.update(hub=primary_hub)
 
         return featured_count
-
-    def _consolidate_algorithm_vars(self, duplicate_hub, primary_hub, dry_run):
-        """
-        Consolidate algorithm variables from duplicate hub to primary hub.
-
-        Updates all AlgorithmVariables entries to point to the primary hub.
-
-        Returns the number of algorithm variable entries updated.
-        """
-        algorithm_vars = AlgorithmVariables.objects.filter(hub=duplicate_hub)
-        algo_count = algorithm_vars.count()
-
-        if algo_count > 0:
-            self.stdout.write(
-                f"  → Updating {algo_count} algorithm variables "
-                f"from hub {duplicate_hub.id} ({duplicate_hub.slug})"
-            )
-
-            if not dry_run:
-                algorithm_vars.update(hub=primary_hub)
-
-        return algo_count
 
     def _consolidate_actions(self, duplicate_hub, primary_hub, dry_run):
         """

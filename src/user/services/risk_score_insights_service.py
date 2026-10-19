@@ -45,6 +45,7 @@ _PATH_SEGMENTS = {
     "GRANT": "grant",
     "PREREGISTRATION": "proposal",
     "QUESTION": "post",
+    "CHANGELOG": "post",
     "DISCUSSION": "post",
     "POSTS": "post",
     "BOUNTY": "post",
