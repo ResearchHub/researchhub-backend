@@ -364,7 +364,7 @@ class OutreachMailboxService:
         )
 
     def _assert_email_available_for_editor(self, editor: User, email: str) -> None:
-        existing = OutreachMailbox.all_objects.filter(email=email).first()
+        existing = OutreachMailbox.all_objects.filter(email__iexact=email).first()
         if existing is not None and existing.editor_id != editor.id:
             raise MailboxOwnedByOtherEditorError(
                 "This email address is already connected by another editor."
@@ -392,7 +392,7 @@ class OutreachMailboxService:
         synced_reply_to = normalize_reply_to(account.get("reply_to") or reply_to)
 
         with transaction.atomic():
-            existing = OutreachMailbox.all_objects.filter(email=email).first()
+            existing = OutreachMailbox.all_objects.filter(email__iexact=email).first()
             if existing is None:
                 return OutreachMailbox.objects.create(
                     editor=editor,
@@ -405,6 +405,7 @@ class OutreachMailboxService:
 
             mailbox = existing
             mailbox.editor = editor
+            mailbox.email = email
             mailbox.provider_code = provider_code
             mailbox.status = status
             mailbox.daily_limit = daily_limit
@@ -415,6 +416,7 @@ class OutreachMailboxService:
             mailbox.save(
                 update_fields=[
                     "editor",
+                    "email",
                     "provider_code",
                     "status",
                     "daily_limit",

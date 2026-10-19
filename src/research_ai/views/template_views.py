@@ -48,6 +48,7 @@ from research_ai.services.outreach.template_rewrite_service import (
     TemplateRewriteService,
 )
 from research_ai.services.outreach.template_service import (
+    TemplateHasCampaignsError,
     create_template,
     delete_template,
     get_template,
@@ -59,12 +60,20 @@ from user.permissions import IsModerator, UserIsEditor
 
 logger = logging.getLogger(__name__)
 
+OUTREACH_EDITOR_PERMISSIONS = [
+    IsAuthenticated,
+    ResearchAIPermission,
+    UserIsEditor | IsModerator,
+]
+INSTANTLY_WEBHOOK_PERMISSIONS = [AllowAny]
+INSTANTLY_WEBHOOK_AUTHENTICATION = []
+
 
 def _parse_positive_int(raw, label: str):
     """Parse a path id; return ``(value, None)`` or ``(None, error Response)``."""
     try:
         return int(raw), None
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None, Response(
             {"detail": f"Invalid {label}."},
             status=status.HTTP_400_BAD_REQUEST,
@@ -138,11 +147,7 @@ class TemplateListView(APIView):
     POST /api/research_ai/expert-finder/templates/ - Create template.
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 20))))
@@ -180,11 +185,7 @@ class TemplateDetailView(APIView):
     GET/PATCH/DELETE /api/research_ai/expert-finder/templates/<template_id>/.
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def _get_template(self, request, template_id):
         tid, err = _parse_positive_int(template_id, "template ID")
@@ -235,7 +236,13 @@ class TemplateDetailView(APIView):
         _, err = self._get_template(request, template_id)
         if err:
             return err
-        delete_template(template_id)
+        try:
+            delete_template(template_id)
+        except TemplateHasCampaignsError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_409_CONFLICT,
+            )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -245,11 +252,7 @@ class TemplateRewriteView(APIView):
     Rephrase subject/body via Bedrock and save a new EmailTemplate.
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def post(self, request, template_id):
         tid, err = _parse_positive_int(template_id, "template ID")
@@ -290,11 +293,7 @@ class TemplatePublishView(APIView):
     Body: ``{"name": "..."}`` (required campaign display name).
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def post(self, request, template_id):
         tid, err = _parse_positive_int(template_id, "template ID")
@@ -338,11 +337,7 @@ class OutreachCampaignListView(APIView):
     List campaigns published by the requesting editor.
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def get(self, request):
         limit = max(1, min(100, int(request.query_params.get("limit", 20))))
@@ -367,11 +362,7 @@ class OutreachCampaignActivateView(APIView):
     Resume a paused outreach campaign (e.g. after reconnecting a mailbox).
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def post(self, request, campaign_id):
         cid, err = _parse_positive_int(campaign_id, "campaign ID")
@@ -407,11 +398,7 @@ class OutreachCampaignSendView(APIView):
     Bulk-add experts as leads on a published outreach campaign.
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def post(self, request, campaign_id):
         cid, err = _parse_positive_int(campaign_id, "campaign ID")
@@ -423,7 +410,7 @@ class OutreachCampaignSendView(APIView):
         data = ser.validated_data
 
         try:
-            emails = OutreachCampaignService().send_to_experts(
+            result = OutreachCampaignService().send_to_experts(
                 request.user,
                 cid,
                 expert_search_id=data["expert_search_id"],
@@ -447,9 +434,14 @@ class OutreachCampaignSendView(APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+        emails = result["emails"]
         out = GeneratedEmailSerializer(emails, many=True)
         return Response(
-            {"emails": out.data, "queued": len(emails)},
+            {
+                "emails": out.data,
+                "queued": len(emails),
+                "skipped_emails": result["skipped_emails"],
+            },
             status=status.HTTP_202_ACCEPTED,
         )
 
@@ -459,11 +451,7 @@ class OutreachCampaignCancelQueuedView(APIView):
     POST /api/research_ai/expert-finder/outreach-campaigns/<campaign_id>/cancel-queued/
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def post(self, request, campaign_id):
         cid, err = _parse_positive_int(campaign_id, "campaign ID")
@@ -516,11 +504,7 @@ class OutreachCampaignPreviewView(APIView):
     Render published copy for a real expert and send via provider test email.
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def post(self, request, campaign_id):
         cid, err = _parse_positive_int(campaign_id, "campaign ID")
@@ -581,11 +565,7 @@ class OutreachMailboxListCreateView(APIView):
     POST /api/research_ai/expert-finder/outreach-mailboxes/ - Connect Gmail.
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def get(self, request):
         scope = (request.query_params.get("scope") or "").strip().lower()
@@ -640,11 +620,7 @@ class OutreachMailboxOAuthInitView(APIView):
     Start Google Workspace OAuth for mailbox connect via the outreach provider.
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def post(self, request):
         ser = OutreachMailboxOAuthInitSerializer(data=request.data or {})
@@ -672,11 +648,7 @@ class OutreachMailboxOAuthSessionView(APIView):
     GET /api/research_ai/expert-finder/outreach-mailboxes/oauth/session/<session_id>/
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def get(self, request, session_id):
         try:
@@ -713,11 +685,7 @@ class OutreachMailboxDetailView(APIView):
         soft-delete locally.
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def patch(self, request, mailbox_id):
         mid, err = _parse_positive_int(mailbox_id, "mailbox ID")
@@ -785,11 +753,7 @@ class OutreachCapacityView(APIView):
     (informational only).
     """
 
-    permission_classes = [
-        IsAuthenticated,
-        ResearchAIPermission,
-        UserIsEditor | IsModerator,
-    ]
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
 
     def get(self, request):
         try:
@@ -805,8 +769,8 @@ class InstantlyWebhookView(APIView):
     Public Instantly webhook receiver; authenticated via shared secret.
     """
 
-    permission_classes = [AllowAny]
-    authentication_classes = []
+    permission_classes = INSTANTLY_WEBHOOK_PERMISSIONS
+    authentication_classes = INSTANTLY_WEBHOOK_AUTHENTICATION
 
     def post(self, request):
         if not _instantly_webhook_authorized(request):

@@ -70,7 +70,10 @@ class OutreachCampaignSendViewTests(APITestCase):
             status=GeneratedEmail.Status.SENDING,
         )
         service = mock_service_cls.return_value
-        service.send_to_experts.return_value = [row]
+        service.send_to_experts.return_value = {
+            "emails": [row],
+            "skipped_emails": ["dup@example.edu"],
+        }
         self.client.force_authenticate(self.editor)
 
         # Act
@@ -88,6 +91,7 @@ class OutreachCampaignSendViewTests(APITestCase):
         body = response.json()
         self.assertEqual(body["queued"], 1)
         self.assertEqual(len(body["emails"]), 1)
+        self.assertEqual(body["skipped_emails"], ["dup@example.edu"])
         service.send_to_experts.assert_called_once_with(
             self.editor,
             self.campaign.id,

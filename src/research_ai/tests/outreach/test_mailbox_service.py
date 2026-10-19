@@ -2,6 +2,7 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from research_ai.models import (
@@ -30,6 +31,40 @@ from research_ai.services.outreach.mailbox_service import (
     OutreachMailboxService,
 )
 from user.tests.helpers import create_random_authenticated_user
+
+
+class OutreachMailboxEmailNormalizationTests(TestCase):
+    def setUp(self):
+        self.editor = create_random_authenticated_user("om_email_norm")
+        self.other = create_random_authenticated_user("om_email_norm_other")
+
+    def test_save_normalizes_email_and_reply_to(self):
+        # Arrange / Act
+        mailbox = OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="  Editor.Outreach@Gmail.COM ",
+            reply_to="  Replies@ResearchHub.COM ",
+        )
+
+        # Assert
+        mailbox.refresh_from_db()
+        self.assertEqual(mailbox.email, "editor.outreach@gmail.com")
+        self.assertEqual(mailbox.reply_to, "replies@researchhub.com")
+
+    def test_lower_unique_rejects_case_variant_for_another_editor(self):
+        # Arrange
+        OutreachMailbox.objects.create(
+            editor=self.editor,
+            email="shared@gmail.com",
+        )
+
+        # Act / Assert
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                OutreachMailbox.objects.create(
+                    editor=self.other,
+                    email="Shared@Gmail.com",
+                )
 
 
 class ConnectMailboxTests(TestCase):
@@ -167,6 +202,22 @@ class ConnectMailboxTests(TestCase):
             self.service.connect_mailbox(
                 self.editor,
                 email=self.gmail,
+                app_password=self.app_password,
+            )
+
+    def test_connect_rejects_case_variant_already_connected(self):
+        # Arrange
+        OutreachMailbox.objects.create(
+            editor=self.editor,
+            email=self.gmail,
+            status=OutreachMailbox.Status.ACTIVE,
+        )
+
+        # Act / Assert
+        with self.assertRaises(MailboxAlreadyConnectedError):
+            self.service.connect_mailbox(
+                self.editor,
+                email=self.gmail.upper(),
                 app_password=self.app_password,
             )
 

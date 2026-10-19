@@ -83,7 +83,7 @@ class OutreachCampaignService:
                 ),
                 sent_count=Count(
                     "generated_emails",
-                    filter=Q(generated_emails__status=GeneratedEmail.Status.SENT),
+                    filter=Q(generated_emails__sent_at__isnull=False),
                     distinct=True,
                 ),
                 opened_count=Count(
@@ -335,13 +335,15 @@ class OutreachCampaignService:
         *,
         expert_search_id: int,
         expert_ids: list[int],
-    ) -> list[GeneratedEmail]:
+    ) -> dict:
         """
         Bulk-add experts as provider leads on an existing published campaign.
 
         Validates ownership and published variables. Does not enforce daily
         capacity — the provider drips sends using mailbox/campaign daily limits.
-        Creates ``GeneratedEmail`` rows in ``SENDING`` (queued with the provider).
+        Creates ``GeneratedEmail`` rows in ``SENDING`` only for leads Instantly
+        actually created. Addresses omitted under ``skip_if_in_workspace`` are
+        returned in ``skipped_emails`` with no local row.
         """
         if not expert_ids:
             raise CampaignValidationError("At least one expert id is required.")
@@ -409,9 +411,15 @@ class OutreachCampaignService:
         lead_id_by_email = _lead_ids_by_email(result)
 
         created: list[GeneratedEmail] = []
+        skipped_emails: list[str] = []
         with transaction.atomic():
             for expert, resolved, _custom in prepared:
                 email = ExpertDisplay.normalize_email(expert.email or "")
+                lead_id = lead_id_by_email.get(email, "")
+                if not lead_id:
+                    if email:
+                        skipped_emails.append(email)
+                    continue
                 created.append(
                     GeneratedEmail.objects.create(
                         created_by=editor,
@@ -428,10 +436,13 @@ class OutreachCampaignService:
                         email_body=campaign.published_body or "",
                         status=GeneratedEmail.Status.SENDING,
                         channels=[GeneratedEmail.Channel.EMAIL],
-                        external_lead_id=lead_id_by_email.get(email, ""),
+                        external_lead_id=lead_id,
                     )
                 )
-        return created
+        return {
+            "emails": created,
+            "skipped_emails": skipped_emails,
+        }
 
     def cancel_queued_emails(
         self,
@@ -444,7 +455,9 @@ class OutreachCampaignService:
         Remove pending provider leads and delete local ``SENDING`` rows.
 
         Only ``status=sending`` emails on this editor's campaign can be cancelled.
-        Already-sent / other statuses are reported in ``skipped_ids``.
+        Already-sent / other statuses are reported in ``skipped_ids``. Final
+        local deletion re-checks ``status=sending`` under a row lock so a
+        concurrent ``email_sent`` webhook cannot lose sent history.
         """
         if not generated_email_ids:
             raise CampaignValidationError(
@@ -494,21 +507,39 @@ class OutreachCampaignService:
                     lead_ids=lead_ids,
                 )
             except InstantlyNotFoundError:
-                # Lead already gone upstream; still delete locally.
+                # Lead already gone upstream; still delete locally if still queued.
                 logger.info(
                     "Provider leads already missing for campaign=%s; "
-                    "deleting %s local rows",
+                    "deleting local rows still in sending",
                     campaign.external_campaign_id,
-                    len(cancellable),
                 )
 
-        cancelled_ids = [row.id for row in cancellable]
-        if cancelled_ids:
-            GeneratedEmail.objects.filter(id__in=cancelled_ids).delete()
+        candidate_ids = [row.id for row in cancellable]
+        cancelled: list[GeneratedEmail] = []
+        if candidate_ids:
+            with transaction.atomic():
+                cancelled = list(
+                    GeneratedEmail.objects.select_for_update()
+                    .filter(
+                        id__in=candidate_ids,
+                        status=GeneratedEmail.Status.SENDING,
+                    )
+                    .order_by("id")
+                )
+                cancelled_ids = [row.id for row in cancelled]
+                if cancelled_ids:
+                    GeneratedEmail.objects.filter(
+                        id__in=cancelled_ids,
+                        status=GeneratedEmail.Status.SENDING,
+                    ).delete()
+            raced_ids = [eid for eid in candidate_ids if eid not in set(cancelled_ids)]
+            skipped_ids.extend(raced_ids)
+        else:
+            cancelled_ids = []
 
         return {
             # In-memory instances (pre-delete) for response serialization.
-            "cancelled": cancellable,
+            "cancelled": cancelled,
             "cancelled_ids": cancelled_ids,
             "cancelled_count": len(cancelled_ids),
             "skipped_ids": skipped_ids,

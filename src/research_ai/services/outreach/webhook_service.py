@@ -150,7 +150,7 @@ class InstantlyWebhookService:
         with transaction.atomic():
             mailbox = (
                 OutreachMailbox.objects.select_for_update()
-                .filter(email=account)
+                .filter(email__iexact=account)
                 .first()
             )
             if mailbox is None:

@@ -74,7 +74,7 @@ class SendCampaignLeadsTests(TestCase):
         }
 
         # Act
-        emails = self.service.send_to_experts(
+        result = self.service.send_to_experts(
             self.editor,
             self.campaign.id,
             expert_search_id=self.search.id,
@@ -94,13 +94,51 @@ class SendCampaignLeadsTests(TestCase):
         self.assertEqual(lead["custom_variables"]["expert_name"], "Jane Smith")
         self.assertEqual(lead["custom_variables"]["expert_affiliation"], "MIT")
 
-        self.assertEqual(len(emails), 1)
-        row = emails[0]
+        self.assertEqual(result["skipped_emails"], [])
+        self.assertEqual(len(result["emails"]), 1)
+        row = result["emails"][0]
         self.assertEqual(row.status, GeneratedEmail.Status.SENDING)
         self.assertEqual(row.outreach_campaign_id, self.campaign.id)
         self.assertEqual(row.external_lead_id, "lead-1")
         self.assertEqual(row.expert_email, "jane@example.edu")
         self.assertEqual(row.email_subject, self.campaign.published_subject)
+
+    def test_send_skips_workspace_duplicates_without_local_rows(self):
+        # Arrange: Instantly omits already-in-workspace addresses from created_leads.
+        skipped = Expert.objects.create(
+            email="dup@example.edu",
+            first_name="Dup",
+            last_name="User",
+            affiliation="Stanford",
+        )
+        SearchExpert.objects.create(
+            expert_search=self.search,
+            expert=skipped,
+            position=1,
+        )
+        self.client.add_leads.return_value = {
+            "created_leads": [
+                {"id": "lead-1", "email": "jane@example.edu", "index": 0},
+            ]
+        }
+
+        # Act
+        result = self.service.send_to_experts(
+            self.editor,
+            self.campaign.id,
+            expert_search_id=self.search.id,
+            expert_ids=[self.expert.id, skipped.id],
+        )
+
+        # Assert
+        self.assertEqual(len(result["emails"]), 1)
+        self.assertEqual(result["emails"][0].expert_email, "jane@example.edu")
+        self.assertEqual(result["emails"][0].external_lead_id, "lead-1")
+        self.assertEqual(result["skipped_emails"], ["dup@example.edu"])
+        self.assertEqual(GeneratedEmail.objects.count(), 1)
+        self.assertFalse(
+            GeneratedEmail.objects.filter(expert_email="dup@example.edu").exists()
+        )
 
     def test_send_rejects_missing_published_variables(self):
         # Arrange
@@ -188,6 +226,40 @@ class SendCampaignLeadsTests(TestCase):
         # Assert
         self.assertEqual(result["cancelled_count"], 1)
         self.assertFalse(GeneratedEmail.objects.filter(id=pending_id).exists())
+
+    def test_cancel_queued_skips_row_that_became_sent_during_provider_delete(self):
+        """email_sent webhook can flip SENDING→SENT while delete_leads runs."""
+        # Arrange
+        pending = GeneratedEmail.objects.create(
+            created_by=self.editor,
+            outreach_campaign=self.campaign,
+            expert_email="race@example.edu",
+            status=GeneratedEmail.Status.SENDING,
+            external_lead_id="lead-race",
+        )
+        pending_id = pending.id
+
+        def flip_to_sent(*args, **kwargs):
+            GeneratedEmail.objects.filter(id=pending_id).update(
+                status=GeneratedEmail.Status.SENT,
+            )
+            return {"deleted": 1}
+
+        self.client.delete_leads.side_effect = flip_to_sent
+
+        # Act
+        result = self.service.cancel_queued_emails(
+            self.editor,
+            self.campaign.id,
+            generated_email_ids=[pending_id],
+        )
+
+        # Assert
+        self.assertEqual(result["cancelled_count"], 0)
+        self.assertEqual(result["cancelled_ids"], [])
+        self.assertEqual(result["skipped_ids"], [pending_id])
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, GeneratedEmail.Status.SENT)
 
 
 class PreviewCampaignTests(TestCase):

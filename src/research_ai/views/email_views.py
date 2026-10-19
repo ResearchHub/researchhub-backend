@@ -64,14 +64,14 @@ def _apply_generated_email_list_filters(qs, query_params):
     if search_id is not None:
         try:
             qs = qs.filter(expert_search_id=int(search_id))
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return qs.none()
 
     campaign_id = query_params.get("campaign_id")
     if campaign_id is not None:
         try:
             qs = qs.filter(outreach_campaign_id=int(campaign_id))
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return qs.none()
 
     status_value = query_params.get("status")
