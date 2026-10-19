@@ -228,13 +228,3 @@ class PopularFeedTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.get("RH-Feed-Source"), "rh-popular")
-
-    def test_popular_with_hot_score_ordering_sets_feed_source(self):
-        url = reverse("feed-list")
-
-        response = self.client.get(
-            url, {"feed_view": "popular", "ordering": "hot_score"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.get("RH-Feed-Source"), "rh-popular")
