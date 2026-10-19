@@ -96,7 +96,7 @@ app.conf.beat_schedule = {
     },
     "purchase_email-funding-credits-reminders": {
         "task": "purchase.tasks.send_funding_credits_reminders",
-        "schedule": crontab(day_of_month="1", hour=16, minute=0),
+        "schedule": crontab(day_of_month="1-3", hour=16, minute=0),
         "kwargs": {"send_email": True},
         "options": {
             "priority": 3,
