@@ -12,6 +12,10 @@ import httpcore
 import httpx
 
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")
+# Deprecated IPv4-compatible addresses; Python counts ::a9fe:a9fe as global.
+_IPV4_COMPATIBLE = ipaddress.ip_network("::/96")
+# Each address gets the full connect timeout, so a long DNS answer is cut short.
+_MAX_ADDRESSES = 3
 
 
 class UnsafeAddressError(Exception):
@@ -26,6 +30,8 @@ def is_public_address(address: str) -> bool:
             ip = ip.ipv4_mapped
         elif ip in _NAT64:
             ip = ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+        elif ip in _IPV4_COMPATIBLE:
+            return False
     return ip.is_global and not ip.is_multicast
 
 
@@ -40,6 +46,7 @@ class _PublicOnlyBackend(httpcore.SyncBackend):
         addresses = list(dict.fromkeys(info[4][0] for info in infos))
         if not addresses or not all(map(is_public_address, addresses)):
             raise UnsafeAddressError(f"{host} is not a public internet address")
+        addresses = addresses[:_MAX_ADDRESSES]
         for address in addresses[:-1]:
             try:
                 return super().connect_tcp(
