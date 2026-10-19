@@ -490,6 +490,7 @@ body {
 }
 
 .profile-caption {
+  text-align: center;
   min-height: 32px;
   margin-bottom: 12px;
   font-size: 11px;
