@@ -1,13 +1,15 @@
 from django.db import models
+from django.db.models import Q
 
 from research_ai.models.agent import AgentConversation, AgentConversationMessage
 from utils.models import DefaultModel
 
 
 class AgentFile(DefaultModel):
-    """A document or image a user uploaded to the private bucket for Research AI chats.
+    """A document or image in the private bucket for Research AI chats.
 
-    Created unattached when the upload starts; sending a chat message with it
+    Uploaded by the user, or fetched from the web by the chat's agent. An
+    upload is created unattached when the upload starts; sending a chat message with it
     attaches it to that message. Rows are hard-deleted along with their object:
     the extracted text is user content, not audit data. Only the purge deletes
     rows, so no relation cascades here: a row is the one record of its object.
@@ -19,6 +21,12 @@ class AgentFile(DefaultModel):
         READY = "READY", "Ready"
         FAILED = "FAILED", "Failed"
 
+    class Source(models.TextChoices):
+        UPLOAD = "UPLOAD", "Uploaded by the user"
+        WEB = "WEB", "Fetched from the web"
+        # Only the fetch API's text is stored, not the original response.
+        WEB_TEXT = "WEB_TEXT", "Text from the web fetch API"
+
     user = models.ForeignKey(
         "user.User",
         null=True,
@@ -26,8 +34,9 @@ class AgentFile(DefaultModel):
         on_delete=models.SET_NULL,
         related_name="research_ai_files",
         db_comment=(
-            "The uploader; null once they removed the file or their account, "
-            "which leaves the row for the purge."
+            "The uploader, or the chat's owner for a fetched file; null once "
+            "they removed the file or their account, which leaves the row for "
+            "the purge."
         ),
     )
     conversation = models.ForeignKey(
@@ -36,7 +45,10 @@ class AgentFile(DefaultModel):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="files",
-        db_comment="Set when the file is attached to a message in this conversation.",
+        db_comment=(
+            "Set when the file is attached to a message in this conversation, "
+            "or fetched in it."
+        ),
     )
     message = models.ForeignKey(
         AgentConversationMessage,
@@ -94,5 +106,19 @@ class AgentFile(DefaultModel):
         ),
     )
 
+    source = models.CharField(
+        max_length=16, choices=Source.choices, default=Source.UPLOAD
+    )
+    source_url = models.TextField(
+        blank=True, db_comment="The URL a web fetch asked for; blank for uploads."
+    )
+
     class Meta:
         db_table = "research_ai_agent_file"
+
+
+WEB_SOURCES = (AgentFile.Source.WEB, AgentFile.Source.WEB_TEXT)
+# Files a chat's agent may read: sent with a message, or fetched in the chat.
+IN_CHAT = Q(message__isnull=False) | Q(
+    source__in=WEB_SOURCES, conversation__isnull=False
+)

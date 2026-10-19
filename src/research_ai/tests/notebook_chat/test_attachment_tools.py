@@ -70,6 +70,23 @@ class AttachmentToolsetTests(TestCase):
 
     # -- read_attachment --------------------------------------------------
 
+    def test_a_page_fetched_in_the_chat_is_read_like_an_attachment(self):
+        # Arrange
+        page = make_file(
+            self.user,
+            filename="CRISPR screens",
+            content_type="text/html",
+            text=CV_TEXT,
+            conversation=self.conversation,
+            source=AgentFile.Source.WEB,
+        )
+
+        # Act
+        result = self._call(READ_ATTACHMENT, {"attachment_id": page.id})
+
+        # Assert
+        self.assertEqual(result["text"], CV_TEXT)
+
     def test_read_returns_the_whole_short_file(self):
         # Act
         result = self._call(READ_ATTACHMENT, {"attachment_id": self.proposal.id})
