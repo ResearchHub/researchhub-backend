@@ -53,7 +53,9 @@ def html_to_markdown(
         link["href"] = urljoin(base_url, link["href"])
         # Rendered into every Markdown link, where it only repeats the text.
         del link["title"]
-    root = soup.body if soup.body is not None else soup
+    root = soup.body
+    if root is None:
+        root = soup
     root_length = len(root.get_text())
     for name in ("main", "article"):
         element = soup.find(name)
