@@ -1,3 +1,4 @@
+from unittest import TestCase
 from unittest.mock import Mock
 
 import httpx
@@ -29,7 +30,9 @@ HTML = (
     '<a href="/supplement">Supplement</a></main></body></html>'
 ).encode()
 FALLBACK_TEXT = "# CRISPR screens\n\n" + BODY
-CONFIG = WebFetchConfig(max_page_bytes=10_000, max_files_per_conversation=2)
+CONFIG = WebFetchConfig(
+    max_page_bytes=10_000, max_files_per_conversation=2, direct_hosts=("example.org",)
+)
 
 
 def _html(request, status=200, body=HTML, **headers):
@@ -155,6 +158,9 @@ class WebFetchServiceTests(AWSMockTestCase):
             "redirected to a URL that cannot be fetched": lambda r: httpx.Response(
                 302, headers={"location": "file:///etc/passwd"}
             ),
+            "not an open-access host": lambda r: httpx.Response(
+                302, headers={"location": "https://publisher.test/crispr"}
+            ),
             "request failed (ConnectTimeout)": Mock(
                 side_effect=httpx.ConnectTimeout("slow")
             ),
@@ -185,6 +191,19 @@ class WebFetchServiceTests(AWSMockTestCase):
                 self.fallback.text.assert_called_with(
                     URL, max_chars=10_000, timeout=30.0
                 )
+
+    def test_a_host_off_the_direct_list_goes_straight_to_the_fetch_api(self):
+        # Arrange
+        url = "https://www.science.org/doi/10.1126/science.abc1234"
+        self.context = [Message(role="user", content=[TextBlock(url)])]
+
+        # Act
+        fetched = self._fetch(url)
+
+        # Assert
+        self.assertEqual(fetched.path, FALLBACK)
+        self.assertEqual(self.requests, [])
+        self.fallback.text.assert_called_once()
 
     def test_a_private_address_is_refused_without_the_fallback(self):
         # Arrange
@@ -279,3 +298,16 @@ class WebFetchServiceTests(AWSMockTestCase):
         # Assert
         self.assertIn("has fetched 2 pages, its limit", str(raised.exception))
         self.assertEqual(len(self.requests), 2)
+
+
+class DirectHostsTests(TestCase):
+    def test_matches_a_listed_host_and_its_subdomains_only(self):
+        # Arrange
+        config = WebFetchConfig(direct_hosts=("arxiv.org",))
+
+        # Act / Assert
+        self.assertTrue(config.allows_direct("https://arxiv.org/pdf/2401.00001"))
+        self.assertTrue(config.allows_direct("https://export.arxiv.org/abs/1"))
+        self.assertTrue(config.allows_direct("https://ARXIV.org./abs/1"))
+        self.assertFalse(config.allows_direct("https://notarxiv.org/abs/1"))
+        self.assertFalse(config.allows_direct("https://arxiv.org.evil.test/abs/1"))

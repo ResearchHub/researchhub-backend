@@ -1,9 +1,10 @@
 """Fetching a web page or PDF for a chat agent and keeping it as an ``AgentFile``.
 
-The page is requested directly from the worker first; the original response
-is stored in the private bucket and read like an attached file, a PDF through
-the same extraction. When that request is blocked, fails, or yields no
-readable text, the fetch API's text is stored instead (``Source.WEB_TEXT``).
+A page on an open-access host is requested directly from the worker; the
+original response is stored in the private bucket and read like an attached
+file, a PDF through the same extraction. Any other host, or a direct request
+that is blocked, fails, or yields no readable text, gets the fetch API's text
+instead (``Source.WEB_TEXT``).
 Only URLs already in the conversation are fetched, by either path.
 """
 
@@ -218,6 +219,8 @@ class WebFetchService:
     def _direct(self, url: str, deadline: float) -> _Document:
         current = url
         for _ in range(self.config.max_redirects + 1):
+            if not self.config.allows_direct(current):
+                raise _DirectFetchError("not an open-access host")
             if time.monotonic() > deadline:
                 raise _DirectFetchError("timed out")
             try:
