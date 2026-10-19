@@ -49,11 +49,14 @@ class ExaContents:
             body = response.json()
         except ValueError:
             raise FallbackError("fetch service returned invalid JSON")
-        status = next(iter(body.get("statuses") or []), {})
-        if status.get("status") == "error":
-            error = status.get("error") or {}
+        if not isinstance(body, dict):
+            raise FallbackError("fetch service returned invalid JSON")
+        status = next(iter(body.get("statuses") or []), None)
+        if isinstance(status, dict) and status.get("status") == "error":
+            error = status.get("error")
+            tag = error.get("tag") if isinstance(error, dict) else None
             raise FallbackError(
-                f"fetch service could not read the page ({error.get('tag') or 'error'})"
+                f"fetch service could not read the page ({tag or 'error'})"
             )
         result = next(iter(body.get("results") or []), None)
         if not isinstance(result, dict) or not str(result.get("text") or "").strip():

@@ -52,6 +52,15 @@ class MentionedTests(TestCase):
             )
         )
 
+    def test_a_raw_url_with_an_entity_like_query_counts(self):
+        # Act / Assert
+        self.assertTrue(
+            mentioned(
+                "https://example.org/search?a=1&copy=2",
+                [_user("See https://example.org/search?a=1&copy=2")],
+            )
+        )
+
     def test_a_url_extended_beyond_what_was_written_does_not_count(self):
         # Arrange
         context = [_user(f"Read {URL}")]
@@ -59,6 +68,18 @@ class MentionedTests(TestCase):
         # Act / Assert
         self.assertFalse(mentioned(f"{URL}?aims=secret", context))
         self.assertFalse(mentioned("https://example.org/papers/crispr", context))
+
+    def test_only_a_bare_root_url_may_drop_its_slash(self):
+        # Act / Assert
+        self.assertTrue(
+            mentioned("https://example.org/", [_user("Go to https://example.org.")])
+        )
+        self.assertFalse(
+            mentioned(
+                "https://example.org/?prefixX",
+                [_user("Go to https://example.org/?prefix")],
+            )
+        )
 
     def test_tool_results_and_server_search_results_count(self):
         # Arrange

@@ -52,17 +52,20 @@ def clean_url(url) -> str:
 def mentioned(url: str, context: Sequence[Message]) -> bool:
     """Whether ``url`` appears whole in the conversation's trusted text."""
     candidates = [url]
-    if urlsplit(url).path == "/":
+    parts = urlsplit(url)
+    # Only a URL ending at its root slash may be written without it.
+    if parts.path == "/" and not (parts.query or parts.fragment) and url.endswith("/"):
         candidates.append(url[:-1])
     for text in _trusted_text(context):
-        if "&" in text:
-            text = html.unescape(text)
-        for candidate in candidates:
-            start = text.find(candidate)
-            while start >= 0:
-                if _URL_END.match(text, start + len(candidate)):
-                    return True
-                start = text.find(candidate, start + 1)
+        # Unescaping alone would break raw URLs such as "?a=1&copy=2".
+        variants = (text, html.unescape(text)) if "&" in text else (text,)
+        for variant in variants:
+            for candidate in candidates:
+                start = variant.find(candidate)
+                while start >= 0:
+                    if _URL_END.match(variant, start + len(candidate)):
+                        return True
+                    start = variant.find(candidate, start + 1)
     return False
 
 
