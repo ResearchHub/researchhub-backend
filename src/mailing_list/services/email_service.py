@@ -52,11 +52,13 @@ class EmailService:
         sender: str | None = None,
         reply_to: str | list[str] | None = None,
         cc: list[str] | None = None,
-    ) -> None:
+    ) -> int:
         """
         Send optional email, skipping addresses that have opted out.
 
         `template` base name of the template without extension.
+
+        Return the number of messages the backend accepted.
 
         This is the standard entry point, and the right default for anything the
         recipient could reasonably not want. Recipients get a signed unsubscribe
@@ -67,7 +69,7 @@ class EmailService:
         Undeliverable and complained-about addresses are handled separately by the
         SES backend's blacklist, which applies to both methods.
         """
-        self._send(
+        return self._send(
             recipients=recipients,
             template=template,
             subject=subject,
@@ -175,9 +177,9 @@ class EmailService:
         reply_to: str | list[str] | None,
         cc: list[str] | None,
         unsubscribable: bool,
-    ) -> None:
+    ) -> int:
         """
-        Render and send one message per recipient.
+        Render and send one message per recipient, returning how many were accepted.
 
         Sends are best-effort: a recipient that fails is logged and skipped so one
         bad address cannot abort the rest of the batch.
@@ -191,6 +193,7 @@ class EmailService:
             EmailOptOut.filter_opted_out(recipients) if unsubscribable else set()
         )
         subscriptions = self._subscriptions
+        accepted = 0
 
         for recipient in recipients:
             if recipient in opted_out or not self._is_allowed_recipient(recipient):
@@ -221,7 +224,7 @@ class EmailService:
             plain_body = self._html_to_text(html_body)
 
             try:
-                self._send_message(
+                message_id = self._send_message(
                     recipient,
                     subject,
                     html_body,
@@ -231,10 +234,14 @@ class EmailService:
                     cc=cc,
                     headers=headers,
                 )
+                if message_id is not None:
+                    accepted += 1
             except Exception:
                 logger.exception("Email send failed to %s", recipient)
 
             sleep(self._send_interval_seconds)
+
+        return accepted
 
     def _send_message(
         self,

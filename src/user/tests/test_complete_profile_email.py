@@ -17,6 +17,7 @@ from user.tests.helpers import create_random_default_user
 class CompleteProfileEmailServiceTests(TestCase):
     def setUp(self):
         self.email_service = Mock()
+        self.email_service.send_email.return_value = 1
         self.service = CompleteProfileEmailService(email_service=self.email_service)
         self.user = create_random_default_user("complete_profile")
 
@@ -66,37 +67,64 @@ class CompleteProfileEmailServiceTests(TestCase):
         # Assert
         self.email_service.send_email.assert_called_once()
 
-    def test_emails_only_accounts_that_turned_a_week_old_in_the_last_day(self):
-        """Only accounts created seven to eight days ago are emailed."""
+    def test_retries_user_when_email_is_not_accepted(self):
+        """A send the backend does not accept leaves the user eligible again."""
         # Arrange
+        self.email_service.send_email.return_value = 0
+
+        # Act
+        self.service.send_if_eligible(self.user.id)
+        self.service.send_if_eligible(self.user.id)
+
+        # Assert
+        self.assertEqual(self.email_service.send_email.call_count, 2)
+
+    def test_emails_week_old_accounts_within_catch_up_window(self):
+        """Accounts one to two weeks old are emailed, so missed sweeps catch up."""
+        # Arrange
+        overdue = create_random_default_user("overdue")
         too_new = create_random_default_user("too_new")
         too_old = create_random_default_user("too_old")
         self._set_date_joined(self.user, 7.5)
+        self._set_date_joined(overdue, 10)
         self._set_date_joined(too_new, 3)
-        self._set_date_joined(too_old, 10)
+        self._set_date_joined(too_old, 15)
 
         # Act
         self.service.send_to_week_old_accounts()
 
         # Assert
-        self.email_service.send_email.assert_called_once()
-        recipient = self.email_service.send_email.call_args.args[0]
-        self.assertEqual(recipient, self.user.email)
+        recipients = {
+            call.args[0] for call in self.email_service.send_email.call_args_list
+        }
+        self.assertEqual(recipients, {self.user.email, overdue.email})
 
 
+@patch("user.signals.complete_profile_email_signals.send_complete_profile_email_task")
 class QueueCompleteProfileEmailOnNotePublishTests(TestCase):
-    @patch(
-        "user.signals.complete_profile_email_signals.send_complete_profile_email_task"
-    )
+    def setUp(self):
+        self.post = Mock(spec=ResearchhubPost, note_id=1, created_by_id=7)
+
     def test_queues_email_when_note_is_published(self, mock_task):
         """Publishing a notebook note queues the email for its author on commit."""
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            queue_complete_profile_email_on_note_publish(
+                ResearchhubPost, instance=self.post, created=True
+            )
+
+        # Assert
+        mock_task.delay.assert_called_once_with(7)
+
+    def test_swallows_enqueue_failure(self, mock_task):
+        """A broker outage does not fail the request that published the note."""
         # Arrange
-        post = Mock(spec=ResearchhubPost, note_id=1, created_by_id=7)
+        mock_task.delay.side_effect = ConnectionError("broker unavailable")
 
         # Act
         with self.captureOnCommitCallbacks(execute=True):
             queue_complete_profile_email_on_note_publish(
-                ResearchhubPost, instance=post, created=True
+                ResearchhubPost, instance=self.post, created=True
             )
 
         # Assert

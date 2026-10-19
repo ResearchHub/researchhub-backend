@@ -357,23 +357,6 @@ body {
 }
 
 /* Complete profile email */
-.profile-email-body {
-  background-color: #F3F4F6;
-}
-
-.profile-email-canvas {
-  padding: 40px 16px;
-  background-color: #F3F4F6;
-}
-
-.profile-email {
-  max-width: 640px;
-  background-color: #FFFFFF;
-  border: 1px solid #E5E7EB;
-  border-radius: 12px;
-  overflow: hidden;
-}
-
 .profile-email-inner {
   padding: 32px 32px 36px;
   color: #111827;
@@ -524,7 +507,6 @@ body {
 .profile-face-image {
   display: block;
   border-radius: 50%;
-  object-fit: cover;
 }
 
 .profile-details {

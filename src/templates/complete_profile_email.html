@@ -11,8 +11,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     @media (max-width: 672px) {
-      .profile-email-canvas { padding: 16px 8px !important; }
-      .profile-email, .footer { width: 100% !important; }
+      .canvas { padding: 16px 8px !important; }
+      .card, .footer { width: 100% !important; }
       .profile-email-inner { padding: 24px 16px 28px !important; }
       .profile-title { font-size: 26px !important; line-height: 32px !important; }
       .profile-panel-inner { padding: 24px 12px !important; }
@@ -25,11 +25,11 @@
 </head>
 {% inlinecss "general_email.css" %}
 
-<body class="profile-email-body">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+<body>
+  <table class="canvas" role="presentation" width="100%" cellpadding="0" cellspacing="0">
     <tr>
-      <td class="profile-email-canvas" align="center">
-        <table class="profile-email" role="presentation" width="640" cellpadding="0" cellspacing="0">
+      <td align="center">
+        <table class="card" role="presentation" width="640" cellpadding="0" cellspacing="0">
           <tr>
             <td class="accent-bar" height="4">&nbsp;</td>
           </tr>

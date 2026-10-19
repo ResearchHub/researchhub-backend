@@ -18,5 +18,6 @@ def queue_complete_profile_email_on_note_publish(
     if not created or instance.note_id is None:
         return
     transaction.on_commit(
-        lambda: send_complete_profile_email_task.delay(instance.created_by_id)
+        lambda: send_complete_profile_email_task.delay(instance.created_by_id),
+        robust=True,
     )

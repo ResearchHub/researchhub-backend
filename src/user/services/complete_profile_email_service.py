@@ -7,6 +7,9 @@ from django.utils import timezone
 from mailing_list.services import EmailService
 from user.models import User
 
+ACCOUNT_AGE = timedelta(days=7)
+CATCH_UP_WINDOW = timedelta(days=7)
+
 
 class CompleteProfileEmailService:
     """Send the one-time email nudging users to finish their author profile."""
@@ -22,11 +25,12 @@ class CompleteProfileEmailService:
             self._send(user)
 
     def send_to_week_old_accounts(self) -> None:
-        """Email eligible users whose accounts turned a week old in the last day."""
-        week_ago = timezone.now() - timedelta(days=7)
-        # The one-day window must match the daily beat task's interval.
+        """Email eligible users whose accounts are one to two weeks old."""
+        week_ago = timezone.now() - ACCOUNT_AGE
+        # The lower bound lets missed or failed runs catch up without emailing
+        # every account that predates this feature.
         users = self._get_eligible_users().filter(
-            date_joined__gt=week_ago - timedelta(days=1),
+            date_joined__gt=week_ago - CATCH_UP_WINDOW,
             date_joined__lte=week_ago,
         )
         for user in users.iterator():
@@ -53,18 +57,26 @@ class CompleteProfileEmailService:
         ).select_related("author_profile")
 
     def _send(self, user: User) -> None:
-        """Claim the user's single send, then email them their profile link."""
+        """Claim the user's single send, releasing it unless the email is accepted."""
+        claimed_at = timezone.now()
         claimed = User.objects.filter(
             id=user.id, complete_profile_email_sent_date__isnull=True
-        ).update(complete_profile_email_sent_date=timezone.now())
+        ).update(complete_profile_email_sent_date=claimed_at)
         if not claimed:
             return
-        self.email_service.send_email(
-            user.email,
-            "Finish your ResearchHub profile",
-            {
-                "profile_url": f"{settings.BASE_FRONTEND_URL}/author/"
-                f"{user.author_profile.id}"
-            },
-            template="complete_profile_email",
-        )
+        accepted = 0
+        try:
+            accepted = self.email_service.send_email(
+                user.email,
+                "Finish your ResearchHub profile",
+                {
+                    "profile_url": f"{settings.BASE_FRONTEND_URL}/author/"
+                    f"{user.author_profile.id}"
+                },
+                template="complete_profile_email",
+            )
+        finally:
+            if not accepted:
+                User.objects.filter(
+                    id=user.id, complete_profile_email_sent_date=claimed_at
+                ).update(complete_profile_email_sent_date=None)
