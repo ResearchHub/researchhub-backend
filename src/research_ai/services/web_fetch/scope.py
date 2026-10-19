@@ -51,21 +51,29 @@ def clean_url(url) -> str:
 
 def mentioned(url: str, context: Sequence[Message]) -> bool:
     """Whether ``url`` appears whole in the conversation's trusted text."""
-    candidates = [url]
-    parts = urlsplit(url)
-    # Only a URL ending at its root slash may be written without it.
-    if parts.path == "/" and not (parts.query or parts.fragment) and url.endswith("/"):
-        candidates.append(url[:-1])
+    spellings = _spellings(url)
     for text in _trusted_text(context):
         # Unescaping alone would break raw URLs such as "?a=1&copy=2".
         variants = (text, html.unescape(text)) if "&" in text else (text,)
-        for variant in variants:
-            for candidate in candidates:
-                start = variant.find(candidate)
-                while start >= 0:
-                    if _URL_END.match(variant, start + len(candidate)):
-                        return True
-                    start = variant.find(candidate, start + 1)
+        if any(_contains_whole(v, s) for v in variants for s in spellings):
+            return True
+    return False
+
+
+def _spellings(url: str) -> list[str]:
+    parts = urlsplit(url)
+    # Only a URL ending at its root slash may be written without it.
+    if parts.path == "/" and not (parts.query or parts.fragment) and url.endswith("/"):
+        return [url, url[:-1]]
+    return [url]
+
+
+def _contains_whole(text: str, url: str) -> bool:
+    start = text.find(url)
+    while start >= 0:
+        if _URL_END.match(text, start + len(url)):
+            return True
+        start = text.find(url, start + 1)
     return False
 
 
