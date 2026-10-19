@@ -45,6 +45,7 @@ from user.models import (
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.related_models.risk_score_model import RiskScoreEvent
+from user.services.academic_email_service import AcademicEmailService
 from utils.turnstile import TurnstileService
 
 logger = logging.getLogger(__name__)
@@ -190,6 +191,7 @@ class AuthorSerializer(ModelSerializer):
     wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
     is_verified = SerializerMethodField()
+    verified_academic_email = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -206,6 +208,7 @@ class AuthorSerializer(ModelSerializer):
             "university",
             "wallet",
             "is_verified",
+            "verified_academic_email",
         ]
         read_only_fields = [
             "added_as_editor_date",
@@ -298,6 +301,11 @@ class AuthorSerializer(ModelSerializer):
         user = author.user
         if user:
             return user.is_hub_editor()
+
+    def get_verified_academic_email(self, author):
+        if author.user is None:
+            return None
+        return AcademicEmailService().get_verified_academic_email(author.user)
 
 
 class MajorSerializer(ModelSerializer):
@@ -779,6 +787,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     benefits_expire_on = SerializerMethodField()
     editor_of = SerializerMethodField()
     is_verified = SerializerMethodField()
+    verified_academic_email = SerializerMethodField()
 
     class Meta:
         model = User
@@ -831,6 +840,9 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
 
     def get_is_verified(self, user):
         return user.is_verified
+
+    def get_verified_academic_email(self, user):
+        return AcademicEmailService().get_verified_academic_email(user)
 
 
 class OrganizationSerializer(ModelSerializer):
