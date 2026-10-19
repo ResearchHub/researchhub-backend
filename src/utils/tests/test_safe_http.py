@@ -60,6 +60,29 @@ class PublicHttpClientTests(TestCase):
         # Assert
         self.assertEqual(connect.call_args.args[:2], ("93.184.215.14", 80))
 
+    def test_tries_the_next_address_after_a_failed_connect(self):
+        # Arrange
+        with (
+            patch(
+                "socket.getaddrinfo",
+                return_value=_resolves_to("93.184.215.14", "93.184.215.15"),
+            ),
+            patch.object(
+                httpcore.SyncBackend,
+                "connect_tcp",
+                side_effect=[httpcore.ConnectTimeout("x"), httpcore.ConnectError("y")],
+            ) as connect,
+            self.assertRaises(httpx.ConnectError),
+        ):
+            # Act
+            self.client.get("http://example.org/")
+
+        # Assert
+        self.assertEqual(
+            [c.args[0] for c in connect.call_args_list],
+            ["93.184.215.14", "93.184.215.15"],
+        )
+
     def test_ignores_proxy_settings(self):
         # Arrange
         with patch.dict("os.environ", {"HTTP_PROXY": "http://10.0.0.1:3128"}):

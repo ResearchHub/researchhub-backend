@@ -40,15 +40,16 @@ class _PublicOnlyBackend(httpcore.SyncBackend):
         addresses = list(dict.fromkeys(info[4][0] for info in infos))
         if not addresses or not all(map(is_public_address, addresses)):
             raise UnsafeAddressError(f"{host} is not a public internet address")
-        error = None
-        for address in addresses:
+        for address in addresses[:-1]:
             try:
                 return super().connect_tcp(
                     address, port, timeout, local_address, socket_options
                 )
-            except httpcore.ConnectError as exc:
-                error = exc
-        raise error
+            except httpcore.ConnectError, httpcore.ConnectTimeout:
+                pass
+        return super().connect_tcp(
+            addresses[-1], port, timeout, local_address, socket_options
+        )
 
 
 class PublicOnlyTransport(httpx.HTTPTransport):
