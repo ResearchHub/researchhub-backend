@@ -53,11 +53,12 @@ def html_to_markdown(
         link["href"] = urljoin(base_url, link["href"])
         # Rendered into every Markdown link, where it only repeats the text.
         del link["title"]
-    root = soup.body or soup
+    root = soup.body if soup.body is not None else soup
+    root_length = len(root.get_text())
     for name in ("main", "article"):
         element = soup.find(name)
         # A small one is a fragment of the page, not its content.
-        if element and len(element.get_text()) * 2 >= len(root.get_text()):
+        if element is not None and len(element.get_text()) * 2 >= root_length:
             root = element
             break
     text = _Converter().convert_soup(root)
