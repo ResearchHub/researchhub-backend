@@ -8,7 +8,12 @@ from django.utils.text import slugify
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, PermissionDenied
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -33,6 +38,7 @@ from researchhub.settings import TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
+    CHANGELOG,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
     GRANT,
@@ -75,6 +81,12 @@ logger = logging.getLogger(__name__)
 
 MIN_POST_TITLE_LENGTH = 20
 MIN_POST_BODY_LENGTH = 50
+
+
+class ChangelogPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class RegisteredReportDOIRegistrationFailed(APIException):
@@ -153,6 +165,41 @@ class ResearchhubPostViewSet(
             ).data,
             status=status.HTTP_200_OK,
         )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        pagination_class=ChangelogPagination,
+    )
+    def changelog(self, request: Request) -> Response:
+        """List published changelog posts, newest first."""
+        posts = (
+            ResearchhubPost.objects.public_changelogs()
+            .select_related("created_by", "note", "unified_document")
+            .prefetch_related(
+                "author_links",
+                "unified_document__hubs",
+            )
+        )
+        page = self.paginate_queryset(posts)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        url_path="changelog/latest",
+    )
+    def changelog_latest(self, request: Request) -> Response:
+        """Identify the newest changelog, for "new changelog" indicators."""
+        latest = (
+            ResearchhubPost.objects.public_changelogs()
+            .values("id", "created_date")
+            .first()
+        )
+        return Response(latest)
 
     @action(detail=True, methods=["get"])
     def registered_report_work(
@@ -316,6 +363,8 @@ class ResearchhubPostViewSet(
             raise PermissionDenied(
                 "Only moderators or hub editors can publish registered reports."
             )
+        if document_type == CHANGELOG and not request.user.moderator:
+            raise PermissionDenied("Only moderators can publish changelogs.")
 
         if (
             document_type != REGISTERED_REPORT
@@ -383,8 +432,8 @@ class ResearchhubPostViewSet(
                 # enters the moderation queue as PENDING. Grants gate via their
                 # own Grant.status, so the post itself stays APPROVED. Registered
                 # Reports will always be auto approved, as they require the attached
-                # completed proposal.
-                if document_type in (GRANT, REGISTERED_REPORT):
+                # completed proposal. Changelogs are published by moderators.
+                if document_type in (CHANGELOG, GRANT, REGISTERED_REPORT):
                     work_status = ResearchhubUnifiedDocument.APPROVED
                 else:
                     work_status = risk_score_service.initial_work_status(created_by)
@@ -616,6 +665,20 @@ class ResearchhubPostViewSet(
                     status=400,
                 )
 
+            is_changelog = rh_post.document_type == CHANGELOG
+            if is_changelog and not request.user.moderator:
+                raise PermissionDenied("Only moderators can edit changelogs.")
+            if not is_changelog and data.get("document_type") == CHANGELOG:
+                return Response(
+                    {"msg": "An existing post cannot become a changelog"},
+                    status=400,
+                )
+            if is_changelog:
+                # A changelog stays a changelog: its unified document, feed
+                # suppression and listing all key off the type.
+                data = data.copy()
+                data.pop("document_type", None)
+
             renderable_text = data.get("renderable_text", "")
             title = data.get("title", "")
 
@@ -624,7 +687,7 @@ class ResearchhubPostViewSet(
                 return validation_response
 
             serializer = ResearchhubPostSerializer(
-                rh_post, data=request.data, partial=True, context={"request": request}
+                rh_post, data=data, partial=True, context={"request": request}
             )
             serializer.is_valid(raise_exception=True)
             serializer.save()

@@ -19,6 +19,7 @@ from research_ai.services.agent.errors import (
     IterationLimitError,
     ProviderError,
 )
+from research_ai.services.agent.providers.router import STATE_KEY
 from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     AssistantTurn,
@@ -99,6 +100,29 @@ class AgentChatPersistenceTests(AgentPersistenceTestCase):
         # ``default=str`` because the payload carries datetimes; DRF's
         # encoder handles those on the real API path.
         self.assertNotIn("secret", json.dumps(representation["messages"], default=str))
+
+    def test_turns_name_the_model_that_answered_after_a_refusal(self):
+        # Arrange
+        chat = AgentChatService()
+        kimi = "openrouter:moonshotai/kimi-k3"
+        first = chat.prepare_turn(self.conversation, "Refused question")
+        routed = {STATE_KEY: {"model": kimi}}
+        agent(
+            FakeProvider([text_turn("Kimi's answer", provider_state=routed)]),
+            first.recorder,
+        ).run("Refused question")
+        second = chat.prepare_turn(self.conversation, "Ordinary question")
+        agent(FakeProvider([text_turn("Answer")]), second.recorder).run(
+            "Ordinary question"
+        )
+
+        # Act
+        executions = chat.representation(self.conversation)["executions"]
+
+        # Assert
+        self.assertEqual(
+            [execution["routed_model"] for execution in executions], [kimi, None]
+        )
 
     def test_messages_carry_created_timestamps(self):
         # Arrange

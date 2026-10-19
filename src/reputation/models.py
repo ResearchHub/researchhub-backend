@@ -5,7 +5,6 @@ from reputation.related_models.deposit import Deposit
 from reputation.related_models.distribution import Distribution
 from reputation.related_models.escrow import Escrow
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from reputation.related_models.score import AlgorithmVariables, Score, ScoreChange
 from reputation.related_models.staking_global_snapshot import StakingGlobalSnapshot
 from reputation.related_models.staking_user_snapshot import StakingUserSnapshot
 from reputation.related_models.staking_yield_record import StakingYieldRecord
@@ -13,7 +12,6 @@ from reputation.related_models.support_fee import SupportFee
 from reputation.related_models.withdrawal import Withdrawal
 
 __all__ = [
-    "AlgorithmVariables",
     "Bounty",
     "BountyFee",
     "BountySolution",
@@ -22,8 +20,6 @@ __all__ = [
     "Distribution",
     "Escrow",
     "PaidStatusModelMixin",
-    "Score",
-    "ScoreChange",
     "StakingGlobalSnapshot",
     "StakingUserSnapshot",
     "StakingYieldRecord",

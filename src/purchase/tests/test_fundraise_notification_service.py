@@ -177,7 +177,7 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
         )
         self.assertEqual(
             self.email_service.send_message_email.call_args.args[1],
-            f"{self.contributor.full_name()} contributed to your Proposal",
+            f"{self.contributor.full_name()} contributed to your proposal",
         )
         message = "submitted a contribution to your proposal"
         notification = self.notifications.get()
