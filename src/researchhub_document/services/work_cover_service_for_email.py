@@ -4,6 +4,7 @@ from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import (
+    CHANGELOG,
     DISCUSSION,
     GRANT,
     PAPER,
@@ -15,6 +16,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from user.related_models.author_model import Author
 
 _KIND_LABELS_AND_NOUNS = {
+    CHANGELOG: ("Changelog", "a changelog"),
     PREREGISTRATION: ("Proposal", "a proposal"),
     GRANT: ("RFP", "an RFP"),
     PAPER: ("Paper", "a paper"),
@@ -31,7 +33,7 @@ def build_work_cover(document: Paper | ResearchhubPost) -> dict:
     else:
         document_type, title = document.document_type, document.title
     kind, noun = _KIND_LABELS_AND_NOUNS.get(document_type, _POST_LABEL_AND_NOUN)
-    is_discussion = document_type == DISCUSSION
+    is_discussion = document_type in (CHANGELOG, DISCUSSION)
     grant = (
         document.unified_document.grants.select_related("funding_pool").first()
         if document_type == GRANT

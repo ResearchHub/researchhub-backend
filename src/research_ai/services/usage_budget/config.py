@@ -2,9 +2,13 @@
 
 from dataclasses import dataclass, replace
 
-DEFAULT_TIER_MODEL = "claude_platform:claude-opus-5-5"
-# No longer the default; default-tier chats already pinned to it keep running.
-LEGACY_DEFAULT_TIER_MODEL = "openrouter:deepseek/deepseek-v4-flash-0731"
+# What a new chat or draft runs when the user picks no model, in every tier.
+DEFAULT_MODEL = "openrouter:openai/gpt-6.1-sol"
+# Former defaults: default-tier chats already pinned to them keep running.
+LEGACY_DEFAULT_TIER_MODELS = (
+    "claude_platform:claude-opus-5-5",
+    "openrouter:deepseek/deepseek-v4-flash-0731",
+)
 BUDGETS_ENFORCED = True
 MAX_IN_FLIGHT_JOBS_PER_USER = 5
 DEFAULT_DAILY_BUDGET_MICROUSD = 1_000_000
@@ -40,10 +44,10 @@ def tier_policies() -> dict[str, TierPolicy]:
         name="default",
         daily_budget_microusd=DEFAULT_DAILY_BUDGET_MICROUSD,
         daily_turn_cap=None,
-        allowed_model_refs=(DEFAULT_TIER_MODEL, LEGACY_DEFAULT_TIER_MODEL),
-        default_model_ref=DEFAULT_TIER_MODEL,
-        # Opus 5.5's lowest effort. Thinking is left to each model: Opus 5.5
-        # only thinks adaptively, and the legacy model runs with effort "none".
+        allowed_model_refs=(DEFAULT_MODEL, *LEGACY_DEFAULT_TIER_MODELS),
+        default_model_ref=DEFAULT_MODEL,
+        # The lowest effort of Sol and Opus 5.5. Thinking is left to each model:
+        # both only think adaptively, and DeepSeek runs with effort "none".
         max_effort="low",
         pool_daily_budget_microusd=DEFAULT_POOL_DAILY_BUDGET_MICROUSD,
     )
@@ -52,14 +56,14 @@ def tier_policies() -> dict[str, TierPolicy]:
         daily_budget_microusd=INVITED_DAILY_BUDGET_MICROUSD,
         daily_turn_cap=None,
         allowed_model_refs=None,
-        default_model_ref=None,
+        default_model_ref=DEFAULT_MODEL,
     )
     privileged = TierPolicy(
         name="privileged",
         daily_budget_microusd=PRIVILEGED_DAILY_BUDGET_MICROUSD,
         daily_turn_cap=None,
         allowed_model_refs=None,
-        default_model_ref=None,
+        default_model_ref=DEFAULT_MODEL,
     )
     blocked = TierPolicy("blocked", 0, 0, (), None)
     # ``replace`` keeps policies independent even if future defaults share fields.
