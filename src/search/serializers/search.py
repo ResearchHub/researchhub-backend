@@ -59,7 +59,7 @@ class InstitutionSerializer(serializers.Serializer):
 
 
 class DocumentResultSerializer(serializers.Serializer):
-    """Serializer for document (paper/post) search results."""
+    """Serializer for document (post) search results."""
 
     id = serializers.IntegerField()
     type = serializers.CharField()
@@ -68,18 +68,10 @@ class DocumentResultSerializer(serializers.Serializer):
     matched_field = serializers.CharField(allow_null=True, required=False)
     authors = AuthorSerializer(many=True, required=False)
     created_date = serializers.DateTimeField(allow_null=True, required=False)
-    paper_publish_date = serializers.DateTimeField(allow_null=True, required=False)
     score = serializers.IntegerField(required=False)
     _search_score = serializers.FloatField(required=False)
     hubs = HubSerializer(many=True, required=False)
     unified_document_id = serializers.IntegerField(required=False)
-
-    # Paper-specific fields
-    doi = serializers.CharField(allow_null=True, required=False)
-    citations = serializers.IntegerField(required=False)
-    abstract = serializers.CharField(allow_null=True, required=False)
-
-    # Post-specific fields
     slug = serializers.CharField(allow_null=True, required=False)
     document_type = serializers.CharField(allow_null=True, required=False)
     renderable_text = serializers.CharField(allow_null=True, required=False)

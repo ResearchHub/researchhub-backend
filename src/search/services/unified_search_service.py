@@ -1,20 +1,15 @@
-import logging
 import time
 from typing import Any
 
 from opensearchpy import Q, Search
 
 from search.base.utils import seconds_to_milliseconds
-from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
 from search.services.search_error_utils import handle_search_error
 from search.services.unified_search_query_builder import (
     PopularityConfig,
     UnifiedSearchQueryBuilder,
 )
-from utils.doi import DOI
-
-logger = logging.getLogger(__name__)
 
 
 class UnifiedSearchService:
@@ -24,7 +19,6 @@ class UnifiedSearchService:
     VALID_SORT_OPTIONS = [SORT_RELEVANCE, SORT_NEWEST]
 
     def __init__(self):
-        self.paper_index = PaperDocument._index._name
         self.post_index = PostDocument._index._name
         self.query_builder = UnifiedSearchQueryBuilder()
 
@@ -43,24 +37,6 @@ class UnifiedSearchService:
             sort = self.SORT_RELEVANCE
 
         offset = (page - 1) * page_size
-
-        try:
-            if DOI.is_doi(query):
-                normalized_doi = DOI.normalize_doi(query)
-                doi_result = self._search_documents_by_doi(normalized_doi)
-                if doi_result["count"] > 0:
-                    execution_time = time.time() - start_time
-                    return {
-                        "count": doi_result["count"],
-                        "next": None,
-                        "previous": None,
-                        "documents": doi_result["results"],
-                        "people": [],
-                        "aggregations": {},
-                        "execution_time_ms": seconds_to_milliseconds(execution_time),
-                    }
-        except Exception:
-            pass
 
         document_results = self._search_documents(query, offset, page_size, sort)
         total_count = document_results["count"]
@@ -91,14 +67,7 @@ class UnifiedSearchService:
         }
 
     def _build_author_filter(self) -> Q:
-        return Q(
-            "bool",
-            should=[
-                Q("exists", field="raw_authors.full_name"),
-                Q("exists", field="authors.full_name"),
-            ],
-            minimum_should_match=1,
-        )
+        return Q("exists", field="authors.full_name")
 
     def _search_documents(
         self,
@@ -108,7 +77,7 @@ class UnifiedSearchService:
         sort: str,
         popularity_config: PopularityConfig | None = None,
     ) -> dict[str, Any]:
-        search = Search(index=[self.paper_index, self.post_index])
+        search = Search(index=self.post_index)
         config = popularity_config or self.query_builder.popularity_config
         query_obj = self.query_builder.build_document_query_with_popularity(
             query, config
@@ -126,17 +95,11 @@ class UnifiedSearchService:
         search = search.source(
             [
                 "id",
-                "paper_title",
                 "title",
-                "abstract",
                 "renderable_text",
-                "raw_authors",
                 "authors",
                 "created_date",
-                "paper_publish_date",
-                "citations",
                 "hubs",
-                "doi",
                 "slug",
                 "score",
                 "hot_score_v2",
@@ -147,7 +110,6 @@ class UnifiedSearchService:
 
         try:
             response = search.execute()
-            self._log_first_hit_index(response)
         except Exception as e:
             handle_search_error(e, query, offset, limit, sort)
             return {"results": [], "count": 0}
@@ -159,79 +121,10 @@ class UnifiedSearchService:
             "count": response.hits.total.value,
         }
 
-    def _log_first_hit_index(self, response) -> None:
-        if response.hits.total.value > 0:
-            first_hit_index = response.hits[0].meta.index if response.hits else "N/A"
-            logger.info(f"First hit index: {first_hit_index}")
-
-    def _search_documents_by_doi(self, normalized_doi: str) -> dict[str, Any]:
-        search = Search(index=[self.paper_index, self.post_index])
-        doi_query = Q("term", doi={"value": normalized_doi})
-        author_filter = self._build_author_filter()
-        filtered_query = Q("bool", must=[doi_query], filter=[author_filter])
-        search = search.query(filtered_query)
-        search = search.sort(
-            {
-                "_script": {
-                    "type": "number",
-                    "script": {
-                        "source": (
-                            "if (doc.containsKey('updated_date') && "
-                            "!doc['updated_date'].empty) {"
-                            "  return doc['updated_date'].value.toEpochMilli();"
-                            "} else if (doc.containsKey('created_date') && "
-                            "!doc['created_date'].empty) {"
-                            "  return doc['created_date'].value.toEpochMilli();"
-                            "}"
-                            "return 0;"
-                        ),
-                        "lang": "painless",
-                    },
-                    "order": "desc",
-                }
-            }
-        )
-        search = search.source(
-            [
-                "id",
-                "paper_title",
-                "title",
-                "abstract",
-                "renderable_text",
-                "raw_authors",
-                "authors",
-                "created_date",
-                "updated_date",
-                "paper_publish_date",
-                "citations",
-                "hubs",
-                "doi",
-                "slug",
-                "score",
-                "hot_score_v2",
-                "unified_document_id",
-                "document_type",
-            ]
-        )
-        search = search[0:1]
-        search = search.extra(track_total_hits=True, timeout="5s")
-
-        try:
-            response = search.execute()
-        except Exception:
-            logger.exception("DOI search failed")
-            return {"results": [], "count": 0}
-
-        results = self._process_document_results(response)
-        return {"results": results, "count": response.hits.total.value}
-
     def _apply_highlighting(self, search: Search) -> Search:
         highlight_fields = {
-            "paper_title": {"number_of_fragments": 0},
             "title": {"number_of_fragments": 0},
-            "abstract": {"fragment_size": 700, "number_of_fragments": 1},
             "renderable_text": {"fragment_size": 700, "number_of_fragments": 1},
-            "raw_authors.full_name": {"number_of_fragments": 0},
             "authors.full_name": {"number_of_fragments": 0},
         }
 
@@ -259,34 +152,12 @@ class UnifiedSearchService:
     def _extract_document_highlights(self, highlights) -> tuple[str | None, str | None]:
         if not highlights:
             return None, None
-        if hasattr(highlights, "paper_title"):
-            return highlights.paper_title[0], "title"
         if hasattr(highlights, "title"):
             return highlights.title[0], "title"
-        if hasattr(highlights, "abstract"):
-            return highlights.abstract[0], "abstract"
         if hasattr(highlights, "renderable_text"):
             return highlights.renderable_text[0], "content"
 
         return None, None
-
-    def _build_paper_fields(self, hit) -> dict[str, Any]:
-        raw_doi = getattr(hit, "doi", None)
-        return {
-            "authors": [
-                {
-                    "first_name": author.get("first_name", ""),
-                    "last_name": author.get("last_name", ""),
-                    "full_name": author.get("full_name", ""),
-                }
-                for author in getattr(hit, "raw_authors", [])
-            ],
-            "doi": DOI.normalize_doi(raw_doi) if raw_doi else None,
-            "citations": getattr(hit, "citations", 0),
-            "paper_publish_date": getattr(hit, "paper_publish_date", None),
-            "unified_document_id": getattr(hit, "unified_document_id", None),
-            "abstract": getattr(hit, "abstract", None),
-        }
 
     def _build_post_fields(self, hit) -> dict[str, Any]:
         return {
@@ -321,13 +192,12 @@ class UnifiedSearchService:
     def _process_document_results(self, response) -> list[dict[str, Any]]:
         results = []
         for hit in response.hits:
-            doc_type = "paper" if "paper" in hit.meta.index else "post"
             highlights = getattr(hit.meta, "highlight", None)
             snippet, matched_field = self._extract_document_highlights(highlights)
             result = {
                 "id": hit.id,
-                "type": doc_type,
-                "title": getattr(hit, "paper_title", None) or getattr(hit, "title", ""),
+                "type": "post",
+                "title": getattr(hit, "title", ""),
                 "snippet": snippet,
                 "matched_field": matched_field,
                 "created_date": getattr(hit, "created_date", None),
@@ -335,10 +205,7 @@ class UnifiedSearchService:
                 "hot_score_v2": getattr(hit, "hot_score_v2", 0),
                 "_search_score": hit.meta.score,
             }
-            if doc_type == "paper":
-                result.update(self._build_paper_fields(hit))
-            else:
-                result.update(self._build_post_fields(hit))
+            result.update(self._build_post_fields(hit))
             result["hubs"] = self._process_hubs(hit)
             results.append(result)
 
