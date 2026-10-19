@@ -444,6 +444,9 @@ if ELASTIC_BEANSTALK and not CELERY_PREFORK_WORKER:
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
 
+if TESTING:
+    PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]  # NOSONAR
+
 AUTH_PASSWORD_VALIDATORS = [
     {
         "NAME": (
@@ -529,6 +532,12 @@ MISTRAL_API_KEY = os.environ.get(
 # names its own model and inference knobs as module constants.
 RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
     "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
+)
+
+# Model a research_ai conversation moves to once its own model refuses a turn;
+# it needs reviewed pricing. Empty stops new moves, not ones already made.
+RESEARCH_AI_REFUSAL_FALLBACK_MODEL = os.environ.get(
+    "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3"
 )
 
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(

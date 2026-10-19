@@ -13,6 +13,7 @@ from researchhub_access_group.constants import NO_ACCESS
 from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
+    CHANGELOG,
     DISCUSSION,
     DOCUMENT_TYPES,
     REGISTERED_REPORT,
@@ -37,6 +38,14 @@ class ResearchhubPostQuerySet(models.QuerySet):
     def publicly_visible(self) -> ResearchhubPostQuerySet:
         """Restrict to posts safe for anonymous/public discovery surfaces."""
         return self.filter(self._public_visibility_filter())
+
+    def public_changelogs(self) -> ResearchhubPostQuerySet:
+        """Changelog posts every viewer sees on the changelog page, newest first."""
+        return (
+            self.publicly_visible()
+            .filter(document_type=CHANGELOG, unified_document__is_removed=False)
+            .order_by("-created_date")
+        )
 
     def visible_to(
         self,

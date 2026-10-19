@@ -46,7 +46,7 @@ class EscrowPayoutNotificationService:
             amount = format_compact_usd(
                 RscExchangeRate.rsc_to_usd(float(payout_amount))
             )
-            subject = f"You were awarded {amount} for your peer review"
+            subject = f"You've earned {amount} for your peer review 🎉"
             body = (
                 render_comment_html(
                     BountySolution.objects.get(id=solution_id).item,
@@ -65,7 +65,7 @@ class EscrowPayoutNotificationService:
             link = f"{unified_document.frontend_view_link()}/bounties"
         else:
             notification_type = Notification.FUNDRAISE_PAYOUT
-            subject = "Your proposal is fully funded"
+            subject = "Your proposal is fully funded 🎉"
             card = {
                 "author": item.created_by.author_profile,
                 "action": "Raised",
