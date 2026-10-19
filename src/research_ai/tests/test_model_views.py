@@ -53,12 +53,13 @@ class AvailableModelsViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
-        self.assertEqual(data["default"], "claude_platform:claude-opus-5-5")
-        opus, *others = data["models"]
+        self.assertEqual(data["default"], "openrouter:openai/gpt-6.1-sol")
+        opus, sol, *others = data["models"]
         self.assertTrue(opus["allowed"])
-        self.assertEqual([model["allowed"] for model in others], [False] * 5)
-        self.assertEqual(opus["capabilities"]["effort"], ["low"])
-        self.assertEqual(opus["capabilities"]["thinking"], ["adaptive"])
+        self.assertTrue(sol["allowed"])
+        self.assertEqual([model["allowed"] for model in others], [False] * 4)
+        self.assertEqual(sol["capabilities"]["effort"], ["low"])
+        self.assertEqual(sol["capabilities"]["thinking"], ["adaptive"])
 
     def test_lists_models_and_the_default(self):
         # Arrange
@@ -70,7 +71,7 @@ class AvailableModelsViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
-        self.assertEqual(data["default"], "claude_platform:claude-opus-5-5")
+        self.assertEqual(data["default"], "openrouter:openai/gpt-6.1-sol")
         refs = [model["ref"] for model in data["models"]]
         self.assertEqual(
             refs,
