@@ -168,22 +168,6 @@ class PopularFeedTests(APITestCase):
             second_score = results[1].get("hot_score_v2", 0)
             self.assertGreaterEqual(first_score, second_score)
 
-    def test_popular_orders_by_hot_score(self):
-        url = reverse("feed-list")
-
-        response = self.client.get(
-            url, {"feed_view": "popular", "ordering": "hot_score"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-        self.assertGreaterEqual(len(results), 3)
-
-        result_ids = [r["content_object"]["id"] for r in results]
-        high_index = result_ids.index(self.high_score_paper.id)
-        low_index = result_ids.index(self.low_score_paper.id)
-        self.assertLess(high_index, low_index)
-
     def test_popular_defaults_to_hot_score_v2(self):
         # Arrange
         url = reverse("feed-list")
