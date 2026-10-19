@@ -587,6 +587,7 @@ class UserEditableSerializer(ModelSerializer):
             "user_permissions",
             "username",
             "clicked_on_balance_date",
+            "funding_credits_email_sent_date",
             "suspended_updated_date",
             "last_login",
             "date_joined",

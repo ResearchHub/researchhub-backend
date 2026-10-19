@@ -52,12 +52,13 @@ class EmailService:
         sender: str | None = None,
         reply_to: str | list[str] | None = None,
         cc: list[str] | None = None,
-        raise_on_error: bool = False,
-    ) -> None:
+    ) -> int:
         """
         Send optional email, skipping addresses that have opted out.
 
         `template` base name of the template without extension.
+
+        Return the number of messages the backend accepted.
 
         This is the standard entry point, and the right default for anything the
         recipient could reasonably not want. Recipients get a signed unsubscribe
@@ -67,9 +68,8 @@ class EmailService:
 
         Undeliverable and complained-about addresses are handled separately by the
         SES backend's blacklist, which applies to both methods.
-        Set `raise_on_error` when the caller manages delivery retries.
         """
-        self._send(
+        return self._send(
             recipients=recipients,
             template=template,
             subject=subject,
@@ -78,7 +78,6 @@ class EmailService:
             reply_to=reply_to,
             cc=cc,
             unsubscribable=True,
-            raise_on_error=raise_on_error,
         )
 
     def send_transactional_email(
@@ -119,20 +118,23 @@ class EmailService:
         message: str,
         *,
         link: str | None = None,
+        cta_label: str | None = None,
         heading: str | None = None,
         is_html: bool = False,
-    ) -> None:
+    ) -> int:
         """Send an opt-out-aware message with an optional action link.
 
         Set `is_html` only for messages already escaped by the caller.
+        Return the number of messages the backend accepted.
         """
-        self.send_email(
+        return self.send_email(
             recipients,
             subject,
             {
                 "subject": heading or subject,
                 "body": mark_safe(message) if is_html else message,
                 "cta_url": link,
+                "cta_label": cta_label,
                 "preserve_linebreaks": not is_html,
             },
             template="general_branded_email",
@@ -178,12 +180,12 @@ class EmailService:
         reply_to: str | list[str] | None,
         cc: list[str] | None,
         unsubscribable: bool,
-        raise_on_error: bool = False,
-    ) -> None:
+    ) -> int:
         """
-        Render and send one message per recipient.
+        Render and send one message per recipient, returning how many were accepted.
 
-        Log and skip failed recipients unless the caller manages retries.
+        Sends are best-effort: a recipient that fails is logged and skipped so one
+        bad address cannot abort the rest of the batch.
         """
         if not isinstance(recipients, list):
             recipients = [recipients]
@@ -194,6 +196,7 @@ class EmailService:
             EmailOptOut.filter_opted_out(recipients) if unsubscribable else set()
         )
         subscriptions = self._subscriptions
+        accepted = 0
 
         for recipient in recipients:
             if recipient in opted_out or not self._is_allowed_recipient(recipient):
@@ -234,14 +237,14 @@ class EmailService:
                     cc=cc,
                     headers=headers,
                 )
-                if raise_on_error and message_id is None:
-                    raise RuntimeError("Email backend did not send the message")
+                if message_id is not None:
+                    accepted += 1
             except Exception:
-                if raise_on_error:
-                    raise
                 logger.exception("Email send failed to %s", recipient)
 
             sleep(self._send_interval_seconds)
+
+        return accepted
 
     def _send_message(
         self,

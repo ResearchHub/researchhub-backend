@@ -137,11 +137,7 @@ def send_monthly_preregistration_update_reminders():
 @app.task(queue=QUEUE_NOTIFICATION)
 def send_funding_credits_reminders(*, send_email: bool = False) -> dict[str, int]:
     """Remind eligible funding-credit holders, optionally sending monthly email."""
-    return {
-        "sent_count": FundingCreditsReminderService().send_reminders(
-            send_email=send_email
-        )
-    }
+    return FundingCreditsReminderService().send_reminders(send_email=send_email)
 
 
 def dispatch_sweep(wallet, amount, network, circle_transaction_id):

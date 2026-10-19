@@ -1,7 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField, HStoreField
-from django.contrib.postgres.fields.hstore import KeyTransform
 from django.db import models
 
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -132,14 +131,6 @@ class Notification(models.Model):
 
     class Meta:
         indexes = (models.Index(fields=("content_type", "object_id")),)
-        constraints = [
-            models.UniqueConstraint(
-                models.F("recipient"),
-                KeyTransform("reminder_period", "extra"),
-                condition=models.Q(notification_type="FUNDING_CREDITS_REMINDER"),
-                name="uniq_funding_reminder_period",
-            ),
-        ]
 
     def save(self, *args, **kwargs):
         self.format_body()

@@ -57,6 +57,17 @@ class SendEmailTests(TestCase):
         # Assert
         self.assertEqual(len(mail.outbox), 0)
 
+    def test_returns_number_of_accepted_messages(self):
+        """Only messages the backend accepted are counted."""
+        # Arrange
+        EmailOptOut.add("optout@example.com")
+
+        # Act
+        accepted = self._send(["optout@example.com", "good@example.com"])
+
+        # Assert
+        self.assertEqual(accepted, 1)
+
     def test_excludes_opted_out_recipient_regardless_of_casing(self):
         # Arrange
         EmailOptOut.add("optout@example.com")
@@ -258,6 +269,31 @@ class SendEmailTests(TestCase):
         self.assertEqual(
             EmailOptOut.filter_opted_out(["good@example.com"]), {"good@example.com"}
         )
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    PRODUCTION=False,
+)
+class SendMessageEmailTests(TestCase):
+    """`EmailService.send_message_email` wraps a message in the branded email."""
+
+    def test_labels_the_action_link(self) -> None:
+        # Act
+        accepted = EmailService(send_interval_seconds=0).send_message_email(
+            "good@example.com",
+            "Test",
+            "<p>hello</p>",
+            link="https://example.com/action",
+            cta_label="Take action",
+            is_html=True,
+        )
+
+        # Assert
+        self.assertEqual(accepted, 1)
+        html_body = mail.outbox[0].alternatives[0][0]
+        self.assertIn("<p>hello</p>", html_body)
+        self.assertIn('href="https://example.com/action">Take action</a>', html_body)
 
 
 @override_settings(

@@ -97,6 +97,7 @@ class User(SoftDeletableModel, AbstractUser):
     has_seen_first_coin_modal = models.BooleanField(default=False)
     has_seen_orcid_connect_modal = models.BooleanField(default=False)
     has_completed_onboarding = models.BooleanField(default=False)
+    funding_credits_email_sent_date = models.DateTimeField(null=True, blank=True)
 
     invited_by = models.ForeignKey(
         "self", related_name="invitee", on_delete=models.SET_NULL, null=True, blank=True
