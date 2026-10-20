@@ -16,13 +16,18 @@ from research_ai.services.agent import (
     TextBlock,
 )
 from research_ai.services.social_share_service import (
+    FAILED,
     MAX_POST_CHARS,
-    SharePostGenerationError,
+    PENDING,
+    READY,
+    SharePost,
     SocialShareService,
     fit_post_text,
     normalize_post_text,
     x_weighted_length,
 )
+from research_ai.tasks import generate_share_post_task
+from research_ai.throttles import SharePostGenerateThrottle
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
@@ -109,141 +114,181 @@ class SocialShareServiceTests(TestCase):
         self.user = create_random_authenticated_user("sharer")
         self.provider = MagicMock()
         self.provider.complete.return_value = _turn("A sharp post about the work.")
+        self.cache = LocMemCache("share-post-tests", {})
+        self.queued = []
         self.service = SocialShareService(
-            provider=self.provider, cache=LocMemCache("share-post-tests", {})
+            provider=self.provider,
+            cache=self.cache,
+            enqueue=lambda *args: self.queued.append(args),
         )
 
-    def test_generates_once_per_post_version(self):
-        # Arrange
-        post = create_post(
-            title="Mapping tau spread",
+    def _proposal(self, **fields):
+        return create_post(
+            title=fields.pop("title", "Mapping tau spread"),
             created_by=self.user,
-            document_type=PREREGISTRATION,
+            document_type=fields.pop("document_type", PREREGISTRATION),
+            **fields,
         )
+
+    def _run_queued(self):
+        """Run the worker tasks the API side queued."""
+        while self.queued:
+            self.service.generate_and_cache(*self.queued.pop(0))
+
+    def _share(self, post) -> SharePost:
+        """Request the post, let the worker write it, then request it again."""
+        self.service.request_post(post)
+        self._run_queued()
+        return self.service.request_post(post)
+
+    def _prompt(self) -> str:
+        return self.provider.complete.call_args.kwargs["messages"][0].content[0].text
+
+    def test_miss_queues_one_generation_and_is_pending(self):
+        # Arrange
+        post = self._proposal()
 
         # Act
-        first = self.service.share_post_text(post)
-        second = self.service.share_post_text(post)
+        first = self.service.request_post(post)
+        second = self.service.request_post(post)
 
         # Assert
-        self.assertEqual(first, "A sharp post about the work.")
-        self.assertEqual(second, first)
+        self.assertEqual(first, SharePost(PENDING))
+        self.assertEqual(second, SharePost(PENDING))
+        self.assertEqual(len(self.queued), 1)
+        self.provider.complete.assert_not_called()
+
+    def test_worker_result_is_served_from_the_cache(self):
+        # Arrange
+        post = self._proposal()
+
+        # Act
+        result = self._share(post)
+        again = self.service.request_post(post)
+
+        # Assert
+        self.assertEqual(result, SharePost(READY, "A sharp post about the work."))
+        self.assertEqual(again, result)
         self.provider.complete.assert_called_once()
 
-    def test_concurrent_request_waits_for_the_post_being_generated(self):
+    def test_on_enqueue_runs_only_when_a_generation_is_queued(self):
         # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
-        cache = MagicMock()
-        cache.add.return_value = False
-        # First lookup misses, one poll finds the lock still held, the next the post.
-        cache.get.side_effect = [None, None, True, "Shared post"]
+        post = self._proposal()
+        on_enqueue = MagicMock()
+
+        # Act
+        self.service.request_post(post, on_enqueue=on_enqueue)
+        self.service.request_post(post, on_enqueue=on_enqueue)
+
+        # Assert
+        on_enqueue.assert_called_once()
+
+    def test_failed_enqueue_releases_the_lock(self):
+        # Arrange
+        post = self._proposal()
         service = SocialShareService(
-            provider=self.provider, cache=cache, sleep=lambda _: None
+            provider=self.provider,
+            cache=self.cache,
+            enqueue=MagicMock(side_effect=RuntimeError("broker down")),
         )
+        with self.assertRaises(RuntimeError):
+            service.request_post(post)
 
         # Act
-        text = service.share_post_text(post)
+        self.service.request_post(post)
 
         # Assert
-        self.assertEqual(text, "Shared post")
-        self.provider.complete.assert_not_called()
+        self.assertEqual(len(self.queued), 1)
 
-    def test_concurrent_request_gives_up_when_generation_fails(self):
+    def test_failed_generation_is_reported_then_retried(self):
         # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
-        cache = MagicMock()
-        cache.add.return_value = False
-        cache.get.return_value = None
-        service = SocialShareService(
-            provider=self.provider, cache=cache, sleep=lambda _: None
-        )
-
-        # Act / Assert
-        with self.assertRaises(SharePostGenerationError):
-            service.share_post_text(post)
-        self.provider.complete.assert_not_called()
-
-    def test_rfp_without_a_grant_is_closed_to_applications(self):
-        # Arrange
-        post = create_post(
-            title="RFP: Remyelination",
-            created_by=self.user,
-            document_type=GRANT,
-        )
-
-        # Act
-        self.service.share_post_text(post)
-
-        # Assert
-        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
-        self.assertIn("Status: Closed to applications", prompt)
-
-    def test_expired_lock_taken_by_another_request_is_kept(self):
-        # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
-        cache = MagicMock()
-        cache.add.return_value = True
-        # Cache miss, then the lock now holds another request's token.
-        cache.get.side_effect = [None, "another-token"]
-        service = SocialShareService(provider=self.provider, cache=cache)
-
-        # Act
-        service.share_post_text(post)
-
-        # Assert
-        cache.delete.assert_not_called()
-
-    def test_lock_is_released_after_a_failed_generation(self):
-        # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
+        post = self._proposal()
         self.provider.complete.side_effect = [ProviderError("down"), _turn("Ok.")]
-        with self.assertRaises(SharePostGenerationError):
-            self.service.share_post_text(post)
 
         # Act
-        text = self.service.share_post_text(post)
+        failed = self._share(post)
+        self.cache.clear()
+        retried = self._share(post)
 
         # Assert
-        self.assertEqual(text, "Ok.")
+        self.assertEqual(failed, SharePost(FAILED))
+        self.assertEqual(retried, SharePost(READY, "Ok."))
+
+    def test_refusal_is_reported_as_failed(self):
+        # Arrange
+        post = self._proposal()
+        self.provider.complete.return_value = _turn("", StopReason.CONTENT_FILTERED)
+
+        # Act
+        result = self._share(post)
+
+        # Assert
+        self.assertEqual(result, SharePost(FAILED))
+
+    def test_lock_taken_by_a_newer_request_is_kept(self):
+        # Arrange
+        post = self._proposal()
+        self.service.request_post(post)
+        post_id, lock_key, token = self.queued.pop()
+        self.cache.set(lock_key, "another-token")
+
+        # Act
+        self.service.generate_and_cache(post_id, lock_key, token)
+
+        # Assert
+        self.assertEqual(self.cache.get(lock_key), "another-token")
+
+    def test_missing_post_releases_the_lock(self):
+        # Arrange
+        post = self._proposal()
+        self.service.request_post(post)
+        _, lock_key, token = self.queued.pop()
+
+        # Act
+        self.service.generate_and_cache(0, lock_key, token)
+
+        # Assert
+        self.assertIsNone(self.cache.get(lock_key))
+        self.provider.complete.assert_not_called()
 
     def test_regenerates_after_the_post_changes(self):
         # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
-        self.service.share_post_text(post)
+        post = self._proposal()
+        self._share(post)
         post.title = "Mapping tau spread in mice"
         post.save()
 
         # Act
-        self.service.share_post_text(post)
+        self._share(post)
 
         # Assert
         self.assertEqual(self.provider.complete.call_count, 2)
 
+    def test_regenerates_after_the_grant_changes(self):
+        # Arrange
+        post = self._proposal(title="RFP: Remyelination", document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=post.unified_document,
+            amount=25000,
+            currency="USD",
+            status=Grant.OPEN,
+        )
+        self._share(post)
+        grant.amount = 50000
+        grant.save()
+
+        # Act
+        self._share(post)
+
+        # Assert
+        self.assertEqual(self.provider.complete.call_count, 2)
+        self.assertIn("Funding: 50,000 USD", self._prompt())
+
     def test_prompt_includes_grant_details(self):
         # Arrange
-        post = create_post(
+        post = self._proposal(
             title="RFP: Remyelination",
-            created_by=self.user,
             renderable_text="We fund remyelination studies.",
             document_type=GRANT,
         )
@@ -259,10 +304,10 @@ class SocialShareServiceTests(TestCase):
         )
 
         # Act
-        self.service.share_post_text(post)
+        self._share(post)
 
         # Assert
-        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
+        prompt = self._prompt()
         self.assertIn("Request for proposals", prompt)
         self.assertIn("Funding: 25,000 USD", prompt)
         self.assertIn("Funder: Acme Foundation", prompt)
@@ -272,11 +317,7 @@ class SocialShareServiceTests(TestCase):
 
     def test_prompt_marks_a_closed_rfp(self):
         # Arrange
-        post = create_post(
-            title="RFP: Remyelination",
-            created_by=self.user,
-            document_type=GRANT,
-        )
+        post = self._proposal(title="RFP: Remyelination", document_type=GRANT)
         Grant.objects.create(
             created_by=self.user,
             unified_document=post.unified_document,
@@ -287,34 +328,34 @@ class SocialShareServiceTests(TestCase):
         )
 
         # Act
-        self.service.share_post_text(post)
+        self._share(post)
 
         # Assert
-        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
-        self.assertIn("Status: Closed to applications", prompt)
+        self.assertIn("Status: Closed to applications", self._prompt())
+
+    def test_rfp_without_a_grant_is_closed_to_applications(self):
+        # Arrange
+        post = self._proposal(title="RFP: Remyelination", document_type=GRANT)
+
+        # Act
+        self._share(post)
+
+        # Assert
+        self.assertIn("Status: Closed to applications", self._prompt())
 
     def test_proposal_without_a_fundraise_is_closed_to_funding(self):
         # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
+        post = self._proposal()
 
         # Act
-        self.service.share_post_text(post)
+        self._share(post)
 
         # Assert
-        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
-        self.assertIn("Funding status: Closed", prompt)
+        self.assertIn("Funding status: Closed", self._prompt())
 
     def test_prompt_marks_fundraise_status(self):
         # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
+        post = self._proposal()
         fundraise = MagicMock(
             status=Fundraise.CLOSED, goal_amount=10000, goal_currency="USD"
         )
@@ -324,85 +365,40 @@ class SocialShareServiceTests(TestCase):
         with patch.object(
             type(post.unified_document.fundraises), "first", return_value=fundraise
         ):
-            self.service.share_post_text(post)
+            self.service.request_post(post)
+            post_id, lock_key, token = self.queued.pop()
+            # The worker loads the post afresh, so patch its fundraise lookup too.
+            self.service.generate_and_cache(post_id, lock_key, token)
 
         # Assert
-        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
+        prompt = self._prompt()
         self.assertIn("Funding status: Closed", prompt)
         self.assertIn("Funding goal: 10,000 USD", prompt)
 
-    def test_regenerates_after_the_grant_changes(self):
-        # Arrange
-        post = create_post(
-            title="RFP: Remyelination",
-            created_by=self.user,
-            document_type=GRANT,
-        )
-        grant = Grant.objects.create(
-            created_by=self.user,
-            unified_document=post.unified_document,
-            amount=25000,
-            currency="USD",
-            status=Grant.OPEN,
-        )
-        self.service.share_post_text(post)
-        grant.amount = 50000
-        grant.save()
-
-        # Act
-        self.service.share_post_text(post)
-
-        # Assert
-        self.assertEqual(self.provider.complete.call_count, 2)
-        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
-        self.assertIn("Funding: 50,000 USD", prompt)
-
     def test_overlong_post_is_rewritten_once(self):
         # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
+        post = self._proposal()
         self.provider.complete.side_effect = [_turn("long " * 80), _turn("Short.")]
 
         # Act
-        text = self.service.share_post_text(post)
+        result = self._share(post)
 
         # Assert
-        self.assertEqual(text, "Short.")
+        self.assertEqual(result, SharePost(READY, "Short."))
         retry_messages = self.provider.complete.call_args.kwargs["messages"]
         self.assertEqual(
             [m.role for m in retry_messages], ["user", "assistant", "user"]
         )
 
-    def test_refusal_is_an_error_and_not_cached(self):
-        # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
-        self.provider.complete.return_value = _turn("", StopReason.CONTENT_FILTERED)
 
-        # Act / Assert
-        with self.assertRaises(SharePostGenerationError):
-            self.service.share_post_text(post)
-        self.provider.complete.return_value = _turn("Second try.")
-        self.assertEqual(self.service.share_post_text(post), "Second try.")
+class GenerateSharePostTaskTests(UnitTestCase):
+    @patch.object(SocialShareService, "generate_and_cache")
+    def test_task_generates_on_the_worker(self, mock_generate):
+        # Act
+        generate_share_post_task(7, "lock:key", "token")
 
-    def test_provider_failure_is_an_error(self):
-        # Arrange
-        post = create_post(
-            title="Mapping tau spread",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-        )
-        self.provider.complete.side_effect = ProviderError("timeout")
-
-        # Act / Assert
-        with self.assertRaises(SharePostGenerationError):
-            self.service.share_post_text(post)
+        # Assert
+        mock_generate.assert_called_once_with(7, "lock:key", "token")
 
 
 class SharePostViewTests(APITestCase):
@@ -413,10 +409,10 @@ class SharePostViewTests(APITestCase):
         return f"/api/research_ai/share/posts/{post_id}/social-post/"
 
     @patch(
-        "research_ai.views.social_share_views.SocialShareService.share_post_text",
-        return_value="Generated post",
+        "research_ai.views.social_share_views.SocialShareService.request_post",
+        return_value=SharePost(READY, "Generated post"),
     )
-    def test_anonymous_user_gets_post_for_public_proposal(self, mock_text):
+    def test_anonymous_user_gets_a_ready_post(self, mock_request):
         # Arrange
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
 
@@ -425,10 +421,68 @@ class SharePostViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"text": "Generated post"})
+        self.assertEqual(response.data, {"status": READY, "text": "Generated post"})
 
-    @patch("research_ai.views.social_share_views.SocialShareService.share_post_text")
-    def test_other_document_types_are_not_found(self, mock_text):
+    @patch(
+        "research_ai.views.social_share_views.SocialShareService.request_post",
+        return_value=SharePost(PENDING),
+    )
+    def test_pending_post_is_accepted(self, mock_request):
+        # Arrange
+        post = create_post(created_by=self.user, document_type=GRANT)
+
+        # Act
+        response = self.client.post(self._url(post.id))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data, {"status": PENDING})
+
+    @patch(
+        "research_ai.views.social_share_views.SocialShareService.request_post",
+        return_value=SharePost(FAILED),
+    )
+    def test_failed_generation_is_service_unavailable(self, mock_request):
+        # Arrange
+        post = create_post(created_by=self.user, document_type=GRANT)
+
+        # Act
+        response = self.client.post(self._url(post.id))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    @patch("research_ai.tasks.generate_share_post_task.delay")
+    @patch.object(SharePostGenerateThrottle, "wait", return_value=60)
+    @patch.object(SharePostGenerateThrottle, "allow_request", return_value=False)
+    def test_throttled_generation_is_not_queued(
+        self, mock_allow, mock_wait, mock_delay
+    ):
+        # Arrange
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+
+        # Act
+        response = self.client.post(self._url(post.id))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        mock_delay.assert_not_called()
+
+    @patch("research_ai.tasks.generate_share_post_task.delay")
+    def test_miss_queues_a_worker_task(self, mock_delay):
+        # Arrange
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+
+        # Act
+        response = self.client.post(self._url(post.id))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_delay.assert_called_once()
+        self.assertEqual(mock_delay.call_args.args[0], post.id)
+
+    @patch("research_ai.views.social_share_views.SocialShareService.request_post")
+    def test_other_document_types_are_not_found(self, mock_request):
         # Arrange
         post = create_post(created_by=self.user, document_type=DISCUSSION)
 
@@ -437,10 +491,10 @@ class SharePostViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        mock_text.assert_not_called()
+        mock_request.assert_not_called()
 
-    @patch("research_ai.views.social_share_views.SocialShareService.share_post_text")
-    def test_posts_hidden_from_the_user_are_not_found(self, mock_text):
+    @patch("research_ai.views.social_share_views.SocialShareService.request_post")
+    def test_posts_hidden_from_the_user_are_not_found(self, mock_request):
         # Arrange
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
         post.unified_document.is_public = False
@@ -451,18 +505,4 @@ class SharePostViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        mock_text.assert_not_called()
-
-    @patch(
-        "research_ai.views.social_share_views.SocialShareService.share_post_text",
-        side_effect=SharePostGenerationError("down"),
-    )
-    def test_generation_failure_is_service_unavailable(self, mock_text):
-        # Arrange
-        post = create_post(created_by=self.user, document_type=GRANT)
-
-        # Act
-        response = self.client.post(self._url(post.id))
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        mock_request.assert_not_called()
