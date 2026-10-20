@@ -88,7 +88,7 @@ Alternatively, debugging of the application is possible with the following launc
 }
 ```
 ### OpenSearch
-ResearchHub uses OpenSearch for search and browse. To index entities (users, papers, etc...) run:
+ResearchHub uses OpenSearch for search and browse. To index entities (users, posts, etc...) run:
 ```
 python manage.py opensearch index rebuild
 ```
@@ -101,8 +101,8 @@ python manage.py opensearch index rebuild
     ## Clean all indices
     python manage.py remove_deleted_docs_from_index
 
-    ## Clean only the paper index (index options are journal, hub, post, paper)
-    python manage.py remove_deleted_docs_from_index --index=paper
+    ## Clean only the post index (index options are journal, hub, post)
+    python manage.py remove_deleted_docs_from_index --index=post
 
     ## Custom batch size
     python manage.py remove_deleted_docs_from_index --batch-size=200
