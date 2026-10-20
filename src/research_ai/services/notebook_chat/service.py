@@ -63,6 +63,7 @@ from research_ai.models import (
 from research_ai.models.agent import AgentExecutionMessage
 from research_ai.prompts.assistant_chat_prompts import (
     build_assistant_chat_system_prompt,
+    build_created_notes_notice,
 )
 from research_ai.prompts.notebook_chat_prompts import build_notebook_chat_system_prompt
 from research_ai.services.agent import (
@@ -698,7 +699,7 @@ class NotebookChatService:
                     provider=provider_name,
                     model=model,
                     configuration=configuration,
-                    system_prompt=self._system_prompt(note, locked_conversation),
+                    system_prompt=self._system_prompt(note),
                 )
                 attached = self.files.attach(prepared.human_message, file_ids)
                 # Held until a worker claims the turn and takes over renewal.
@@ -918,7 +919,9 @@ class NotebookChatService:
         if page_image_room > 0:
             # An attached page that failed to render left room the plan spent.
             attachments = [_pages_on_request(item) for item in attachments]
-        note_toolset = self._note_toolset(conversation, note)
+        # One read, so the prompt lists exactly the notes the tools allow.
+        linked_notes = self._linked_notes(conversation) if note is None else []
+        note_toolset = self._note_toolset(conversation, note, linked_notes)
         toolset = compose_notebook_toolset(
             note_toolset=note_toolset,
             user_profile_toolset=UserProfileToolset(user=conversation.user),
@@ -983,6 +986,11 @@ class NotebookChatService:
         notice = note_toolset.changed_notes_notice(context)
         if notice:
             prompt = f"{notice}\n\n{prompt}"
+        # Listed here, not in the system prompt, so creating or renaming a
+        # note leaves the cached prompt prefix unchanged.
+        notes_notice = build_created_notes_notice(linked_notes)
+        if notes_notice:
+            prompt = f"{notes_notice}\n\n{prompt}"
         try:
             result = agent.continue_conversation(context, prompt, images=images)
         except AgentRunError as exc:
@@ -1067,13 +1075,17 @@ class NotebookChatService:
             max_message_chars=defaults.max_message_chars,
         )
 
-    def _system_prompt(self, note: Note | None, conversation) -> str:
+    @staticmethod
+    def _system_prompt(note: Note | None) -> str:
         if note is not None:
             return build_notebook_chat_system_prompt(note)
-        return build_assistant_chat_system_prompt(self._linked_notes(conversation))
+        return build_assistant_chat_system_prompt()
 
     def _note_toolset(
-        self, conversation: AgentConversation, note: Note | None
+        self,
+        conversation: AgentConversation,
+        note: Note | None,
+        linked_notes: Sequence[Note],
     ) -> NoteToolset:
         """Note tools scoped to the routed note, or to the chat's own notes.
 
@@ -1085,7 +1097,7 @@ class NotebookChatService:
             return NoteToolset(user=conversation.user, note_ids={note.id})
         return NoteToolset(
             user=conversation.user,
-            note_ids={linked.id for linked in self._linked_notes(conversation)},
+            note_ids={linked.id for linked in linked_notes},
             note_creator=lambda title, document_type: self._create_note(
                 conversation, title, document_type
             ),

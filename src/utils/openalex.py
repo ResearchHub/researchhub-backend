@@ -576,18 +576,6 @@ class OpenAlex:
                 works.append(work)
         return works
 
-    def autocomplete_works(self, query):
-        """
-        Search for works using OpenAlex's autocomplete endpoint.
-        Returns suggestions for works matching the query.
-        Only returns results that have a DOI.
-        """
-        filters = {
-            "q": query,
-            "filter": "has_doi:true,type:preprint|review|article",
-        }  # Only return works that have a DOI
-        return self._get("autocomplete/works", filters=filters)
-
     def get_work_by_doi(self, doi):
         """
         Fetch a work from OpenAlex using its DOI.

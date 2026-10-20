@@ -1,4 +1,8 @@
 # User app Celery tasks - re-export so user.tasks.* resolves correctly
+from user.tasks.complete_profile_email_tasks import (
+    send_complete_profile_email_task,
+    send_week_old_complete_profile_emails_task,
+)
 from user.tasks.funding_activity_tasks import create_funding_activity_task
 from user.tasks.leaderboard_tasks import refresh_leaderboard_task
 from user.tasks.risk_score_tasks import apply_account_age_bonus_task
@@ -23,4 +27,6 @@ __all__ = [
     "invalidate_author_profile_caches",
     "refresh_leaderboard_task",
     "reinstate_user_task",
+    "send_complete_profile_email_task",
+    "send_week_old_complete_profile_emails_task",
 ]
