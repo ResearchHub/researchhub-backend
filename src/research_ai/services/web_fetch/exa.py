@@ -59,9 +59,11 @@ class ExaContents:
                 f"fetch service could not read the page ({tag or 'error'})"
             )
         result = _first(body, "results")
-        if not isinstance(result, dict) or not str(result.get("text") or "").strip():
+        text = result.get("text") if isinstance(result, dict) else None
+        if not isinstance(text, str) or not text.strip():
             raise FallbackError("fetch service returned no text")
-        return str(result.get("title") or ""), str(result["text"])
+        title = result.get("title")
+        return (title if isinstance(title, str) else ""), text
 
     def _key(self) -> str:
         if self._api_key is not None:

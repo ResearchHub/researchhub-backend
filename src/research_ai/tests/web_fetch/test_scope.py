@@ -116,10 +116,12 @@ class MentionedTests(TestCase):
         self.assertFalse(mentioned("https://evil.test/?secret=x&send=1", context))
         self.assertFalse(mentioned(written, context))
 
-    def test_a_tool_input_echoed_with_its_root_slash_changed_does_not_count(self):
+    def test_a_tool_input_echoed_in_a_normalized_spelling_does_not_count(self):
         for written, echoed in (
             ("https://evil.test?secret=x", "https://evil.test/?secret=x"),
             ("https://evil.test/?secret=x", "https://evil.test?secret=x"),
+            ("https://evil.test:443/?secret=x", "https://evil.test/?secret=x"),
+            ("https://evil.test:443?secret=x", "https://evil.test/?secret=x"),
         ):
             with self.subTest(written):
                 # Arrange
@@ -228,6 +230,17 @@ class CleanUrlTests(TestCase):
         # Act / Assert
         self.assertEqual(clean_url(f" {URL}#top "), URL)
 
+    def test_accepts_unicode_names_and_ip_addresses(self):
+        for url in (
+            "https://bücher.example/x",
+            "http://192.0.2.1/",
+            "http://[2001:db8::1]/",
+            "https://example.org./",
+        ):
+            with self.subTest(url):
+                # Act / Assert
+                self.assertEqual(clean_url(url), url)
+
     def test_refuses_what_is_not_a_plain_web_url(self):
         for url in (
             "",
@@ -239,6 +252,9 @@ class CleanUrlTests(TestCase):
             "https://example.org:bad/",
             "https://example.org:99999/",
             "https://example.org:0/",
+            "https://exa mple.org/a",
+            "https://%zz/a",
+            "https://a..b/",
         ):
             # Act / Assert
             with self.subTest(url), self.assertRaises(UrlNotAllowedError):

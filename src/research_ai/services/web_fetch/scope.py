@@ -9,9 +9,12 @@ note content into a URL it then fetches.
 """
 
 import html
+import ipaddress
 import re
 from collections.abc import Iterable, Iterator, Sequence
 from urllib.parse import urldefrag, urlsplit, urlunsplit
+
+import httpx
 
 from research_ai.services.agent.types import (
     Message,
@@ -30,6 +33,7 @@ _URL = re.compile(r"https?://[^\s<>\"'`|#]+", re.IGNORECASE)
 _TRAILING = ".,;:!?)]}>*_'\""
 # What may come before a URL the user wrote without its scheme.
 _BARE_OPENERS = "([{<\"'`*,;|"
+_HOST_LABEL = re.compile(r"(?!-)[a-z0-9_-]{1,63}(?<!-)", re.IGNORECASE)
 
 
 class UrlNotAllowedError(ValueError):
@@ -54,9 +58,27 @@ def clean_url(url) -> str:
         raise UrlNotAllowedError("url is not a valid URL")
     if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
         raise UrlNotAllowedError("only http and https URLs can be fetched")
+    if not _valid_host(parts.hostname):
+        raise UrlNotAllowedError("url is not a valid URL")
     if parts.username is not None or parts.password is not None:
         raise UrlNotAllowedError("URLs with credentials cannot be fetched")
     return url
+
+
+def _valid_host(host: str) -> bool:
+    """Whether ``host`` is an IP address or a DNS name, Unicode ones included."""
+    if ":" in host:
+        try:
+            ipaddress.IPv6Address(host)
+        except ValueError:
+            return False
+        return True
+    try:
+        ascii_host = host.encode("idna").decode("ascii")
+    except UnicodeError:
+        return False
+    labels = ascii_host.removesuffix(".").split(".")
+    return all(_HOST_LABEL.fullmatch(label) for label in labels)
 
 
 def mentioned(url: str, context: Sequence[Message]) -> bool:
@@ -166,16 +188,24 @@ def _model_inputs(context: Sequence[Message]) -> Iterator[str]:
                 yield from _strings(block.data.get("input"))
 
 
-def _echo_spellings(url: str) -> list[str]:
-    """``url`` and the root-slash spelling a tool may normalize it to."""
+def _echo_spellings(url: str) -> set[str]:
+    """``url`` and the spellings a tool may normalize it to."""
+    spellings = {url}
     try:
         parts = urlsplit(url)
     except ValueError:
-        return [url]
+        return spellings
     if parts.path in ("", "/"):
-        other = urlunsplit(parts._replace(path="/" if parts.path == "" else ""))
-        return [url, other]
-    return [url]
+        spellings.add(urlunsplit(parts._replace(path="/" if parts.path == "" else "")))
+    # httpx's canonical form drops a default port such as ":443".
+    return spellings | {canonical for s in spellings if (canonical := _canonical(s))}
+
+
+def _canonical(url: str) -> str | None:
+    try:
+        return str(httpx.URL(url))
+    except httpx.InvalidURL:
+        return None
 
 
 def _readings(text: str, written: re.Pattern | None = None) -> list[str]:
