@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 from django.urls import reverse
+from opensearchpy import Search
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -10,6 +11,31 @@ def _suggest_response(options):
     return MagicMock(
         **{"suggest.to_dict.return_value": {"suggestions": [{"options": options}]}}
     )
+
+
+def _sized_suggest_execute(options_by_field):
+    """Fake Search.execute that honors the completion size like OpenSearch."""
+
+    def execute(search):
+        completion = search.to_dict()["suggest"]["suggestions"]["completion"]
+        options = options_by_field.get(completion["field"], [])
+        return _suggest_response(options[: completion["size"]])
+
+    return execute
+
+
+def _user_options(count, score):
+    return [
+        {"_score": score, "_source": {"id": i, "full_name": f"User {i}"}}
+        for i in range(count)
+    ]
+
+
+def _post_options(count, score):
+    return [
+        {"_score": score, "_source": {"id": i, "title": f"Post {i}"}}
+        for i in range(count)
+    ]
 
 
 class SuggestViewTests(TestCase):
@@ -82,6 +108,57 @@ class SuggestViewTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         entity_types = {result["entity_type"] for result in response.data}
         self.assertEqual(entity_types, {"user", "post"})
+
+    @patch.object(Search, "execute", autospec=True)
+    def test_default_indexes_backfill_when_one_index_is_empty(self, mock_es_execute):
+        # Arrange
+        mock_es_execute.side_effect = _sized_suggest_execute(
+            {"suggestion_phrases": _post_options(12, score=1.0)}
+        )
+
+        # Act
+        response = self.client.get(self.url + "?q=test")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 10)
+        self.assertTrue(all(r["entity_type"] == "post" for r in response.data))
+
+    @patch.object(Search, "execute", autospec=True)
+    def test_default_indexes_backfill_when_one_index_is_short(self, mock_es_execute):
+        # Arrange
+        mock_es_execute.side_effect = _sized_suggest_execute(
+            {
+                "full_name_suggest": _user_options(3, score=100.0),
+                "suggestion_phrases": _post_options(12, score=1.0),
+            }
+        )
+
+        # Act
+        response = self.client.get(self.url + "?q=test")
+
+        # Assert
+        entity_types = [r["entity_type"] for r in response.data]
+        self.assertEqual(entity_types.count("user"), 3)
+        self.assertEqual(entity_types.count("post"), 7)
+
+    @patch.object(Search, "execute", autospec=True)
+    def test_default_indexes_cap_each_type_at_its_share(self, mock_es_execute):
+        # Arrange
+        mock_es_execute.side_effect = _sized_suggest_execute(
+            {
+                "full_name_suggest": _user_options(12, score=100.0),
+                "suggestion_phrases": _post_options(12, score=1.0),
+            }
+        )
+
+        # Act
+        response = self.client.get(self.url + "?q=test")
+
+        # Assert
+        entity_types = [r["entity_type"] for r in response.data]
+        self.assertEqual(entity_types.count("user"), 5)
+        self.assertEqual(entity_types.count("post"), 5)
 
     @patch("opensearchpy.Search.execute")
     def test_multiple_indexes(self, mock_es_execute):

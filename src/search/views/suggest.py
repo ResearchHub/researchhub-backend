@@ -291,7 +291,9 @@ class SuggestView(APIView):
         # Results by entity type
         results_by_type = {}
 
-        limit_per_index = math.ceil(limit / len(indexes))
+        # Each index fetches a full page so slots an index can't fill are
+        # backfilled from the others; each type is capped at its share below.
+        share_per_index = math.ceil(limit / len(indexes))
 
         # Process each index
         for index in indexes:
@@ -317,7 +319,7 @@ class SuggestView(APIView):
                     suggest = search.suggest(
                         "suggestions",
                         truncated_query,
-                        completion={"field": suggest_field, "size": limit_per_index},
+                        completion={"field": suggest_field, "size": limit},
                     )
                     response = suggest.execute()
 
@@ -360,7 +362,7 @@ class SuggestView(APIView):
                     transform_func=transform_func,
                     query=query,
                     results=results,
-                    limit_per_index=limit_per_index,
+                    limit_per_index=limit,
                 )
 
             sorted_results = sorted(
@@ -406,13 +408,24 @@ class SuggestView(APIView):
                     result["_original_score"] = original_score
                     result["_score"] = original_score * weight
 
-        # Combine and sort results
-        all_results = []
+        return self._merge_with_backfill(results_by_type, share_per_index, limit)
+
+    def _merge_with_backfill(self, results_by_type, share_per_index, limit):
+        """
+        Cap each entity type at its share of the limit so no type crowds out
+        the others, then backfill slots left unused by types with fewer hits.
+        """
+
+        def by_score(result):
+            return result.get("_score", 0)
+
+        capped, overflow = [], []
         for results in results_by_type.values():
-            all_results.extend(results)
+            capped.extend(results[:share_per_index])
+            overflow.extend(results[share_per_index:])
 
-        all_results = sorted(
-            all_results, key=lambda x: x.get("_score", 0), reverse=True
-        )[:limit]
+        merged = sorted(capped, key=by_score, reverse=True)[:limit]
+        overflow.sort(key=by_score, reverse=True)
+        merged.extend(overflow[: limit - len(merged)])
 
-        return all_results
+        return sorted(merged, key=by_score, reverse=True)
