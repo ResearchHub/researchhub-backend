@@ -121,7 +121,8 @@ class SocialShareService:
             text = normalize_post_text(turn.text)
             if not text:
                 raise SharePostGenerationError("model returned no post text")
-            if len(text) <= MAX_POST_CHARS:
+            length = x_weighted_length(text)
+            if length <= MAX_POST_CHARS:
                 return text
             messages = [
                 *messages,
@@ -131,7 +132,7 @@ class SocialShareService:
                     content=[
                         TextBlock(
                             text=(
-                                f"That is {len(text)} characters. Rewrite it in "
+                                f"That is {length} characters. Rewrite it in "
                                 f"under {TARGET_POST_CHARS} characters."
                             )
                         )
@@ -217,13 +218,47 @@ def normalize_post_text(raw: str) -> str:
 
 def fit_post_text(text: str) -> str:
     """Cut ``text`` to fit beside the link: at a sentence end, else a word."""
-    if len(text) <= MAX_POST_CHARS:
+    if x_weighted_length(text) <= MAX_POST_CHARS:
         return text
-    head = text[:MAX_POST_CHARS]
+    head = _x_prefix(text, MAX_POST_CHARS)
     sentence_end = max(head.rfind(mark) for mark in (". ", "! ", "? ", ".\n"))
-    if sentence_end >= MAX_POST_CHARS // 2:
+    if sentence_end >= len(head) // 2:
         return head[: sentence_end + 1]
-    cut = head[: MAX_POST_CHARS - 1]
+    # Leave room for the ellipsis, which X counts twice.
+    cut = _x_prefix(text, MAX_POST_CHARS - x_weighted_length("…"))
     if " " in cut:
         cut = cut[: cut.rindex(" ")]
     return cut.rstrip(" ,;:-") + "…"
+
+
+# X's twitter-text weights: code points in these ranges count once, everything
+# else (CJK, emoji, most symbols) twice. Weighing each code point of an emoji
+# sequence on its own overcounts joined emoji, which only errs on the short side.
+_X_SINGLE_WEIGHT_RANGES = (
+    (0x0000, 0x10FF),
+    (0x2000, 0x200D),
+    (0x2010, 0x201F),
+    (0x2032, 0x2037),
+)
+
+
+def _x_char_weight(char: str) -> int:
+    code_point = ord(char)
+    if any(low <= code_point <= high for low, high in _X_SINGLE_WEIGHT_RANGES):
+        return 1
+    return 2
+
+
+def x_weighted_length(text: str) -> int:
+    """Length of ``text`` as X counts it toward the 280-character limit."""
+    return sum(_x_char_weight(char) for char in text)
+
+
+def _x_prefix(text: str, budget: int) -> str:
+    """The longest start of ``text`` whose X-weighted length fits ``budget``."""
+    total = 0
+    for index, char in enumerate(text):
+        total += _x_char_weight(char)
+        if total > budget:
+            return text[:index]
+    return text

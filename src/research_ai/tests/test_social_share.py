@@ -21,6 +21,7 @@ from research_ai.services.social_share_service import (
     SocialShareService,
     fit_post_text,
     normalize_post_text,
+    x_weighted_length,
 )
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -68,6 +69,23 @@ class PostTextTests(UnitTestCase):
         # Assert
         self.assertLessEqual(len(text), MAX_POST_CHARS)
         self.assertTrue(text.endswith("word…"))
+
+    def test_x_weighted_length_counts_cjk_and_emoji_twice(self):
+        # Act / Assert
+        self.assertEqual(x_weighted_length("abc"), 3)
+        self.assertEqual(x_weighted_length("研究"), 4)
+        self.assertEqual(x_weighted_length("🧠"), 2)
+
+    def test_fit_keeps_wide_characters_within_the_weighted_limit(self):
+        # Arrange
+        raw = "研究 " * 120
+
+        # Act
+        text = fit_post_text(raw)
+
+        # Assert
+        self.assertLessEqual(x_weighted_length(text), MAX_POST_CHARS)
+        self.assertTrue(text.endswith("…"))
 
 
 class SharePostUserPromptTests(UnitTestCase):
