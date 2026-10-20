@@ -2,6 +2,7 @@ from typing import Any
 from unittest.mock import patch
 from urllib.parse import unquote
 
+from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core import mail
 from django.core.mail import EmailMultiAlternatives
@@ -291,9 +292,11 @@ class SendMessageEmailTests(TestCase):
 
         # Assert
         self.assertEqual(accepted, 1)
-        html_body = mail.outbox[0].alternatives[0][0]
-        self.assertIn("<p>hello</p>", html_body)
-        self.assertIn('href="https://example.com/action">Take action</a>', html_body)
+        soup = BeautifulSoup(mail.outbox[0].alternatives[0][0], "lxml")
+        self.assertIsNotNone(soup.find("p", string="hello"))
+        cta = soup.find("a", string="Take action")
+        self.assertIsNotNone(cta)
+        self.assertEqual(cta["href"], "https://example.com/action")
 
 
 @override_settings(
