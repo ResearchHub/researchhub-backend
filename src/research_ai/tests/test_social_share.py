@@ -201,6 +201,21 @@ class SocialShareServiceTests(TestCase):
         prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
         self.assertIn("Status: Closed to applications", prompt)
 
+    def test_proposal_without_a_fundraise_is_closed_to_funding(self):
+        # Arrange
+        post = create_post(
+            title="Mapping tau spread",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+
+        # Act
+        self.service.share_post_text(post)
+
+        # Assert
+        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
+        self.assertIn("Funding status: Closed", prompt)
+
     def test_prompt_marks_fundraise_status(self):
         # Arrange
         post = create_post(

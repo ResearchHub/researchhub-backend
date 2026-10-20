@@ -191,11 +191,14 @@ def _grant_details(grant) -> list[str]:
 
 
 def _fundraise_details(fundraise) -> list[str]:
-    if fundraise is None:
-        return []
-    is_open = fundraise.status == Fundraise.OPEN and not fundraise.is_expired()
+    # A proposal can be published without a fundraise; it takes no funding.
+    is_open = (
+        fundraise is not None
+        and fundraise.status == Fundraise.OPEN
+        and not fundraise.is_expired()
+    )
     details = [f"Funding status: {'Open' if is_open else 'Closed'}"]
-    if fundraise.goal_amount:
+    if fundraise is not None and fundraise.goal_amount:
         goal = _format_amount(fundraise.goal_amount, fundraise.goal_currency)
         details.append(f"Funding goal: {goal}")
     return details
