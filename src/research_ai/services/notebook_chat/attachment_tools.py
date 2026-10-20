@@ -9,8 +9,8 @@ pages and any image the user uploaded with the message, and can look at any
 PDF's pages (``view_attachment_pages``). The images in a Word document are
 shown and looked at as a PDF's pages are, by the number of their ``[Image N]``
 marker in its text. An uploaded image's text is what OCR read in it. The tools
-are scoped to the conversation's sent, READY files, so the agent cannot reach
-another chat's files.
+are scoped to the conversation's sent or fetched READY files, so the agent
+cannot reach another chat's files.
 
 Inline text and images stay in the conversation's context, so each has a
 budget per conversation; ``attachment_usage`` measures what a context carries.
@@ -25,6 +25,7 @@ from typing import NamedTuple
 from django.utils.crypto import salted_hmac
 
 from research_ai.models import AgentConversation, AgentFile
+from research_ai.models.agent_file import IN_CHAT
 from research_ai.services.agent import Tool, ToolOutput, Toolset
 from research_ai.services.agent.tools import MAX_TOOL_RESULT_BYTES
 from research_ai.services.agent.types import (
@@ -694,8 +695,8 @@ class AttachmentToolset:
 
     def _scope(self):
         return AgentFile.objects.defer("text").filter(
+            IN_CHAT,
             conversation=self._conversation,
-            message__isnull=False,
             status=AgentFile.Status.READY,
         )
 

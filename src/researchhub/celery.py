@@ -167,6 +167,17 @@ app.conf.beat_schedule = {
             "queue": QUEUE_REPUTATION,
         },
     },
+    "user_send-week-old-complete-profile-emails": {
+        "task": (
+            "user.tasks.complete_profile_email_tasks."
+            "send_week_old_complete_profile_emails_task"
+        ),
+        "schedule": crontab(hour=16, minute=0),  # Run daily at 4:00 PM UTC
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_NOTIFICATION,
+        },
+    },
     # Daily Staking Snapshot (runs before distribution)
     "reputation_create-daily-staking-snapshots": {
         "task": "reputation.tasks.create_daily_staking_snapshots",
