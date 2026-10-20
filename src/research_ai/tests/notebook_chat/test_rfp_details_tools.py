@@ -171,6 +171,7 @@ class RFPDetailsToolsetTests(TestCase):
             amount=50000,
             organization="Research Foundation",
             contact_user_ids=[self.user.id],
+            application_visibility="PRIVATE",
         )
 
         # Act
@@ -188,6 +189,23 @@ class RFPDetailsToolsetTests(TestCase):
         self.assertEqual(
             [contact["user_id"] for contact in result["contacts"]], [self.user.id]
         )
+        self.assertEqual(result["application_visibility"], "PRIVATE")
+
+    def test_update_schema_lets_every_optional_field_be_null(self):
+        # Arrange: a model that sends every key otherwise invents a value.
+        tool = (
+            RFPDetailsToolset(user=self.user, get_note=Mock())
+            .as_toolset()
+            .get(UPDATE_RFP_DETAILS)
+        )
+        properties = dict(tool.input_schema["properties"])
+        properties.pop("note_id")
+
+        # Assert
+        for name, field in properties.items():
+            with self.subTest(field=name):
+                self.assertIn("null", field["type"])
+                self.assertIn(None, field.get("enum", [None]))
 
     def test_empty_values_clear_text_and_contacts(self):
         # Arrange
