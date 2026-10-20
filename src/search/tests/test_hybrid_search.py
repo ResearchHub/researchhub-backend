@@ -30,13 +30,13 @@ class TestMatchBoolPrefixQueryConstruction(unittest.TestCase):
             "minimum_should_match": "2<70%",
             "fuzziness": "AUTO",
         }
-        query = Q("match_bool_prefix", paper_title=query_params)
+        query = Q("match_bool_prefix", title=query_params)
         query_dict = query.to_dict()
 
         # Verify structure
         self.assertIn("match_bool_prefix", query_dict)
-        self.assertIn("paper_title", query_dict["match_bool_prefix"])
-        match_config = query_dict["match_bool_prefix"]["paper_title"]
+        self.assertIn("title", query_dict["match_bool_prefix"])
+        match_config = query_dict["match_bool_prefix"]["title"]
         self.assertEqual(match_config["query"], "test query")
         self.assertEqual(match_config["minimum_should_match"], "2<70%")
         self.assertEqual(match_config["fuzziness"], "AUTO")
@@ -53,10 +53,10 @@ class TestMatchBoolPrefixTriggerConditions(unittest.TestCase):
 
         test_cases = [
             # (query, result_count, field_name, should_trigger, reason)
-            ("one two", 0, "paper_title", True, "2 words, 0 results"),
-            ("one two", 2, "paper_title", True, "2 words, 2 results (< 3)"),
-            ("one two", 3, "paper_title", False, "enough results"),
-            ("one", 0, "paper_title", False, "only 1 word"),
+            ("one two", 0, "title", True, "2 words, 0 results"),
+            ("one two", 2, "title", True, "2 words, 2 results (< 3)"),
+            ("one two", 3, "title", False, "enough results"),
+            ("one", 0, "title", False, "only 1 word"),
             ("one two", 0, None, False, "no partial_match_field"),
         ]
 
@@ -92,11 +92,11 @@ class TestSuggestViewHybridSearch(TestCase):
         """Test that match_bool_prefix triggers when needed and deduplicates results."""
         # Create mock hits for match_bool_prefix
         hit1 = MagicMock()
-        hit1.to_dict.return_value = {"id": 999, "paper_title": "Existing Paper"}
+        hit1.to_dict.return_value = {"id": 999, "title": "Existing Post"}
         hit1.meta.score = 10.0
 
         hit2 = MagicMock()
-        hit2.to_dict.return_value = {"id": 1000, "paper_title": "New Paper"}
+        hit2.to_dict.return_value = {"id": 1000, "title": "New Post"}
         hit2.meta.score = 8.0
 
         # Setup completion suggester response (returns few results)
@@ -117,13 +117,13 @@ class TestSuggestViewHybridSearch(TestCase):
 
         # Execute with 2+ word query that triggers fallback
         query = "development testing"
-        self.view.perform_regular_search(query, ["paper"], 10)
+        self.view.perform_regular_search(query, ["post"], 10)
 
         # Verify match_bool_prefix was called
         mock_execute_search.assert_called_once()
         call_kwargs = mock_execute_search.call_args[1]
         self.assertEqual(call_kwargs["query"], query)
-        self.assertEqual(call_kwargs["field_name"], "paper_title")
+        self.assertEqual(call_kwargs["field_name"], "title")
 
     @patch("search.views.suggest.MatchBoolPrefixBackend.execute_search")
     @patch("search.views.suggest.Search")
@@ -143,7 +143,7 @@ class TestSuggestViewHybridSearch(TestCase):
         mock_search_class.return_value = mock_search_instance
 
         # Execute with only 1 word
-        self.view.perform_regular_search("one", ["paper"], 10)
+        self.view.perform_regular_search("one", ["post"], 10)
 
         # match_bool_prefix should NOT be triggered
         mock_execute_search.assert_not_called()

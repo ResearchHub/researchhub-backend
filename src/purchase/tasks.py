@@ -7,8 +7,11 @@ from django.db import transaction
 from notification.models import Notification
 from notification.services import NotificationService
 from purchase.circle.service import CircleWalletService
-from purchase.models import Balance, Fundraise
+from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
+from purchase.services.funding_credits_reminder_service import (
+    FundingCreditsReminderService,
+)
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_application_service import GrantApplicationService
 from reputation.models import Deposit
@@ -132,57 +135,9 @@ def send_monthly_preregistration_update_reminders():
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
-def send_funding_credits_reminders():
-    """
-    Remind users who still hold unspent funding credits to spend them.
-    """
-    from user.models import User
-
-    now = datetime.now(UTC)
-    reminder_cutoff = now - timedelta(days=14)
-    notifications = NotificationService()
-
-    # Prefilter to users who have at least one locked, spendable balance row
-    # (funding credits or promotional). The effective balance is confirmed
-    # per-user below, since debits can zero it out even when credit rows exist.
-    candidate_user_ids = (
-        Balance.objects.filter(
-            is_locked=True,
-            lock_type__in=(
-                Balance.LockType.FUNDING_CREDIT,
-                Balance.LockType.PROMOTIONAL,
-            ),
-        )
-        .values_list("user_id", flat=True)
-        .distinct()
-    )
-
-    candidates = User.objects.filter(id__in=candidate_user_ids)
-
-    sent_count = 0
-    for user in candidates.iterator():
-        balance = user.get_funding_credits_balance() + user.get_promotional_balance()
-        if balance <= 0:
-            continue
-
-        try:
-            if notifications.send_once(
-                Notification.FUNDING_CREDITS_REMINDER,
-                recipient=user,
-                action_user=user,
-                item=user,
-                extra={"amount": str(balance)},
-                since=reminder_cutoff,
-            ):
-                sent_count += 1
-        except Exception:
-            logger.exception(
-                "Error sending funding credits reminder for user %s", user.id
-            )
-
-    logger.info("Sent %d funding credits reminders", sent_count)
-
-    return {"sent_count": sent_count}
+def send_funding_credits_reminders() -> dict[str, int]:
+    """Remind users who still hold unspent funding credits to spend them."""
+    return FundingCreditsReminderService().send_reminders()
 
 
 def dispatch_sweep(wallet, amount, network, circle_transaction_id):

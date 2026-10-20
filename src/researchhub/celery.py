@@ -97,7 +97,7 @@ app.conf.beat_schedule = {
     "purchase_send-funding-credits-reminders": {
         "task": "purchase.tasks.send_funding_credits_reminders",
         # Runs on the 1st and 15th; the task itself dedupes to at most one
-        # reminder per user every 14 days.
+        # reminder per user each half-month, and emails it on the 1st.
         "schedule": crontab(day_of_month="1,15", hour=16, minute=0),
         "options": {
             "priority": 3,
@@ -157,6 +157,17 @@ app.conf.beat_schedule = {
         "options": {
             "priority": 4,
             "queue": QUEUE_REPUTATION,
+        },
+    },
+    "user_send-week-old-complete-profile-emails": {
+        "task": (
+            "user.tasks.complete_profile_email_tasks."
+            "send_week_old_complete_profile_emails_task"
+        ),
+        "schedule": crontab(hour=16, minute=0),  # Run daily at 4:00 PM UTC
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_NOTIFICATION,
         },
     },
     # Daily Staking Snapshot (runs before distribution)
