@@ -17,7 +17,10 @@ def queue_complete_profile_email_on_note_publish(
     """Queue the complete-profile email when a user publishes a notebook note."""
     if not created or instance.note_id is None:
         return
+    author = instance.created_by
+    if author is None or author.complete_profile_email_sent_date is not None:
+        return
     transaction.on_commit(
-        lambda: send_complete_profile_email_task.delay(instance.created_by_id),
+        lambda: send_complete_profile_email_task.delay(author.id),
         robust=True,
     )

@@ -1,12 +1,15 @@
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
+from bs4 import BeautifulSoup
 from django.conf import settings
-from django.test import TestCase
+from django.template.loader import render_to_string
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
+from mailing_list.models import EmailOptOut
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from user.models import User
+from user.models import Author, User
 from user.services.complete_profile_email_service import CompleteProfileEmailService
 from user.signals.complete_profile_email_signals import (
     queue_complete_profile_email_on_note_publish,
@@ -58,6 +61,17 @@ class CompleteProfileEmailServiceTests(TestCase):
         # Assert
         self.email_service.send_email.assert_not_called()
 
+    def test_skips_user_without_author_profile(self):
+        """A user with no author profile is not emailed."""
+        # Arrange
+        Author.objects.filter(user=self.user).update(user=None)
+
+        # Act
+        self.service.send_if_eligible(self.user.id)
+
+        # Assert
+        self.email_service.send_email.assert_not_called()
+
     def test_sends_only_once_per_user(self):
         """A user who already received the email is not emailed again."""
         # Act
@@ -79,6 +93,19 @@ class CompleteProfileEmailServiceTests(TestCase):
         # Assert
         self.assertEqual(self.email_service.send_email.call_count, 2)
 
+    def test_marks_opted_out_user_without_emailing(self):
+        """An opted-out user is marked as handled so later runs skip them."""
+        # Arrange
+        EmailOptOut.add(self.user.email)
+
+        # Act
+        self.service.send_if_eligible(self.user.id)
+
+        # Assert
+        self.email_service.send_email.assert_not_called()
+        self.user.refresh_from_db()
+        self.assertIsNotNone(self.user.complete_profile_email_sent_date)
+
     def test_emails_week_old_accounts_within_catch_up_window(self):
         """Accounts one to two weeks old are emailed, so missed sweeps catch up."""
         # Arrange
@@ -99,11 +126,58 @@ class CompleteProfileEmailServiceTests(TestCase):
         }
         self.assertEqual(recipients, {self.user.email, overdue.email})
 
+    def test_continues_batch_when_one_user_fails(self):
+        """An error for one user does not stop the rest of the daily batch."""
+        # Arrange
+        failing = create_random_default_user("failing")
+        self._set_date_joined(self.user, 8)
+        self._set_date_joined(failing, 8)
+
+        def send_email(recipient, *args, **kwargs):
+            if recipient == failing.email:
+                raise RuntimeError("template failed to render")
+            return 1
+
+        self.email_service.send_email.side_effect = send_email
+
+        # Act
+        with self.assertLogs(
+            "user.services.complete_profile_email_service", level="ERROR"
+        ):
+            self.service.send_to_week_old_accounts()
+
+        # Assert
+        self.user.refresh_from_db()
+        failing.refresh_from_db()
+        self.assertIsNotNone(self.user.complete_profile_email_sent_date)
+        self.assertIsNone(failing.complete_profile_email_sent_date)
+
+
+class CompleteProfileEmailTemplateTests(SimpleTestCase):
+    def test_renders_profile_link_with_inlined_styles(self):
+        """The CTA links to the profile, styled by both email stylesheets."""
+        # Act
+        html = render_to_string(
+            "complete_profile_email.html",
+            {
+                "assets_base_url": "https://assets.example.com",
+                "profile_url": "https://www.researchhub.com/author/1",
+            },
+        )
+
+        # Assert
+        soup = BeautifulSoup(html, "html.parser")
+        cta = soup.find("a", href="https://www.researchhub.com/author/1")
+        self.assertIn("padding: 13px 28px", cta["style"])
+        tagline = soup.find(class_="profile-tagline")
+        self.assertIn("max-width: 448px", tagline["style"])
+
 
 @patch("user.signals.complete_profile_email_signals.send_complete_profile_email_task")
 class QueueCompleteProfileEmailOnNotePublishTests(TestCase):
     def setUp(self):
-        self.post = Mock(spec=ResearchhubPost, note_id=1, created_by_id=7)
+        self.author = Mock(id=7, complete_profile_email_sent_date=None)
+        self.post = Mock(spec=ResearchhubPost, note_id=1, created_by=self.author)
 
     def test_queues_email_when_note_is_published(self, mock_task):
         """Publishing a notebook note queues the email for its author on commit."""
@@ -115,6 +189,20 @@ class QueueCompleteProfileEmailOnNotePublishTests(TestCase):
 
         # Assert
         mock_task.delay.assert_called_once_with(7)
+
+    def test_skips_author_already_emailed(self, mock_task):
+        """An author who was already emailed does not queue another task."""
+        # Arrange
+        self.author.complete_profile_email_sent_date = timezone.now()
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            queue_complete_profile_email_on_note_publish(
+                ResearchhubPost, instance=self.post, created=True
+            )
+
+        # Assert
+        mock_task.delay.assert_not_called()
 
     def test_swallows_enqueue_failure(self, mock_task):
         """A broker outage does not fail the request that published the note."""

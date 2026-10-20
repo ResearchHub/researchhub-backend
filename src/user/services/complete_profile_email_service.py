@@ -1,11 +1,15 @@
+import logging
 from datetime import timedelta
 
 from django.conf import settings
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
+from mailing_list.models import EmailOptOut
 from mailing_list.services import EmailService
 from user.models import User
+
+logger = logging.getLogger(__name__)
 
 ACCOUNT_AGE = timedelta(days=7)
 CATCH_UP_WINDOW = timedelta(days=7)
@@ -34,7 +38,12 @@ class CompleteProfileEmailService:
             date_joined__lte=week_ago,
         )
         for user in users.iterator():
-            self._send(user)
+            try:
+                self._send(user)
+            except Exception:
+                logger.exception(
+                    "Failed to send complete-profile email to user_id=%s", user.id
+                )
 
     def _get_eligible_users(self) -> QuerySet[User]:
         """Return users in good standing, not yet emailed, missing a profile field."""
@@ -50,6 +59,7 @@ class CompleteProfileEmailService:
             missing_field |= Q(**{f"{lookup}__isnull": True}) | Q(**{lookup: ""})
         return User.objects.filter(
             missing_field,
+            author_profile__isnull=False,
             is_active=True,
             is_suspended=False,
             probable_spammer=False,
@@ -57,12 +67,16 @@ class CompleteProfileEmailService:
         ).select_related("author_profile")
 
     def _send(self, user: User) -> None:
-        """Claim the user's single send, releasing it unless the email is accepted."""
+        """
+        Claim the user's single send, releasing it unless the email is accepted.
+
+        Opted-out users keep the claim so they are not retried on every run.
+        """
         claimed_at = timezone.now()
         claimed = User.objects.filter(
             id=user.id, complete_profile_email_sent_date__isnull=True
         ).update(complete_profile_email_sent_date=claimed_at)
-        if not claimed:
+        if not claimed or EmailOptOut.filter_opted_out([user.email]):
             return
         accepted = 0
         try:
