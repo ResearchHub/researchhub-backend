@@ -70,6 +70,10 @@ class JevClientTests(TestCase):
             {"promotional": 0.1},
             {"promotional": 0.1, "off_purpose": None},
             {"promotional": 0.1, "off_purpose": True},
+            {"promotional": float("nan"), "off_purpose": 0.9},
+            {"promotional": float("inf"), "off_purpose": 0.9},
+            {"promotional": 1.5, "off_purpose": 0.9},
+            {"promotional": -0.1, "off_purpose": 0.9},
         ):
             with self.subTest(answers=answers):
                 # Arrange
