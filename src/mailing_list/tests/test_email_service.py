@@ -57,6 +57,17 @@ class SendEmailTests(TestCase):
         # Assert
         self.assertEqual(len(mail.outbox), 0)
 
+    def test_returns_number_of_accepted_messages(self):
+        """Only messages the backend accepted are counted."""
+        # Arrange
+        EmailOptOut.add("optout@example.com")
+
+        # Act
+        accepted = self._send(["optout@example.com", "good@example.com"])
+
+        # Assert
+        self.assertEqual(accepted, 1)
+
     def test_excludes_opted_out_recipient_regardless_of_casing(self):
         # Arrange
         EmailOptOut.add("optout@example.com")
