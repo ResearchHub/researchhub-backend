@@ -218,36 +218,8 @@ def _prepare_child(schema, child, path: str):
     """``child`` with fixes applied; bare strings are text (or paragraphs)."""
     if isinstance(child, str):
         return child
-    if not isinstance(child, dict):
-        raise ValueError(
-            f"{path}: expected a node object or a string, "
-            f"got {_JSON_TYPES.get(type(child), type(child).__name__)}"
-        )
-    type_name = child.get("type")
-    if not isinstance(type_name, str):
-        raise ValueError(
-            f'{path}: node needs "type", e.g. '
-            '{"type": "paragraph", "content": ["text"]}'
-        )
-    node_type = schema.nodes.get(type_name)
-    if node_type is None or node_type is schema.top_node_type:
-        allowed = ", ".join(n for n in schema.nodes if n != schema.top_node_type.name)
-        raise ValueError(
-            f"{path}: unknown node type {type_name!r}"
-            f"{_TYPE_HINTS.get(type_name, '')}; allowed types: {allowed}"
-        )
-    if node_type.is_text and not (isinstance(child.get("text"), str) and child["text"]):
-        raise ValueError(
-            f'{path}: text node needs "text", a non-empty string: {_TEXT_EXAMPLE}'
-        )
-    marks = child.get("marks")
-    for j, mark in enumerate(marks if isinstance(marks, list) else ()):
-        mark_type = mark.get("type") if isinstance(mark, dict) else None
-        if mark_type not in schema.marks:
-            raise ValueError(
-                f'{path}.marks[{j}]: a mark is {{"type": ...}} with type one of '
-                f"{', '.join(schema.marks)}; got {json.dumps(mark)}"
-            )
+    node_type = _checked_node_type(schema, child, path)
+    _check_marks(schema, child.get("marks"), path)
     content = child.get("content")
     if content is None:
         return child
@@ -264,6 +236,43 @@ def _prepare_child(schema, child, path: str):
     ):
         prepared = _wrap_inline_runs(schema, prepared)
     return {**child, "content": prepared}
+
+
+def _checked_node_type(schema, node, path: str):
+    if not isinstance(node, dict):
+        raise ValueError(
+            f"{path}: expected a node object or a string, "
+            f"got {_JSON_TYPES.get(type(node), type(node).__name__)}"
+        )
+    type_name = node.get("type")
+    if not isinstance(type_name, str):
+        raise ValueError(
+            f'{path}: node needs "type", e.g. '
+            '{"type": "paragraph", "content": ["text"]}'
+        )
+    node_type = schema.nodes.get(type_name)
+    if node_type is None or node_type is schema.top_node_type:
+        allowed = ", ".join(n for n in schema.nodes if n != schema.top_node_type.name)
+        raise ValueError(
+            f"{path}: unknown node type {type_name!r}"
+            f"{_TYPE_HINTS.get(type_name, '')}; allowed types: {allowed}"
+        )
+    if node_type.is_text and not (isinstance(node.get("text"), str) and node["text"]):
+        raise ValueError(
+            f'{path}: text node needs "text", a non-empty string: {_TEXT_EXAMPLE}'
+        )
+    return node_type
+
+
+def _check_marks(schema, marks, path: str) -> None:
+    for j, mark in enumerate(marks if isinstance(marks, list) else ()):
+        mark_type = mark.get("type") if isinstance(mark, dict) else None
+        # A non-string type (e.g. a list) is unhashable for the lookup.
+        if not isinstance(mark_type, str) or mark_type not in schema.marks:
+            raise ValueError(
+                f'{path}.marks[{j}]: a mark is {{"type": ...}} with type one of '
+                f"{', '.join(schema.marks)}; got {json.dumps(mark)}"
+            )
 
 
 def _wrap_inline_runs(schema, content: list) -> list:

@@ -171,6 +171,10 @@ class ParseEditBlocksTests(unittest.TestCase):
                 [{"type": "text", "text": "a", "marks": [{"type": "bolld"}]}],
                 r"edits\[0\]\.blocks\[0\]\.marks\[0\]: .*one of .*italic",
             ),
+            "non-string mark type": (
+                [{"type": "text", "text": "a", "marks": [{"type": []}]}],
+                r"edits\[0\]\.blocks\[0\]\.marks\[0\]: .*one of .*italic",
+            ),
             "bad nesting": (
                 ["x", {"type": "bulletList", "content": ["item"]}],
                 r"edits\[0\]\.blocks\[1\]: .*bulletList content must match "
