@@ -2,19 +2,19 @@
 
 A URL counts when it appears whole in the user's messages (where its scheme may
 be left off), in a client tool's result, or in the provider's own web search
-results. Text the model wrote --
-its replies, tool inputs, code output -- does not count, nor does a URL in a
-tool result that the model wrote into any tool input, so the model cannot put
-note content into a URL it then fetches.
+results. Text the model wrote -- its replies, tool inputs, code output -- does
+not count, nor does a URL in a tool result that the model wrote into any tool
+input, so the model cannot put note content into a URL it then fetches. URLs
+are compared in yarl's canonical form, so equivalent spellings are one URL.
 """
 
 import html
 import ipaddress
 import re
 from collections.abc import Iterable, Iterator, Sequence
-from urllib.parse import urldefrag, urlsplit, urlunsplit
+from urllib.parse import urldefrag, urlsplit
 
-import httpx
+import yarl
 
 from research_ai.services.agent.types import (
     Message,
@@ -27,12 +27,13 @@ from research_ai.services.agent.types import (
 MAX_URL_CHARS = 2048
 _SERVER_SEARCH_RESULT = "web_search_tool_result"
 _SERVER_TOOL_USE = "server_tool_use"
-# What may follow a whole URL in text: its end, trailing punctuation, or a fragment.
-_URL_END = re.compile(r"[.,;:!?)\]}>*_'\"]*(?:[\s<>\"'`|#]|$)")
+# A URL in text runs to whitespace, a delimiter or its fragment.
 _URL = re.compile(r"https?://[^\s<>\"'`|#]+", re.IGNORECASE)
+# Punctuation that may end a sentence after a URL rather than belong to it.
 _TRAILING = ".,;:!?)]}>*_'\""
-# What may come before a URL the user wrote without its scheme.
-_BARE_OPENERS = "([{<\"'`*,;|"
+# A URL the user wrote without its scheme: a word at a boundary, not the tail of a
+# longer host or URL such as "www.example.org" or "?u=example.org".
+_BARE = re.compile(r"(?<![^\s(\[{<\"'`*,;|])[^\s<>\"'`|#(\[{*,;]+[^\s<>\"'`|#]*")
 _HOST_LABEL = re.compile(r"(?!-)[a-z0-9_-]{1,63}(?<!-)", re.IGNORECASE)
 
 
@@ -83,70 +84,39 @@ def _valid_host(host: str) -> bool:
 
 def mentioned(url: str, context: Sequence[Message]) -> bool:
     """Whether ``url`` appears whole in the conversation's trusted text."""
-    spellings = _spellings(url)
-    if any(
-        _contains_whole(text, spelling)
-        for text in _trusted_text(context)
-        for spelling in spellings
-    ):
+    target = _canonical(url)
+    if target is None:
+        return False
+    if target in _user_urls(context):
         return True
-    # The user may type a URL without its scheme: "example.org/paper".
-    bare = [s.partition("://")[2] for s in spellings if "://" in s]
-    return any(
-        _contains_whole(text, spelling, bare=True)
-        for text in _user_text(context)
-        for spelling in bare
-    )
+    return target in _tool_urls(context) - _written_urls(context)
 
 
-def _spellings(url: str) -> list[str]:
-    parts = urlsplit(url)
-    # Only a URL ending at its root slash may be written without it.
-    if parts.path == "/" and not (parts.query or parts.fragment) and url.endswith("/"):
-        return [url, url[:-1]]
-    return [url]
-
-
-def _contains_whole(text: str, url: str, *, bare: bool = False) -> bool:
-    start = text.find(url)
-    while start >= 0:
-        if (not bare or _starts_bare(text, start)) and _URL_END.match(
-            text, start + len(url)
-        ):
-            return True
-        start = text.find(url, start + 1)
-    return False
-
-
-def _starts_bare(text: str, start: int) -> bool:
-    # Not the tail of a longer host or URL, e.g. "www.example.org" or "?u=example.org".
-    return start == 0 or text[start - 1].isspace() or text[start - 1] in _BARE_OPENERS
-
-
-def _user_text(context: Sequence[Message]) -> Iterator[str]:
+def _user_urls(context: Sequence[Message]) -> set[str]:
+    urls = set()
     for message in context:
-        if message.role == "user":
-            for block in message.content:
-                if isinstance(block, TextBlock):
-                    yield from _readings(block.text)
-
-
-def _trusted_text(context: Sequence[Message]) -> Iterator[str]:
-    written = _written_urls(context)
-    for message in context:
+        if message.role != "user":
+            continue
         for block in message.content:
-            echoes = (
-                written
-                if isinstance(block, (ToolResultBlock, ServerToolBlock))
-                else None
-            )
-            for text in _trusted_strings(message.role, block):
-                yield from _readings(text, echoes)
+            if isinstance(block, TextBlock):
+                for reading in _readings(block.text):
+                    urls |= _urls_in(reading) | _bare_urls_in(reading)
+    return urls
 
 
-def _trusted_strings(role: str, block) -> Iterable[str]:
-    if role == "user" and isinstance(block, TextBlock):
-        return [block.text]
+def _tool_urls(context: Sequence[Message]) -> set[str]:
+    """URLs in client tool results and the provider's web search results."""
+    return {
+        url
+        for message in context
+        for block in message.content
+        for text in _result_strings(message.role, block)
+        for reading in _readings(text)
+        for url in _urls_in(reading)
+    }
+
+
+def _result_strings(role: str, block) -> Iterable[str]:
     if role == "user" and isinstance(block, ToolResultBlock):
         return _strings(block.content)
     if (
@@ -157,22 +127,15 @@ def _trusted_strings(role: str, block) -> Iterable[str]:
     return []
 
 
-def _written_urls(context: Sequence[Message]) -> re.Pattern | None:
-    """Matches each whole URL the model wrote into a tool input."""
-    urls = {
-        spelling
+def _written_urls(context: Sequence[Message]) -> set[str]:
+    """Every URL the model wrote into a tool input."""
+    return {
+        url
         for text in _model_inputs(context)
-        for reading in _readings(text)
-        for match in _URL.finditer(reading)
-        for spelling in _echo_spellings(match.group().rstrip(_TRAILING))
+        # A tool may echo an input entity-encoded: "?a=1&amp;b=2".
+        for reading in [*_readings(text), html.escape(text, quote=False)]
+        for url in _urls_in(reading)
     }
-    if not urls:
-        return None
-    # An input and its echo may each be entity-encoded or not: match both spellings.
-    urls |= {html.escape(url, quote=False) for url in urls}
-    # Longest first, so a URL is not cut at a shorter one it starts with.
-    alternatives = "|".join(map(re.escape, sorted(urls, key=len, reverse=True)))
-    return re.compile(f"(?:{alternatives})(?={_URL_END.pattern})", re.IGNORECASE)
 
 
 def _model_inputs(context: Sequence[Message]) -> Iterator[str]:
@@ -188,33 +151,52 @@ def _model_inputs(context: Sequence[Message]) -> Iterator[str]:
                 yield from _strings(block.data.get("input"))
 
 
-def _echo_spellings(url: str) -> set[str]:
-    """``url`` and the spellings a tool may normalize it to."""
-    spellings = {url}
-    try:
-        parts = urlsplit(url)
-    except ValueError:
-        return spellings
-    if parts.path in ("", "/"):
-        spellings.add(urlunsplit(parts._replace(path="/" if parts.path == "" else "")))
-    # httpx's canonical form drops a default port such as ":443".
-    return spellings | {canonical for s in spellings if (canonical := _canonical(s))}
+def _urls_in(text: str) -> set[str]:
+    return {
+        url
+        for match in _URL.finditer(text)
+        for form in _forms(match.group())
+        if (url := _canonical(form))
+    }
+
+
+def _bare_urls_in(text: str) -> set[str]:
+    return {
+        url
+        for match in _BARE.finditer(text)
+        if "." in match.group() and "://" not in match.group()
+        for form in _forms(match.group())
+        for scheme in ("https://", "http://")
+        if (url := _canonical(scheme + form))
+    }
+
+
+def _forms(token: str) -> Iterator[str]:
+    """``token``, then without each trailing punctuation mark in turn."""
+    yield token
+    while token and token[-1] in _TRAILING:
+        token = token[:-1]
+        yield token
 
 
 def _canonical(url: str) -> str | None:
+    """``url`` in one spelling: lowercase scheme and host, no default port or
+    fragment, "/" for an empty path, unreserved characters decoded."""
     try:
-        return str(httpx.URL(url))
-    except httpx.InvalidURL:
+        parsed = yarl.URL(url)
+    except ValueError:
         return None
+    if parsed.scheme not in ("http", "https") or not parsed.host:
+        return None
+    # yarl prints "https://host" without its root slash unless a query follows.
+    if parsed.raw_path == "/" and not parsed.raw_query_string:
+        parsed = parsed.with_path("/")
+    return str(parsed.with_fragment(None))
 
 
-def _readings(text: str, written: re.Pattern | None = None) -> list[str]:
+def _readings(text: str) -> list[str]:
     # Unescaping alone would break raw URLs such as "?a=1&copy=2".
-    readings = [text, html.unescape(text)] if "&" in text else [text]
-    if written is None:
-        return readings
-    # A tool may echo its input inside a longer string: "note <id> not found".
-    return [written.sub(" ", reading) for reading in readings]
+    return [text, html.unescape(text)] if "&" in text else [text]
 
 
 def _strings(value) -> Iterable[str]:

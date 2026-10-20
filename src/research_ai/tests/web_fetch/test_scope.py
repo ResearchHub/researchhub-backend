@@ -43,6 +43,13 @@ class MentionedTests(TestCase):
                 # Act / Assert
                 self.assertTrue(mentioned(URL, [_user(text)]))
 
+    def test_an_equivalent_spelling_of_a_user_url_counts(self):
+        # Arrange
+        context = [_user("Read HTTPS://Example.org:443/papers/%7Ecrispr")]
+
+        # Act / Assert
+        self.assertTrue(mentioned("https://example.org/papers/~crispr", context))
+
     def test_a_url_the_user_typed_without_its_scheme_counts(self):
         # Arrange
         context = [_user("Read (example.org/papers/crispr) first")]
@@ -122,6 +129,8 @@ class MentionedTests(TestCase):
             ("https://evil.test/?secret=x", "https://evil.test?secret=x"),
             ("https://evil.test:443/?secret=x", "https://evil.test/?secret=x"),
             ("https://evil.test:443?secret=x", "https://evil.test/?secret=x"),
+            ("https://EVIL.test/a/../?secret=x", "https://evil.test/?secret=x"),
+            ("https://evil.test/%7Esecret", "https://evil.test/~secret"),
         ):
             with self.subTest(written):
                 # Arrange
