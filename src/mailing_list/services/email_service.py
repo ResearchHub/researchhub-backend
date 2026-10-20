@@ -118,6 +118,7 @@ class EmailService:
         message: str,
         *,
         link: str | None = None,
+        cta_label: str | None = None,
         heading: str | None = None,
         is_html: bool = False,
     ) -> None:
@@ -132,6 +133,7 @@ class EmailService:
                 "subject": heading or subject,
                 "body": mark_safe(message) if is_html else message,
                 "cta_url": link,
+                "cta_label": cta_label,
                 "preserve_linebreaks": not is_html,
             },
             template="general_branded_email",

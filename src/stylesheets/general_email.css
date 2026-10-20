@@ -183,6 +183,32 @@ body {
   line-height: 22px;
 }
 
+/* Funding credits reminder card */
+.funding-credits-card {
+  margin-top: 16px;
+  padding: 16px;
+  background-color: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+}
+
+.funding-credits-icon {
+  padding-right: 12px;
+}
+
+.funding-credits-title {
+  font-size: 14px;
+  line-height: 20px;
+  color: #111827;
+}
+
+.funding-credits-text {
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 22px;
+  color: #4B5563;
+}
+
 /* Activity card, matching the web app's home feed */
 .activity-avatar-cell {
   padding-right: 12px;
