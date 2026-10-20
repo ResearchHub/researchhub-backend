@@ -1,7 +1,8 @@
 """Which URLs a chat may fetch: those already in it, never one the model wrote.
 
-A URL counts when it appears whole in the user's messages, in a client tool's
-result, or in the provider's own web search results. Text the model wrote --
+A URL counts when it appears whole in the user's messages (where its scheme may
+be left off), in a client tool's result, or in the provider's own web search
+results. Text the model wrote --
 its replies, tool inputs, code output -- does not count, nor does a URL in a
 tool result that the model wrote into any tool input, so the model cannot put
 note content into a URL it then fetches.
@@ -26,6 +27,8 @@ _SERVER_SEARCH_RESULT = "web_search_tool_result"
 _URL_END = re.compile(r"[.,;:!?)\]}>*_'\"]*(?:[\s<>\"'`|#]|$)")
 _URL = re.compile(r"https?://[^\s<>\"'`|#]+", re.IGNORECASE)
 _TRAILING = ".,;:!?)]}>*_'\""
+# What may come before a URL the user wrote without its scheme.
+_BARE_OPENERS = "([{<\"'`*,;|"
 
 
 class UrlNotAllowedError(ValueError):
@@ -58,10 +61,18 @@ def clean_url(url) -> str:
 def mentioned(url: str, context: Sequence[Message]) -> bool:
     """Whether ``url`` appears whole in the conversation's trusted text."""
     spellings = _spellings(url)
-    return any(
+    if any(
         _contains_whole(text, spelling)
         for text in _trusted_text(context)
         for spelling in spellings
+    ):
+        return True
+    # The user may type a URL without its scheme: "example.org/paper".
+    bare = [s.partition("://")[2] for s in spellings if "://" in s]
+    return any(
+        _contains_whole(text, spelling, bare=True)
+        for text in _user_text(context)
+        for spelling in bare
     )
 
 
@@ -73,13 +84,28 @@ def _spellings(url: str) -> list[str]:
     return [url]
 
 
-def _contains_whole(text: str, url: str) -> bool:
+def _contains_whole(text: str, url: str, *, bare: bool = False) -> bool:
     start = text.find(url)
     while start >= 0:
-        if _URL_END.match(text, start + len(url)):
+        if (not bare or _starts_bare(text, start)) and _URL_END.match(
+            text, start + len(url)
+        ):
             return True
         start = text.find(url, start + 1)
     return False
+
+
+def _starts_bare(text: str, start: int) -> bool:
+    # Not the tail of a longer host or URL, e.g. "www.example.org" or "?u=example.org".
+    return start == 0 or text[start - 1].isspace() or text[start - 1] in _BARE_OPENERS
+
+
+def _user_text(context: Sequence[Message]) -> Iterator[str]:
+    for message in context:
+        if message.role == "user":
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    yield from _readings(block.text)
 
 
 def _trusted_text(context: Sequence[Message]) -> Iterator[str]:

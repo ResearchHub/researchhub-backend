@@ -43,6 +43,30 @@ class MentionedTests(TestCase):
                 # Act / Assert
                 self.assertTrue(mentioned(URL, [_user(text)]))
 
+    def test_a_url_the_user_typed_without_its_scheme_counts(self):
+        # Arrange
+        context = [_user("Read (example.org/papers/crispr) first")]
+
+        # Act / Assert
+        self.assertTrue(mentioned("https://example.org/papers/crispr", context))
+        self.assertTrue(mentioned("http://example.org/papers/crispr", context))
+
+    def test_a_schemeless_url_counts_only_whole_and_from_the_user(self):
+        cases = {
+            "a longer host": [_user("Read notexample.org/papers/crispr")],
+            "a subdomain": [_user("Read www.example.org/papers/crispr")],
+            "a longer path": [_user("Read example.org/papers/crispr2")],
+            "a tool result": _tool_turn(
+                "read_note", {"note_id": 7}, {"content": "example.org/papers/crispr"}
+            ),
+        }
+        for case, context in cases.items():
+            with self.subTest(case):
+                # Act / Assert
+                self.assertFalse(
+                    mentioned("https://example.org/papers/crispr", context)
+                )
+
     def test_an_html_escaped_url_counts(self):
         # Act / Assert
         self.assertTrue(
