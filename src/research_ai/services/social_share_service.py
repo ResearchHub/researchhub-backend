@@ -166,6 +166,10 @@ class SocialShareService:
                 return
             user_prompt = self._user_prompt(post)
             key = self._cache_key(post, user_prompt)
+            # The task can be queued twice when the agents queue is backed up
+            # past the lock TTL; the second must not pay for another call.
+            if self._cache.get(key) is not None:
+                return
             try:
                 text = self._generate(user_prompt)
             except SharePostGenerationError:
