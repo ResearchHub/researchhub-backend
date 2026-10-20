@@ -131,7 +131,6 @@ class NotebookChatServiceTests(TestCase):
         # Queued for the worker to claim; RUNNING only once a worker owns it.
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertIn(str(self.note.id), execution.system_prompt)
-        self.assertIn(self.note.title, execution.system_prompt)
         self.assertIn("get_user_profile", execution.system_prompt)
         self.assertNotIn("read_selected_rfp", execution.system_prompt)
         self.assertNotIn("update_rfp_details", execution.system_prompt)
@@ -1077,6 +1076,31 @@ class NotebookChatServiceTests(TestCase):
 
         # Assert
         self.assertEqual(provider.calls[0][-1].content[0].text, "Thanks")
+
+    def test_renaming_the_note_keeps_the_system_prompt(self):
+        # Arrange: the agent renames the note during the first turn.
+        first, _delay = self._submit("Draft the note and give it a title.")
+        _make_service(
+            provider=FakeProvider(
+                [
+                    tool_turn(
+                        "t1",
+                        "rename_note",
+                        {"note_id": self.note.id, "title": "Soil microbiome aims"},
+                    ),
+                    text_turn("Renamed it."),
+                ]
+            )
+        ).run_turn(first.id)
+        # A request loads the note as stored, new title included.
+        self.note.refresh_from_db()
+
+        # Act
+        second, _delay = self._submit("Now add a methods section.")
+
+        # Assert: an unchanged system prompt is what lets the turn hit the cache.
+        self.assertEqual(self.note.title, "Soil microbiome aims")
+        self.assertEqual(second.system_prompt, first.system_prompt)
 
 
 @override_settings(**MODEL_SETTINGS)

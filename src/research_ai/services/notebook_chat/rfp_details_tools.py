@@ -70,19 +70,22 @@ class RFPDetailsToolset:
             Tool(
                 name=UPDATE_RFP_DETAILS,
                 description=(
-                    "Fill in the Details form of an RFP (GRANT) note. Only the "
-                    "fields you pass change; omit a field to leave it as it "
-                    "is. Set values the user gave or confirmed -- never invent "
-                    "an amount, an organization, or a contact. This saves the "
-                    "draft form only: the user still reviews it and publishes, "
-                    "and a published RFP's Details cannot be changed here."
+                    "Fill in the Details form of an RFP (GRANT) note. Pass only "
+                    "the fields you are changing; a field that is null or left "
+                    "out keeps its current value. Set the amount, organization, "
+                    "contacts, and application visibility only to values the "
+                    "user gave or confirmed -- never invent one or pass a "
+                    "placeholder. This saves the draft form only: the user "
+                    "still reviews it and publishes, and a published RFP's "
+                    "Details cannot be changed here."
                 ),
+                # Nullable so a model that sends every key need not invent values.
                 input_schema={
                     "type": "object",
                     "properties": {
                         "note_id": _NOTE_ID_SCHEMA,
                         "amount": {
-                            "type": "number",
+                            "type": ["number", "null"],
                             "exclusiveMinimum": 0,
                             "description": (
                                 "Total funding offered, in US dollars (the "
@@ -91,14 +94,14 @@ class RFPDetailsToolset:
                             ),
                         },
                         "organization": {
-                            "type": "string",
+                            "type": ["string", "null"],
                             "description": (
                                 "Name of the funding organization. An empty "
                                 "string clears it."
                             ),
                         },
                         "description": {
-                            "type": "string",
+                            "type": ["string", "null"],
                             "maxLength": _MAX_DESCRIPTION_CHARS,
                             "description": (
                                 "Short summary of what the RFP funds, a few "
@@ -107,7 +110,7 @@ class RFPDetailsToolset:
                             ),
                         },
                         "contact_user_ids": {
-                            "type": "array",
+                            "type": ["array", "null"],
                             "items": {"type": "integer"},
                             "description": (
                                 "ResearchHub user ids of the people who manage "
@@ -119,8 +122,8 @@ class RFPDetailsToolset:
                             ),
                         },
                         "application_visibility": {
-                            "type": "string",
-                            "enum": list(_VISIBILITY_CHOICES),
+                            "type": ["string", "null"],
+                            "enum": [*_VISIBILITY_CHOICES, None],
                             "description": (
                                 "PRIVATE: applicants' proposals must be "
                                 "private. PUBLIC: they must be public. "

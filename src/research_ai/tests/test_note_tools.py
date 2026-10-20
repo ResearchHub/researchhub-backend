@@ -808,6 +808,39 @@ class NoteToolsetTests(TestCase):
         # Assert
         self.assertIsNone(notice)
 
+    def test_changed_notes_notice_names_a_note_renamed_since_it_was_seen(self):
+        # Arrange: the model read and renamed the note; the user then renamed
+        # it again, which adds no version.
+        read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        renamed, _ = self.toolset.dispatch(
+            RENAME_NOTE, {"note_id": self.note.id, "title": "Agent title"}
+        )
+        messages = [
+            *self._seen_messages(read),
+            Message(
+                role="assistant",
+                content=[ToolUseBlock(id="t2", name=RENAME_NOTE, input={})],
+            ),
+            Message(
+                role="user",
+                content=[ToolResultBlock(tool_use_id="t2", content=renamed)],
+            ),
+        ]
+        self.note.title = "User title"
+        self.note.save(update_fields=["title"])
+
+        # Act
+        notice = NoteToolset(user=self.owner).changed_notes_notice(messages)
+
+        # Assert: the model's own rename counts as seen, and an unchanged body
+        # needs no re-read.
+        self.assertIn(
+            f'note {self.note.id} is now titled "User title" '
+            '(you last saw "Agent title")',
+            notice,
+        )
+        self.assertNotIn("read_note", notice)
+
     def test_edit_note_denied_for_viewer(self):
         # Arrange
         toolset = NoteToolset(user=self.viewer).as_toolset()
