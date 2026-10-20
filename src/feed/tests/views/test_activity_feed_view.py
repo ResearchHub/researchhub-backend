@@ -227,10 +227,18 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
     def _get_entry(self, entry_id):
         resp = self.client.get(ACTIVITY_LIST_URL)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        for entry in resp.data["results"]:
-            if entry["id"] == entry_id:
-                return entry
-        self.fail(f"Feed entry {entry_id} not found in response")
+        entry = next(
+            (entry for entry in resp.data["results"] if entry["id"] == entry_id), None
+        )
+        self.assertIsNotNone(entry, f"Feed entry {entry_id} not found in response")
+        return entry
+
+    def _count_feed_queries(self):
+        cache.clear()
+        with CaptureQueriesContext(connection) as queries:
+            resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        return len(queries)
 
     def test_related_work_on_grant_comment(self):
         # Act
@@ -2062,10 +2070,18 @@ class ActivityFeedReviewMetricsTests(ActivityFeedBaseTests):
     def _get_entry(self, entry_id):
         resp = self.client.get(ACTIVITY_LIST_URL)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        for entry in resp.data["results"]:
-            if entry["id"] == entry_id:
-                return entry
-        self.fail(f"Feed entry {entry_id} not found in response")
+        entry = next(
+            (entry for entry in resp.data["results"] if entry["id"] == entry_id), None
+        )
+        self.assertIsNotNone(entry, f"Feed entry {entry_id} not found in response")
+        return entry
+
+    def _count_feed_queries(self):
+        cache.clear()
+        with CaptureQueriesContext(connection) as queries:
+            resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        return len(queries)
 
     def test_review_metrics_count_only_assessed_live_reviews(self):
         # Act
@@ -2101,6 +2117,48 @@ class ActivityFeedReviewMetricsTests(ActivityFeedBaseTests):
         related_work = entry["related_work"]
         self.assertEqual(len(related_work["assessed_reviews"]), 3)
         self.assertEqual(related_work["review_metrics"], {"avg": 3.5, "count": 4})
+
+    def test_review_without_a_score_counts_but_is_not_averaged_or_listed(self):
+        # Arrange
+        unscored = self._review(score=None)
+
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert — the same numbers get_review_details gives.
+        related_work = entry["related_work"]
+        self.assertEqual(related_work["review_metrics"], {"avg": 3.0, "count": 3})
+        self.assertEqual(self.prereg_doc.get_review_details(), {"avg": 3.0, "count": 3})
+        self.assertNotIn(
+            unscored.id, [review["id"] for review in related_work["assessed_reviews"]]
+        )
+
+    def test_only_unscored_reviews_average_zero_and_list_nobody(self):
+        # Arrange
+        Review.objects.filter(id__in=[self.first.id, self.second.id]).update(score=None)
+
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertEqual(related_work["review_metrics"], {"avg": 0, "count": 2})
+        self.assertNotIn("assessed_reviews", related_work)
+
+    def test_more_reviewers_add_no_queries(self):
+        # Arrange — the first request warms caches the later ones don't repeat.
+        self._count_feed_queries()
+        before = self._count_feed_queries()
+        for index in range(2):
+            review = self._review(score=3)
+            reviewer = create_random_authenticated_user(f"reviewer_{index}")
+            Review.objects.filter(id=review.id).update(created_by=reviewer)
+
+        # Act
+        after = self._count_feed_queries()
+
+        # Assert — reviewers and their verification come with the prefetch.
+        self.assertEqual(after, before)
 
     def test_review_fields_left_out_without_assessed_reviews(self):
         # Act

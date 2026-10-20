@@ -1051,7 +1051,8 @@ def assessed_reviews_queryset():
             content_type=ContentType.objects.get_for_model(RhCommentModel),
         )
         .filter(Exists(active_comment))
-        .select_related("created_by__author_profile")
+        # `userverification` is read by the reviewer's `is_verified`.
+        .select_related("created_by__author_profile", "created_by__userverification")
         .order_by("created_date", "id")
     )
 
@@ -1186,15 +1187,26 @@ class RelatedWorkSerializer(serializers.Serializer):
         return reviews
 
     def get_review_metrics(self, unified_document):
-        """Average score and count of the work's assessed peer reviews, if any."""
-        scores = [review.score for review in self._assessed_reviews(unified_document)]
-        if not scores:
+        """Average score and count of the work's assessed peer reviews, if any.
+
+        Like ``get_review_details``, every review counts, while the average skips
+        the ones without a score (and is 0 when none has one).
+        """
+        reviews = self._assessed_reviews(unified_document)
+        if not reviews:
             return None
-        return {"avg": sum(scores) / len(scores), "count": len(scores)}
+        scores = [review.score for review in reviews if review.score is not None]
+        avg = sum(scores) / len(scores) if scores else 0
+        return {"avg": avg, "count": len(reviews)}
 
     def get_assessed_reviews(self, unified_document):
-        """The first few assessed reviews and who wrote them, if any."""
-        reviews = self._assessed_reviews(unified_document)[:RELATED_WORK_REVIEWERS]
+        """The first few scored assessed reviews and who wrote them, if any."""
+        scored = [
+            review
+            for review in self._assessed_reviews(unified_document)
+            if review.score is not None
+        ]
+        reviews = scored[:RELATED_WORK_REVIEWERS]
         if not reviews:
             return None
         return SimpleReviewSerializer(reviews, many=True).data
