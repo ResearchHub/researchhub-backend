@@ -3,6 +3,7 @@ from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Exists, OuterRef, Prefetch
 from rest_framework import serializers
 
 from hub.models import Hub
@@ -13,6 +14,7 @@ from purchase.serializers import DynamicPurchaseSerializer
 from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -23,6 +25,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from review.models.review_model import Review
 from review.serializers.review_serializer import ReviewSerializer
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import Author, User
@@ -222,11 +225,13 @@ class ContentObjectSerializer(serializers.Serializer):
     def get_reviews(self, obj):
         """Return reviews from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            reviews = obj.unified_document.reviews.all()
-
-            if not reviews.exists():
-                return []
-
+            # One query per document, with what the reviewer's author and
+            # `is_verified` read, rather than three more per review.
+            reviews = list(
+                obj.unified_document.reviews.select_related(
+                    "created_by__author_profile", "created_by__userverification"
+                )
+            )
             return SimpleReviewSerializer(reviews, many=True).data
         return []
 
@@ -1026,6 +1031,41 @@ class AuthorActivityQuerySerializer(serializers.Serializer):
     author_id = serializers.IntegerField(min_value=1)
 
 
+ASSESSED_REVIEWS_ATTR = "assessed_reviews"
+# Enough for a preview of who reviewed the work; review_metrics carries the count.
+RELATED_WORK_REVIEWERS = 3
+
+
+def assessed_reviews_queryset():
+    """A document's assessed peer reviews, oldest first, with their authors.
+
+    Counts the reviews ``ResearchhubUnifiedDocument.get_review_details`` does:
+    assessed by the foundation, not removed, and left as a comment that hasn't
+    been removed either.
+    """
+    active_comment = RhCommentModel.objects.filter(
+        id=OuterRef("object_id"), is_removed=False
+    )
+    return (
+        Review.objects.filter(
+            is_removed=False,
+            is_assessed=True,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+        )
+        .filter(Exists(active_comment))
+        # `userverification` is read by the reviewer's `is_verified`.
+        .select_related("created_by__author_profile", "created_by__userverification")
+        .order_by("created_date", "id")
+    )
+
+
+def assessed_reviews_prefetch(lookup: str = "unified_document__reviews") -> Prefetch:
+    """Prefetch a document's assessed peer reviews onto ``assessed_reviews``."""
+    return Prefetch(
+        lookup, queryset=assessed_reviews_queryset(), to_attr=ASSESSED_REVIEWS_ATTR
+    )
+
+
 class RelatedWorkSerializer(serializers.Serializer):
     """Slim unified-document payload for activity feed related_work."""
 
@@ -1041,8 +1081,16 @@ class RelatedWorkSerializer(serializers.Serializer):
     grant = serializers.SerializerMethodField()
     fundraise = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
+    review_metrics = serializers.SerializerMethodField()
+    assessed_reviews = serializers.SerializerMethodField()
 
-    _OPTIONAL_FIELDS = ("authors", "grant", "fundraise")
+    _OPTIONAL_FIELDS = (
+        "authors",
+        "grant",
+        "fundraise",
+        "review_metrics",
+        "assessed_reviews",
+    )
 
     @staticmethod
     def _first_prefetched(relation):
@@ -1127,6 +1175,43 @@ class RelatedWorkSerializer(serializers.Serializer):
             "votes": votes,
             "adjusted_score": calculate_adjusted_score(votes, {}),
         }
+
+    @staticmethod
+    def _assessed_reviews(unified_document):
+        """The document's assessed reviews: from ``assessed_reviews_prefetch`` when
+        the queryset carries it, and otherwise read once and kept the same way."""
+        reviews = getattr(unified_document, ASSESSED_REVIEWS_ATTR, None)
+        if reviews is None:
+            reviews = list(
+                assessed_reviews_queryset().filter(unified_document=unified_document)
+            )
+            setattr(unified_document, ASSESSED_REVIEWS_ATTR, reviews)
+        return reviews
+
+    def get_review_metrics(self, unified_document):
+        """Average score and count of the work's assessed peer reviews, if any.
+
+        Like ``get_review_details``, every review counts, while the average skips
+        the ones without a score (and is 0 when none has one).
+        """
+        reviews = self._assessed_reviews(unified_document)
+        if not reviews:
+            return None
+        scores = [review.score for review in reviews if review.score is not None]
+        avg = sum(scores) / len(scores) if scores else 0
+        return {"avg": avg, "count": len(reviews)}
+
+    def get_assessed_reviews(self, unified_document):
+        """The first few scored assessed reviews and who wrote them, if any."""
+        scored = [
+            review
+            for review in self._assessed_reviews(unified_document)
+            if review.score is not None
+        ]
+        reviews = scored[:RELATED_WORK_REVIEWERS]
+        if not reviews:
+            return None
+        return SimpleReviewSerializer(reviews, many=True).data
 
     def get_grant(self, unified_document):
         if unified_document.document_type != GRANT:
