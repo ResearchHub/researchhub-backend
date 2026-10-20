@@ -98,6 +98,7 @@ from research_ai.services.agent_persistence import (
 from research_ai.services.agent_persistence.activity import (
     conversation_activity_events,
 )
+from research_ai.services.citation_tools import CitationToolset
 from research_ai.services.note_tools import NoteToolset
 from research_ai.services.notebook_chat.activity import (
     PHASE_RESPONDING,
@@ -919,6 +920,7 @@ class NotebookChatService:
             # An attached page that failed to render left room the plan spent.
             attachments = [_pages_on_request(item) for item in attachments]
         note_toolset = self._note_toolset(conversation, note)
+        oa_client = self._oa_client or OpenAlex()
         toolset = compose_notebook_toolset(
             note_toolset=note_toolset,
             user_profile_toolset=UserProfileToolset(user=conversation.user),
@@ -939,7 +941,11 @@ class NotebookChatService:
                 if note is None or note.document_type == GRANT
                 else None
             ),
-            openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
+            # Unlike the profile builder, the chat lists closed-access works too.
+            openalex_toolset=OpenAlexToolset(
+                client=oa_client, open_access_only_default=False
+            ),
+            citation_toolset=CitationToolset(oa_client=oa_client),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
             attachment_toolset=AttachmentToolset(
                 conversation=conversation,

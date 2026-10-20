@@ -349,6 +349,8 @@ class WorkTests(unittest.TestCase):
             "https://x.org/p.pdf",
             True,
             "An abstract of the paper.",
+            ["Ada Lovelace"],
+            "Nature",
         )
 
         # Act / Assert
@@ -363,6 +365,8 @@ class WorkTests(unittest.TestCase):
                 "pdf_url": "https://x.org/p.pdf",
                 "is_oa": True,
                 "abstract": "An abstract of the paper.",
+                "authors": ["Ada Lovelace"],
+                "venue": "Nature",
             },
         )
 

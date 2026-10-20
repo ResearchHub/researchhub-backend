@@ -31,6 +31,7 @@ from research_ai.services.agent_persistence.activity import (
     ThinkingEvent,
     ToolCallEvent,
 )
+from research_ai.services.citation_tools import SEARCH_WORKS, VERIFY_CITATIONS
 from research_ai.services.note_tools import (
     CREATE_NOTE,
     EDIT_NOTE,
@@ -84,6 +85,8 @@ _LABELS = {
     SET_SELECTED_RFP: "Selected an RFP",
     READ_RFP_DETAILS: "Read the RFP details",
     UPDATE_RFP_DETAILS: "Updated the RFP details",
+    SEARCH_WORKS: "Searched the literature",
+    VERIFY_CITATIONS: "Checked citations",
     SEARCH_INSTITUTIONS: "Searched institutions",
     SEARCH_AUTHORS: "Searched scholarly authors",
     GET_AUTHOR: "Looked up an author",
@@ -111,6 +114,8 @@ _ACTIVE_LABELS = {
     SET_SELECTED_RFP: "Selecting an RFP",
     READ_RFP_DETAILS: "Reading the RFP details",
     UPDATE_RFP_DETAILS: "Updating the RFP details",
+    SEARCH_WORKS: "Searching the literature",
+    VERIFY_CITATIONS: "Checking citations",
     SEARCH_INSTITUTIONS: "Searching institutions",
     SEARCH_AUTHORS: "Searching scholarly authors",
     GET_AUTHOR: "Looking up an author",
@@ -136,6 +141,7 @@ _DRAFTING_LABELS = {
 _DETAIL_INPUT_FIELDS = {
     WEB_SEARCH: "query",
     SEARCH_GRANTS: "query",
+    SEARCH_WORKS: "title",
     SEARCH_INSTITUTIONS: "query",
     SEARCH_AUTHORS: "name",
     SEARCH_WORK_FULLTEXT: "query",
@@ -354,9 +360,9 @@ def _sources(event: ToolCallEvent) -> list[dict]:
 
     Web search returns ``{"results": [...]}`` locally and ``{"content":
     [...]}`` when the provider ran it; scholarly works live under ``works``
-    with their url in ``source_url``; a full-text read echoes the one paper it
-    read. All reduce to the same citation shape, and anything unrecognized
-    reduces to nothing.
+    (``results`` for search_works) with their url in ``source_url``; a
+    full-text read echoes the one paper it read. All reduce to the same
+    citation shape, and anything unrecognized reduces to nothing.
     """
     result = event.result or {}
     if event.tool == WEB_SEARCH:
@@ -373,6 +379,9 @@ def _sources(event: ToolCallEvent) -> list[dict]:
         url_field = "url"
     elif event.tool == GET_AUTHOR_WORKS:
         items = result.get("works")
+        url_field = "source_url"
+    elif event.tool == SEARCH_WORKS:
+        items = result.get("results")
         url_field = "source_url"
     elif event.tool in (GET_WORK_ABSTRACT, GET_WORK_FULLTEXT, SEARCH_WORK_FULLTEXT):
         items = [result]

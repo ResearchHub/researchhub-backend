@@ -8,11 +8,9 @@ from django.utils import timezone
 
 from purchase.models import Grant
 from research_ai.models import Expert, ExpertSearch, SearchExpert
+from research_ai.services.citation_tools import CitationToolset
 from research_ai.services.proposal_draft.tools.context_tools import (
     ProposalContextToolset,
-)
-from research_ai.services.proposal_draft.tools.verification_tools import (
-    ProposalVerificationToolset,
 )
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
@@ -33,13 +31,16 @@ class _FakeOpenAlex:
         return self._works_by_query.get(query, [])[:per_page]
 
 
-def _build_openalex_work(title, authors, *, year=2020, doi="https://doi.org/10.1/x"):
+def _build_openalex_work(
+    title, authors, *, year=2020, doi="https://doi.org/10.1/x", venue=None
+):
     return {
         "display_name": title,
         "publication_year": year,
         "doi": doi,
         "id": "https://openalex.org/W1",
         "authorships": [{"author": {"display_name": name}} for name in authors],
+        "primary_location": {"source": {"display_name": venue}},
     }
 
 
@@ -162,11 +163,12 @@ class ProposalToolsTestCase(TestCase):
                         "Pericytes Stimulate Oligodendrocyte Differentiation",
                         ["De La Fuente"],
                         doi="https://doi.org/10.1016/j.celrep.2017.08.007",
+                        venue="Cell Reports",
                     )
                 ]
             },
         )
-        tool = ProposalVerificationToolset(oa_client=oa)
+        tool = CitationToolset(oa_client=oa)
 
         # Act
         out = tool.search_works(
@@ -181,10 +183,11 @@ class ProposalToolsTestCase(TestCase):
         )
         self.assertEqual(result["authors"], ["De La Fuente"])
         self.assertEqual(result["year"], 2020)
+        self.assertEqual(result["venue"], "Cell Reports")
 
     def test_search_works_requires_title(self):
         # Arrange
-        tool = ProposalVerificationToolset(oa_client=_FakeOpenAlex({}))
+        tool = CitationToolset(oa_client=_FakeOpenAlex({}))
 
         # Act
         out = tool.search_works({"title": "  "})
@@ -194,7 +197,7 @@ class ProposalToolsTestCase(TestCase):
 
     def test_search_works_empty_when_no_matches(self):
         # Arrange: the client returns nothing for an unknown query.
-        tool = ProposalVerificationToolset(oa_client=_FakeOpenAlex({}))
+        tool = CitationToolset(oa_client=_FakeOpenAlex({}))
 
         # Act
         out = tool.search_works({"title": "a paper that does not exist"})
@@ -207,7 +210,7 @@ class ProposalToolsTestCase(TestCase):
         oa = _FakeOpenAlex(
             {"10.1/x": _build_openalex_work("Protein Folding Dynamics", ["Jane Smith"])}
         )
-        tool = ProposalVerificationToolset(oa_client=oa)
+        tool = CitationToolset(oa_client=oa)
 
         # Act
         out = tool.verify_citations(
@@ -233,7 +236,7 @@ class ProposalToolsTestCase(TestCase):
         oa = _FakeOpenAlex(
             {"10.1/x": _build_openalex_work("Protein Folding Dynamics", ["Jane Smith"])}
         )
-        tool = ProposalVerificationToolset(oa_client=oa)
+        tool = CitationToolset(oa_client=oa)
 
         # Act
         out = tool.verify_citations(
@@ -260,7 +263,7 @@ class ProposalToolsTestCase(TestCase):
         oa = _FakeOpenAlex(
             {"10.1/x": _build_openalex_work("Quantum Gravity in 2D", ["Alan Turing"])}
         )
-        tool = ProposalVerificationToolset(oa_client=oa)
+        tool = CitationToolset(oa_client=oa)
 
         # Act
         out = tool.verify_citations(
@@ -286,7 +289,7 @@ class ProposalToolsTestCase(TestCase):
         oa = _FakeOpenAlex(
             {"10.1/x": _build_openalex_work("Protein Folding Dynamics", ["Jane Smith"])}
         )
-        tool = ProposalVerificationToolset(oa_client=oa)
+        tool = CitationToolset(oa_client=oa)
 
         # Act
         out = tool.verify_citations(
@@ -311,7 +314,7 @@ class ProposalToolsTestCase(TestCase):
     def test_verify_citations_dead_when_openalex_misses(self):
         # Arrange: OpenAlex does not resolve the DOI.
         oa = _FakeOpenAlex({})
-        tool = ProposalVerificationToolset(oa_client=oa)
+        tool = CitationToolset(oa_client=oa)
 
         # Act
         out = tool.verify_citations(
