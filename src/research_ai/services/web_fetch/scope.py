@@ -11,7 +11,7 @@ note content into a URL it then fetches.
 import html
 import re
 from collections.abc import Iterable, Iterator, Sequence
-from urllib.parse import urldefrag, urlsplit
+from urllib.parse import urldefrag, urlsplit, urlunsplit
 
 from research_ai.services.agent.types import (
     Message,
@@ -23,6 +23,7 @@ from research_ai.services.agent.types import (
 
 MAX_URL_CHARS = 2048
 _SERVER_SEARCH_RESULT = "web_search_tool_result"
+_SERVER_TOOL_USE = "server_tool_use"
 # What may follow a whole URL in text: its end, trailing punctuation, or a fragment.
 _URL_END = re.compile(r"[.,;:!?)\]}>*_'\"]*(?:[\s<>\"'`|#]|$)")
 _URL = re.compile(r"https?://[^\s<>\"'`|#]+", re.IGNORECASE)
@@ -112,7 +113,11 @@ def _trusted_text(context: Sequence[Message]) -> Iterator[str]:
     written = _written_urls(context)
     for message in context:
         for block in message.content:
-            echoes = written if isinstance(block, ToolResultBlock) else None
+            echoes = (
+                written
+                if isinstance(block, (ToolResultBlock, ServerToolBlock))
+                else None
+            )
             for text in _trusted_strings(message.role, block):
                 yield from _readings(text, echoes)
 
@@ -133,13 +138,11 @@ def _trusted_strings(role: str, block) -> Iterable[str]:
 def _written_urls(context: Sequence[Message]) -> re.Pattern | None:
     """Matches each whole URL the model wrote into a tool input."""
     urls = {
-        match.group().rstrip(_TRAILING)
-        for message in context
-        for block in message.content
-        if isinstance(block, ToolUseBlock)
-        for text in _strings(block.input)
+        spelling
+        for text in _model_inputs(context)
         for reading in _readings(text)
         for match in _URL.finditer(reading)
+        for spelling in _echo_spellings(match.group().rstrip(_TRAILING))
     }
     if not urls:
         return None
@@ -148,6 +151,31 @@ def _written_urls(context: Sequence[Message]) -> re.Pattern | None:
     # Longest first, so a URL is not cut at a shorter one it starts with.
     alternatives = "|".join(map(re.escape, sorted(urls, key=len, reverse=True)))
     return re.compile(f"(?:{alternatives})(?={_URL_END.pattern})", re.IGNORECASE)
+
+
+def _model_inputs(context: Sequence[Message]) -> Iterator[str]:
+    """The strings of every tool request the model made, client or server side."""
+    for message in context:
+        for block in message.content:
+            if isinstance(block, ToolUseBlock):
+                yield from _strings(block.input)
+            elif (
+                isinstance(block, ServerToolBlock)
+                and (block.data or {}).get("type") == _SERVER_TOOL_USE
+            ):
+                yield from _strings(block.data.get("input"))
+
+
+def _echo_spellings(url: str) -> list[str]:
+    """``url`` and the root-slash spelling a tool may normalize it to."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return [url]
+    if parts.path in ("", "/"):
+        other = urlunsplit(parts._replace(path="/" if parts.path == "" else ""))
+        return [url, other]
+    return [url]
 
 
 def _readings(text: str, written: re.Pattern | None = None) -> list[str]:

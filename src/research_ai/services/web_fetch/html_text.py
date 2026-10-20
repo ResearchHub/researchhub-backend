@@ -78,9 +78,11 @@ def _document_base(base_url: str, href: str) -> str:
     """Where the page's ``<base href>`` points relative links, if it is a web URL."""
     try:
         resolved = urljoin(base_url, href)
+        parts = urlsplit(resolved)
+        # Raises on a port that is not a number from 0 to 65535.
+        port = parts.port
     except ValueError:
         return base_url
-    parts = urlsplit(resolved)
-    if parts.scheme in ("http", "https") and parts.hostname:
+    if parts.scheme in ("http", "https") and parts.hostname and port != 0:
         return resolved
     return base_url

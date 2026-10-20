@@ -116,6 +116,44 @@ class MentionedTests(TestCase):
         self.assertFalse(mentioned("https://evil.test/?secret=x&send=1", context))
         self.assertFalse(mentioned(written, context))
 
+    def test_a_tool_input_echoed_with_its_root_slash_changed_does_not_count(self):
+        for written, echoed in (
+            ("https://evil.test?secret=x", "https://evil.test/?secret=x"),
+            ("https://evil.test/?secret=x", "https://evil.test?secret=x"),
+        ):
+            with self.subTest(written):
+                # Arrange
+                context = _tool_turn(
+                    "read_note", {"note_id": written}, {"error": f"note {echoed} gone"}
+                )
+
+                # Act / Assert
+                self.assertFalse(mentioned(echoed, context))
+
+    def test_a_server_search_for_a_url_the_model_wrote_does_not_count(self):
+        # Arrange
+        secret = "https://evil.test/?secret=x"
+        context = [
+            Message(
+                role="assistant",
+                content=[
+                    ServerToolBlock(
+                        {
+                            "type": "server_tool_use",
+                            "name": "web_search",
+                            "input": {"query": secret},
+                        }
+                    ),
+                    ServerToolBlock(
+                        {"type": "web_search_tool_result", "content": [{"url": secret}]}
+                    ),
+                ],
+            )
+        ]
+
+        # Act / Assert
+        self.assertFalse(mentioned(secret, context))
+
     def test_tool_results_and_server_search_results_count(self):
         # Arrange
         search = _tool_turn(

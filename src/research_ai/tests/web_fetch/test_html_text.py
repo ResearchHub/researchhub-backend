@@ -53,20 +53,26 @@ class HtmlToMarkdownTests(TestCase):
         # Assert
         self.assertIn("[Chapter](https://cdn.example.org/docs/chapter)", text)
 
-    def test_a_hostless_document_base_is_ignored(self):
-        # Arrange
-        page = (
-            '<head><base href="http:///docs/"></head>'
-            f'<body><p>{BODY}</p><a href="chapter">Chapter</a></body>'
-        ).encode()
+    def test_an_invalid_document_base_is_ignored(self):
+        for base in (
+            "http:///docs/",
+            "https://cdn.example.org:bad/docs/",
+            "https://cdn.example.org:99999/docs/",
+        ):
+            with self.subTest(base):
+                # Arrange
+                page = (
+                    f'<head><base href="{base}"></head>'
+                    f'<body><p>{BODY}</p><a href="chapter">Chapter</a></body>'
+                ).encode()
 
-        # Act
-        _, text = html_to_markdown(
-            page, base_url="https://example.org/a/page", encoding=None
-        )
+                # Act
+                _, text = html_to_markdown(
+                    page, base_url="https://example.org/a/page", encoding=None
+                )
 
-        # Assert
-        self.assertIn("[Chapter](https://example.org/a/chapter)", text)
+                # Assert
+                self.assertIn("[Chapter](https://example.org/a/chapter)", text)
 
     def test_a_malformed_link_keeps_its_text_and_the_page(self):
         # Arrange
