@@ -3,10 +3,12 @@ set -eu
 
 case "${1:-api}" in
   api)
-    set -- daphne \
-      --bind 0.0.0.0 \
+    set -- uvicorn \
+      --host 0.0.0.0 \
       --port 8000 \
       --proxy-headers \
+      --forwarded-allow-ips '*' \
+      --lifespan off \
       researchhub.asgi:application
     ;;
 
