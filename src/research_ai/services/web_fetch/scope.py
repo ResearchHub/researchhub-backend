@@ -25,6 +25,7 @@ from research_ai.services.agent.types import (
 )
 
 MAX_URL_CHARS = 2048
+_INVALID_URL = "url is not a valid URL"
 _SERVER_SEARCH_RESULT = "web_search_tool_result"
 _SERVER_TOOL_USE = "server_tool_use"
 # A URL in text runs to whitespace, a delimiter or its fragment.
@@ -54,13 +55,13 @@ def clean_url(url) -> str:
         # Raises on a port that is not a number from 0 to 65535.
         port = parts.port
     except ValueError:
-        raise UrlNotAllowedError("url is not a valid URL")
+        raise UrlNotAllowedError(_INVALID_URL)
     if port == 0:
-        raise UrlNotAllowedError("url is not a valid URL")
+        raise UrlNotAllowedError(_INVALID_URL)
     if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
         raise UrlNotAllowedError("only http and https URLs can be fetched")
     if not _valid_host(parts.hostname):
-        raise UrlNotAllowedError("url is not a valid URL")
+        raise UrlNotAllowedError(_INVALID_URL)
     if parts.username is not None or parts.password is not None:
         raise UrlNotAllowedError("URLs with credentials cannot be fetched")
     return url
