@@ -1152,3 +1152,25 @@ class ProposalDraftSerializer(serializers.ModelSerializer):
             "completed_at",
         ]
         read_only_fields = fields
+
+
+class McpParamsSerializer(serializers.Serializer):
+    """MCP request params; every request names its protocol version in ``_meta``."""
+
+    _meta = serializers.DictField()
+    name = serializers.CharField(required=False)
+    arguments = serializers.DictField(default=dict)
+
+
+class McpRequestSerializer(serializers.Serializer):
+    """
+    Request body for one MCP JSON-RPC request.
+
+    ``id`` is required, which refuses notifications: the protocol defines none
+    that a client sends over HTTP.
+    """
+
+    jsonrpc = serializers.ChoiceField(choices=["2.0"])
+    id = serializers.JSONField()
+    method = serializers.CharField()
+    params = McpParamsSerializer()

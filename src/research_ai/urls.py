@@ -33,6 +33,7 @@ from research_ai.views.expert_finder_views import (
     InvitedExpertEditorsOverviewView,
     InvitedExpertOverviewView,
 )
+from research_ai.views.mcp_views import McpServerCardView, McpView
 from research_ai.views.model_views import (
     AvailableModelsView,
     InvitedTierGrantView,
@@ -164,4 +165,6 @@ urlpatterns = [
     path("files/<int:file_id>/", AgentFileDetailView.as_view()),
     path("files/<int:file_id>/complete/", AgentFileCompleteView.as_view()),
     path("files/<int:file_id>/download/", AgentFileDownloadView.as_view()),
+    path("mcp/", McpView.as_view(), name="mcp"),
+    path("mcp/server-card/", McpServerCardView.as_view()),
 ]
