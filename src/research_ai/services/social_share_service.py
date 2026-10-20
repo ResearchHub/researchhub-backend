@@ -14,6 +14,7 @@ from django.conf import settings
 from django.core.cache import cache as default_cache
 from openai import OpenAI
 
+from purchase.related_models.fundraise_model import Fundraise
 from research_ai.prompts.social_share_prompts import (
     build_share_post_system_prompt,
     build_share_post_user_prompt,
@@ -159,8 +160,10 @@ class SocialShareService:
         if post.document_type == GRANT:
             grant = post.unified_document.grants.first()
             details = _grant_details(grant)
-            if grant is not None:
-                body = body or grant.description or ""
+            if grant is not None and grant.description:
+                # The grant's own description is edited apart from the post
+                # body and often holds the purpose and applicant requirements.
+                body = f"{grant.description}\n\n{body}".strip()
         else:
             details = _fundraise_details(post.unified_document.fundraises.first())
 
@@ -175,7 +178,8 @@ class SocialShareService:
 def _grant_details(grant) -> list[str]:
     if grant is None:
         return []
-    details = []
+    status = "Open for applications" if grant.is_active() else "Closed to applications"
+    details = [f"Status: {status}"]
     if grant.amount:
         details.append(f"Funding: {_format_amount(grant.amount, grant.currency)}")
     if grant.organization:
@@ -186,10 +190,14 @@ def _grant_details(grant) -> list[str]:
 
 
 def _fundraise_details(fundraise) -> list[str]:
-    if fundraise is None or not fundraise.goal_amount:
+    if fundraise is None:
         return []
-    goal = _format_amount(fundraise.goal_amount, fundraise.goal_currency)
-    return [f"Funding goal: {goal}"]
+    is_open = fundraise.status == Fundraise.OPEN and not fundraise.is_expired()
+    details = [f"Funding status: {'Open' if is_open else 'Closed'}"]
+    if fundraise.goal_amount:
+        goal = _format_amount(fundraise.goal_amount, fundraise.goal_currency)
+        details.append(f"Funding goal: {goal}")
+    return details
 
 
 def _format_amount(amount, currency: str) -> str:

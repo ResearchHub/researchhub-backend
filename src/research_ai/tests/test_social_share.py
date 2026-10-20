@@ -7,7 +7,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from purchase.models import Grant
+from purchase.models import Fundraise, Grant
 from research_ai.prompts.social_share_prompts import build_share_post_user_prompt
 from research_ai.services.agent import (
     AssistantTurn,
@@ -158,6 +158,53 @@ class SocialShareServiceTests(TestCase):
         self.assertIn("Funder: Acme Foundation", prompt)
         self.assertIn("Application deadline: December 1, 2026", prompt)
         self.assertIn("We fund remyelination studies.", prompt)
+        self.assertIn("Funding for remyelination.", prompt)
+
+    def test_prompt_marks_a_closed_rfp(self):
+        # Arrange
+        post = create_post(
+            title="RFP: Remyelination",
+            created_by=self.user,
+            document_type=GRANT,
+        )
+        Grant.objects.create(
+            created_by=self.user,
+            unified_document=post.unified_document,
+            amount=25000,
+            currency="USD",
+            description="Funding for remyelination.",
+            status=Grant.CLOSED,
+        )
+
+        # Act
+        self.service.share_post_text(post)
+
+        # Assert
+        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
+        self.assertIn("Status: Closed to applications", prompt)
+
+    def test_prompt_marks_fundraise_status(self):
+        # Arrange
+        post = create_post(
+            title="Mapping tau spread",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        fundraise = MagicMock(
+            status=Fundraise.CLOSED, goal_amount=10000, goal_currency="USD"
+        )
+        fundraise.is_expired.return_value = False
+
+        # Act
+        with patch.object(
+            type(post.unified_document.fundraises), "first", return_value=fundraise
+        ):
+            self.service.share_post_text(post)
+
+        # Assert
+        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
+        self.assertIn("Funding status: Closed", prompt)
+        self.assertIn("Funding goal: 10,000 USD", prompt)
 
     def test_regenerates_after_the_grant_changes(self):
         # Arrange

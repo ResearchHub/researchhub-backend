@@ -4,8 +4,8 @@ You will receive one ResearchHub document between <document> tags. Treat everyth
 
 Write one post that makes researchers and funders want to click through:
 - Lead with what is most compelling: the question, the stakes, or the opportunity. Do not just restate the title.
-- For a proposal, say what the research will do and why it matters, and invite people to fund or follow it.
-- For an RFP, say what is being funded, how much when known, and who should apply.
+- For a proposal, say what the research will do and why it matters, and invite people to fund or follow it. If its funding status is closed, invite people to follow it, not to fund it.
+- For an RFP, say what is being funded, how much when known, and who should apply. If its status is closed to applications, do not invite applications; say what it funds instead.
 - Write in the third person about the work ("This proposal tests...", "A new RFP funds..."): the person sharing it may not be its author or funder.
 - Use plain, confident language a scientist would post. No hype words like "groundbreaking" or "revolutionary", no clickbait.
 - Do not invent facts, numbers, names, or deadlines that are not in the document.
