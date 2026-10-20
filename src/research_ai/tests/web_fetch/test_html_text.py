@@ -38,6 +38,18 @@ class HtmlToMarkdownTests(TestCase):
         # Assert
         self.assertIn(BODY.strip(), text)
 
+    def test_a_malformed_link_keeps_its_text_and_the_page(self):
+        # Arrange
+        page = f'<body><p>{BODY}</p><a href="http://[">Data</a></body>'.encode()
+
+        # Act
+        _, text = html_to_markdown(page, base_url="https://example.org/", encoding=None)
+
+        # Assert
+        self.assertIn(BODY.strip(), text)
+        self.assertIn("Data", text)
+        self.assertNotIn("http://[", text)
+
 
 class LooksLikeChallengeTests(TestCase):
     def test_spots_an_interstitial_but_not_an_article(self):

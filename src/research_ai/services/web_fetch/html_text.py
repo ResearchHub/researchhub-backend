@@ -50,7 +50,11 @@ def html_to_markdown(
     for tag in soup(_DROPPED_TAGS):
         tag.decompose()
     for link in soup.find_all("a", href=True):
-        link["href"] = urljoin(base_url, link["href"])
+        try:
+            link["href"] = urljoin(base_url, link["href"])
+        except ValueError:
+            # A malformed destination, e.g. "http://[": keep the link's text only.
+            del link["href"]
         # Rendered into every Markdown link, where it only repeats the text.
         del link["title"]
     root = soup.body or soup
