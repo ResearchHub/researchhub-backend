@@ -167,8 +167,9 @@ def _bare_urls_in(text: str) -> set[str]:
         for match in _BARE.finditer(text)
         if "." in match.group() and "://" not in match.group()
         for form in _forms(match.group())
-        for scheme in ("https://", "http://")
-        if (url := _canonical(scheme + form))
+        # Typed without a scheme, it may be fetched over either.
+        for scheme in ("https", "http")
+        if (url := _canonical(f"{scheme}://{form}"))
     }
 
 
