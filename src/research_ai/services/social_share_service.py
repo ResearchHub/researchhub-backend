@@ -155,29 +155,14 @@ class SocialShareService:
         return turn
 
     def _user_prompt(self, post: ResearchhubPost) -> str:
-        details = []
         body = post.renderable_text or ""
-        unified_document = post.unified_document
-
         if post.document_type == GRANT:
-            grant = unified_document.grants.first()
+            grant = post.unified_document.grants.first()
+            details = _grant_details(grant)
             if grant is not None:
-                if grant.amount:
-                    details.append(
-                        f"Funding: {_format_amount(grant.amount, grant.currency)}"
-                    )
-                if grant.organization:
-                    details.append(f"Funder: {grant.organization}")
-                if grant.end_date:
-                    details.append(f"Application deadline: {grant.end_date:%B %-d, %Y}")
                 body = body or grant.description or ""
         else:
-            fundraise = unified_document.fundraises.first()
-            if fundraise is not None and fundraise.goal_amount:
-                details.append(
-                    "Funding goal: "
-                    f"{_format_amount(fundraise.goal_amount, fundraise.goal_currency)}"
-                )
+            details = _fundraise_details(post.unified_document.fundraises.first())
 
         return build_share_post_user_prompt(
             document_kind=_DOCUMENT_KINDS[post.document_type],
@@ -185,6 +170,26 @@ class SocialShareService:
             body=body[:MAX_BODY_CHARS],
             details=details,
         )
+
+
+def _grant_details(grant) -> list[str]:
+    if grant is None:
+        return []
+    details = []
+    if grant.amount:
+        details.append(f"Funding: {_format_amount(grant.amount, grant.currency)}")
+    if grant.organization:
+        details.append(f"Funder: {grant.organization}")
+    if grant.end_date:
+        details.append(f"Application deadline: {grant.end_date:%B %-d, %Y}")
+    return details
+
+
+def _fundraise_details(fundraise) -> list[str]:
+    if fundraise is None or not fundraise.goal_amount:
+        return []
+    goal = _format_amount(fundraise.goal_amount, fundraise.goal_currency)
+    return [f"Funding goal: {goal}"]
 
 
 def _format_amount(amount, currency: str) -> str:
@@ -198,7 +203,7 @@ def normalize_post_text(raw: str) -> str:
         text = text[1:-1].strip()
     # The link is attached by the share intent; a second one would be noise.
     text = _URL_PATTERN.sub("", text)
-    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = "\n".join(line.rstrip(" \t") for line in text.split("\n"))
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
