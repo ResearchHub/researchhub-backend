@@ -2,7 +2,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from discussion.models import Flag
@@ -18,6 +18,7 @@ from researchhub_document.tasks import (
 from user.tests.helpers import create_random_default_user
 
 
+@override_settings(PRODUCTION=True)
 class AssignPreregistrationDoisTests(TestCase):
     """Verify delayed DOI assignment for preregistrations."""
 
