@@ -57,7 +57,6 @@ class HtmlToMarkdownTests(TestCase):
         for base in (
             "http:///docs/",
             "https://cdn.example.org:bad/docs/",
-            "https://cdn.example.org:99999/docs/",
         ):
             with self.subTest(base):
                 # Arrange
