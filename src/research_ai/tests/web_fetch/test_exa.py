@@ -65,6 +65,7 @@ class ExaContentsTests(TestCase):
                 },
             ),
             "invalid JSON": httpx.Response(200, json=["not", "an", "object"]),
+            "returned no text": httpx.Response(200, json={"statuses": 1, "results": 1}),
             "no text": httpx.Response(
                 200, json={"results": [{"url": URL, "text": " "}]}
             ),

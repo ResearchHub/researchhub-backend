@@ -84,7 +84,9 @@ class MentionedTests(TestCase):
     def test_tool_results_and_server_search_results_count(self):
         # Arrange
         search = _tool_turn(
-            "web_search", {"query": "crispr review"}, {"results": [{"url": URL}]}
+            "web_search",
+            {"query": "crispr review site:https://example.org"},
+            {"results": [{"url": URL}]},
         )
         server = [
             Message(
@@ -117,6 +119,17 @@ class MentionedTests(TestCase):
             "an echo of its tool input": _tool_turn(
                 "web_search", {"query": URL}, {"query": URL, "results": []}
             ),
+            "its tool input wrapped in an error": _tool_turn(
+                "read_note",
+                {"note_id": URL},
+                {"error": f"note {URL} not found or not accessible"},
+            ),
+            "a note it wrote, read back": [
+                *_tool_turn("edit_note", {"content": f"See {URL}."}, {"ok": True}),
+                *_tool_turn(
+                    "read_note", {"note_id": 7}, {"content": f"# Aims\n\nSee {URL}."}
+                ),
+            ],
             "its code output": [
                 Message(
                     role="assistant",

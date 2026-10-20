@@ -2,9 +2,9 @@
 
 A URL counts when it appears whole in the user's messages, in a client tool's
 result, or in the provider's own web search results. Text the model wrote --
-its replies, tool inputs, code output -- does not count, nor does a tool
-result's echo of a tool input, so the model cannot put note content into a
-URL it then fetches.
+its replies, tool inputs, code output -- does not count, nor does a URL in a
+tool result that the model wrote into any tool input, so the model cannot put
+note content into a URL it then fetches.
 """
 
 import html
@@ -24,6 +24,8 @@ MAX_URL_CHARS = 2048
 _SERVER_SEARCH_RESULT = "web_search_tool_result"
 # What may follow a whole URL in text: its end, trailing punctuation, or a fragment.
 _URL_END = re.compile(r"[.,;:!?)\]}>*_'\"]*(?:[\s<>\"'`|#]|$)")
+_URL = re.compile(r"https?://[^\s<>\"'`|#]+", re.IGNORECASE)
+_TRAILING = ".,;:!?)]}>*_'\""
 
 
 class UrlNotAllowedError(ValueError):
@@ -52,12 +54,11 @@ def clean_url(url) -> str:
 def mentioned(url: str, context: Sequence[Message]) -> bool:
     """Whether ``url`` appears whole in the conversation's trusted text."""
     spellings = _spellings(url)
-    for text in _trusted_text(context):
-        # Unescaping alone would break raw URLs such as "?a=1&copy=2".
-        variants = (text, html.unescape(text)) if "&" in text else (text,)
-        if any(_contains_whole(v, s) for v in variants for s in spellings):
-            return True
-    return False
+    return any(
+        _contains_whole(text, spelling)
+        for text in _trusted_text(context)
+        for spelling in spellings
+    )
 
 
 def _spellings(url: str) -> list[str]:
@@ -78,26 +79,46 @@ def _contains_whole(text: str, url: str) -> bool:
 
 
 def _trusted_text(context: Sequence[Message]) -> Iterator[str]:
-    inputs = {
-        text
-        for message in context
-        for block in message.content
-        if isinstance(block, ToolUseBlock)
-        for text in _strings(block.input)
-    }
+    written = _written_urls(context)
     for message in context:
         for block in message.content:
             if message.role == "user" and isinstance(block, TextBlock):
-                yield block.text
+                yield from _readings(block.text)
             elif message.role == "user" and isinstance(block, ToolResultBlock):
-                yield from (
-                    text for text in _strings(block.content) if text not in inputs
-                )
+                for text in _strings(block.content):
+                    yield from _readings(text, written)
             elif (
                 isinstance(block, ServerToolBlock)
                 and (block.data or {}).get("type") == _SERVER_SEARCH_RESULT
             ):
-                yield from _strings(block.data)
+                for text in _strings(block.data):
+                    yield from _readings(text)
+
+
+def _written_urls(context: Sequence[Message]) -> re.Pattern | None:
+    """Matches each whole URL the model wrote into a tool input."""
+    urls = {
+        match.group().rstrip(_TRAILING)
+        for message in context
+        for block in message.content
+        if isinstance(block, ToolUseBlock)
+        for text in _strings(block.input)
+        for match in _URL.finditer(text)
+    }
+    if not urls:
+        return None
+    # Longest first, so a URL is not cut at a shorter one it starts with.
+    alternatives = "|".join(map(re.escape, sorted(urls, key=len, reverse=True)))
+    return re.compile(f"(?:{alternatives})(?={_URL_END.pattern})", re.IGNORECASE)
+
+
+def _readings(text: str, written: re.Pattern | None = None) -> tuple[str, ...]:
+    # Unescaping alone would break raw URLs such as "?a=1&copy=2".
+    readings = (text, html.unescape(text)) if "&" in text else (text,)
+    if written is None:
+        return readings
+    # A tool may echo its input inside a longer string: "note <id> not found".
+    return tuple(written.sub(" ", reading) for reading in readings)
 
 
 def _strings(value) -> Iterable[str]:

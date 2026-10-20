@@ -51,14 +51,14 @@ class ExaContents:
             raise FallbackError("fetch service returned invalid JSON")
         if not isinstance(body, dict):
             raise FallbackError("fetch service returned invalid JSON")
-        status = next(iter(body.get("statuses") or []), None)
+        status = _first(body, "statuses")
         if isinstance(status, dict) and status.get("status") == "error":
             error = status.get("error")
             tag = error.get("tag") if isinstance(error, dict) else None
             raise FallbackError(
                 f"fetch service could not read the page ({tag or 'error'})"
             )
-        result = next(iter(body.get("results") or []), None)
+        result = _first(body, "results")
         if not isinstance(result, dict) or not str(result.get("text") or "").strip():
             raise FallbackError("fetch service returned no text")
         return str(result.get("title") or ""), str(result["text"])
@@ -72,3 +72,8 @@ class ExaContents:
         if self._client is None:
             self._client = httpx.Client()
         return self._client
+
+
+def _first(body: dict, key: str):
+    items = body.get(key)
+    return items[0] if isinstance(items, list) and items else None
