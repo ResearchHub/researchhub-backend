@@ -2,7 +2,6 @@ from typing import Any
 from unittest.mock import patch
 from urllib.parse import unquote
 
-from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core import mail
 from django.core.mail import EmailMultiAlternatives
@@ -270,33 +269,6 @@ class SendEmailTests(TestCase):
         self.assertEqual(
             EmailOptOut.filter_opted_out(["good@example.com"]), {"good@example.com"}
         )
-
-
-@override_settings(
-    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-    PRODUCTION=False,
-)
-class SendMessageEmailTests(TestCase):
-    """`EmailService.send_message_email` wraps a message in the branded email."""
-
-    def test_labels_the_action_link(self) -> None:
-        # Act
-        accepted = EmailService(send_interval_seconds=0).send_message_email(
-            "good@example.com",
-            "Test",
-            "<p>hello</p>",
-            link="https://example.com/action",
-            cta_label="Take action",
-            is_html=True,
-        )
-
-        # Assert
-        self.assertEqual(accepted, 1)
-        soup = BeautifulSoup(mail.outbox[0].alternatives[0][0], "lxml")
-        self.assertIsNotNone(soup.find("p", string="hello"))
-        cta = soup.find("a", string="Take action")
-        self.assertIsNotNone(cta)
-        self.assertEqual(cta["href"], "https://example.com/action")
 
 
 @override_settings(

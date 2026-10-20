@@ -2,22 +2,16 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.contenttypes.models import ContentType
-from django.core import mail
 from django.core.cache import cache
-from django.core.mail import EmailMultiAlternatives
 from django.test import TestCase
 
 from notification.models import Notification
 from purchase.circle.client import CircleTransferError
-from purchase.models import Balance, Fundraise, RscExchangeRate, Wallet
-from purchase.related_models.constants.currency import USD
+from purchase.models import Fundraise, Wallet
 from purchase.services.fundraise_service import FundraiseService
 from purchase.tasks import (
     complete_eligible_fundraises,
-    send_funding_credits_reminders,
     send_monthly_preregistration_update_reminders,
     sweep_deposit_to_multisig,
 )
@@ -43,6 +37,8 @@ class FundraiseTasksTest(TestCase):
         self.fundraise_service = FundraiseService()
 
         # Create required exchange rate for USD to RSC conversion
+        from purchase.models import RscExchangeRate
+
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
             rate=0.5,  # 1 USD = 2 RSC
             real_rate=0.5,
@@ -289,212 +285,3 @@ class PreregistrationUpdateReminderTest(TestCase):
         # Assert
         self.assertEqual(result["sent_count"], 1)
         self.assertEqual(self.notif_qs.count(), 1)
-
-
-class FundingCreditsReminderTest(TestCase):
-    def setUp(self) -> None:
-        """Create an eligible account and a fixed reminder period."""
-        self.user = create_random_authenticated_user("funding_credits_reminder")
-        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency=USD)
-        self.notif_qs = Notification.objects.filter(
-            notification_type=Notification.FUNDING_CREDITS_REMINDER,
-            recipient=self.user,
-        )
-        self.clock = patch(
-            "purchase.services.funding_credits_reminder_service.timezone.now",
-            return_value=datetime(2026, 11, 1, 16, tzinfo=UTC),
-        )
-        self.now = self.clock.start()
-        self.addCleanup(self.clock.stop)
-
-    def _add_funding_credit(
-        self, user: User, amount: Decimal, lock_type: str | None = None
-    ) -> Balance:
-        """Add a locked ledger entry for the requested credit category."""
-        return Balance.objects.create(
-            user=user,
-            content_type=ContentType.objects.get_for_model(User),
-            object_id=user.id,
-            amount=str(amount),
-            is_locked=True,
-            lock_type=lock_type or Balance.LockType.FUNDING_CREDIT,
-        )
-
-    def test_sends_funding_credits_email(self) -> None:
-        """Describe only funding credits and link directly to proposals."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal(50))
-        self._add_funding_credit(
-            self.user, Decimal(60), lock_type=Balance.LockType.PROMOTIONAL
-        )
-        # Act
-        result = send_funding_credits_reminders(send_email=True)
-        # Assert
-        self.assertEqual(result, {"notification_count": 1, "email_count": 1})
-        self.assertEqual(Decimal(self.notif_qs.get().extra["amount"]), Decimal(50))
-        self.user.refresh_from_db()
-        self.assertEqual(
-            self.user.funding_credits_email_sent_date, self.now.return_value
-        )
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("$25 in unused funding credits", mail.outbox[0].subject)
-        self.assertIn("/fund/proposals", mail.outbox[0].alternatives[0].content)
-        self.assertIn("Fund Science", mail.outbox[0].alternatives[0].content)
-        self.assertIn(
-            f"{settings.ASSETS_BASE_URL}/email_assets/funding-credits.png",
-            mail.outbox[0].alternatives[0].content,
-        )
-
-    def test_emails_without_repeating_this_periods_notification(self) -> None:
-        """Email a holder whose alert for this half-month already exists."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal(50))
-        Notification.objects.create(
-            notification_type=Notification.FUNDING_CREDITS_REMINDER,
-            recipient=self.user,
-            action_user=self.user,
-            item=self.user,
-            extra={"amount": "50"},
-        )
-        # Act
-        result = send_funding_credits_reminders(send_email=True)
-        # Assert
-        self.assertEqual(result, {"notification_count": 0, "email_count": 1})
-        self.assertEqual(self.notif_qs.count(), 1)
-        self.assertEqual(len(mail.outbox), 1)
-
-    def test_leaves_email_unsent_when_exchange_rate_lookup_fails(self) -> None:
-        """Keep the alert and leave the email for the next retry day."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal(50))
-        # Act
-        with patch.object(RscExchangeRate, "get_latest", side_effect=RuntimeError):
-            result = send_funding_credits_reminders(send_email=True)
-        # Assert
-        self.assertEqual(result, {"notification_count": 1, "email_count": 0})
-        self.user.refresh_from_db()
-        self.assertIsNone(self.user.funding_credits_email_sent_date)
-        self.assertEqual(len(mail.outbox), 0)
-
-    def test_retries_failed_email_on_the_next_day(self) -> None:
-        """Retry a real delivery failure without duplicating the in-app alert."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal(50))
-        with patch.object(EmailMultiAlternatives, "send", return_value=0):
-            first_result = send_funding_credits_reminders(send_email=True)
-        # Act
-        self.now.return_value = datetime(2026, 11, 2, 16, tzinfo=UTC)
-        retry_result = send_funding_credits_reminders(send_email=True)
-        # Assert
-        self.assertEqual(first_result, {"notification_count": 1, "email_count": 0})
-        self.assertEqual(retry_result, {"notification_count": 0, "email_count": 1})
-        self.assertEqual(self.notif_qs.count(), 1)
-        self.assertEqual(len(mail.outbox), 1)
-
-    def test_skips_reminders_without_funding_credits(self) -> None:
-        """Ignore an account whose only spendable balance is promotional."""
-        # Arrange
-        self._add_funding_credit(
-            self.user, Decimal(60), lock_type=Balance.LockType.PROMOTIONAL
-        )
-        # Act
-        result = send_funding_credits_reminders(send_email=True)
-        # Assert
-        self.assertEqual(result, {"notification_count": 0, "email_count": 0})
-        self.assertFalse(self.notif_qs.exists())
-        self.assertEqual(len(mail.outbox), 0)
-
-    def test_skips_reminders_when_credits_are_spent(self) -> None:
-        """Ignore funding credits canceled by an equal debit."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal(40))
-        self._add_funding_credit(self.user, Decimal(-40))
-        # Act
-        result = send_funding_credits_reminders(send_email=True)
-        # Assert
-        self.assertEqual(result, {"notification_count": 0, "email_count": 0})
-        self.assertFalse(self.notif_qs.exists())
-
-    def test_deduplicates_retry_day_reruns(self) -> None:
-        """Keep one alert and one email across the month's retry days."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal(25))
-        send_funding_credits_reminders(send_email=True)
-        # Act
-        self.now.return_value = datetime(2026, 11, 2, 16, tzinfo=UTC)
-        second_day_result = send_funding_credits_reminders(send_email=True)
-        self.now.return_value = datetime(2026, 11, 3, 16, tzinfo=UTC)
-        third_day_result = send_funding_credits_reminders(send_email=True)
-        # Assert
-        no_reminders = {"notification_count": 0, "email_count": 0}
-        self.assertEqual(second_day_result, no_reminders)
-        self.assertEqual(third_day_result, no_reminders)
-        self.assertEqual(self.notif_qs.count(), 1)
-        self.assertEqual(len(mail.outbox), 1)
-
-    def test_notifies_again_in_the_next_period(self) -> None:
-        """Create the midmonth alert without sending a second monthly email."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal(25))
-        send_funding_credits_reminders(send_email=True)
-        # Act
-        self.now.return_value = datetime(2026, 11, 15, 16, tzinfo=UTC)
-        result = send_funding_credits_reminders()
-        # Assert
-        self.assertEqual(result, {"notification_count": 1, "email_count": 0})
-        self.assertEqual(self.notif_qs.count(), 2)
-        self.assertEqual(len(mail.outbox), 1)
-
-    def test_emails_again_next_month(self) -> None:
-        """Send the next monthly email once the calendar month changes."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal(25))
-        send_funding_credits_reminders(send_email=True)
-        # Act
-        self.now.return_value = datetime(2026, 12, 1, 16, tzinfo=UTC)
-        result = send_funding_credits_reminders(send_email=True)
-        # Assert
-        self.assertEqual(result, {"notification_count": 1, "email_count": 1})
-        self.assertEqual(len(mail.outbox), 2)
-
-    def test_emails_only_credits_worth_at_least_one_dollar(self) -> None:
-        """Notify small balances while reserving email for balances worth $1."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal("1.99"))
-        # Act
-        send_funding_credits_reminders(send_email=True)
-        small_balance_email_count = len(mail.outbox)
-        self._add_funding_credit(self.user, Decimal("0.01"))
-        send_funding_credits_reminders(send_email=True)
-        # Assert
-        self.assertEqual(small_balance_email_count, 0)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(self.notif_qs.count(), 1)
-        self.assertIn("$1 in unused funding credits", mail.outbox[0].subject)
-
-    def test_skips_ineligible_accounts(self) -> None:
-        """Exclude inactive, suspended and probable-spammer recipients."""
-        # Arrange
-        self._add_funding_credit(self.user, Decimal(50))
-        # Act
-        results = []
-        for flags in (
-            {"is_active": False},
-            {"is_suspended": True},
-            {"probable_spammer": True},
-        ):
-            User.objects.filter(pk=self.user.pk).update(
-                **{
-                    "is_active": True,
-                    "is_suspended": False,
-                    "probable_spammer": False,
-                    **flags,
-                }
-            )
-            results.append(send_funding_credits_reminders(send_email=True))
-        # Assert
-        self.assertEqual(
-            results, [{"notification_count": 0, "email_count": 0}] * len(results)
-        )
-        self.assertFalse(self.notif_qs.exists())
-        self.assertEqual(len(mail.outbox), 0)

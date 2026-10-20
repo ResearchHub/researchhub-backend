@@ -121,13 +121,12 @@ class EmailService:
         cta_label: str | None = None,
         heading: str | None = None,
         is_html: bool = False,
-    ) -> int:
+    ) -> None:
         """Send an opt-out-aware message with an optional action link.
 
         Set `is_html` only for messages already escaped by the caller.
-        Return the number of messages the backend accepted.
         """
-        return self.send_email(
+        self.send_email(
             recipients,
             subject,
             {
