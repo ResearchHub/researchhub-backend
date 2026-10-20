@@ -37,6 +37,9 @@ _TRAILING = ".,;:!?)]}>*_'\""
 # A URL the user wrote without its scheme: a word at a boundary, not the tail of a
 # longer host or URL such as "www.example.org" or "?u=example.org".
 _BARE = re.compile(r"(?<![^\s(\[{<\"'`*,;|])[^\s<>\"'`|#(\[{*,;]+[^\s<>\"'`|#]*")
+# Any run of URL characters, for reading the model's own text.
+_WORD = re.compile(r"[^\s<>\"'`|#]+")
+_OPENERS = "([{<*,;|"
 _HOST_LABEL = re.compile(r"(?!-)[a-z0-9_-]{1,63}(?<!-)", re.IGNORECASE)
 # Control characters, which urlsplit drops silently, and lone surrogates, which
 # cannot be encoded into a request.
@@ -103,14 +106,15 @@ def mentioned(url: str, context: Sequence[Message]) -> bool:
 
 
 def _derived(url: str, written: str) -> bool:
-    """Whether ``url`` is ``written``, perhaps with query parameters added."""
+    """Whether ``url`` is ``written``, perhaps over the other scheme or with query
+    parameters added."""
     if url == written:
         return True
     have, wrote = yarl.URL(url), yarl.URL(written)
-    if (have.scheme, have.raw_host, have.port, have.raw_path) != (
-        wrote.scheme,
+    # explicit_port is None for a scheme's default port, so http and https match.
+    if (have.raw_host, have.explicit_port, have.raw_path) != (
         wrote.raw_host,
-        wrote.port,
+        wrote.explicit_port,
         wrote.raw_path,
     ):
         return False
@@ -161,7 +165,7 @@ def _written_urls(context: Sequence[Message]) -> set[str]:
         # A tool may echo an input entity-encoded: "?a=1&amp;b=2".
         for reading in [*_readings(text), html.escape(text, quote=False)]
         # Or add the scheme the model left off.
-        for url in _urls_in(reading) | _bare_urls_in(reading)
+        for url in _urls_in(reading) | _bare_urls_in(reading, strict=False)
     }
 
 
@@ -187,12 +191,20 @@ def _urls_in(text: str) -> set[str]:
     }
 
 
-def _bare_urls_in(text: str) -> set[str]:
+def _bare_urls_in(text: str, *, strict: bool = True) -> set[str]:
+    """URLs written without a scheme: in ``strict`` mode only dotted words at a
+    boundary, as the user would type them; otherwise any word, so that nothing the
+    model wrote (an IPv6 literal, a dotless host) escapes."""
+    if strict:
+        tokens = {m.group() for m in _BARE.finditer(text) if "." in m.group()}
+    else:
+        words = [m.group() for m in _WORD.finditer(text)]
+        tokens = {*words, *(word.lstrip(_OPENERS) for word in words)}
     return {
         url
-        for match in _BARE.finditer(text)
-        if "." in match.group() and "://" not in match.group()
-        for form in _forms(match.group())
+        for token in tokens
+        if "://" not in token
+        for form in _forms(token)
         # Written without a scheme, or protocol-relative, it may be fetched over either.
         for scheme in ("https", "http")
         if (url := _canonical(f"{scheme}://{form.removeprefix('//')}"))

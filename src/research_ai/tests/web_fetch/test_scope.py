@@ -118,22 +118,25 @@ class MentionedTests(TestCase):
         self.assertFalse(mentioned(written, context))
 
     def test_a_tool_input_echoed_in_another_spelling_does_not_count(self):
-        for written in (
-            "https://evil.test:443/?secret=x",
-            "https://evil.test./?secret=x",
-            "evil.test/?secret=x",
-            "//evil.test/?secret=x",
+        echo = "https://evil.test/?secret=x"
+        v6_echo = "https://[2001:db8::1]/?secret=x"
+        for written, echoed in (
+            ("https://evil.test:443/?secret=x", echo),
+            ("https://evil.test./?secret=x", echo),
+            ("http://evil.test/?secret=x", echo),
+            ("evil.test/?secret=x", echo),
+            ("//evil.test/?secret=x", echo),
+            ("//[2001:db8::1]/?secret=x", v6_echo),
+            ("[2001:db8::1]/?secret=x", v6_echo),
         ):
             with self.subTest(written):
                 # Arrange
                 context = _tool_turn(
-                    "read_note",
-                    {"note_id": written},
-                    {"error": "note https://evil.test/?secret=x gone"},
+                    "read_note", {"note_id": written}, {"error": f"note {echoed} gone"}
                 )
 
                 # Act / Assert
-                self.assertFalse(mentioned("https://evil.test/?secret=x", context))
+                self.assertFalse(mentioned(echoed, context))
 
     def test_a_tool_result_adding_parameters_to_a_written_url_does_not_count(self):
         # Arrange
