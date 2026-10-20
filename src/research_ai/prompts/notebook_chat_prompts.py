@@ -1,9 +1,10 @@
 """Prompt builder for the notebook chat assistant.
 
-The system prompt pins the agent to one note (id + title) and states the
+The system prompt pins the agent to one note by id and states the
 tool contract: research via OpenAlex/web tools, note edits via bounded read_note /
-edit_note block operations. The user prompt is the user's chat
-message verbatim, so there is no user-prompt builder here.
+edit_note block operations. It leaves out the title, which read_note returns,
+so a rename does not change the prompt the provider caches. The user prompt is
+the user's chat message verbatim, so there is no user-prompt builder here.
 """
 
 from research_ai.prompts._loader import load_template
@@ -57,8 +58,6 @@ def build_notebook_chat_system_prompt(note) -> str:
     """The system prompt for a conversation attached to ``note``."""
     template = load_template("notebook_chat_system.txt")
     capability = _CAPABILITY_BY_DOCUMENT_TYPE.get(note.document_type, "")
-    return (
-        template.replace("{{NOTE_ID}}", str(note.id))
-        .replace("{{NOTE_TITLE}}", str(note.title or "Untitled"))
-        .replace("{{DOCUMENT_TYPE_CAPABILITY}}", capability)
+    return template.replace("{{NOTE_ID}}", str(note.id)).replace(
+        "{{DOCUMENT_TYPE_CAPABILITY}}", capability
     )

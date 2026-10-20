@@ -93,7 +93,6 @@ class AssistantChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertNotIn("note_id", execution.configuration)
         self.assertIn("create_note", execution.system_prompt)
-        self.assertIn("has not created any notes yet", execution.system_prompt)
         self.conversation.refresh_from_db()
         self.assertEqual(self.conversation.title, "Draft a proposal outline.")
         delay.assert_called_once_with(execution.id)
@@ -250,19 +249,23 @@ class AssistantChatServiceTests(TestCase):
 
         # Act
         second, _delay = self._submit("Read both notes.")
-        result = self._run(
-            second,
+        provider = LazyProvider(
             [
                 tool_turn("t2", "read_note", {"note_id": other_note.id}),
                 tool_turn("t3", "read_note", {"note_id": own_note.id}),
                 text_turn("Done."),
-            ],
+            ]
         )
+        result = _make_service(provider=provider).run_turn(second.id)
 
-        # Assert: the prompt names the created note; the other note is
-        # invisible even though the user could open it in the notebook.
-        self.assertIn(f"note {own_note.id}", second.system_prompt)
-        self.assertNotIn(f"note {other_note.id}", second.system_prompt)
+        # Assert: the turn's prompt names the created note, and the system
+        # prompt stays as it was so the turn can hit the cache. The other note
+        # is invisible even though the user could open it in the notebook.
+        prompt = provider.calls[0][-1].content[0].text
+        self.assertIn(f'note {own_note.id} ("Mine")', prompt)
+        self.assertNotIn(f"note {other_note.id}", prompt)
+        self.assertTrue(prompt.endswith("Read both notes."))
+        self.assertEqual(second.system_prompt, execution.system_prompt)
         self.assertEqual(result["final_text"], "Done.")
         reads = [
             event for event in self._activity(1) if event.get("tool") == "read_note"
