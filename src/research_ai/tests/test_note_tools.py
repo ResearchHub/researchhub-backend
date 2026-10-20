@@ -434,8 +434,8 @@ class NoteToolsetTests(TestCase):
             },
         )
 
-        # Assert: the error names the edit and the attribute; nothing saved.
-        self.assertIn("edits[0]", result["error"])
+        # Assert: the error names the block and the attribute; nothing saved.
+        self.assertIn("edits[0].blocks[0]", result["error"])
         self.assertIn("idd", result["error"])
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, seeded.id)
@@ -490,14 +490,16 @@ class NoteToolsetTests(TestCase):
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, self.content.id)
 
-    def test_edit_note_recovers_from_encoded_edits_without_partial_save(self):
-        # Arrange
+    def test_edit_note_recovers_from_malformed_encoded_edits_without_partial_save(
+        self,
+    ):
+        # Arrange: a JSON string that does not decode is still rejected.
         edits = _insert(["Intended paragraph"])
         version_count = NoteContent.objects.filter(note=self.note).count()
         args = {
             "note_id": self.note.id,
             "expected_version_id": self.content.id,
-            "edits": json.dumps(edits),
+            "edits": json.dumps(edits)[:-1],
         }
 
         # Act

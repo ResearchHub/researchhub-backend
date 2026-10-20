@@ -1,3 +1,4 @@
+import re
 import unittest
 
 from research_ai.services.note_block_edits import (
@@ -5,7 +6,9 @@ from research_ai.services.note_block_edits import (
     apply_block_edits,
     check_block_edits,
     parse_block_edits,
+    parse_edit_blocks,
 )
+from utils.prosemirror import BLOCK_EDITOR
 
 BASE = ["a", "b", "c", "d"]
 
@@ -51,11 +54,20 @@ class ParseBlockEditsTests(unittest.TestCase):
             with self.subTest(name), self.assertRaises(ValueError):
                 parse_block_edits(raw)
 
-    def test_rejects_encoded_edits_with_array_guidance(self):
-        # Arrange: both valid and malformed JSON must remain rejected strings.
+    def test_accepts_edits_encoded_as_a_json_array(self):
+        # Act
+        edits = parse_block_edits(
+            '[{"op": "insert", "at": 0, "blocks": ["Paragraph"]}]'
+        )
+
+        # Assert
+        self.assertEqual(edits, [BlockEdit(op="insert", at=0, blocks=["Paragraph"])])
+
+    def test_rejects_strings_that_are_not_an_encoded_array(self):
+        # Arrange
         inputs = [
-            '[{"op": "insert", "at": 0, "blocks": ["Paragraph"]}]',
             '[{"op": "insert", "at": 0, "blocks": ["Unescaped "quote""]}]',
+            '{"op": "insert", "at": 0, "blocks": ["Paragraph"]}',
         ]
 
         # Act
@@ -97,10 +109,13 @@ class ParseBlockEditsTests(unittest.TestCase):
                 {"op": "delete", "from": 0, "to": 0, "blocks": ["x"]},
                 "delete takes no blocks",
             ),
-            "insert without blocks": ({"op": "insert", "at": 0}, "'blocks' must be"),
+            "insert without blocks": (
+                {"op": "insert", "at": 0},
+                "insert needs 'blocks'",
+            ),
             "replace with empty blocks": (
                 {"op": "replace", "from": 0, "to": 0, "blocks": []},
-                "'blocks' must be",
+                "'blocks' is empty, so no content was sent",
             ),
         }
 
@@ -110,6 +125,63 @@ class ParseBlockEditsTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message) as caught:
                     parse_block_edits([{"op": "delete", "from": 9, "to": 9}, op])
                 self.assertIn("edits[1]", str(caught.exception))
+
+
+class ParseEditBlocksTests(unittest.TestCase):
+    def test_wraps_bare_text_in_list_items_in_a_paragraph(self):
+        # Arrange: a run of inline content becomes one paragraph.
+        bold = {"type": "text", "text": "Term", "marks": [{"type": "bold"}]}
+        sent = {
+            "type": "bulletList",
+            "content": [{"type": "listItem", "content": [bold, ": meaning"]}],
+        }
+        canonical = {
+            "type": "bulletList",
+            "content": [
+                {
+                    "type": "listItem",
+                    "content": [{"type": "paragraph", "content": [bold, ": meaning"]}],
+                }
+            ],
+        }
+
+        # Act
+        blocks = parse_edit_blocks(BLOCK_EDITOR, [sent], "edits[0].blocks")
+
+        # Assert
+        self.assertEqual(blocks, parse_edit_blocks(BLOCK_EDITOR, [canonical], "p"))
+
+    def test_rejections_name_the_path_and_expected_shape(self):
+        # Arrange
+        cases = {
+            "text without text": (
+                ["x", {"type": "paragraph", "content": ["a", {"type": "text"}]}],
+                re.escape('edits[0].blocks[1].content[1]: text node needs "text"'),
+            ),
+            "node without type": (
+                [{"content": ["a"]}],
+                re.escape('edits[0].blocks[0]: node needs "type"'),
+            ),
+            "unknown node type": (
+                [{"type": "blockquote", "content": ["q"]}],
+                r"edits\[0\]\.blocks\[0\]: unknown node type 'blockquote'.*"
+                r"allowed types: .*blockMath",
+            ),
+            "unknown mark": (
+                [{"type": "text", "text": "a", "marks": [{"type": "bolld"}]}],
+                r"edits\[0\]\.blocks\[0\]\.marks\[0\]: .*one of .*italic",
+            ),
+            "bad nesting": (
+                ["x", {"type": "bulletList", "content": ["item"]}],
+                r"edits\[0\]\.blocks\[1\]: .*bulletList content must match "
+                r"'listItem\+'",
+            ),
+        }
+
+        # Act & Assert
+        for name, (blocks, message) in cases.items():
+            with self.subTest(name), self.assertRaisesRegex(ValueError, message):
+                parse_edit_blocks(BLOCK_EDITOR, blocks, "edits[0].blocks")
 
 
 class CheckBlockEditsTests(unittest.TestCase):

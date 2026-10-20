@@ -10,11 +10,17 @@ model send only the blocks it changes instead of regenerating the document.
 Parsing, bounds checking, and applying are separate steps because they have
 different inputs: parsing sees only the tool call, bounds checking needs the
 current block count (read under the note lock), and between the two the
-caller schema-validates each operation's payload blocks. All errors are
-``ValueError`` with messages written for the model.
+caller schema-validates each operation's payload blocks with
+``parse_edit_blocks``. All errors are ``ValueError`` with messages written
+for the model, naming the path of the problem (``edits[0].blocks[3]...``).
+Slips with one obvious meaning are fixed instead of rejected.
 """
 
+import json
+import re
 from dataclasses import dataclass
+
+from utils.prosemirror import get_schema, parse_blocks
 
 INSERT = "insert"
 REPLACE = "replace"
@@ -40,6 +46,10 @@ def parse_block_edits(raw) -> list[BlockEdit]:
     ``check_block_edits``.
     """
     if isinstance(raw, str):
+        # Some models JSON-encode the array despite the schema; take it when
+        # it decodes to one.
+        raw = _decode_json_array(raw)
+    if isinstance(raw, str):
         raise ValueError(
             "edits must be a non-empty array of operations, not a JSON string. "
             "Pass the array directly; do not quote or JSON-encode it. "
@@ -52,6 +62,26 @@ def parse_block_edits(raw) -> list[BlockEdit]:
             '(e.g. [{"op": "replace", "from": 1, "to": 2, "blocks": [...]}])'
         )
     return [_parse_edit(i, item) for i, item in enumerate(raw)]
+
+
+def parse_edit_blocks(schema_name: str, blocks: list, path: str) -> list[dict]:
+    """Fix, check, and schema-validate one edit's compact ``blocks``.
+
+    Returns canonical block dicts as ``parse_blocks`` does. Each block is
+    parsed on its own so a schema error names the block it is in.
+    """
+    schema = get_schema(schema_name)
+    parsed = []
+    for i, block in enumerate(blocks):
+        block_path = f"{path}[{i}]"
+        block = _prepare_child(schema, block, block_path)
+        try:
+            parsed.extend(parse_blocks(schema_name, [block]))
+        except ValueError as exc:
+            raise ValueError(
+                f"{block_path}: {exc}{_content_hint(schema, str(exc))}"
+            ) from exc
+    return parsed
 
 
 def check_block_edits(edits: list[BlockEdit], block_count: int) -> None:
@@ -88,6 +118,15 @@ def apply_block_edits(blocks: list, edits: list[BlockEdit]) -> list:
 
 
 # -- parsing ----------------------------------------------------------------
+
+
+def _decode_json_array(raw: str) -> list | str:
+    """The array ``raw`` encodes, else ``raw`` unchanged."""
+    try:
+        decoded = json.loads(raw)
+    except ValueError:
+        return raw
+    return decoded if isinstance(decoded, list) else raw
 
 
 def _parse_edit(index: int, item) -> BlockEdit:
@@ -141,11 +180,124 @@ def _parse_index(index: int, item: dict, field: str) -> int:
 
 def _parse_blocks_field(index: int, item: dict) -> list:
     blocks = item.get("blocks")
-    if not isinstance(blocks, list) or not blocks:
+    if blocks == []:
         raise ValueError(
-            f"edits[{index}]: 'blocks' must be a non-empty array of new blocks"
+            f"edits[{index}]: 'blocks' is empty, so no content was sent. Put "
+            "the new blocks in it; if a long section keeps arriving empty, "
+            "send it in smaller edit_note calls. To remove blocks, use delete"
+        )
+    if not isinstance(blocks, list):
+        raise ValueError(
+            f"edits[{index}]: {item['op']} needs 'blocks', an array of new blocks"
         )
     return blocks
+
+
+# -- payload blocks ------------------------------------------------------------
+
+_TEXT_EXAMPLE = '{"type": "text", "text": "words", "marks": [{"type": "bold"}]}'
+_TYPE_HINTS = {
+    "blockquote": (
+        "; for a quotation use "
+        '{"type": "blockquoteFigure", "content": [{"type": "quote", '
+        '"content": [paragraphs]}, {"type": "quoteCaption"}]}'
+    ),
+}
+_JSON_TYPES = {
+    dict: "object",
+    list: "array",
+    str: "string",
+    bool: "boolean",
+    int: "number",
+    float: "number",
+    type(None): "null",
+}
+
+
+def _prepare_child(schema, child, path: str):
+    """``child`` with fixes applied; bare strings are text (or paragraphs)."""
+    if isinstance(child, str):
+        return child
+    if not isinstance(child, dict):
+        raise ValueError(
+            f"{path}: expected a node object or a string, "
+            f"got {_JSON_TYPES.get(type(child), type(child).__name__)}"
+        )
+    type_name = child.get("type")
+    if not isinstance(type_name, str):
+        raise ValueError(
+            f'{path}: node needs "type", e.g. '
+            '{"type": "paragraph", "content": ["text"]}'
+        )
+    node_type = schema.nodes.get(type_name)
+    if node_type is None or node_type is schema.top_node_type:
+        allowed = ", ".join(n for n in schema.nodes if n != schema.top_node_type.name)
+        raise ValueError(
+            f"{path}: unknown node type {type_name!r}"
+            f"{_TYPE_HINTS.get(type_name, '')}; allowed types: {allowed}"
+        )
+    if node_type.is_text and not (isinstance(child.get("text"), str) and child["text"]):
+        raise ValueError(
+            f'{path}: text node needs "text", a non-empty string: {_TEXT_EXAMPLE}'
+        )
+    marks = child.get("marks")
+    for j, mark in enumerate(marks if isinstance(marks, list) else ()):
+        mark_type = mark.get("type") if isinstance(mark, dict) else None
+        if mark_type not in schema.marks:
+            raise ValueError(
+                f'{path}.marks[{j}]: a mark is {{"type": ...}} with type one of '
+                f"{', '.join(schema.marks)}; got {json.dumps(mark)}"
+            )
+    content = child.get("content")
+    if content is None:
+        return child
+    if not isinstance(content, list):
+        raise ValueError(f"{path}.content: expected an array of nodes")
+    prepared = []
+    for k, grandchild in enumerate(content):
+        grandchild_path = f"{path}.content[{k}]"
+        if grandchild == "":
+            raise ValueError(f"{grandchild_path}: empty text is not allowed; omit it")
+        prepared.append(_prepare_child(schema, grandchild, grandchild_path))
+    if not node_type.inline_content and node_type.content_match.match_type(
+        schema.nodes["paragraph"]
+    ):
+        prepared = _wrap_inline_runs(schema, prepared)
+    return {**child, "content": prepared}
+
+
+def _wrap_inline_runs(schema, content: list) -> list:
+    # Bare text in a block container (listItem, tableCell, ...) can only
+    # mean a paragraph.
+    wrapped: list = []
+    run: list = []
+    for node in content:
+        if _is_inline(schema, node):
+            run.append(node)
+            continue
+        if run:
+            wrapped.append({"type": "paragraph", "content": run})
+            run = []
+        wrapped.append(node)
+    if run:
+        wrapped.append({"type": "paragraph", "content": run})
+    return wrapped
+
+
+def _is_inline(schema, node) -> bool:
+    if isinstance(node, str):
+        return True
+    node_type = schema.nodes.get(node.get("type"))
+    return node_type is not None and node_type.is_inline
+
+
+def _content_hint(schema, message: str) -> str:
+    # prosemirror-py reports bad nesting as "Invalid content for node <name>".
+    match = re.match(r"Invalid content for node (\w+)", message)
+    node_type = schema.nodes.get(match.group(1)) if match else None
+    if node_type is None or not node_type.spec.get("content"):
+        return ""
+    return f" ({node_type.name} content must match {node_type.spec['content']!r})"
 
 
 # -- bounds and overlap -------------------------------------------------------
