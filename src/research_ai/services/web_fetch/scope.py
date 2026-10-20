@@ -42,7 +42,11 @@ def clean_url(url) -> str:
     try:
         url = urldefrag(url).url
         parts = urlsplit(url)
+        # Raises on a port that is not a number from 0 to 65535.
+        port = parts.port
     except ValueError:
+        raise UrlNotAllowedError("url is not a valid URL")
+    if port == 0:
         raise UrlNotAllowedError("url is not a valid URL")
     if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
         raise UrlNotAllowedError("only http and https URLs can be fetched")

@@ -174,6 +174,9 @@ class CleanUrlTests(TestCase):
             "https://u:p@example.org/",
             "https:///x",
             "http://[#top",
+            "https://example.org:bad/",
+            "https://example.org:99999/",
+            "https://example.org:0/",
         ):
             # Act / Assert
             with self.subTest(url), self.assertRaises(UrlNotAllowedError):

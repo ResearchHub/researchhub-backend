@@ -80,4 +80,7 @@ def _document_base(base_url: str, href: str) -> str:
         resolved = urljoin(base_url, href)
     except ValueError:
         return base_url
-    return resolved if urlsplit(resolved).scheme in ("http", "https") else base_url
+    parts = urlsplit(resolved)
+    if parts.scheme in ("http", "https") and parts.hostname:
+        return resolved
+    return base_url
