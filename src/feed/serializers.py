@@ -1370,6 +1370,51 @@ class ActivityFeedEntrySerializer(FeedEntrySerializer):
     def get_nonprofit(self, obj):
         return _serialize_feed_entry_nonprofit(obj)
 
+    def get_content_object(self, obj):
+        return _slim_activity_content(super().get_content_object(obj))
+
+
+# What activity clients read from each comment up a reply chain. The rest of a
+# parent (its document, with that document's fundraise and reviews) repeats what
+# the entry already carries.
+ACTIVITY_PARENT_COMMENT_FIELDS = (
+    "id",
+    "author",
+    "comment_content_json",
+    "comment_content_type",
+    "comment_type",
+)
+
+
+def _slim_parent_comment(parent):
+    if not isinstance(parent, dict):
+        return parent
+    slim = {key: parent[key] for key in ACTIVITY_PARENT_COMMENT_FIELDS if key in parent}
+    slim["parent_comment"] = _slim_parent_comment(parent.get("parent_comment"))
+    return slim
+
+
+def _slim_activity_content(content):
+    """An activity entry's content object, without the copies it doesn't need.
+
+    A work's review list is left out of the post or paper, and of the one a
+    comment is on: ``related_work`` carries the work's peer reviews instead.
+    A comment's own ``review`` stays. Parent comments keep only what
+    ``ACTIVITY_PARENT_COMMENT_FIELDS`` names.
+
+    Returns a copy; the content stored on the feed entry is left as it is.
+    """
+    if not isinstance(content, dict):
+        return content
+    slim = {key: value for key, value in content.items() if key != "reviews"}
+    for work_key in ("post", "paper"):
+        work = slim.get(work_key)
+        if isinstance(work, dict):
+            slim[work_key] = {k: v for k, v in work.items() if k != "reviews"}
+    if "parent_comment" in slim:
+        slim["parent_comment"] = _slim_parent_comment(slim["parent_comment"])
+    return slim
+
 
 def serialize_feed_metrics(item, item_content_type):
     """
