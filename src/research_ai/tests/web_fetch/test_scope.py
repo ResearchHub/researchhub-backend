@@ -118,15 +118,20 @@ class MentionedTests(TestCase):
         self.assertFalse(mentioned(written, context))
 
     def test_a_tool_input_echoed_in_another_spelling_does_not_count(self):
-        # Arrange
-        context = _tool_turn(
-            "read_note",
-            {"note_id": "https://evil.test:443/?secret=x"},
-            {"error": "note https://evil.test/?secret=x gone"},
-        )
+        for written in (
+            "https://evil.test:443/?secret=x",
+            "https://evil.test./?secret=x",
+        ):
+            with self.subTest(written):
+                # Arrange
+                context = _tool_turn(
+                    "read_note",
+                    {"note_id": written},
+                    {"error": "note https://evil.test/?secret=x gone"},
+                )
 
-        # Act / Assert
-        self.assertFalse(mentioned("https://evil.test/?secret=x", context))
+                # Act / Assert
+                self.assertFalse(mentioned("https://evil.test/?secret=x", context))
 
     def test_a_server_search_for_a_url_the_model_wrote_does_not_count(self):
         # Arrange
@@ -240,6 +245,7 @@ class CleanUrlTests(TestCase):
             "https://example.org:bad/",
             "https://example.org:0/",
             "https://exa mple.org/a",
+            "https://exa\nmple.org/a",
             "https://a..b/",
         ):
             # Act / Assert

@@ -6,6 +6,8 @@ from urllib.parse import urljoin, urlsplit
 from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter
 
+from research_ai.services.web_fetch.scope import valid_host
+
 _DROPPED_TAGS = (
     "script",
     "style",
@@ -83,6 +85,11 @@ def _document_base(base_url: str, href: str) -> str:
         port = parts.port
     except ValueError:
         return base_url
-    if parts.scheme in ("http", "https") and parts.hostname and port != 0:
+    if (
+        parts.scheme in ("http", "https")
+        and parts.hostname
+        and valid_host(parts.hostname)
+        and port != 0
+    ):
         return resolved
     return base_url

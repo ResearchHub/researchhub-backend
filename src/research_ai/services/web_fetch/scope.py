@@ -36,6 +36,8 @@ _TRAILING = ".,;:!?)]}>*_'\""
 # longer host or URL such as "www.example.org" or "?u=example.org".
 _BARE = re.compile(r"(?<![^\s(\[{<\"'`*,;|])[^\s<>\"'`|#(\[{*,;]+[^\s<>\"'`|#]*")
 _HOST_LABEL = re.compile(r"(?!-)[a-z0-9_-]{1,63}(?<!-)", re.IGNORECASE)
+# urlsplit drops these silently, so a URL holding one is not the URL it parsed as.
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 
 class UrlNotAllowedError(ValueError):
@@ -49,6 +51,8 @@ def clean_url(url) -> str:
         raise UrlNotAllowedError("url is required")
     if len(url) > MAX_URL_CHARS:
         raise UrlNotAllowedError(f"url exceeds {MAX_URL_CHARS} characters")
+    if _CONTROL.search(url):
+        raise UrlNotAllowedError(_INVALID_URL)
     try:
         url = urldefrag(url).url
         parts = urlsplit(url)
@@ -60,14 +64,14 @@ def clean_url(url) -> str:
         raise UrlNotAllowedError(_INVALID_URL)
     if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
         raise UrlNotAllowedError("only http and https URLs can be fetched")
-    if not _valid_host(parts.hostname):
+    if not valid_host(parts.hostname):
         raise UrlNotAllowedError(_INVALID_URL)
     if parts.username is not None or parts.password is not None:
         raise UrlNotAllowedError("URLs with credentials cannot be fetched")
     return url
 
 
-def _valid_host(host: str) -> bool:
+def valid_host(host: str) -> bool:
     """Whether ``host`` is an IP address or a DNS name, Unicode ones included."""
     if ":" in host:
         try:
@@ -182,14 +186,21 @@ def _forms(token: str) -> Iterator[str]:
 
 
 def _canonical(url: str) -> str | None:
-    """``url`` in one spelling: lowercase scheme and host, no default port or
-    fragment, "/" for an empty path, unreserved characters decoded."""
+    """``url`` in one spelling: lowercase scheme and host without a trailing dot,
+    no default port or fragment, "/" for an empty path, unreserved characters
+    decoded."""
     try:
         parsed = yarl.URL(url)
     except ValueError:
         return None
     if parsed.scheme not in ("http", "https") or not parsed.host:
         return None
+    # "evil.test." and "evil.test" are one DNS name.
+    if parsed.raw_host.endswith("."):
+        host = parsed.raw_host.rstrip(".")
+        if not host:
+            return None
+        parsed = parsed.with_host(host)
     # yarl prints "https://host" without its root slash unless a query follows.
     if parsed.raw_path == "/" and not parsed.raw_query_string:
         parsed = parsed.with_path("/")
