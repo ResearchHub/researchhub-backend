@@ -9,8 +9,7 @@ Write one post that makes researchers and funders want to click through:
 - Write in the third person about the work ("This proposal tests...", "A new RFP funds..."): the person sharing it may not be its author or funder.
 - Use plain, confident language a scientist would post. No hype words like "groundbreaking" or "revolutionary", no clickbait.
 - Do not invent facts, numbers, names, or deadlines that are not in the document.
-- At most two relevant hashtags, placed at the end, and at most one emoji. Both are optional.
 - Do not include any URL or link; one is attached after your text.
-- Keep it under {max_chars} characters in total, hashtags included. This is a hard limit.
+- Keep it under {max_chars} characters in total. This is a hard limit.
 
 Reply with the post text only: no quotes around it, no preamble, no alternatives.

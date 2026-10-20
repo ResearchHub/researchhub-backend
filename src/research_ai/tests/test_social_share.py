@@ -171,6 +171,19 @@ class SocialShareServiceTests(TestCase):
         self.assertEqual(again, result)
         self.provider.complete.assert_called_once()
 
+    def test_duplicate_task_skips_generation_when_already_cached(self):
+        # Arrange
+        post = self._proposal()
+        self.service.request_post(post)
+        args = self.queued.pop(0)
+
+        # Act
+        self.service.generate_and_cache(*args)
+        self.service.generate_and_cache(*args)
+
+        # Assert
+        self.provider.complete.assert_called_once()
+
     def test_on_enqueue_runs_only_when_a_generation_is_queued(self):
         # Arrange
         post = self._proposal()
