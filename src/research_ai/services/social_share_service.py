@@ -9,6 +9,7 @@ every sharer.
 import hashlib
 import logging
 import re
+import time
 
 from django.conf import settings
 from django.core.cache import cache as default_cache
@@ -65,6 +66,11 @@ REQUEST_TIMEOUT_SECONDS = 25
 
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 7
 
+# One request generates a post while concurrent requests for it wait. The lock
+# outlives the slowest generation: two attempts, each a request and one retry.
+GENERATION_LOCK_SECONDS = GENERATION_ATTEMPTS * 2 * REQUEST_TIMEOUT_SECONDS + 10
+WAIT_POLL_SECONDS = 0.5
+
 _URL_PATTERN = re.compile(r"https?://\S+")
 _WRAPPING_QUOTES = "\"'“”‘’"
 
@@ -85,9 +91,15 @@ def _default_provider() -> LLMProvider:
 
 
 class SocialShareService:
-    def __init__(self, provider: LLMProvider | None = None, cache=default_cache):
+    def __init__(
+        self,
+        provider: LLMProvider | None = None,
+        cache=default_cache,
+        sleep=time.sleep,
+    ):
         self._provider = provider
         self._cache = cache
+        self._sleep = sleep
 
     def share_post_text(self, post: ResearchhubPost) -> str:
         """The share post for ``post``, generated once per version of its content."""
@@ -102,9 +114,28 @@ class SocialShareService:
         if cached:
             return cached
 
-        text = self._generate(user_prompt)
-        self._cache.set(key, text, CACHE_TTL_SECONDS)
+        lock_key = f"lock:{key}"
+        if not self._cache.add(lock_key, True, GENERATION_LOCK_SECONDS):
+            return self._wait_for_post(key, lock_key)
+        try:
+            text = self._generate(user_prompt)
+            self._cache.set(key, text, CACHE_TTL_SECONDS)
+        finally:
+            self._cache.delete(lock_key)
         return text
+
+    def _wait_for_post(self, key: str, lock_key: str) -> str:
+        """The post another request is generating, once it lands."""
+        deadline = time.monotonic() + GENERATION_LOCK_SECONDS
+        while time.monotonic() < deadline:
+            self._sleep(WAIT_POLL_SECONDS)
+            cached = self._cache.get(key)
+            if cached:
+                return cached
+            if self._cache.get(lock_key) is None:
+                break
+        # The generating request failed or stalled; its caller falls back too.
+        raise SharePostGenerationError("concurrent generation produced no post")
 
     def _generate(self, user_prompt: str) -> str:
         if self._provider is None:

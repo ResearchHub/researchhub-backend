@@ -130,6 +130,64 @@ class SocialShareServiceTests(TestCase):
         self.assertEqual(second, first)
         self.provider.complete.assert_called_once()
 
+    def test_concurrent_request_waits_for_the_post_being_generated(self):
+        # Arrange
+        post = create_post(
+            title="Mapping tau spread",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        cache = MagicMock()
+        cache.add.return_value = False
+        # First lookup misses, one poll finds the lock still held, the next the post.
+        cache.get.side_effect = [None, None, True, "Shared post"]
+        service = SocialShareService(
+            provider=self.provider, cache=cache, sleep=lambda _: None
+        )
+
+        # Act
+        text = service.share_post_text(post)
+
+        # Assert
+        self.assertEqual(text, "Shared post")
+        self.provider.complete.assert_not_called()
+
+    def test_concurrent_request_gives_up_when_generation_fails(self):
+        # Arrange
+        post = create_post(
+            title="Mapping tau spread",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        cache = MagicMock()
+        cache.add.return_value = False
+        cache.get.return_value = None
+        service = SocialShareService(
+            provider=self.provider, cache=cache, sleep=lambda _: None
+        )
+
+        # Act / Assert
+        with self.assertRaises(SharePostGenerationError):
+            service.share_post_text(post)
+        self.provider.complete.assert_not_called()
+
+    def test_lock_is_released_after_a_failed_generation(self):
+        # Arrange
+        post = create_post(
+            title="Mapping tau spread",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        self.provider.complete.side_effect = [ProviderError("down"), _turn("Ok.")]
+        with self.assertRaises(SharePostGenerationError):
+            self.service.share_post_text(post)
+
+        # Act
+        text = self.service.share_post_text(post)
+
+        # Assert
+        self.assertEqual(text, "Ok.")
+
     def test_regenerates_after_the_post_changes(self):
         # Arrange
         post = create_post(
