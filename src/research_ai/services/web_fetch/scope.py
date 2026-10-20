@@ -38,7 +38,8 @@ _TRAILING = ".,;:!?)]}>*_'\""
 _BARE = re.compile(r"(?<![^\s(\[{<\"'`*,;|])[^\s<>\"'`|#(\[{*,;]+[^\s<>\"'`|#]*")
 # Any run of URL characters, for reading the model's own text.
 _WORD = re.compile(r"[^\s<>\"'`|#]+")
-_OPENERS = "([{<*,;|"
+# Where a URL may start inside a word, as in "site:evil.test" or "?u=evil.test".
+_EMBED = re.compile(r"[(\[{<*,;|:=]")
 _HOST_LABEL = re.compile(r"(?!-)[a-z0-9_-]{1,63}(?<!-)", re.IGNORECASE)
 # Control characters, which urlsplit drops silently, and lone surrogates, which
 # cannot be encoded into a request.
@@ -110,7 +111,11 @@ def _derived(url: str, written: str) -> bool:
     A tool may switch the scheme or port, or add, drop or reorder query parameters,
     so none of those set a URL apart from the model's own."""
     have, wrote = yarl.URL(url), yarl.URL(written)
-    return (have.raw_host, have.raw_path) == (wrote.raw_host, wrote.raw_path)
+    # "/a/" and "/a" are routinely normalized into each other.
+    return (have.raw_host, have.raw_path.rstrip("/")) == (
+        wrote.raw_host,
+        wrote.raw_path.rstrip("/"),
+    )
 
 
 def _user_urls(context: Sequence[Message]) -> set[str]:
@@ -189,8 +194,12 @@ def _bare_urls_in(text: str, *, strict: bool = True) -> set[str]:
     if strict:
         tokens = {m.group() for m in _BARE.finditer(text) if "." in m.group()}
     else:
-        words = [m.group() for m in _WORD.finditer(text)]
-        tokens = {*words, *(word.lstrip(_OPENERS) for word in words)}
+        tokens = {
+            word[start:]
+            for m in _WORD.finditer(text)
+            for word in [m.group()]
+            for start in [0, *(e.end() for e in _EMBED.finditer(word))]
+        }
     return {
         url
         for token in tokens

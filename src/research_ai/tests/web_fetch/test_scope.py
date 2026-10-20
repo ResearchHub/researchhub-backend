@@ -126,6 +126,8 @@ class MentionedTests(TestCase):
             ("http://evil.test/?secret=x", echo),
             ("http://evil.test:443/?secret=x", echo),
             ("https://evil.test/?secret=x&utm_source=y", echo),
+            ("site:evil.test/?secret=x", echo),
+            ("https://evil.test/a/?secret=x", "https://evil.test/a?secret=x"),
             ("evil.test/?secret=x", echo),
             ("//evil.test/?secret=x", echo),
             ("//[2001:db8::1]/?secret=x", v6_echo),
