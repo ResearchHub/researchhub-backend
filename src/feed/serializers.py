@@ -225,11 +225,13 @@ class ContentObjectSerializer(serializers.Serializer):
     def get_reviews(self, obj):
         """Return reviews from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            reviews = obj.unified_document.reviews.all()
-
-            if not reviews.exists():
-                return []
-
+            # One query per document, with what the reviewer's author and
+            # `is_verified` read, rather than three more per review.
+            reviews = list(
+                obj.unified_document.reviews.select_related(
+                    "created_by__author_profile", "created_by__userverification"
+                )
+            )
             return SimpleReviewSerializer(reviews, many=True).data
         return []
 
