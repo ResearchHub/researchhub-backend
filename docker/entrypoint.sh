@@ -8,6 +8,7 @@ case "${1:-api}" in
       --port 8000 \
       --proxy-headers \
       --forwarded-allow-ips '*' \
+      --timeout-keep-alive 70 \
       --lifespan off \
       researchhub.asgi:application
     ;;
