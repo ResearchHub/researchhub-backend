@@ -2720,7 +2720,6 @@ dependencies = [
     { name = "channels-redis" },
     { name = "circle-developer-controlled-wallets" },
     { name = "cloudscraper" },
-    { name = "daphne" },
     { name = "dj-rest-auth", extra = ["with-mfa", "with-social"] },
     { name = "django" },
     { name = "django-allauth" },
@@ -2767,6 +2766,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "coverage" },
+    { name = "daphne" },
     { name = "pre-commit" },
     { name = "requests-mock" },
     { name = "responses" },
@@ -2793,7 +2793,6 @@ requires-dist = [
     { name = "channels-redis", specifier = ">=4.2.0,<5.0.0" },
     { name = "circle-developer-controlled-wallets", specifier = ">=9.2.0,<10.0.0" },
     { name = "cloudscraper", specifier = ">=1.2.60,<2.0.0" },
-    { name = "daphne", specifier = ">=4.2.2,<5.0.0" },
     { name = "dj-rest-auth", extras = ["with-mfa", "with-social"], specifier = ">=7.0.2,<8.0.0" },
     { name = "django", specifier = "==6.1.2" },
     { name = "django-allauth", specifier = ">=65.19.5,<66" },
@@ -2840,6 +2839,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "coverage", specifier = ">=7.6.1" },
+    { name = "daphne", specifier = ">=4.2.2,<5.0.0" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "requests-mock", specifier = ">=1.12.1,<2.0.0" },
     { name = "responses", specifier = ">=0.26.0" },
