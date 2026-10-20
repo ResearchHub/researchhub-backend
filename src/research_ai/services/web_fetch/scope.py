@@ -89,7 +89,7 @@ def _trusted_text(context: Sequence[Message]) -> Iterator[str]:
 
 def _trusted_strings(role: str, block) -> Iterable[str]:
     if role == "user" and isinstance(block, TextBlock):
-        return (block.text,)
+        return [block.text]
     if role == "user" and isinstance(block, ToolResultBlock):
         return _strings(block.content)
     if (
@@ -97,7 +97,7 @@ def _trusted_strings(role: str, block) -> Iterable[str]:
         and (block.data or {}).get("type") == _SERVER_SEARCH_RESULT
     ):
         return _strings(block.data)
-    return ()
+    return []
 
 
 def _written_urls(context: Sequence[Message]) -> re.Pattern | None:
@@ -117,13 +117,13 @@ def _written_urls(context: Sequence[Message]) -> re.Pattern | None:
     return re.compile(f"(?:{alternatives})(?={_URL_END.pattern})", re.IGNORECASE)
 
 
-def _readings(text: str, written: re.Pattern | None = None) -> tuple[str, ...]:
+def _readings(text: str, written: re.Pattern | None = None) -> list[str]:
     # Unescaping alone would break raw URLs such as "?a=1&copy=2".
-    readings = (text, html.unescape(text)) if "&" in text else (text,)
+    readings = [text, html.unescape(text)] if "&" in text else [text]
     if written is None:
         return readings
     # A tool may echo its input inside a longer string: "note <id> not found".
-    return tuple(written.sub(" ", reading) for reading in readings)
+    return [written.sub(" ", reading) for reading in readings]
 
 
 def _strings(value) -> Iterable[str]:
