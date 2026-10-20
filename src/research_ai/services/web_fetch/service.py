@@ -221,11 +221,17 @@ class WebFetchService:
         for _ in range(self.config.max_redirects + 1):
             if not self.config.allows_direct(current):
                 raise _DirectFetchError("not an open-access host")
-            if time.monotonic() > deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
                 raise _DirectFetchError("timed out")
+            # Per connect and per read, so a hop near the deadline gets what is left.
+            timeout = httpx.Timeout(
+                remaining, connect=min(remaining, self.config.connect_timeout_seconds)
+            )
             try:
                 response = self.http.send(
-                    self.http.build_request("GET", current), stream=True
+                    self.http.build_request("GET", current, timeout=timeout),
+                    stream=True,
                 )
             except httpx.HTTPError as exc:
                 raise _DirectFetchError(f"request failed ({type(exc).__name__})")
@@ -237,10 +243,10 @@ class WebFetchService:
                 response.close()
             if not location:
                 raise _DirectFetchError("redirect without a location")
-            current = urldefrag(urljoin(current, location)).url
             try:
+                current = urldefrag(urljoin(current, location)).url
                 clean_url(current)
-            except UrlNotAllowedError:
+            except ValueError:  # UrlNotAllowedError, or a malformed location
                 raise _DirectFetchError("redirected to a URL that cannot be fetched")
         raise _DirectFetchError("too many redirects")
 
