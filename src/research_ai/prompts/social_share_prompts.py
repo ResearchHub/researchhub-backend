@@ -16,13 +16,13 @@ def build_share_post_user_prompt(
     """User prompt describing the document the post shares.
 
     ``details`` are short "Label: value" lines (funding amount, organization,
-    deadline) that are only sometimes known.
+    deadline) that are only sometimes known. Every field is user-written, so
+    angle brackets are escaped to keep it from closing ``<document>`` early.
     """
     lines = [f"Type: {document_kind}", f"Title: {title}", *details]
-    return (
-        "<document>\n"
-        + "\n".join(lines)
-        + f"\n\nDescription:\n{body}\n"
-        + "</document>\n\n"
-        "Write the post."
-    )
+    document = "\n".join(lines) + f"\n\nDescription:\n{body}"
+    return f"<document>\n{_escape_tags(document)}\n</document>\n\nWrite the post."
+
+
+def _escape_tags(text: str) -> str:
+    return text.replace("<", "&lt;").replace(">", "&gt;")

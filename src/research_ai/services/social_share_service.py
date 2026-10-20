@@ -6,6 +6,7 @@ shares it, so one generation per document version is cached and served to
 every sharer.
 """
 
+import hashlib
 import logging
 import re
 
@@ -88,25 +89,29 @@ class SocialShareService:
         self._cache = cache
 
     def share_post_text(self, post: ResearchhubPost) -> str:
-        """The share post for ``post``, generated once per version of the post."""
-        key = f"research_ai:share_post:v1:{post.id}:{post.updated_date.timestamp()}"
+        """The share post for ``post``, generated once per version of its content."""
+        user_prompt = self._user_prompt(post)
+        # Keyed on the prompt itself: grants and fundraises are saved apart
+        # from the post, so its own timestamp misses their edits.
+        digest = hashlib.sha256(
+            f"{build_share_post_system_prompt(TARGET_POST_CHARS)}\0{user_prompt}".encode()
+        ).hexdigest()
+        key = f"research_ai:share_post:v2:{post.id}:{digest}"
         cached = self._cache.get(key)
         if cached:
             return cached
 
-        text = self._generate(post)
+        text = self._generate(user_prompt)
         self._cache.set(key, text, CACHE_TTL_SECONDS)
         return text
 
-    def _generate(self, post: ResearchhubPost) -> str:
+    def _generate(self, user_prompt: str) -> str:
         if self._provider is None:
             if not settings.OPENROUTER_API_KEY:
                 raise SharePostGenerationError("OPENROUTER_API_KEY is not configured")
             self._provider = _default_provider()
 
-        messages = [
-            Message(role="user", content=[TextBlock(text=self._user_prompt(post))])
-        ]
+        messages = [Message(role="user", content=[TextBlock(text=user_prompt)])]
         text = ""
         # Models miscount characters, so an overlong draft gets one rewrite
         # before it is cut, which reads worse than a post written to fit.
