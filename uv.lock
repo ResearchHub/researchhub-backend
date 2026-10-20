@@ -2718,6 +2718,7 @@ dependencies = [
     { name = "stripe" },
     { name = "web3" },
     { name = "xdk" },
+    { name = "yarl" },
 ]
 
 [package.dev-dependencies]
@@ -2790,6 +2791,7 @@ requires-dist = [
     { name = "stripe", specifier = ">=11.2.0,<12.0.0" },
     { name = "web3", specifier = ">=7.16.0" },
     { name = "xdk", specifier = ">=0.10.6,<1" },
+    { name = "yarl", specifier = ">=1.22.0,<2" },
 ]
 
 [package.metadata.requires-dev]
