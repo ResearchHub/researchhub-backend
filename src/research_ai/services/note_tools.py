@@ -36,7 +36,7 @@ turn which notes changed since the model last saw them.
 """
 
 import logging
-from collections.abc import Callable, Collection, Iterable
+from collections.abc import Callable, Collection, Iterable, Iterator
 
 from django.db import transaction
 
@@ -680,23 +680,32 @@ def _last_seen(
 ) -> tuple[dict[int, int | None], dict[int, str]]:
     """Note id -> the last version id, and the last title, that a note tool
     result showed the model."""
-    calls: set[str] = set()
     versions: dict[int, int | None] = {}
     titles: dict[int, str] = {}
+    for result in _note_results(messages):
+        note_id = result.get("note_id")
+        if not isinstance(note_id, int):
+            continue
+        if "version_id" in result:
+            versions[note_id] = result["version_id"]
+        if isinstance(result.get("title"), str):
+            titles[note_id] = result["title"]
+    return versions, titles
+
+
+def _note_results(messages: Iterable[Message]) -> Iterator[dict]:
+    """The note tool results the model saw, oldest first."""
+    calls: set[str] = set()
     for message in messages:
         for block in message.content:
             if isinstance(block, ToolUseBlock) and block.name in _NOTE_RESULT_TOOLS:
                 calls.add(block.id)
-            elif isinstance(block, ToolResultBlock) and block.tool_use_id in calls:
-                content = block.content if isinstance(block.content, dict) else {}
+            elif (
+                isinstance(block, ToolResultBlock)
+                and block.tool_use_id in calls
+                and isinstance(block.content, dict)
+            ):
+                yield block.content
                 # A stale edit's error carries the current read.
-                for result in (content, content.get("current")):
-                    if not isinstance(result, dict) or not isinstance(
-                        result.get("note_id"), int
-                    ):
-                        continue
-                    if "version_id" in result:
-                        versions[result["note_id"]] = result["version_id"]
-                    if isinstance(result.get("title"), str):
-                        titles[result["note_id"]] = result["title"]
-    return versions, titles
+                if isinstance(block.content.get("current"), dict):
+                    yield block.content["current"]
