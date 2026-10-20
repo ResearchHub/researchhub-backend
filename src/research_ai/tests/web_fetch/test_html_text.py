@@ -38,6 +38,21 @@ class HtmlToMarkdownTests(TestCase):
         # Assert
         self.assertIn(BODY.strip(), text)
 
+    def test_links_resolve_against_the_document_base(self):
+        # Arrange
+        page = (
+            '<head><base href="https://cdn.example.org/docs/"></head>'
+            f'<body><p>{BODY}</p><a href="chapter">Chapter</a></body>'
+        ).encode()
+
+        # Act
+        _, text = html_to_markdown(
+            page, base_url="https://example.org/a/page", encoding=None
+        )
+
+        # Assert
+        self.assertIn("[Chapter](https://cdn.example.org/docs/chapter)", text)
+
     def test_a_malformed_link_keeps_its_text_and_the_page(self):
         # Arrange
         page = f'<body><p>{BODY}</p><a href="http://[">Data</a></body>'.encode()

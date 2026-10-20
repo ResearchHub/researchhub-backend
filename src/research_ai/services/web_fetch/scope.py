@@ -39,8 +39,8 @@ def clean_url(url) -> str:
         raise UrlNotAllowedError("url is required")
     if len(url) > MAX_URL_CHARS:
         raise UrlNotAllowedError(f"url exceeds {MAX_URL_CHARS} characters")
-    url = urldefrag(url).url
     try:
+        url = urldefrag(url).url
         parts = urlsplit(url)
     except ValueError:
         raise UrlNotAllowedError("url is not a valid URL")
@@ -108,10 +108,13 @@ def _written_urls(context: Sequence[Message]) -> re.Pattern | None:
         for block in message.content
         if isinstance(block, ToolUseBlock)
         for text in _strings(block.input)
-        for match in _URL.finditer(text)
+        for reading in _readings(text)
+        for match in _URL.finditer(reading)
     }
     if not urls:
         return None
+    # An input and its echo may each be entity-encoded or not: match both spellings.
+    urls |= {html.escape(url, quote=False) for url in urls}
     # Longest first, so a URL is not cut at a shorter one it starts with.
     alternatives = "|".join(map(re.escape, sorted(urls, key=len, reverse=True)))
     return re.compile(f"(?:{alternatives})(?={_URL_END.pattern})", re.IGNORECASE)

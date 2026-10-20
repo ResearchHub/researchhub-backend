@@ -1,7 +1,7 @@
 """A fetched HTML page as Markdown, links made absolute."""
 
 import re
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter
@@ -49,6 +49,9 @@ def html_to_markdown(
     title = " ".join(soup.title.get_text().split()) if soup.title else ""
     for tag in soup(_DROPPED_TAGS):
         tag.decompose()
+    base = soup.find("base", href=True)
+    if base is not None:
+        base_url = _document_base(base_url, base["href"])
     for link in soup.find_all("a", href=True):
         try:
             link["href"] = urljoin(base_url, link["href"])
@@ -69,3 +72,12 @@ def html_to_markdown(
             break
     text = _Converter().convert_soup(root)
     return title, _BLANK_LINES.sub("\n\n", text).strip()
+
+
+def _document_base(base_url: str, href: str) -> str:
+    """Where the page's ``<base href>`` points relative links, if it is a web URL."""
+    try:
+        resolved = urljoin(base_url, href)
+    except ValueError:
+        return base_url
+    return resolved if urlsplit(resolved).scheme in ("http", "https") else base_url

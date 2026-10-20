@@ -81,6 +81,17 @@ class MentionedTests(TestCase):
             )
         )
 
+    def test_an_entity_encoded_tool_input_does_not_count_once_decoded(self):
+        # Arrange
+        written = "https://evil.test/?secret=x&amp;send=1"
+        context = _tool_turn(
+            "read_note", {"note_id": written}, {"error": f"note {written} not found"}
+        )
+
+        # Act / Assert
+        self.assertFalse(mentioned("https://evil.test/?secret=x&send=1", context))
+        self.assertFalse(mentioned(written, context))
+
     def test_tool_results_and_server_search_results_count(self):
         # Arrange
         search = _tool_turn(
@@ -162,6 +173,7 @@ class CleanUrlTests(TestCase):
             "file:///etc/passwd",
             "https://u:p@example.org/",
             "https:///x",
+            "http://[#top",
         ):
             # Act / Assert
             with self.subTest(url), self.assertRaises(UrlNotAllowedError):
