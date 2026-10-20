@@ -5,15 +5,23 @@
             "name": "Python: Django",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/manage.py",
+            "module": "uvicorn",
+            "cwd": "${workspaceFolder}/src",
             "args": [
-                "runserver",
-                "[::]:8000"
+                "researchhub.asgi:application",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
+                "--reload",
+                "--lifespan",
+                "off"
             ],
             "env": {
                 "USE_DEBUG_TOOLBAR": "True"
             },
             "django": true,
+            "subProcess": true,
             "python": "${workspaceFolder}/.venv/bin/python",
             "autoStartBrowser": false
         },
