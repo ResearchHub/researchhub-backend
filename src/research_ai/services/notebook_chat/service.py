@@ -98,7 +98,11 @@ from research_ai.services.agent_persistence import (
 from research_ai.services.agent_persistence.activity import (
     conversation_activity_events,
 )
-from research_ai.services.message_screening import MessageScreeningService
+from research_ai.services.message_screening import (
+    MessageScreeningService,
+    NoteTypeCheckService,
+    switch_notice,
+)
 from research_ai.services.note_tools import NoteToolset
 from research_ai.services.notebook_chat.activity import (
     PHASE_RESPONDING,
@@ -125,6 +129,7 @@ from research_ai.services.notebook_chat.grant_tools import (
     GrantSearchToolset,
     SelectedRFPToolset,
 )
+from research_ai.services.notebook_chat.note_type_tools import NoteTypeToolset
 from research_ai.services.notebook_chat.researcher_profile_tools import (
     ResearcherProfileToolset,
 )
@@ -262,6 +267,7 @@ class NotebookChatService:
         file_service: AgentFileService | None = None,
         page_image_service: PageImageService | None = None,
         screening_service: MessageScreeningService | None = None,
+        note_type_check_service: NoteTypeCheckService | None = None,
         workflow: str = WORKFLOW,
     ):
         self.workflow = workflow
@@ -317,6 +323,11 @@ class NotebookChatService:
             MessageScreeningService()
             if screening_service is None
             else screening_service
+        )
+        self.note_type_checks = (
+            NoteTypeCheckService()
+            if note_type_check_service is None
+            else note_type_check_service
         )
         self._config = config
 
@@ -894,6 +905,7 @@ class NotebookChatService:
             recorder.on_run_failed(error)
             return {"execution_id": execution.id, "error": str(error)}
         self._screen_message(trigger, note)
+        type_notice = self._note_type_notice(trigger, note)
 
         provider_options = {
             key: stored_configuration[key]
@@ -947,6 +959,13 @@ class NotebookChatService:
                 if note is None or note.document_type == GRANT
                 else None
             ),
+            note_type_toolset=(
+                NoteTypeToolset(
+                    note=note, user=conversation.user, asking=type_notice is not None
+                )
+                if note is not None and note.document_type in (GRANT, PREREGISTRATION)
+                else None
+            ),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
             attachment_toolset=AttachmentToolset(
@@ -991,6 +1010,8 @@ class NotebookChatService:
         notice = note_toolset.changed_notes_notice(context)
         if notice:
             prompt = f"{notice}\n\n{prompt}"
+        if type_notice:
+            prompt = f"{type_notice}\n\n{prompt}"
         try:
             result = agent.continue_conversation(context, prompt, images=images)
         except AgentRunError as exc:
@@ -1013,6 +1034,17 @@ class NotebookChatService:
             self.screening.screen(message, note=note)
         except Exception:  # noqa: BLE001
             logger.exception("could not screen chat message %s", message.id)
+
+    def _note_type_notice(
+        self, message: AgentConversationMessage, note: Note | None
+    ) -> str | None:
+        """The notice asking the agent to offer a note type switch, if any."""
+        # Advice only, so a failed check must never fail the turn.
+        try:
+            return switch_notice(self.note_type_checks.check(message, note), note)
+        except Exception:  # noqa: BLE001
+            logger.exception("could not check note type for message %s", message.id)
+            return None
 
     def _attached_page_images(
         self, attachments: Sequence[Attachment]

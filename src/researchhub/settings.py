@@ -545,6 +545,12 @@ RESEARCH_AI_MESSAGE_SCREENING = not TESTING and (
     os.environ.get("RESEARCH_AI_MESSAGE_SCREENING", "true").lower() == "true"
 )
 
+# Ask Jev whether a chat's RFP or proposal note has the wrong type, so the agent
+# can offer to switch it.
+RESEARCH_AI_NOTE_TYPE_CHECK = not TESTING and (
+    os.environ.get("RESEARCH_AI_NOTE_TYPE_CHECK", "true").lower() == "true"
+)
+
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
     "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
     getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),

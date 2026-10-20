@@ -39,10 +39,10 @@ class JevClient:
         self.session = requests.Session() if session is None else session
 
     @classmethod
-    def from_settings(cls) -> JevClient | None:
-        """The client when screening is on and ``OPENROUTER_API_KEY`` is set."""
+    def from_settings(cls, enabled: bool) -> JevClient | None:
+        """The client when ``enabled`` and ``OPENROUTER_API_KEY`` is set."""
         api_key = getattr(settings, "OPENROUTER_API_KEY", "") or ""
-        if not (settings.RESEARCH_AI_MESSAGE_SCREENING and api_key):
+        if not (enabled and api_key):
             return None
         return cls(api_key)
 

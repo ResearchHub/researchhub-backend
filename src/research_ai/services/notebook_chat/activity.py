@@ -52,6 +52,7 @@ from research_ai.services.notebook_chat.grant_tools import (
     SEARCH_GRANTS,
     SET_SELECTED_RFP,
 )
+from research_ai.services.notebook_chat.note_type_tools import CHANGE_NOTE_TYPE
 from research_ai.services.notebook_chat.researcher_profile_tools import (
     GET_RESEARCHER_PROFILE,
 )
@@ -84,6 +85,7 @@ _LABELS = {
     SET_SELECTED_RFP: "Selected an RFP",
     READ_RFP_DETAILS: "Read the RFP details",
     UPDATE_RFP_DETAILS: "Updated the RFP details",
+    CHANGE_NOTE_TYPE: "Changed the note type",
     SEARCH_INSTITUTIONS: "Searched institutions",
     SEARCH_AUTHORS: "Searched scholarly authors",
     GET_AUTHOR: "Looked up an author",
@@ -111,6 +113,7 @@ _ACTIVE_LABELS = {
     SET_SELECTED_RFP: "Selecting an RFP",
     READ_RFP_DETAILS: "Reading the RFP details",
     UPDATE_RFP_DETAILS: "Updating the RFP details",
+    CHANGE_NOTE_TYPE: "Changing the note type",
     SEARCH_INSTITUTIONS: "Searching institutions",
     SEARCH_AUTHORS: "Searching scholarly authors",
     GET_AUTHOR: "Looking up an author",
