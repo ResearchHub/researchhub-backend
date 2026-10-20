@@ -10,6 +10,7 @@ import hashlib
 import logging
 import re
 import time
+import uuid
 
 from django.conf import settings
 from django.core.cache import cache as default_cache
@@ -115,13 +116,18 @@ class SocialShareService:
             return cached
 
         lock_key = f"lock:{key}"
-        if not self._cache.add(lock_key, True, GENERATION_LOCK_SECONDS):
+        token = uuid.uuid4().hex
+        if not self._cache.add(lock_key, token, GENERATION_LOCK_SECONDS):
             return self._wait_for_post(key, lock_key)
         try:
             text = self._generate(user_prompt)
             self._cache.set(key, text, CACHE_TTL_SECONDS)
         finally:
-            self._cache.delete(lock_key)
+            # A generation that outlived the lock must not free a newer
+            # request's lock. Django's cache has no compare-and-delete, so a
+            # race remains between these two calls; it costs one extra call.
+            if self._cache.get(lock_key) == token:
+                self._cache.delete(lock_key)
         return text
 
     def _wait_for_post(self, key: str, lock_key: str) -> str:
@@ -208,8 +214,9 @@ class SocialShareService:
 
 
 def _grant_details(grant) -> list[str]:
+    # An RFP can be posted without a grant; it takes no applications.
     if grant is None:
-        return []
+        return ["Status: Closed to applications"]
     status = "Open for applications" if grant.is_active() else "Closed to applications"
     details = [f"Status: {status}"]
     if grant.amount:

@@ -171,6 +171,40 @@ class SocialShareServiceTests(TestCase):
             service.share_post_text(post)
         self.provider.complete.assert_not_called()
 
+    def test_rfp_without_a_grant_is_closed_to_applications(self):
+        # Arrange
+        post = create_post(
+            title="RFP: Remyelination",
+            created_by=self.user,
+            document_type=GRANT,
+        )
+
+        # Act
+        self.service.share_post_text(post)
+
+        # Assert
+        prompt = self.provider.complete.call_args.kwargs["messages"][0].content[0].text
+        self.assertIn("Status: Closed to applications", prompt)
+
+    def test_expired_lock_taken_by_another_request_is_kept(self):
+        # Arrange
+        post = create_post(
+            title="Mapping tau spread",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+        )
+        cache = MagicMock()
+        cache.add.return_value = True
+        # Cache miss, then the lock now holds another request's token.
+        cache.get.side_effect = [None, "another-token"]
+        service = SocialShareService(provider=self.provider, cache=cache)
+
+        # Act
+        service.share_post_text(post)
+
+        # Assert
+        cache.delete.assert_not_called()
+
     def test_lock_is_released_after_a_failed_generation(self):
         # Arrange
         post = create_post(
