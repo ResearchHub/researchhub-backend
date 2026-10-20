@@ -5,6 +5,7 @@ from django.conf import settings
 from mailchimp_marketing import Client
 
 from analytics.amplitude import Amplitude
+from user.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -73,19 +74,22 @@ class UserSignupService:
         except Exception as e:
             logger.error(f"Failed to track signup for user {user.id} in Amplitude: {e}")
 
-    def set_google_profile_image(self, user):
-        """
-        Set user's profile image from their Google account if not already set.
-        """
-        try:
-            google_account = SocialAccount.objects.get(provider="google", user=user)
-        except SocialAccount.DoesNotExist:
-            return
-        except SocialAccount.MultipleObjectsReturned:
-            logger.error(f"User {user.id} has multiple Google social accounts")
+    def set_social_profile_image(self, user: User) -> None:
+        """Set the user's profile image from a social account if not already set."""
+        for provider in ("google", "twitter_oauth2"):
+            try:
+                social_account = SocialAccount.objects.get(provider=provider, user=user)
+                break
+            except SocialAccount.DoesNotExist:
+                continue
+            except SocialAccount.MultipleObjectsReturned:
+                logger.error(f"User {user.id} has multiple {provider} social accounts")
+                return
+        else:
             return
 
-        picture_url = google_account.extra_data.get("picture")
+        picture_field = "picture" if provider == "google" else "profile_image_url"
+        picture_url = social_account.extra_data.get(picture_field)
         if not picture_url:
             return
 

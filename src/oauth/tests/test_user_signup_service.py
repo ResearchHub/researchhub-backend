@@ -154,7 +154,7 @@ class SetGoogleProfileImageTests(TestCase):
         )
 
         # Act
-        self.service.set_google_profile_image(self.user)
+        self.service.set_social_profile_image(self.user)
 
         # Assert
         self.user.author_profile.refresh_from_db()
@@ -177,7 +177,7 @@ class SetGoogleProfileImageTests(TestCase):
         )
 
         # Act
-        self.service.set_google_profile_image(self.user)
+        self.service.set_social_profile_image(self.user)
 
         # Assert
         self.user.author_profile.refresh_from_db()
@@ -188,7 +188,7 @@ class SetGoogleProfileImageTests(TestCase):
         Test that nothing happens when user has no Google social account.
         """
         # Act
-        self.service.set_google_profile_image(self.user)
+        self.service.set_social_profile_image(self.user)
 
         # Assert
         self.user.author_profile.refresh_from_db()
@@ -210,7 +210,7 @@ class SetGoogleProfileImageTests(TestCase):
         with self.assertLogs(
             "oauth.services.user_signup_service", level="ERROR"
         ) as logs:
-            self.service.set_google_profile_image(self.user)
+            self.service.set_social_profile_image(self.user)
 
         # Assert
         # User ID should be in the log message

@@ -1,5 +1,7 @@
 import logging
+from typing import Any
 
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client, OAuth2Error
 from dj_rest_auth.registration.serializers import (
     SocialLoginSerializer as BaseSocialLoginSerializer,
 )
@@ -7,6 +9,7 @@ from django.urls.exceptions import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
+from oauth.adapters import TwitterOAuth2Adapter
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -46,3 +49,38 @@ class SocialLoginSerializer(BaseSocialLoginSerializer):
             logger.error(
                 f"Failed to handle referral code for user {user.id}", exc_info=e
             )
+
+
+class TwitterLoginSerializer(SocialLoginSerializer):
+    access_token = None
+    id_token = None
+    code = serializers.CharField(trim_whitespace=False)
+    code_verifier = serializers.CharField(
+        min_length=43, max_length=128, trim_whitespace=False
+    )
+    redirect_uri = serializers.URLField()
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Exchange an X authorization code for this application's access token."""
+        request = self._get_request()
+        adapter = TwitterOAuth2Adapter(request)
+        app = adapter.get_provider().app
+        client = OAuth2Client(
+            request,
+            app.client_id,
+            app.secret,
+            adapter.access_token_method,
+            adapter.access_token_url,
+            attrs.pop("redirect_uri"),
+            basic_auth=adapter.basic_auth,
+        )
+        try:
+            tokens = client.get_access_token(
+                attrs.pop("code"), pkce_code_verifier=attrs.pop("code_verifier")
+            )
+        except OAuth2Error as exc:
+            raise serializers.ValidationError(
+                {"code": "Failed to exchange X authorization code."}
+            ) from exc
+        attrs["access_token"] = tokens["access_token"]
+        return super().validate(attrs)

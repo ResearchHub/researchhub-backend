@@ -282,6 +282,9 @@ urlpatterns = [
         "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"
     ),
     path(
+        "api/auth/twitter/login/", oauth.views.TwitterLogin.as_view(), name="twitter_login"
+    ),
+    path(
         "api/auth/register/verify-email/",
         CustomVerifyEmailView.as_view(),
         name="rest_verify_email",

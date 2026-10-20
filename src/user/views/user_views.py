@@ -103,14 +103,15 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             .first()
         )
         if user:
-            # Filtering by provider == google because we only have google login
-            # If we ever add a second login, we need to update the provider to include
-            # those social accounts
-            # The case we're guarding against here is ORCID
-            social_account = user.socialaccount_set.filter(provider="google").first()
+            # ORCID connects profiles but does not provide account sign-in.
+            social_account = (
+                user.socialaccount_set.filter(provider__in=["google", "twitter_oauth2"])
+                .order_by("provider")
+                .first()
+            )
             if social_account:
                 return Response(
-                    # Social login such as Google do not require email verification
+                    # Social sign-in uses the provider-confirmed email.
                     {
                         "exists": True,
                         "auth": social_account.provider,

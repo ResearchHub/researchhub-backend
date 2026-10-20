@@ -189,6 +189,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.twitter_oauth2",
     "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
@@ -380,12 +381,24 @@ if STAGING or PRODUCTION:
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
-# Let Google sign-ins attach to an existing account when the email matches.
+# Let trusted social sign-ins attach when the confirmed email matches.
 # See: https://docs.allauth.org/en/dev/socialaccount/configuration.html
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "EMAIL_AUTHENTICATION": True,
+    },
+    "twitter_oauth2": {
+        "EMAIL_AUTHENTICATION": True,
+        "SCOPE": ["users.read", "users.email", "tweet.read"],
+        # Sent as user.fields; TwitterOAuth2Adapter requires confirmed_email.
+        "FIELDS": [
+            "id",
+            "name",
+            "username",
+            "confirmed_email",
+            "profile_image_url",
+        ],
     },
 }
 
