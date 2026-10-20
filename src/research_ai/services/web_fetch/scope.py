@@ -82,17 +82,22 @@ def _trusted_text(context: Sequence[Message]) -> Iterator[str]:
     written = _written_urls(context)
     for message in context:
         for block in message.content:
-            if message.role == "user" and isinstance(block, TextBlock):
-                yield from _readings(block.text)
-            elif message.role == "user" and isinstance(block, ToolResultBlock):
-                for text in _strings(block.content):
-                    yield from _readings(text, written)
-            elif (
-                isinstance(block, ServerToolBlock)
-                and (block.data or {}).get("type") == _SERVER_SEARCH_RESULT
-            ):
-                for text in _strings(block.data):
-                    yield from _readings(text)
+            echoes = written if isinstance(block, ToolResultBlock) else None
+            for text in _trusted_strings(message.role, block):
+                yield from _readings(text, echoes)
+
+
+def _trusted_strings(role: str, block) -> Iterable[str]:
+    if role == "user" and isinstance(block, TextBlock):
+        return (block.text,)
+    if role == "user" and isinstance(block, ToolResultBlock):
+        return _strings(block.content)
+    if (
+        isinstance(block, ServerToolBlock)
+        and (block.data or {}).get("type") == _SERVER_SEARCH_RESULT
+    ):
+        return _strings(block.data)
+    return ()
 
 
 def _written_urls(context: Sequence[Message]) -> re.Pattern | None:
