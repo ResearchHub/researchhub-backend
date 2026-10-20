@@ -4,15 +4,14 @@ A URL counts when it appears whole in the user's messages (where its scheme may
 be left off), in a client tool's result, or in the provider's own web search
 results. Text the model wrote -- its replies, tool inputs, code output -- does
 not count, nor does a URL in a tool result that the model wrote into any tool
-input, with or without added query parameters, so the model cannot put note
-content into a URL it then fetches. URLs
-are compared in yarl's canonical form, so equivalent spellings are one URL.
+input, nor any URL with the same host and path as one of those, so the model
+cannot put note content into a URL it then fetches. URLs are compared in yarl's
+canonical form, so equivalent spellings are one URL.
 """
 
 import html
 import ipaddress
 import re
-from collections import Counter
 from collections.abc import Iterable, Iterator, Sequence
 from urllib.parse import urldefrag, urlsplit
 
@@ -106,20 +105,12 @@ def mentioned(url: str, context: Sequence[Message]) -> bool:
 
 
 def _derived(url: str, written: str) -> bool:
-    """Whether ``url`` is ``written``, perhaps over the other scheme or with query
-    parameters added."""
-    if url == written:
-        return True
+    """Whether ``url`` may be a tool's rewrite of ``written``: the same host and path.
+
+    A tool may switch the scheme or port, or add, drop or reorder query parameters,
+    so none of those set a URL apart from the model's own."""
     have, wrote = yarl.URL(url), yarl.URL(written)
-    # explicit_port is None for a scheme's default port, so http and https match.
-    if (have.raw_host, have.explicit_port, have.raw_path) != (
-        wrote.raw_host,
-        wrote.explicit_port,
-        wrote.raw_path,
-    ):
-        return False
-    # A tool may add tracking or paging parameters to the model's URL.
-    return Counter(wrote.query.items()) <= Counter(have.query.items())
+    return (have.raw_host, have.raw_path) == (wrote.raw_host, wrote.raw_path)
 
 
 def _user_urls(context: Sequence[Message]) -> set[str]:
