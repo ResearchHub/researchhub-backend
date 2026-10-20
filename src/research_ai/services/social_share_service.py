@@ -4,13 +4,17 @@ The share modal offers a ready-to-edit post for X, LinkedIn and Bluesky
 instead of the bare title. The post depends only on the document, not on who
 shares it, so one generation per document version is cached and served to
 every sharer.
+
+The API never calls the model: on a cache miss it queues a Celery task, and the
+worker generates and caches the post while the modal polls for it.
 """
 
 import hashlib
 import logging
 import re
-import time
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 
 from django.conf import settings
 from django.core.cache import cache as default_cache
@@ -62,15 +66,18 @@ GENERATION_ATTEMPTS = 2
 # the whole document on every new version.
 MAX_BODY_CHARS = 6000
 
-# The modal waits on this request, so a slow model fails fast to the title.
+# The modal waits on the post, so a slow model fails fast to the title.
 REQUEST_TIMEOUT_SECONDS = 25
 
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 7
 
-# One request generates a post while concurrent requests for it wait. The lock
-# outlives the slowest generation: two attempts, each a request and one retry.
-GENERATION_LOCK_SECONDS = GENERATION_ATTEMPTS * 2 * REQUEST_TIMEOUT_SECONDS + 10
-WAIT_POLL_SECONDS = 0.5
+# The slowest generation: two attempts, each a request and one retry.
+GENERATION_TIME_LIMIT_SECONDS = GENERATION_ATTEMPTS * 2 * REQUEST_TIMEOUT_SECONDS + 10
+# One task generates each post; the lock stops other requests from queueing
+# more. It outlives the task, with slack for time spent waiting in the queue.
+GENERATION_LOCK_SECONDS = GENERATION_TIME_LIMIT_SECONDS + 60
+# A failed generation is reported to pollers, then retried by a later share.
+FAILURE_TTL_SECONDS = 60
 
 _URL_PATTERN = re.compile(r"https?://\S+")
 _WRAPPING_QUOTES = "\"'“”‘’"
@@ -78,6 +85,27 @@ _WRAPPING_QUOTES = "\"'“”‘’"
 
 class SharePostGenerationError(Exception):
     """The model could not produce a usable post."""
+
+
+@dataclass(frozen=True)
+class SharePost:
+    """Where a post's generation stands: ``ready`` (with text), ``pending``
+    or ``failed``."""
+
+    status: str
+    text: str | None = None
+
+
+READY = "ready"
+PENDING = "pending"
+FAILED = "failed"
+
+
+def _enqueue_generation(post_id: int, lock_key: str, token: str) -> None:
+    # Imported here: the tasks module imports this one.
+    from research_ai.tasks import generate_share_post_task
+
+    generate_share_post_task.delay(post_id, lock_key, token)
 
 
 def _default_provider() -> LLMProvider:
@@ -96,52 +124,74 @@ class SocialShareService:
         self,
         provider: LLMProvider | None = None,
         cache=default_cache,
-        sleep=time.sleep,
+        enqueue: Callable[[int, str, str], None] = _enqueue_generation,
     ):
         self._provider = provider
         self._cache = cache
-        self._sleep = sleep
+        self._enqueue = enqueue
 
-    def share_post_text(self, post: ResearchhubPost) -> str:
-        """The share post for ``post``, generated once per version of its content."""
-        user_prompt = self._user_prompt(post)
+    def request_post(
+        self, post: ResearchhubPost, on_enqueue: Callable[[], None] | None = None
+    ) -> SharePost:
+        """The share post for ``post``, queueing its generation on a miss.
+
+        ``on_enqueue`` runs just before a task is queued, so a caller can rate
+        limit generations without limiting the polls that follow one.
+        """
+        key = self._cache_key(post, self._user_prompt(post))
+        cached = self._cache.get(key)
+        if cached:
+            return SharePost(READY, cached)
+        if self._cache.get(_failure_key(key)):
+            return SharePost(FAILED)
+
+        lock_key = _lock_key(key)
+        token = uuid.uuid4().hex
+        if not self._cache.add(lock_key, token, GENERATION_LOCK_SECONDS):
+            return SharePost(PENDING)
+        try:
+            if on_enqueue is not None:
+                on_enqueue()
+            self._enqueue(post.id, lock_key, token)
+        except BaseException:
+            self._release(lock_key, token)
+            raise
+        return SharePost(PENDING)
+
+    def generate_and_cache(self, post_id: int, lock_key: str, token: str) -> None:
+        """Generate the post for ``post_id`` and cache it (worker side)."""
+        try:
+            post = ResearchhubPost.objects.filter(pk=post_id).first()
+            if post is None:
+                return
+            user_prompt = self._user_prompt(post)
+            key = self._cache_key(post, user_prompt)
+            try:
+                text = self._generate(user_prompt)
+            except SharePostGenerationError:
+                logger.warning(
+                    "Share post generation failed for post %s", post_id, exc_info=True
+                )
+                self._cache.set(_failure_key(key), True, FAILURE_TTL_SECONDS)
+                return
+            self._cache.set(key, text, CACHE_TTL_SECONDS)
+        finally:
+            self._release(lock_key, token)
+
+    def _cache_key(self, post: ResearchhubPost, user_prompt: str) -> str:
         # Keyed on the prompt itself: grants and fundraises are saved apart
         # from the post, so its own timestamp misses their edits.
         digest = hashlib.sha256(
             f"{build_share_post_system_prompt(TARGET_POST_CHARS)}\0{user_prompt}".encode()
         ).hexdigest()
-        key = f"research_ai:share_post:v2:{post.id}:{digest}"
-        cached = self._cache.get(key)
-        if cached:
-            return cached
+        return f"research_ai:share_post:v2:{post.id}:{digest}"
 
-        lock_key = f"lock:{key}"
-        token = uuid.uuid4().hex
-        if not self._cache.add(lock_key, token, GENERATION_LOCK_SECONDS):
-            return self._wait_for_post(key, lock_key)
-        try:
-            text = self._generate(user_prompt)
-            self._cache.set(key, text, CACHE_TTL_SECONDS)
-        finally:
-            # A generation that outlived the lock must not free a newer
-            # request's lock. Django's cache has no compare-and-delete, so a
-            # race remains between these two calls; it costs one extra call.
-            if self._cache.get(lock_key) == token:
-                self._cache.delete(lock_key)
-        return text
-
-    def _wait_for_post(self, key: str, lock_key: str) -> str:
-        """The post another request is generating, once it lands."""
-        deadline = time.monotonic() + GENERATION_LOCK_SECONDS
-        while time.monotonic() < deadline:
-            self._sleep(WAIT_POLL_SECONDS)
-            cached = self._cache.get(key)
-            if cached:
-                return cached
-            if self._cache.get(lock_key) is None:
-                break
-        # The generating request failed or stalled; its caller falls back too.
-        raise SharePostGenerationError("concurrent generation produced no post")
+    def _release(self, lock_key: str, token: str) -> None:
+        # A task that outlived the lock must not free a newer request's lock.
+        # Django's cache has no compare-and-delete, so a race remains between
+        # these two calls; it costs one extra generation.
+        if self._cache.get(lock_key) == token:
+            self._cache.delete(lock_key)
 
     def _generate(self, user_prompt: str) -> str:
         if self._provider is None:
@@ -211,6 +261,14 @@ class SocialShareService:
             body=body[:MAX_BODY_CHARS],
             details=details,
         )
+
+
+def _lock_key(key: str) -> str:
+    return f"lock:{key}"
+
+
+def _failure_key(key: str) -> str:
+    return f"failed:{key}"
 
 
 def _grant_details(grant) -> list[str]:
