@@ -593,28 +593,45 @@ class NoteToolset:
     def changed_notes_notice(self, messages: Iterable[Message]) -> str | None:
         """A note for the model naming notes changed since it last saw them.
 
-        Scans ``messages`` (the conversation so far) for the last version of
-        each note a read/edit/create result showed, and compares it to the
-        note's current version. ``None`` when nothing it saw has changed.
+        Scans ``messages`` (the conversation so far) for the last version and
+        title of each note a note tool result showed, and compares them to
+        the note as it is now. A rename adds no version, so titles are
+        compared on their own. ``None`` when nothing it saw has changed.
         """
+        versions, titles = _last_seen(messages)
         changed = []
-        for note_id, seen in _last_seen_versions(messages).items():
+        edited = False
+        for note_id in dict.fromkeys([*versions, *titles]):
             note = self.get_readable_note(note_id)
-            if note is None or note.latest_version_id == seen:
+            if note is None:
                 continue
-            changed.append(
-                f"note {note_id} is now at version {note.latest_version_id} "
-                f"(you last saw version {seen})"
-            )
+            if note_id in versions and note.latest_version_id != versions[note_id]:
+                edited = True
+                changed.append(
+                    f"note {note_id} is now at version {note.latest_version_id} "
+                    f"(you last saw version {versions[note_id]})"
+                )
+            if note_id in titles and note.title != titles[note_id]:
+                changed.append(
+                    f'note {note_id} is now titled "{note.title}" '
+                    f'(you last saw "{titles[note_id]}")'
+                )
         if not changed:
             return None
+        guidance = (
+            " It changed since you last read it, most likely because the "
+            "user edited it, so your earlier reads of it are out of date. "
+            "Call read_note before editing it and base the edit on that "
+            "version."
+            if edited
+            else ""
+        )
         return (
             "[Notice from the system, not the user: "
             + "; ".join(changed)
-            + ". It changed since you last read it, most likely because the "
-            "user edited it, so your earlier reads of it are out of date. "
-            "Call read_note before editing it and base the edit on that "
-            "version.]"
+            + "."
+            + guidance
+            + "]"
         )
 
     def get_readable_note(self, note_id) -> Note | None:
@@ -655,28 +672,31 @@ def notify_note_updated(note: Note) -> None:
         )
 
 
-_VERSIONED_RESULT_TOOLS = frozenset({READ_NOTE, EDIT_NOTE, CREATE_NOTE})
+_NOTE_RESULT_TOOLS = frozenset({READ_NOTE, EDIT_NOTE, CREATE_NOTE, RENAME_NOTE})
 
 
-def _last_seen_versions(messages: Iterable[Message]) -> dict[int, int | None]:
-    """Note id -> the last version id a note tool result showed the model."""
+def _last_seen(
+    messages: Iterable[Message],
+) -> tuple[dict[int, int | None], dict[int, str]]:
+    """Note id -> the last version id, and the last title, that a note tool
+    result showed the model."""
     calls: set[str] = set()
-    seen: dict[int, int | None] = {}
+    versions: dict[int, int | None] = {}
+    titles: dict[int, str] = {}
     for message in messages:
         for block in message.content:
-            if (
-                isinstance(block, ToolUseBlock)
-                and block.name in _VERSIONED_RESULT_TOOLS
-            ):
+            if isinstance(block, ToolUseBlock) and block.name in _NOTE_RESULT_TOOLS:
                 calls.add(block.id)
             elif isinstance(block, ToolResultBlock) and block.tool_use_id in calls:
                 content = block.content if isinstance(block.content, dict) else {}
                 # A stale edit's error carries the current read.
                 for result in (content, content.get("current")):
-                    if (
-                        isinstance(result, dict)
-                        and isinstance(result.get("note_id"), int)
-                        and "version_id" in result
+                    if not isinstance(result, dict) or not isinstance(
+                        result.get("note_id"), int
                     ):
-                        seen[result["note_id"]] = result["version_id"]
-    return seen
+                        continue
+                    if "version_id" in result:
+                        versions[result["note_id"]] = result["version_id"]
+                    if isinstance(result.get("title"), str):
+                        titles[result["note_id"]] = result["title"]
+    return versions, titles
