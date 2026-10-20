@@ -2,6 +2,8 @@
 
 import logging
 
+from django.conf import settings
+
 from note.related_models.note_model import Note
 from research_ai.models import AgentConversationMessage, AgentMessageScreening
 from research_ai.services.message_screening.jev_client import DecisionError, JevClient
@@ -71,7 +73,11 @@ class MessageScreeningService:
     """Records a Jev verdict per user message; the verdict changes nothing yet."""
 
     def __init__(self, client: JevClient | None = None):
-        self.client = JevClient.from_settings() if client is None else client
+        self.client = (
+            JevClient.from_settings(settings.RESEARCH_AI_MESSAGE_SCREENING)
+            if client is None
+            else client
+        )
 
     def screen(
         self, message: AgentConversationMessage, *, note: Note | None = None
@@ -84,7 +90,7 @@ class MessageScreeningService:
         if existing is not None:
             return existing
         try:
-            decision = self.client.decide(self._state(message, note), QUESTIONS)
+            decision = self.client.decide(message_state(message, note), QUESTIONS)
         except DecisionError as exc:
             logger.warning("could not screen chat message %s: %s", message.id, exc)
             return AgentMessageScreening.objects.create(
@@ -101,37 +107,40 @@ class MessageScreeningService:
             cost_microusd=decision.cost_microusd,
         )
 
-    def _state(self, message: AgentConversationMessage, note: Note | None) -> dict:
-        state = {
-            "workflow": message.conversation.workflow,
-            "message": message.content[:MAX_MESSAGE_CHARS],
-        }
-        earlier = list(
-            AgentConversationMessage.objects.filter(
-                conversation_id=message.conversation_id,
-                role=AgentConversationMessage.Role.USER,
-                is_active=True,
-                sequence__lt=message.sequence,
-            )
-            .order_by("-sequence")
-            .values_list("content", flat=True)[:EARLIER_MESSAGES]
+
+def message_state(message: AgentConversationMessage, note: Note | None) -> dict:
+    """What Jev judges a chat message by: it, the user's earlier messages, the
+    note, and the attached files.
+    """
+    state = {
+        "workflow": message.conversation.workflow,
+        "message": message.content[:MAX_MESSAGE_CHARS],
+    }
+    earlier = list(
+        AgentConversationMessage.objects.filter(
+            conversation_id=message.conversation_id,
+            role=AgentConversationMessage.Role.USER,
+            is_active=True,
+            sequence__lt=message.sequence,
         )
-        if earlier:
-            state["earlier_messages"] = [
-                content[:EARLIER_MESSAGE_CHARS] for content in reversed(earlier)
-            ]
-        if note is not None:
-            version = note.latest_version
-            state["note"] = {
-                "title": note.title,
-                "type": note.document_type,
-                "text": ((version and version.plain_text) or "")[:NOTE_TEXT_CHARS],
-            }
-        files = message.attachments.order_by("id").values_list("filename", "text")
-        attached = [
-            {"name": name, "text": text[:FILE_TEXT_CHARS]}
-            for name, text in files[:FILES]
+        .order_by("-sequence")
+        .values_list("content", flat=True)[:EARLIER_MESSAGES]
+    )
+    if earlier:
+        state["earlier_messages"] = [
+            content[:EARLIER_MESSAGE_CHARS] for content in reversed(earlier)
         ]
-        if attached:
-            state["attached_files"] = attached
-        return state
+    if note is not None:
+        version = note.latest_version
+        state["note"] = {
+            "title": note.title,
+            "type": note.document_type,
+            "text": ((version and version.plain_text) or "")[:NOTE_TEXT_CHARS],
+        }
+    files = message.attachments.order_by("id").values_list("filename", "text")
+    attached = [
+        {"name": name, "text": text[:FILE_TEXT_CHARS]} for name, text in files[:FILES]
+    ]
+    if attached:
+        state["attached_files"] = attached
+    return state

@@ -30,3 +30,28 @@ class AgentMessageScreening(DefaultModel):
                 fields=["flagged", "created_date"], name="ra_screening_flagged_date"
             ),
         ]
+
+
+class AgentNoteTypeCheck(DefaultModel):
+    """A decision model's verdict on whether a chat's note has the wrong type.
+
+    Covers RFP (GRANT) and proposal (PREREGISTRATION) notes. ``suggested`` is
+    whether the turn told the agent to offer ``suggested_type``. The
+    probability is null when the call failed, and ``error`` says why.
+    """
+
+    message = models.OneToOneField(
+        AgentConversationMessage,
+        on_delete=models.CASCADE,
+        related_name="note_type_check",
+    )
+    note_type = models.CharField(max_length=32)
+    suggested_type = models.CharField(max_length=32)
+    model = models.CharField(max_length=255, blank=True)
+    probability = models.FloatField(null=True, blank=True)
+    suggested = models.BooleanField(default=False)
+    cost_microusd = models.PositiveBigIntegerField(null=True, blank=True)
+    error = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "research_ai_agent_note_type_check"

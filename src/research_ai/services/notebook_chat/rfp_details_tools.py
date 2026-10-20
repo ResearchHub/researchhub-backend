@@ -35,6 +35,48 @@ _NOTE_ID_SCHEMA = {
     "description": "Id of the RFP (GRANT) note.",
 }
 
+# The Details fields a tool may set, as JSON schema properties.
+RFP_DETAIL_PROPERTIES = {
+    "amount": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": (
+            "Total funding offered, in US dollars (the currency is always USD), "
+            "as a plain number such as 50000."
+        ),
+    },
+    "organization": {
+        "type": "string",
+        "description": ("Name of the funding organization. An empty string clears it."),
+    },
+    "description": {
+        "type": "string",
+        "maxLength": _MAX_DESCRIPTION_CHARS,
+        "description": (
+            "Short summary of what the RFP funds, a few sentences; the full call "
+            "belongs in the note body. An empty string clears it."
+        ),
+    },
+    "contact_user_ids": {
+        "type": "array",
+        "items": {"type": "integer"},
+        "description": (
+            "ResearchHub user ids of the people who manage this RFP; replaces "
+            "the current contacts, and an empty list clears them. For the user "
+            "themself use current_user.user_id from read_rfp_details. These are "
+            "user ids, not author-profile ids -- never guess one."
+        ),
+    },
+    "application_visibility": {
+        "type": "string",
+        "enum": list(_VISIBILITY_CHOICES),
+        "description": (
+            "PRIVATE: applicants' proposals must be private. PUBLIC: they must "
+            "be public. OPTIONAL: each applicant chooses."
+        ),
+    },
+}
+
 
 class RFPDetailsToolset:
     """Read and fill the Details form of the RFP notes ``get_note`` resolves.
@@ -81,52 +123,7 @@ class RFPDetailsToolset:
                     "type": "object",
                     "properties": {
                         "note_id": _NOTE_ID_SCHEMA,
-                        "amount": {
-                            "type": "number",
-                            "exclusiveMinimum": 0,
-                            "description": (
-                                "Total funding offered, in US dollars (the "
-                                "currency is always USD), as a plain number "
-                                "such as 50000."
-                            ),
-                        },
-                        "organization": {
-                            "type": "string",
-                            "description": (
-                                "Name of the funding organization. An empty "
-                                "string clears it."
-                            ),
-                        },
-                        "description": {
-                            "type": "string",
-                            "maxLength": _MAX_DESCRIPTION_CHARS,
-                            "description": (
-                                "Short summary of what the RFP funds, a few "
-                                "sentences; the full call belongs in the note "
-                                "body. An empty string clears it."
-                            ),
-                        },
-                        "contact_user_ids": {
-                            "type": "array",
-                            "items": {"type": "integer"},
-                            "description": (
-                                "ResearchHub user ids of the people who manage "
-                                "this RFP; replaces the current contacts, and "
-                                "an empty list clears them. For the user "
-                                "themself use current_user.user_id from "
-                                "read_rfp_details. These are user ids, not "
-                                "author-profile ids -- never guess one."
-                            ),
-                        },
-                        "application_visibility": {
-                            "type": "string",
-                            "enum": list(_VISIBILITY_CHOICES),
-                            "description": (
-                                "PRIVATE: applicants' proposals must be "
-                                "private. PUBLIC: they must be public. "
-                                "OPTIONAL: each applicant chooses."
-                            ),
-                        },
+                        **RFP_DETAIL_PROPERTIES,
                     },
                     "required": ["note_id"],
                 },
@@ -145,7 +142,7 @@ class RFPDetailsToolset:
             note, error = self._rfp_note(note_id)
             if error is not None:
                 return error
-            return self._details(note)
+            return self.details(note)
         except Exception:  # noqa: BLE001 - tool failures are model-readable
             logger.exception("RFP details read failed for note %s", note_id)
             return {"error": "RFP details are temporarily unavailable"}
@@ -159,23 +156,15 @@ class RFPDetailsToolset:
             note, error = self._editable_rfp_note(note_id)
             if error is not None:
                 return error
-            payload, error = _details_payload(args)
+            values, error = rfp_details_values(args)
             if error is not None:
                 return error
-            serializer = GrantSettingsSerializer(data=payload, partial=True)
-            if not serializer.is_valid():
-                return {"error": _validation_message(serializer.errors)}
-            values = serializer.validated_data
-            # The draft form stores any amount; publishing needs a positive one.
-            if "amount" in values and values["amount"] <= 0:
-                return {"error": "amount must be greater than 0"}
-
             try:
                 update_grant_settings(note=note, values=values)
             except DraftDetailsError as exc:
                 return {"error": str(exc)}
             notify_note_updated(note)
-            return {**self._details(note), "saved": True}
+            return {**self.details(note), "saved": True}
         except Exception:  # noqa: BLE001 - tool failures are model-readable
             logger.exception("RFP details write failed for note %s", note_id)
             return {"error": "updating RFP details is temporarily unavailable"}
@@ -209,7 +198,7 @@ class RFPDetailsToolset:
             return None, {"error": f"no edit permission on note {note.id}"}
         return note, None
 
-    def _details(self, note: Note) -> dict:
+    def details(self, note: Note) -> dict:
         """The RFP's terms, plus the id that names the user as a contact."""
         post = getattr(note, "post", None)
         if post is not None:
@@ -239,6 +228,21 @@ class RFPDetailsToolset:
 def _user_ref(user) -> dict:
     name = f"{user.first_name or ''} {user.last_name or ''}".strip()
     return {"user_id": user.id, "name": name}
+
+
+def rfp_details_values(args: dict) -> tuple[dict | None, dict | None]:
+    """The validated Details values ``args`` supplies, or a model-readable error."""
+    payload, error = _details_payload(args)
+    if error is not None:
+        return None, error
+    serializer = GrantSettingsSerializer(data=payload, partial=True)
+    if not serializer.is_valid():
+        return None, {"error": _validation_message(serializer.errors)}
+    values = serializer.validated_data
+    # The draft form stores any amount; publishing needs a positive one.
+    if "amount" in values and values["amount"] <= 0:
+        return None, {"error": "amount must be greater than 0"}
+    return values, None
 
 
 def _details_payload(args: dict) -> tuple[dict | None, dict | None]:

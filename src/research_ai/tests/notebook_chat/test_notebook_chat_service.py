@@ -12,6 +12,7 @@ from note.tests.helpers import create_note
 from research_ai.models import (
     AgentConversation,
     AgentExecution,
+    AgentNoteTypeCheck,
     Expert,
     ExpertSearch,
     NoteAgentConversation,
@@ -53,6 +54,7 @@ from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
+    DISCUSSION,
     GRANT,
     PREREGISTRATION,
 )
@@ -954,6 +956,77 @@ class NotebookChatServiceTests(TestCase):
         execution.refresh_from_db()
         self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
         self.assertEqual(result["final_text"], "Answer")
+
+    def test_run_turn_asks_before_switching_a_note_that_looks_mistyped(self):
+        # Arrange
+        self.note.document_type = GRANT
+        self.note.save(update_fields=["document_type"])
+        execution, _delay = self._submit("Help me get my 20-patient pilot funded.")
+        checks = Mock()
+        checks.check.return_value = AgentNoteTypeCheck(
+            note_type=GRANT, suggested_type=PREREGISTRATION, suggested=True
+        )
+        provider = FakeProvider(
+            [
+                tool_turn(
+                    "switch-1", "change_note_type", {"document_type": PREREGISTRATION}
+                ),
+                text_turn("Should this be a proposal?"),
+            ]
+        )
+        service = _make_service(provider=provider, note_type_check_service=checks)
+
+        # Act
+        service.run_turn(execution.id)
+
+        # Assert
+        checks.check.assert_called_once_with(execution.trigger_message, self.note)
+        prompt = provider.calls[0][0].content[0].text
+        self.assertTrue(prompt.startswith("[Notice from the system"))
+        self.assertIn("switched to a proposal", prompt)
+        self.assertTrue(prompt.endswith("Help me get my 20-patient pilot funded."))
+        tool_result = provider.calls[1][-1].content[0]
+        self.assertIn("has not answered", tool_result.content["error"])
+        self.note.refresh_from_db()
+        self.assertEqual(self.note.document_type, GRANT)
+
+    def test_run_turn_offers_the_type_switch_for_rfp_and_proposal_notes(self):
+        cases = ((GRANT, True), (PREREGISTRATION, True), (DISCUSSION, False))
+        for document_type, offered in cases:
+            with self.subTest(document_type=document_type):
+                # Arrange
+                self.note.document_type = document_type
+                self.note.save(update_fields=["document_type"])
+                execution, _delay = self._submit()
+                provider = FakeProvider([text_turn("Done.")])
+
+                # Act: FakeProvider renders a toolset as its tool names.
+                with patch.object(
+                    provider, "complete", wraps=provider.complete
+                ) as complete:
+                    _make_service(provider=provider).run_turn(execution.id)
+
+                # Assert
+                tool_names = complete.call_args.kwargs["rendered_tools"]
+                self.assertEqual("change_note_type" in tool_names, offered)
+
+    def test_run_turn_survives_a_note_type_check_failure(self):
+        # Arrange
+        self.note.document_type = GRANT
+        self.note.save(update_fields=["document_type"])
+        execution, _delay = self._submit()
+        checks = Mock()
+        checks.check.side_effect = RuntimeError("database gone")
+        provider = FakeProvider([text_turn("Answer")])
+        service = _make_service(provider=provider, note_type_check_service=checks)
+
+        # Act
+        service.run_turn(execution.id)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(provider.calls[0][0].content[0].text, "Please add a summary.")
 
     def test_failed_enqueue_fails_the_execution_and_frees_the_conversation(self):
         # Arrange & Act: the broker refuses the task after the turn committed.

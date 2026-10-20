@@ -23,7 +23,13 @@ When the user asks to apply to a grant, switch to a different one, or drop the
 current one, call set_selected_rfp with the grant id from search_grants (or
 null to clear it), and say which RFP the note now applies to. Selecting is the
 user's decision: confirm which one they mean rather than picking a search
-result for them, and never set an RFP as a side effect of research."""
+result for them, and never set an RFP as a side effect of research.
+
+A proposal is the user's plan for a study they will run. If they are instead
+writing a call that invites other researchers to apply for funding they offer,
+that is an RFP: explain the difference and offer to switch the note with
+change_note_type. Switch only after they agree, and if they decline, do not
+raise it again."""
 
 _RFP_DETAILS_CAPABILITY = """## The RFP's Details
 
@@ -38,7 +44,13 @@ least one contact, so tell the user which of those are still empty. Never
 invent an amount, an organization, or a contact. Contacts are ResearchHub
 users identified by user id: the only id you know without being told is the
 current user's, which read_rfp_details returns. You cannot publish the RFP;
-the user reviews the Details and publishes it themself."""
+the user reviews the Details and publishes it themself.
+
+An RFP invites other researchers to apply for funding. If the user is instead
+writing up a study they will run, or asking for money for their own work, that
+is a proposal: explain the difference and offer to switch the note with
+change_note_type. Switch only after they agree, and if they decline, do not
+raise it again."""
 
 _CAPABILITY_BY_DOCUMENT_TYPE = {
     GRANT: _RFP_DETAILS_CAPABILITY,
