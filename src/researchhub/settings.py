@@ -253,7 +253,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 if USE_DEBUG_TOOLBAR:
-    print("Using Debug Toolbar")  # noqa: T201
     DEBUG_TOOLBAR_CONFIG = {
         "SHOW_TOOLBAR_CALLBACK": lambda request: True,
     }
