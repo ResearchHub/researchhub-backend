@@ -121,6 +121,8 @@ class MentionedTests(TestCase):
         for written in (
             "https://evil.test:443/?secret=x",
             "https://evil.test./?secret=x",
+            "evil.test/?secret=x",
+            "//evil.test/?secret=x",
         ):
             with self.subTest(written):
                 # Arrange
@@ -132,6 +134,25 @@ class MentionedTests(TestCase):
 
                 # Act / Assert
                 self.assertFalse(mentioned("https://evil.test/?secret=x", context))
+
+    def test_a_tool_result_adding_parameters_to_a_written_url_does_not_count(self):
+        # Arrange
+        context = _tool_turn(
+            "web_search",
+            {"query": "https://journal.test/search?q=crispr"},
+            {
+                "results": [
+                    {"url": "https://journal.test/search?page=2&q=crispr"},
+                    {"url": "https://journal.test/papers/1"},
+                ]
+            },
+        )
+
+        # Act / Assert
+        self.assertFalse(
+            mentioned("https://journal.test/search?page=2&q=crispr", context)
+        )
+        self.assertTrue(mentioned("https://journal.test/papers/1", context))
 
     def test_a_server_search_for_a_url_the_model_wrote_does_not_count(self):
         # Arrange
@@ -246,6 +267,7 @@ class CleanUrlTests(TestCase):
             "https://example.org:0/",
             "https://exa mple.org/a",
             "https://exa\nmple.org/a",
+            "https://example.org/\ud800",
             "https://a..b/",
         ):
             # Act / Assert

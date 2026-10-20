@@ -4,13 +4,15 @@ A URL counts when it appears whole in the user's messages (where its scheme may
 be left off), in a client tool's result, or in the provider's own web search
 results. Text the model wrote -- its replies, tool inputs, code output -- does
 not count, nor does a URL in a tool result that the model wrote into any tool
-input, so the model cannot put note content into a URL it then fetches. URLs
+input, with or without added query parameters, so the model cannot put note
+content into a URL it then fetches. URLs
 are compared in yarl's canonical form, so equivalent spellings are one URL.
 """
 
 import html
 import ipaddress
 import re
+from collections import Counter
 from collections.abc import Iterable, Iterator, Sequence
 from urllib.parse import urldefrag, urlsplit
 
@@ -36,8 +38,9 @@ _TRAILING = ".,;:!?)]}>*_'\""
 # longer host or URL such as "www.example.org" or "?u=example.org".
 _BARE = re.compile(r"(?<![^\s(\[{<\"'`*,;|])[^\s<>\"'`|#(\[{*,;]+[^\s<>\"'`|#]*")
 _HOST_LABEL = re.compile(r"(?!-)[a-z0-9_-]{1,63}(?<!-)", re.IGNORECASE)
-# urlsplit drops these silently, so a URL holding one is not the URL it parsed as.
-_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+# Control characters, which urlsplit drops silently, and lone surrogates, which
+# cannot be encoded into a request.
+_BAD_CHARS = re.compile(r"[\x00-\x1f\x7f\ud800-\udfff]")
 
 
 class UrlNotAllowedError(ValueError):
@@ -51,7 +54,7 @@ def clean_url(url) -> str:
         raise UrlNotAllowedError("url is required")
     if len(url) > MAX_URL_CHARS:
         raise UrlNotAllowedError(f"url exceeds {MAX_URL_CHARS} characters")
-    if _CONTROL.search(url):
+    if _BAD_CHARS.search(url):
         raise UrlNotAllowedError(_INVALID_URL)
     try:
         url = urldefrag(url).url
@@ -94,7 +97,25 @@ def mentioned(url: str, context: Sequence[Message]) -> bool:
         return False
     if target in _user_urls(context):
         return True
-    return target in _tool_urls(context) - _written_urls(context)
+    if target not in _tool_urls(context):
+        return False
+    return not any(_derived(target, written) for written in _written_urls(context))
+
+
+def _derived(url: str, written: str) -> bool:
+    """Whether ``url`` is ``written``, perhaps with query parameters added."""
+    if url == written:
+        return True
+    have, wrote = yarl.URL(url), yarl.URL(written)
+    if (have.scheme, have.raw_host, have.port, have.raw_path) != (
+        wrote.scheme,
+        wrote.raw_host,
+        wrote.port,
+        wrote.raw_path,
+    ):
+        return False
+    # A tool may add tracking or paging parameters to the model's URL.
+    return Counter(wrote.query.items()) <= Counter(have.query.items())
 
 
 def _user_urls(context: Sequence[Message]) -> set[str]:
@@ -139,7 +160,8 @@ def _written_urls(context: Sequence[Message]) -> set[str]:
         for text in _model_inputs(context)
         # A tool may echo an input entity-encoded: "?a=1&amp;b=2".
         for reading in [*_readings(text), html.escape(text, quote=False)]
-        for url in _urls_in(reading)
+        # Or add the scheme the model left off.
+        for url in _urls_in(reading) | _bare_urls_in(reading)
     }
 
 
@@ -171,9 +193,9 @@ def _bare_urls_in(text: str) -> set[str]:
         for match in _BARE.finditer(text)
         if "." in match.group() and "://" not in match.group()
         for form in _forms(match.group())
-        # Typed without a scheme, it may be fetched over either.
+        # Written without a scheme, or protocol-relative, it may be fetched over either.
         for scheme in ("https", "http")
-        if (url := _canonical(f"{scheme}://{form}"))
+        if (url := _canonical(f"{scheme}://{form.removeprefix('//')}"))
     }
 
 
