@@ -65,13 +65,20 @@ class JevClient:
         except (requests.RequestException, ValueError, LookupError, TypeError) as exc:
             raise DecisionError(f"Jev returned no decision: {exc}") from exc
         for name, value in answers.items():
-            if isinstance(value, bool) or not isinstance(value, int | float):
+            # NaN compares false, so it would leave a high score unflagged.
+            if not _is_probability(value):
                 raise DecisionError(f"Jev answered {name!r} with {value!r}")
         return Decision(
             model=body.get("model") or self.model,
             answers={name: float(value) for name, value in answers.items()},
             cost_microusd=_microusd((body.get("usage") or {}).get("cost")),
         )
+
+
+def _is_probability(value) -> bool:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return False
+    return 0 <= value <= 1
 
 
 def _microusd(cost) -> int | None:
