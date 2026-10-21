@@ -390,13 +390,19 @@ SOCIALACCOUNT_PROVIDERS = {
     "twitter_oauth2": {
         "EMAIL_AUTHENTICATION": True,
         "SCOPE": ["users.read", "users.email", "tweet.read"],
-        # Sent as user.fields; XOAuth2Adapter requires confirmed_email.
+        # Sent as user.fields. XOAuth2Adapter requires confirmed_email.
+        # The verification and Premium fields are stored on the X
+        # SocialAccount.extra_data and refreshed on each login.
         "FIELDS": [
             "id",
             "name",
             "username",
             "confirmed_email",
             "profile_image_url",
+            "verified",
+            "verified_type",
+            "subscription_type",
+            "is_identity_verified",
         ],
     },
 }

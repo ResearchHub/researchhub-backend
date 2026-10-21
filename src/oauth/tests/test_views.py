@@ -48,11 +48,18 @@ class XLoginViewTests(APITestCase):
     ):
         """
         Test that X login exchanges the code, signs the user up with the confirmed
-        email, and populates the author profile from X.
+        email, and stores the X profile, including verification and Premium.
         """
         # Arrange
         mock_exchange.return_value = {"access_token": "x-token"}
-        self._mock_profile(mock_get, confirmed_email="User@Example.com")
+        self._mock_profile(
+            mock_get,
+            confirmed_email="User@Example.com",
+            verified=True,
+            verified_type="blue",
+            subscription_type="Premium",
+            is_identity_verified=True,
+        )
 
         # Act
         response = self.client.post(self.url, self.payload)
@@ -64,10 +71,30 @@ class XLoginViewTests(APITestCase):
         mock_exchange.assert_called_once_with("auth-code", pkce_code_verifier="v" * 43)
         user_fields = mock_get.call_args.kwargs["params"]["user.fields"].split(",")
         self.assertIn("confirmed_email", user_fields)
+        self.assertIn("verified", user_fields)
+        self.assertIn("verified_type", user_fields)
+        self.assertIn("subscription_type", user_fields)
+        self.assertIn("is_identity_verified", user_fields)
 
         user = User.objects.get(email="user@example.com")
         self.assertTrue(user.emailaddress_set.get(primary=True).verified)
-        self.assertTrue(user.socialaccount_set.filter(provider="x_oauth2").exists())
+        social_account = user.socialaccount_set.get(provider="x_oauth2")
+        self.assertEqual(
+            {
+                "verified": social_account.extra_data["verified"],
+                "verified_type": social_account.extra_data["verified_type"],
+                "subscription_type": social_account.extra_data["subscription_type"],
+                "is_identity_verified": social_account.extra_data[
+                    "is_identity_verified"
+                ],
+            },
+            {
+                "verified": True,
+                "verified_type": "blue",
+                "subscription_type": "Premium",
+                "is_identity_verified": True,
+            },
+        )
         self.assertEqual(user.author_profile.twitter, "https://x.com/xuser")
         self.assertEqual(
             user.author_profile.profile_image, "https://pbs.twimg.com/xuser.jpg"
