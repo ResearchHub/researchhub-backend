@@ -6,8 +6,6 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from hub.models import Hub
-from paper.models import Paper
-from paper.tests.helpers import create_paper
 from researchhub_document.related_models.constants.document_type import (
     CHANGELOG,
     DISCUSSION,
@@ -20,7 +18,7 @@ from user.tests.helpers import create_random_authenticated_user
 
 COMMAND = "remove_deleted_docs_from_index"
 PATCH_PREFIX = f"search.management.commands.{COMMAND}"
-DOC_CLASSES = ("PaperDocument", "PostDocument", "HubDocument", "JournalDocument")
+DOC_CLASSES = ("PostDocument", "HubDocument")
 
 
 def _mock_mget_all_found(index, body):
@@ -51,15 +49,8 @@ def _patch_all_connections(mget_func=_mock_mget_all_found):
 
 class RemoveDeletedDocsFromIndexTests(TestCase):
     def setUp(self):
-        self.paper_active = create_paper(title="Active Paper")
-        self.paper_removed = create_paper(title="Removed Paper")
-        self.paper_removed.is_removed = True
-        self.paper_removed.save()
-
+        self.hub_active = Hub.objects.create(name="Active Hub")
         self.hub_removed = Hub.objects.create(name="Removed Hub", is_removed=True)
-        self.journal_removed = Hub.objects.create(
-            name="Removed Journal", is_removed=True, namespace="journal"
-        )
 
         self.user = create_random_authenticated_user("testuser")
 
@@ -83,15 +74,15 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
     def test_only_removed_objects_are_sent_to_update(self):
         # Arrange / Act
         with (
-            self._patch_connection("PaperDocument"),
-            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update,
+            self._patch_connection("HubDocument"),
+            patch(f"{PATCH_PREFIX}.HubDocument.update") as mock_update,
         ):
-            call_command(COMMAND, "--index=paper", stdout=StringIO())
+            call_command(COMMAND, "--index=hub", stdout=StringIO())
 
         # Assert
         ids = _get_updated_ids(mock_update)
-        self.assertIn(self.paper_removed.id, ids)
-        self.assertNotIn(self.paper_active.id, ids)
+        self.assertIn(self.hub_removed.id, ids)
+        self.assertNotIn(self.hub_active.id, ids)
 
     def test_processes_all_indices_when_no_flag_provided(self):
         # Arrange
@@ -141,14 +132,14 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
     def test_index_flag_restricts_to_single_index(self):
         # Arrange / Act
         with (
-            self._patch_connection("PaperDocument"),
-            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_paper,
+            self._patch_connection("HubDocument"),
+            patch(f"{PATCH_PREFIX}.HubDocument.update") as mock_hub,
             patch(f"{PATCH_PREFIX}.PostDocument.update") as mock_post,
         ):
-            call_command(COMMAND, "--index=paper", stdout=StringIO())
+            call_command(COMMAND, "--index=hub", stdout=StringIO())
 
         # Assert
-        mock_paper.assert_called_once()
+        mock_hub.assert_called_once()
         mock_post.assert_not_called()
 
     # --- Dry run ---
@@ -160,7 +151,7 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
         # Act
         with (
             _patch_all_connections(),
-            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update,
+            patch(f"{PATCH_PREFIX}.PostDocument.update") as mock_update,
         ):
             call_command(COMMAND, "--dry-run", stdout=out)
 
@@ -175,11 +166,11 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
     def test_skips_removal_when_docs_not_in_index(self):
         # Arrange / Act
         with (
-            self._patch_connection("PaperDocument", _mock_mget_none_found),
-            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update,
+            self._patch_connection("PostDocument", _mock_mget_none_found),
+            patch(f"{PATCH_PREFIX}.PostDocument.update") as mock_update,
         ):
             out = StringIO()
-            call_command(COMMAND, "--index=paper", stdout=out)
+            call_command(COMMAND, "--index=post", stdout=out)
 
         # Assert
         mock_update.assert_not_called()
@@ -187,19 +178,19 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
 
     def test_skips_removal_when_no_removed_docs_in_database(self):
         # Arrange
-        Paper.objects.filter(is_removed=True).update(is_removed=False)
+        Hub.objects.filter(is_removed=True).update(is_removed=False)
         client = _mock_client()
         out = StringIO()
 
         # Act
         with (
             patch(
-                f"{PATCH_PREFIX}.PaperDocument._get_connection",
+                f"{PATCH_PREFIX}.HubDocument._get_connection",
                 return_value=client,
             ),
-            patch(f"{PATCH_PREFIX}.PaperDocument.update") as mock_update,
+            patch(f"{PATCH_PREFIX}.HubDocument.update") as mock_update,
         ):
-            call_command(COMMAND, "--index=paper", stdout=out)
+            call_command(COMMAND, "--index=hub", stdout=out)
 
         # Assert
         client.mget.assert_not_called()

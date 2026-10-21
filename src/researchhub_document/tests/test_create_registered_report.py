@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -56,6 +57,7 @@ class CreateRegisteredReportTests(APITestCase):
         self.mock_doi_cls.return_value = self.mock_doi
         self.client.force_authenticate(self.moderator)
 
+    @override_settings(PRODUCTION=True)
     def test_create_report_attaches_proposal(self) -> None:
         """Verify a moderator can publish a report for an eligible proposal."""
         # Arrange
@@ -98,6 +100,7 @@ class CreateRegisteredReportTests(APITestCase):
             report,
         )
 
+    @override_settings(PRODUCTION=True)
     def test_rejects_report_when_journal_doi_registration_fails(self) -> None:
         """Verify Crossref failures do not publish a report without its DOI."""
         # Arrange

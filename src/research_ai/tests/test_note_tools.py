@@ -434,8 +434,8 @@ class NoteToolsetTests(TestCase):
             },
         )
 
-        # Assert: the error names the edit and the attribute; nothing saved.
-        self.assertIn("edits[0]", result["error"])
+        # Assert: the error names the block and the attribute; nothing saved.
+        self.assertIn("edits[0].blocks[0]", result["error"])
         self.assertIn("idd", result["error"])
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, seeded.id)
@@ -490,14 +490,16 @@ class NoteToolsetTests(TestCase):
         self.note.refresh_from_db()
         self.assertEqual(self.note.latest_version_id, self.content.id)
 
-    def test_edit_note_recovers_from_encoded_edits_without_partial_save(self):
-        # Arrange
+    def test_edit_note_recovers_from_malformed_encoded_edits_without_partial_save(
+        self,
+    ):
+        # Arrange: a JSON string that does not decode is still rejected.
         edits = _insert(["Intended paragraph"])
         version_count = NoteContent.objects.filter(note=self.note).count()
         args = {
             "note_id": self.note.id,
             "expected_version_id": self.content.id,
-            "edits": json.dumps(edits),
+            "edits": json.dumps(edits)[:-1],
         }
 
         # Act
@@ -807,6 +809,39 @@ class NoteToolsetTests(TestCase):
 
         # Assert
         self.assertIsNone(notice)
+
+    def test_changed_notes_notice_names_a_note_renamed_since_it_was_seen(self):
+        # Arrange: the model read and renamed the note; the user then renamed
+        # it again, which adds no version.
+        read, _ = self.toolset.dispatch(READ_NOTE, {"note_id": self.note.id})
+        renamed, _ = self.toolset.dispatch(
+            RENAME_NOTE, {"note_id": self.note.id, "title": "Agent title"}
+        )
+        messages = [
+            *self._seen_messages(read),
+            Message(
+                role="assistant",
+                content=[ToolUseBlock(id="t2", name=RENAME_NOTE, input={})],
+            ),
+            Message(
+                role="user",
+                content=[ToolResultBlock(tool_use_id="t2", content=renamed)],
+            ),
+        ]
+        self.note.title = "User title"
+        self.note.save(update_fields=["title"])
+
+        # Act
+        notice = NoteToolset(user=self.owner).changed_notes_notice(messages)
+
+        # Assert: the model's own rename counts as seen, and an unchanged body
+        # needs no re-read.
+        self.assertIn(
+            f'note {self.note.id} is now titled "User title" '
+            '(you last saw "Agent title")',
+            notice,
+        )
+        self.assertNotIn("read_note", notice)
 
     def test_edit_note_denied_for_viewer(self):
         # Arrange

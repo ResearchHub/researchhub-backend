@@ -15,6 +15,10 @@ from rest_framework.test import APIClient, APITestCase
 
 from discussion.models import Vote
 from feed.models import FeedEntry
+from feed.serializers import (
+    ACTIVITY_PARENT_COMMENT_FIELDS,
+    RelatedWorkSerializer,
+)
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Paper
 from purchase.models import FundingPool, Fundraise
@@ -47,6 +51,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from review.models.review_model import Review
 from user.related_models.funding_activity_model import FundingActivity
 from user.related_models.user_model import AI_EXPERT_EMAIL
 from user.tests.helpers import create_random_authenticated_user
@@ -225,10 +230,18 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
     def _get_entry(self, entry_id):
         resp = self.client.get(ACTIVITY_LIST_URL)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        for entry in resp.data["results"]:
-            if entry["id"] == entry_id:
-                return entry
-        self.fail(f"Feed entry {entry_id} not found in response")
+        entry = next(
+            (entry for entry in resp.data["results"] if entry["id"] == entry_id), None
+        )
+        self.assertIsNotNone(entry, f"Feed entry {entry_id} not found in response")
+        return entry
+
+    def _count_feed_queries(self):
+        cache.clear()
+        with CaptureQueriesContext(connection) as queries:
+            resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        return len(queries)
 
     def test_related_work_on_grant_comment(self):
         # Act
@@ -2014,3 +2027,221 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
             if saw_empty or not results:
                 saw_empty = True
                 self.assertEqual(results, [])
+
+
+class ActivityFeedReviewMetricsTests(ActivityFeedBaseTests):
+    """related_work.review_metrics averages the work's assessed peer reviews."""
+
+    def setUp(self):
+        super().setUp()
+        self.thread = RhCommentThreadModel.objects.create(
+            thread_type=PEER_REVIEW,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.prereg_post.id,
+            created_by=self.user,
+        )
+        self.first = self._review(score=4)
+        self.second = self._review(score=2)
+        self._review(score=1, is_assessed=False)
+        self._review(score=5, comment_removed=True)
+        self._review(score=5, review_removed=True)
+
+    def _review(
+        self,
+        score,
+        is_assessed=True,
+        comment_removed=False,
+        review_removed=False,
+    ):
+        comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "review"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.user,
+            thread=self.thread,
+            is_removed=comment_removed,
+        )
+        return Review.objects.create(
+            score=score,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            unified_document=self.prereg_doc,
+            is_assessed=is_assessed,
+            is_removed=review_removed,
+        )
+
+    def _get_entry(self, entry_id):
+        resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        entry = next(
+            (entry for entry in resp.data["results"] if entry["id"] == entry_id), None
+        )
+        self.assertIsNotNone(entry, f"Feed entry {entry_id} not found in response")
+        return entry
+
+    def _count_feed_queries(self):
+        cache.clear()
+        with CaptureQueriesContext(connection) as queries:
+            resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        return len(queries)
+
+    def test_review_metrics_count_only_assessed_live_reviews(self):
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert — the unassessed and removed reviews are left out.
+        self.assertEqual(
+            entry["related_work"]["review_metrics"], {"avg": 3.0, "count": 2}
+        )
+
+    def test_assessed_reviews_list_reviewers_oldest_first(self):
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert
+        reviews = entry["related_work"]["assessed_reviews"]
+        self.assertEqual(
+            [review["id"] for review in reviews], [self.first.id, self.second.id]
+        )
+        self.assertEqual(reviews[0]["score"], 4)
+        self.assertTrue(reviews[0]["is_assessed"])
+        self.assertEqual(reviews[0]["author"]["id"], self.user.author_profile.id)
+
+    def test_assessed_reviews_stop_at_three_while_the_count_doesnt(self):
+        # Arrange
+        self._review(score=3)
+        self._review(score=5)
+
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertEqual(len(related_work["assessed_reviews"]), 3)
+        self.assertEqual(related_work["review_metrics"], {"avg": 3.5, "count": 4})
+
+    def test_review_without_a_score_counts_but_is_not_averaged_or_listed(self):
+        # Arrange
+        unscored = self._review(score=None)
+
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert — the same numbers get_review_details gives.
+        related_work = entry["related_work"]
+        self.assertEqual(related_work["review_metrics"], {"avg": 3.0, "count": 3})
+        self.assertEqual(self.prereg_doc.get_review_details(), {"avg": 3.0, "count": 3})
+        self.assertNotIn(
+            unscored.id, [review["id"] for review in related_work["assessed_reviews"]]
+        )
+
+    def test_only_unscored_reviews_average_zero_and_list_nobody(self):
+        # Arrange
+        Review.objects.filter(id__in=[self.first.id, self.second.id]).update(score=None)
+
+        # Act
+        entry = self._get_entry(self.prereg_entry.id)
+
+        # Assert
+        related_work = entry["related_work"]
+        self.assertEqual(related_work["review_metrics"], {"avg": 0, "count": 2})
+        self.assertNotIn("assessed_reviews", related_work)
+
+    def test_more_reviewers_add_no_queries(self):
+        # Arrange — the first request warms caches the later ones don't repeat.
+        self._count_feed_queries()
+        before = self._count_feed_queries()
+        for index in range(2):
+            review = self._review(score=3)
+            reviewer = create_random_authenticated_user(f"reviewer_{index}")
+            Review.objects.filter(id=review.id).update(created_by=reviewer)
+
+        # Act
+        after = self._count_feed_queries()
+
+        # Assert — reviewers and their verification come with the prefetch.
+        self.assertEqual(after, before)
+
+    def test_review_fields_left_out_without_assessed_reviews(self):
+        # Act
+        entry = self._get_entry(self.discussion_entry.id)
+
+        # Assert
+        self.assertNotIn("review_metrics", entry["related_work"])
+        self.assertNotIn("assessed_reviews", entry["related_work"])
+
+    def test_review_metrics_match_without_the_prefetch(self):
+        # Act — serialized straight from the document, as other callers do.
+        related_work = RelatedWorkSerializer.serialize(self.prereg_doc)
+
+        # Assert
+        self.assertEqual(related_work["review_metrics"], {"avg": 3.0, "count": 2})
+        self.assertEqual(self.prereg_doc.get_review_details(), {"avg": 3.0, "count": 2})
+        self.assertEqual(len(related_work["assessed_reviews"]), 2)
+
+
+class ActivityFeedSlimContentTests(ActivityFeedBaseTests):
+    """content_object leaves out the copies related_work makes redundant."""
+
+    REVIEWS = [{"id": 7, "score": 4.0, "is_assessed": True, "author": {"id": 1}}]
+
+    def _get_content(self, entry):
+        cache.clear()
+        resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        found = next((e for e in resp.data["results"] if e["id"] == entry.id), None)
+        self.assertIsNotNone(found, f"Feed entry {entry.id} not found in response")
+        return found["content_object"]
+
+    def test_post_leaves_out_its_review_list(self):
+        # Arrange
+        stored = {"id": self.prereg_post.id, "title": "P", "reviews": self.REVIEWS}
+        self.prereg_entry.content = stored
+        self.prereg_entry.save(update_fields=["content"])
+
+        # Act
+        content = self._get_content(self.prereg_entry)
+
+        # Assert — and the stored content is left as it was.
+        self.assertNotIn("reviews", content)
+        self.assertEqual(content["title"], "P")
+        self.prereg_entry.refresh_from_db()
+        self.assertEqual(self.prereg_entry.content["reviews"], self.REVIEWS)
+
+    def test_reply_serialized_from_the_comment(self):
+        # Arrange — a real reply, serialized live by CommentSerializer.
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.prereg_post.id,
+            created_by=self.user,
+        )
+        parent = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "parent"}]},
+            created_by=self.user,
+            thread=thread,
+        )
+        reply = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "reply"}]},
+            created_by=self.user,
+            thread=thread,
+            parent=parent,
+        )
+        entry = _make_feed_entry(
+            RhCommentModel, reply.id, self.prereg_doc, user=self.user
+        )
+
+        # Act
+        content = self._get_content(entry)
+
+        # Assert
+        self.assertEqual(content["id"], reply.id)
+        self.assertNotIn("reviews", content["post"])
+        self.assertEqual(content["post"]["id"], self.prereg_post.id)
+        quoted = content["parent_comment"]
+        self.assertEqual(set(quoted), set(ACTIVITY_PARENT_COMMENT_FIELDS))
+        self.assertEqual(quoted["id"], parent.id)
+        self.assertEqual(
+            quoted["comment_content_json"], {"ops": [{"insert": "parent"}]}
+        )
+        self.assertEqual(quoted["author"]["id"], self.user.author_profile.id)

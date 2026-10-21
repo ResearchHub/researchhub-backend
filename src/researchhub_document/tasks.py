@@ -1,6 +1,7 @@
 import logging
 from datetime import timedelta
 
+from django.conf import settings
 from django.utils import timezone
 
 from researchhub.celery import QUEUE_PAPER_MISC, app
@@ -15,7 +16,10 @@ logger = logging.getLogger(__name__)
 
 @app.task(queue=QUEUE_PAPER_MISC)
 def assign_preregistration_dois() -> None:
-    """Assign DOIs to eligible preregistrations."""
+    """Assign DOIs to eligible preregistrations in production."""
+    if not settings.PRODUCTION:
+        return
+
     week_ago = timezone.now() - timedelta(days=7)
 
     eligible_posts = (

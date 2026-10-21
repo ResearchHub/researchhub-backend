@@ -15,7 +15,7 @@ from feed.cache_segment import (
 )
 
 # Bump when unscoped public feed filtering or serialization changes.
-ACTIVITY_FEED_CACHE_VERSION = 3
+ACTIVITY_FEED_CACHE_VERSION = 5
 
 
 def activity_feed_cache_key(page: int, page_size: int = FEED_CACHE_PAGE_SIZE) -> str:

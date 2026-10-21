@@ -36,7 +36,7 @@ turn which notes changed since the model last saw them.
 """
 
 import logging
-from collections.abc import Callable, Collection, Iterable
+from collections.abc import Callable, Collection, Iterable, Iterator
 
 from django.db import transaction
 
@@ -53,6 +53,7 @@ from research_ai.services.note_block_edits import (
     apply_block_edits,
     check_block_edits,
     parse_block_edits,
+    parse_edit_blocks,
 )
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -63,7 +64,6 @@ from utils.prosemirror import (
     EDITOR_ID_ATTRS,
     compact_blocks,
     is_trailing_paragraph,
-    parse_blocks,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,17 +79,24 @@ _CREATABLE_NOTE_TYPES = (PREREGISTRATION, GRANT)
 _BLOCK_FORMAT = (
     "Blocks use a compact Tiptap form: a bare string directly in the "
     "top-level blocks array is a plain paragraph. Inside a node's `content`, "
-    "a bare string is unmarked inline text, never a paragraph. Nested "
-    "paragraphs must keep explicit paragraph objects. In bulletList and "
-    "orderedList, every listItem must start with a paragraph; never put "
-    "bare strings directly in listItem.content. Example: "
+    "a bare string is unmarked inline text. A list is "
     '{"type": "bulletList", "content": [{"type": "listItem", '
     '"content": [{"type": "paragraph", "content": ["Bullet text"]}]}]}. '
-    "Use the same listItem structure for orderedList. Attributes equal to "
-    "the editor default are omitted. "
-    "Reference URLs must be clickable: use text nodes with "
-    'marks: [{"type": "link", "attrs": {"href": "https://..."}}]. '
-    "Do not write Markdown link syntax into note text."
+    "Attributes equal to the editor default are omitted. Marked text is a "
+    "text node, e.g. "
+    '{"type": "text", "text": "Smith 2024", "marks": [{"type": "bold"}, '
+    '{"type": "link", "attrs": {"href": "https://..."}}]}; reference URLs '
+    "must be link marks like this, never Markdown link syntax."
+)
+# Only edit_note needs to know what it may write.
+_EDIT_FORMAT = (
+    "Node types: paragraph, heading (attrs.level), bulletList, orderedList, "
+    "taskList/taskItem (attrs.checked), codeBlock (attrs.language), "
+    "blockquoteFigure, table/tableRow/tableCell, horizontalRule, hardBreak. "
+    'Math: {"type": "blockMath", "attrs": {"latex": "E = mc^2"}}, or '
+    "inlineMath with the same attrs inside a paragraph. Marks: bold, italic, "
+    "underline, strike, code, subscript, superscript, highlight, link. Never "
+    "write test content into the user's note."
 )
 
 
@@ -234,10 +241,10 @@ class NoteToolset:
                     "note's current version to re-apply your edit against. "
                     "Send only the blocks you are changing -- "
                     "untouched blocks stay exactly as stored. "
-                    f"{_BLOCK_FORMAT} New blocks are validated against the "
-                    "editor schema; invalid ones reject the whole edit. Each "
-                    "edit is saved as a new version, so prior content is "
-                    "kept as history."
+                    f"{_BLOCK_FORMAT} {_EDIT_FORMAT} New blocks are validated "
+                    "against the editor schema; invalid ones reject the whole "
+                    "edit. Each edit is saved as a new version, so prior "
+                    "content is kept as history."
                 ),
                 input_schema={
                     "type": "object",
@@ -477,10 +484,9 @@ class NoteToolset:
             edits = parse_block_edits(input.get("edits"))
             for index, edit in enumerate(edits):
                 if edit.blocks is not None:
-                    try:
-                        edit.blocks = parse_blocks(BLOCK_EDITOR, edit.blocks)
-                    except ValueError as exc:
-                        raise ValueError(f"edits[{index}]: {exc}") from exc
+                    edit.blocks = parse_edit_blocks(
+                        BLOCK_EDITOR, edit.blocks, f"edits[{index}].blocks"
+                    )
         except ValueError as exc:
             return {
                 "error": f"{exc}. No edits were saved by this call. "
@@ -593,28 +599,45 @@ class NoteToolset:
     def changed_notes_notice(self, messages: Iterable[Message]) -> str | None:
         """A note for the model naming notes changed since it last saw them.
 
-        Scans ``messages`` (the conversation so far) for the last version of
-        each note a read/edit/create result showed, and compares it to the
-        note's current version. ``None`` when nothing it saw has changed.
+        Scans ``messages`` (the conversation so far) for the last version and
+        title of each note a note tool result showed, and compares them to
+        the note as it is now. A rename adds no version, so titles are
+        compared on their own. ``None`` when nothing it saw has changed.
         """
+        versions, titles = _last_seen(messages)
         changed = []
-        for note_id, seen in _last_seen_versions(messages).items():
+        edited = False
+        for note_id in dict.fromkeys([*versions, *titles]):
             note = self.get_readable_note(note_id)
-            if note is None or note.latest_version_id == seen:
+            if note is None:
                 continue
-            changed.append(
-                f"note {note_id} is now at version {note.latest_version_id} "
-                f"(you last saw version {seen})"
-            )
+            if note_id in versions and note.latest_version_id != versions[note_id]:
+                edited = True
+                changed.append(
+                    f"note {note_id} is now at version {note.latest_version_id} "
+                    f"(you last saw version {versions[note_id]})"
+                )
+            if note_id in titles and note.title != titles[note_id]:
+                changed.append(
+                    f'note {note_id} is now titled "{note.title}" '
+                    f'(you last saw "{titles[note_id]}")'
+                )
         if not changed:
             return None
+        guidance = (
+            " It changed since you last read it, most likely because the "
+            "user edited it, so your earlier reads of it are out of date. "
+            "Call read_note before editing it and base the edit on that "
+            "version."
+            if edited
+            else ""
+        )
         return (
             "[Notice from the system, not the user: "
             + "; ".join(changed)
-            + ". It changed since you last read it, most likely because the "
-            "user edited it, so your earlier reads of it are out of date. "
-            "Call read_note before editing it and base the edit on that "
-            "version.]"
+            + "."
+            + guidance
+            + "]"
         )
 
     def get_readable_note(self, note_id) -> Note | None:
@@ -655,28 +678,40 @@ def notify_note_updated(note: Note) -> None:
         )
 
 
-_VERSIONED_RESULT_TOOLS = frozenset({READ_NOTE, EDIT_NOTE, CREATE_NOTE})
+_NOTE_RESULT_TOOLS = frozenset({READ_NOTE, EDIT_NOTE, CREATE_NOTE, RENAME_NOTE})
 
 
-def _last_seen_versions(messages: Iterable[Message]) -> dict[int, int | None]:
-    """Note id -> the last version id a note tool result showed the model."""
+def _last_seen(
+    messages: Iterable[Message],
+) -> tuple[dict[int, int | None], dict[int, str]]:
+    """Note id -> the last version id, and the last title, that a note tool
+    result showed the model."""
+    versions: dict[int, int | None] = {}
+    titles: dict[int, str] = {}
+    for result in _note_results(messages):
+        note_id = result.get("note_id")
+        if not isinstance(note_id, int):
+            continue
+        if "version_id" in result:
+            versions[note_id] = result["version_id"]
+        if isinstance(result.get("title"), str):
+            titles[note_id] = result["title"]
+    return versions, titles
+
+
+def _note_results(messages: Iterable[Message]) -> Iterator[dict]:
+    """The note tool results the model saw, oldest first."""
     calls: set[str] = set()
-    seen: dict[int, int | None] = {}
     for message in messages:
         for block in message.content:
-            if (
-                isinstance(block, ToolUseBlock)
-                and block.name in _VERSIONED_RESULT_TOOLS
-            ):
+            if isinstance(block, ToolUseBlock) and block.name in _NOTE_RESULT_TOOLS:
                 calls.add(block.id)
-            elif isinstance(block, ToolResultBlock) and block.tool_use_id in calls:
-                content = block.content if isinstance(block.content, dict) else {}
+            elif (
+                isinstance(block, ToolResultBlock)
+                and block.tool_use_id in calls
+                and isinstance(block.content, dict)
+            ):
+                yield block.content
                 # A stale edit's error carries the current read.
-                for result in (content, content.get("current")):
-                    if (
-                        isinstance(result, dict)
-                        and isinstance(result.get("note_id"), int)
-                        and "version_id" in result
-                    ):
-                        seen[result["note_id"]] = result["version_id"]
-    return seen
+                if isinstance(block.content.get("current"), dict):
+                    yield block.content["current"]
