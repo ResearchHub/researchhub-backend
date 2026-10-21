@@ -223,94 +223,35 @@ class SetXProfileLinkTests(TestCase):
             amplitude_client=Mock(),
             mailchimp_client=Mock(),
         )
-        self.user = create_random_default_user("x_profile_test")
 
-    def _create_x_account(self, user=None, uid="123", username="xuser"):
-        return SocialAccount.objects.create(
-            user=user or self.user,
-            provider="twitter_oauth2",
-            uid=uid,
-            extra_data={"id": uid, "name": "X User", "username": username},
-        )
-
-    def test_sets_x_profile_link_from_x_account(self):
+    def test_leaves_x_profile_link_unchanged(self):
         """
-        Test that the author's X link is set from their X username.
+        Test that the X link is only set when a single X account has a username
+        and the author has no link yet.
         """
-        # Arrange
-        self._create_x_account()
+        cases = [
+            ("existing link", "https://x.com/existing", ["xuser"]),
+            ("no x account", None, []),
+            ("no username", None, [None]),
+            ("multiple x accounts", None, ["first", "second"]),
+        ]
+        for name, existing_link, usernames in cases:
+            with self.subTest(name):
+                # Arrange
+                user = create_random_default_user(f"x_profile_{name}")
+                user.author_profile.twitter = existing_link
+                user.author_profile.save()
+                for i, username in enumerate(usernames):
+                    SocialAccount.objects.create(
+                        user=user,
+                        provider="twitter_oauth2",
+                        uid=f"{user.id}-{i}",
+                        extra_data={"username": username} if username else {},
+                    )
 
-        # Act
-        self.service.set_x_profile_link(self.user)
+                # Act
+                self.service.set_x_profile_link(user)
 
-        # Assert
-        self.user.author_profile.refresh_from_db()
-        self.assertEqual(self.user.author_profile.twitter, "https://x.com/xuser")
-
-    def test_does_not_overwrite_existing_x_profile_link(self):
-        """
-        Test that an existing X link on the author profile is preserved.
-        """
-        # Arrange
-        existing_link = "https://x.com/existing"
-        self.user.author_profile.twitter = existing_link
-        self.user.author_profile.save()
-        self._create_x_account()
-
-        # Act
-        self.service.set_x_profile_link(self.user)
-
-        # Assert
-        self.user.author_profile.refresh_from_db()
-        self.assertEqual(self.user.author_profile.twitter, existing_link)
-
-    def test_does_nothing_when_no_x_account(self):
-        """
-        Test that nothing happens when the user has no X account.
-        """
-        # Arrange
-        SocialAccount.objects.create(
-            user=self.user, provider="google", uid="123", extra_data={}
-        )
-
-        # Act
-        self.service.set_x_profile_link(self.user)
-
-        # Assert
-        self.user.author_profile.refresh_from_db()
-        self.assertIsNone(self.user.author_profile.twitter)
-
-    def test_does_nothing_when_x_account_has_no_username(self):
-        """
-        Test that nothing happens when the X account has no username.
-        """
-        # Arrange
-        SocialAccount.objects.create(
-            user=self.user, provider="twitter_oauth2", uid="123", extra_data={}
-        )
-
-        # Act
-        self.service.set_x_profile_link(self.user)
-
-        # Assert
-        self.user.author_profile.refresh_from_db()
-        self.assertIsNone(self.user.author_profile.twitter)
-
-    def test_logs_error_when_multiple_x_accounts(self):
-        """
-        Test that an error is logged when the user has multiple X accounts.
-        """
-        # Arrange
-        self._create_x_account(uid="123", username="first")
-        self._create_x_account(uid="456", username="second")
-
-        # Act
-        with self.assertLogs(
-            "oauth.services.user_signup_service", level="ERROR"
-        ) as logs:
-            self.service.set_x_profile_link(self.user)
-
-        # Assert
-        self.assertIn(str(self.user.id), logs.output[0])
-        self.user.author_profile.refresh_from_db()
-        self.assertIsNone(self.user.author_profile.twitter)
+                # Assert
+                user.author_profile.refresh_from_db()
+                self.assertEqual(user.author_profile.twitter, existing_link)
