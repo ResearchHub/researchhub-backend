@@ -58,9 +58,10 @@ _BINARY_TYPES = frozenset({"application/pdf", "application/octet-stream", ""})
 _BLOCKED_STATUSES = frozenset({401, 403, 429, 503})
 _MARKDOWN = "text/markdown"
 _MAX_TITLE_CHARS = 255
+# Names no URL: a tool result echoing a refused one would let it count next time.
 _NOT_IN_CONVERSATION = (
-    "{url} does not appear in this conversation. Only a URL the user gave or a "
-    "search or tool result returned can be fetched; copy it exactly."
+    "That URL does not appear in this conversation. Only a URL the user gave or "
+    "a search or tool result returned can be fetched; copy it exactly."
 )
 
 
@@ -180,7 +181,7 @@ class WebFetchService:
         except UrlNotAllowedError as exc:
             raise WebFetchError(str(exc))
         if not mentioned(url, context):
-            raise WebFetchError(_NOT_IN_CONVERSATION.format(url=url))
+            raise WebFetchError(_NOT_IN_CONVERSATION)
         fetched = self._scope(conversation)
         earlier = fetched.filter(source_url=url).order_by("-id").first()
         if earlier is not None:

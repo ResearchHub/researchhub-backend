@@ -136,6 +136,7 @@ from research_ai.services.notebook_chat.toolset import (
     NotebookWebSearchToolset,
     compose_notebook_toolset,
 )
+from research_ai.services.notebook_chat.web_fetch_tools import WebFetchToolset
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from research_ai.services.usage_budget import (
     AgentLoopBudgetRecorder,
@@ -147,6 +148,7 @@ from research_ai.services.usage_budget import (
 )
 from research_ai.services.usage_budget.reservation import claim_deadline
 from research_ai.services.user_profile_tools import UserProfileToolset
+from research_ai.services.web_fetch import WebFetchService
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
@@ -263,6 +265,7 @@ class NotebookChatService:
         note_creation_service: NoteCreationService | None = None,
         file_service: AgentFileService | None = None,
         page_image_service: PageImageService | None = None,
+        web_fetch_service: WebFetchService | None = None,
         screening_service: MessageScreeningService | None = None,
         workflow: str = WORKFLOW,
     ):
@@ -314,6 +317,9 @@ class NotebookChatService:
         self.files = AgentFileService() if file_service is None else file_service
         self.page_images = (
             PageImageService() if page_image_service is None else page_image_service
+        )
+        self.web_fetch = (
+            WebFetchService() if web_fetch_service is None else web_fetch_service
         )
         self.screening = (
             MessageScreeningService()
@@ -958,6 +964,13 @@ class NotebookChatService:
             ),
             citation_toolset=CitationToolset(oa_client=oa_client),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
+            # Read back from the durable rows, which hold every message so far.
+            web_fetch_toolset=WebFetchToolset(
+                conversation=conversation,
+                context=lambda: self.contexts.reconstruct(execution),
+                service=self.web_fetch,
+                pages_tool=vision,
+            ),
             attachment_toolset=AttachmentToolset(
                 conversation=conversation,
                 page_images=self.page_images if vision else None,

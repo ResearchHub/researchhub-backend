@@ -273,6 +273,7 @@ class WebFetchServiceTests(AWSMockTestCase):
 
         # Assert
         self.assertIn("does not appear in this conversation", str(raised.exception))
+        self.assertNotIn(URL, str(raised.exception))
         self.assertEqual(self.requests, [])
         self.fallback.text.assert_not_called()
 
