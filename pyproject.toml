@@ -68,7 +68,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "coverage>=7.6.1",
-    "daphne>=4.2.2,<5.0.0",
     "pre-commit>=4.6.0",
     "requests-mock>=1.12.1,<2.0.0",
     "responses>=0.26.0",

@@ -1,9 +1,9 @@
 import json
 
+from asgiref.testing import ApplicationCommunicator
 from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 from channels.routing import URLRouter
-from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
@@ -91,27 +91,37 @@ class NoteVersionConsumerTests(TransactionTestCase):
             user=self.owner,
         )
 
-        # A soft-deleted note reads as missing.
+        # A soft-deleted note reads as missing, even to its admin.
         self.removed_note = create_note(self.owner, organization=None)[0]
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=doc_ct,
+            object_id=self.removed_note.unified_document.id,
+            user=self.owner,
+        )
         self.removed_note.unified_document.is_removed = True
         self.removed_note.unified_document.save(update_fields=["is_removed"])
 
     async def _connect(self, user, *, note_id=None):
         note_id = self.note.id if note_id is None else note_id
-        communicator = WebsocketCommunicator(
-            application, f"/ws/notebook/notes/{note_id}/"
+        communicator = ApplicationCommunicator(
+            application,
+            {
+                "type": "websocket",
+                "path": f"/ws/notebook/notes/{note_id}/",
+                "user": user,
+            },
         )
-        communicator.scope["user"] = user
-        connected, detail = await communicator.connect()
-        return communicator, connected, detail
+        await communicator.send_input({"type": "websocket.connect"})
+        return communicator, await communicator.receive_output()
 
     async def test_anonymous_connection_is_rejected(self):
         # Act
-        _communicator, connected, code = await self._connect(AnonymousUser())
+        _communicator, response = await self._connect(AnonymousUser())
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_UNAUTHENTICATED)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_UNAUTHENTICATED)
 
     async def test_deactivated_account_is_rejected(self):
         # Arrange: the account is disabled but its token still resolves, the
@@ -120,59 +130,61 @@ class NoteVersionConsumerTests(TransactionTestCase):
         await self.owner.asave(update_fields=["is_active"])
 
         # Act
-        _communicator, connected, code = await self._connect(self.owner)
+        _communicator, response = await self._connect(self.owner)
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_UNAUTHENTICATED)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_UNAUTHENTICATED)
 
     async def test_user_without_read_access_reads_as_not_found(self):
         # Act: authenticated, but no user- or org-level permission.
-        _communicator, connected, code = await self._connect(self.outsider)
+        _communicator, response = await self._connect(self.outsider)
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_NOT_FOUND)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_NOT_FOUND)
 
     async def test_missing_note_reads_as_not_found(self):
         # Act
-        _communicator, connected, code = await self._connect(self.owner, note_id=999999)
+        _communicator, response = await self._connect(self.owner, note_id=999999)
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_NOT_FOUND)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_NOT_FOUND)
 
     async def test_soft_deleted_note_reads_as_not_found(self):
         # Act: even the owner cannot watch a removed note.
-        _communicator, connected, code = await self._connect(
+        _communicator, response = await self._connect(
             self.owner, note_id=self.removed_note.id
         )
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_NOT_FOUND)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_NOT_FOUND)
 
     async def test_read_only_viewer_is_admitted(self):
         # Act: the gate is the note's read permission, not the editing one.
-        communicator, connected, subprotocol = await self._connect(self.viewer)
+        communicator, response = await self._connect(self.viewer)
 
         # Assert
-        self.assertTrue(connected)
-        self.assertEqual(subprotocol, "Token")
-        await communicator.disconnect()
+        self.assertEqual(response["type"], "websocket.accept")
+        self.assertEqual(response["subprotocol"], "Token")
+        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
+        await communicator.wait()
 
     async def test_org_member_is_admitted_through_the_org_permission(self):
         # Act
-        communicator, connected, _detail = await self._connect(self.org_member)
+        communicator, response = await self._connect(self.org_member)
 
         # Assert
-        self.assertTrue(connected)
-        await communicator.disconnect()
+        self.assertEqual(response["type"], "websocket.accept")
+        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
+        await communicator.wait()
 
     async def test_subscriber_receives_published_events(self):
         # Arrange
-        communicator, connected, _detail = await self._connect(self.viewer)
-        self.assertTrue(connected)
+        communicator, response = await self._connect(self.viewer)
+        self.assertEqual(response["type"], "websocket.accept")
 
         # Act: an event lands on the note's group, shaped exactly as
         # ``NoteVersionEventPublisher`` sends it.
@@ -193,8 +205,10 @@ class NoteVersionConsumerTests(TransactionTestCase):
         )
 
         # Assert: the client receives the data object verbatim.
+        output = await communicator.receive_output()
+        self.assertEqual(output["type"], "websocket.send")
         self.assertEqual(
-            json.loads(await communicator.receive_from()),
+            json.loads(output["text"]),
             {
                 "type": NOTE_VERSION_CREATED,
                 "note_id": self.note.id,
@@ -205,13 +219,14 @@ class NoteVersionConsumerTests(TransactionTestCase):
                 "created_date": "2026-08-12T14:03:22+00:00",
             },
         )
-        await communicator.disconnect()
+        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
+        await communicator.wait()
 
     async def test_revoked_viewer_is_closed_instead_of_receiving_events(self):
         # Arrange: admitted while permitted, then the permission is revoked
         # (as make_private or remove_permission would).
-        communicator, connected, _detail = await self._connect(self.viewer)
-        self.assertTrue(connected)
+        communicator, response = await self._connect(self.viewer)
+        self.assertEqual(response["type"], "websocket.accept")
         await database_sync_to_async(
             Permission.objects.filter(user=self.viewer).delete
         )()
@@ -230,12 +245,13 @@ class NoteVersionConsumerTests(TransactionTestCase):
         output = await communicator.receive_output()
         self.assertEqual(output["type"], "websocket.close")
         self.assertEqual(output["code"], CLOSE_NOT_FOUND)
-        await communicator.disconnect()
+        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
+        await communicator.wait()
 
     async def test_deactivated_subscriber_is_closed_instead_of_receiving_events(self):
         # Arrange
-        communicator, connected, _detail = await self._connect(self.viewer)
-        self.assertTrue(connected)
+        communicator, response = await self._connect(self.viewer)
+        self.assertEqual(response["type"], "websocket.accept")
         self.viewer.is_active = False
         await self.viewer.asave(update_fields=["is_active"])
 
@@ -252,12 +268,13 @@ class NoteVersionConsumerTests(TransactionTestCase):
         output = await communicator.receive_output()
         self.assertEqual(output["type"], "websocket.close")
         self.assertEqual(output["code"], CLOSE_UNAUTHENTICATED)
-        await communicator.disconnect()
+        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
+        await communicator.wait()
 
     async def test_creating_a_version_delivers_the_event_end_to_end(self):
         # Arrange
-        communicator, connected, _detail = await self._connect(self.viewer)
-        self.assertTrue(connected)
+        communicator, response = await self._connect(self.viewer)
+        self.assertEqual(response["type"], "websocket.accept")
 
         # Act: a version row is committed (autocommit here, so the post-commit
         # publish fires immediately) by the signal-driven default publisher.
@@ -270,8 +287,10 @@ class NoteVersionConsumerTests(TransactionTestCase):
         )
 
         # Assert
+        output = await communicator.receive_output()
+        self.assertEqual(output["type"], "websocket.send")
         self.assertEqual(
-            json.loads(await communicator.receive_from()),
+            json.loads(output["text"]),
             {
                 "type": NOTE_VERSION_CREATED,
                 "note_id": self.note.id,
@@ -282,4 +301,5 @@ class NoteVersionConsumerTests(TransactionTestCase):
                 "created_date": version.created_date.isoformat(),
             },
         )
-        await communicator.disconnect()
+        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
+        await communicator.wait()

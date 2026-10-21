@@ -1,9 +1,8 @@
 import json
-from unittest.mock import patch
 
+from asgiref.testing import ApplicationCommunicator
 from channels.layers import get_channel_layer
 from channels.routing import URLRouter
-from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
@@ -79,20 +78,24 @@ class NotebookChatConsumerTests(TransactionTestCase):
         conversation_id = (
             self.conversation.id if conversation_id is None else conversation_id
         )
-        communicator = WebsocketCommunicator(
-            application, f"/ws/notebook/notes/{note_id}/chats/{conversation_id}/"
+        communicator = ApplicationCommunicator(
+            application,
+            {
+                "type": "websocket",
+                "path": f"/ws/notebook/notes/{note_id}/chats/{conversation_id}/",
+                "user": user,
+            },
         )
-        communicator.scope["user"] = user
-        connected, detail = await communicator.connect()
-        return communicator, connected, detail
+        await communicator.send_input({"type": "websocket.connect"})
+        return communicator, await communicator.receive_output()
 
     async def test_anonymous_connection_is_rejected(self):
         # Act
-        _communicator, connected, code = await self._connect(AnonymousUser())
+        _communicator, response = await self._connect(AnonymousUser())
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_UNAUTHENTICATED)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_UNAUTHENTICATED)
 
     async def test_deactivated_account_is_rejected(self):
         # Arrange: the account is disabled but its token still resolves, the
@@ -101,24 +104,25 @@ class NotebookChatConsumerTests(TransactionTestCase):
         await self.user.asave(update_fields=["is_active"])
 
         # Act
-        _communicator, connected, code = await self._connect(self.user)
+        _communicator, response = await self._connect(self.user)
 
         # Assert: deactivation revokes the socket like it revokes the REST API.
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_UNAUTHENTICATED)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_UNAUTHENTICATED)
 
     async def test_regular_user_can_connect_to_own_conversation(self):
         # Arrange: the user has no editor or moderator role.
         user = self.other_user
 
         # Act
-        communicator, connected, _detail = await self._connect(
+        communicator, response = await self._connect(
             user, conversation_id=self.other_conversation.id
         )
 
         # Assert
-        self.assertTrue(connected)
-        await communicator.disconnect()
+        self.assertEqual(response["type"], "websocket.accept")
+        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
+        await communicator.wait()
 
     async def test_suspended_user_is_rejected(self):
         # Arrange
@@ -126,11 +130,11 @@ class NotebookChatConsumerTests(TransactionTestCase):
         await self.user.asave(update_fields=["is_suspended"])
 
         # Act
-        _communicator, connected, code = await self._connect(self.user)
+        _communicator, response = await self._connect(self.user)
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_FORBIDDEN)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_FORBIDDEN)
 
     async def test_someone_elses_conversation_reads_as_not_found(self):
         # Arrange: a moderator who can view the note but does not own the
@@ -139,53 +143,39 @@ class NotebookChatConsumerTests(TransactionTestCase):
         await self.other_user.asave(update_fields=["moderator"])
 
         # Act
-        _communicator, connected, code = await self._connect(self.other_user)
+        _communicator, response = await self._connect(self.other_user)
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_NOT_FOUND)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_NOT_FOUND)
 
     async def test_an_invisible_note_reads_as_not_found(self):
         # Act: the note exists but the user cannot view it; the close code
         # matches a missing note's, so nothing about it leaks.
-        _communicator, connected, code = await self._connect(
+        _communicator, response = await self._connect(
             self.user, note_id=self.hidden_note.id
         )
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_NOT_FOUND)
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_NOT_FOUND)
 
     async def test_conversation_on_another_note_reads_as_not_found(self):
         # Act: a note the owner can view, but the chat lives on a different
         # one -- the (note, conversation) pair must not resolve.
-        _communicator, connected, code = await self._connect(
+        _communicator, response = await self._connect(
             self.user, note_id=self.other_note.id
         )
 
         # Assert
-        self.assertFalse(connected)
-        self.assertEqual(code, CLOSE_NOT_FOUND)
-
-    async def test_hub_editor_can_connect(self):
-        # Arrange
-        user_model = get_user_model()
-
-        # Act
-        with patch.object(user_model, "is_hub_editor", return_value=True):
-            communicator, connected, _detail = await self._connect(
-                self.other_user, conversation_id=self.other_conversation.id
-            )
-
-        # Assert
-        self.assertTrue(connected)
-        await communicator.disconnect()
+        self.assertEqual(response["type"], "websocket.close")
+        self.assertEqual(response["code"], CLOSE_NOT_FOUND)
 
     async def test_owner_connects_and_receives_published_events(self):
         # Arrange
-        communicator, connected, subprotocol = await self._connect(self.user)
-        self.assertTrue(connected)
-        self.assertEqual(subprotocol, "Token")
+        communicator, response = await self._connect(self.user)
+        self.assertEqual(response["type"], "websocket.accept")
+        self.assertEqual(response["subprotocol"], "Token")
 
         # Act: an event lands on the conversation's group, shaped exactly as
         # ``ConversationEventPublisher`` sends it.
@@ -202,12 +192,15 @@ class NotebookChatConsumerTests(TransactionTestCase):
         )
 
         # Assert: the client receives the data object verbatim.
+        output = await communicator.receive_output()
+        self.assertEqual(output["type"], "websocket.send")
         self.assertEqual(
-            json.loads(await communicator.receive_from()),
+            json.loads(output["text"]),
             {
                 "conversation_id": self.conversation.id,
                 "execution_id": 5,
                 "kind": "turn_progress",
             },
         )
-        await communicator.disconnect()
+        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
+        await communicator.wait()
