@@ -20,9 +20,9 @@ INDEX_CONFIGS = {
     },
     "hub": {
         "document": HubDocument,
-        "queryset": lambda: (
-            Hub.objects.filter(is_removed=True).exclude(namespace="journal").only("id")
-        ),
+        "queryset": lambda: Hub.objects.filter(
+            Q(is_removed=True) | Q(namespace=Hub.Namespace.JOURNAL)
+        ).only("id", "is_removed", "namespace"),
         "label": "Hubs",
     },
 }
