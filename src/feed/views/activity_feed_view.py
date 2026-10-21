@@ -2,8 +2,19 @@ from collections.abc import Sequence
 
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.expressions import ArraySubquery
 from django.core.cache import cache
-from django.db.models import Count, Exists, OuterRef, Prefetch, Q, QuerySet, Sum
+from django.db.models import (
+    Count,
+    Exists,
+    F,
+    Lookup,
+    OuterRef,
+    Prefetch,
+    Q,
+    QuerySet,
+    Sum,
+)
 from django.db.models.functions import Coalesce
 from rest_framework import status
 from rest_framework.decorators import action
@@ -75,6 +86,19 @@ def _match_peer_review_on_entry() -> Exists:
             comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
         )
     )
+
+
+class _EqualsAny(Lookup):
+    """Match rows whose ``lhs`` is an element of the array ``rhs``.
+
+    Unlike ``IN (subquery)``, Postgres evaluates the array once and then
+    looks each element up through an index on ``lhs``.
+    """
+
+    def as_sql(self, compiler, connection):
+        lhs, lhs_params = self.process_lhs(compiler, connection)
+        rhs, rhs_params = self.process_rhs(compiler, connection)
+        return f"{lhs} = ANY({rhs})", (*lhs_params, *rhs_params)
 
 
 class CountedFeedPagination(PageNumberPagination):
@@ -486,18 +510,21 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         Entries credit nobody when a post has no byline or when the entry
         predates stored credits, so those fall back to the publishing user.
 
-        Candidate ids stay in SQL so Postgres starts from those rows without
-        loading the author's full feed into Python. Left as a correlated
-        filter of the wider feed query, it walks the whole table in date
-        order instead.
+        The candidate ids are gathered once into an array, so Postgres fetches
+        just those rows by primary key and the cost follows the author's
+        activity. A form it can only test row by row, such as
+        ``id IN (...) OR id IN (...)``, makes it walk the whole feed table in
+        date order instead, which takes tens of seconds for authors with
+        little recent activity.
         """
         credited_ids = FeedEntry.objects.filter(authors=author_id).values("id")
         uncredited_ids = FeedEntry.objects.filter(
             user__author_profile=author_id,
             authors__isnull=True,
         ).values("id")
+        candidate_ids = ArraySubquery(credited_ids.union(uncredited_ids, all=True))
 
-        return queryset.filter(Q(id__in=credited_ids) | Q(id__in=uncredited_ids))
+        return queryset.filter(_EqualsAny(F("id"), candidate_ids))
 
     @staticmethod
     def _filter_by_grant(queryset, grant_id):
