@@ -129,6 +129,33 @@ class WebFetchToolsetTests(TestCase):
         self.assertEqual(result["kind"], "PDF")
         self.assertIn("view_attachment_pages", result["note"])
 
+    def test_an_image_points_to_the_pages_tool_when_offered(self):
+        # Arrange
+        image = make_file(
+            self.file.user,
+            filename="media.cdn.test/fig1.png",
+            content_type="image/png",
+            text="",
+            conversation=self.conversation,
+            source="WEB",
+            source_url=URL,
+        )
+        self.service.fetch.return_value = FetchedPage(file=image, path=DIRECT)
+        self.toolset = WebFetchToolset(
+            conversation=self.conversation,
+            context=lambda: self.context,
+            service=self.service,
+            pages_tool=True,
+        )
+
+        # Act
+        result = self._call({"url": URL})
+
+        # Assert
+        self.assertEqual(result["kind"], "image")
+        self.assertEqual(result["text"], "")
+        self.assertIn("view_attachment_pages, as page 1", result["note"])
+
     def test_an_out_of_range_max_chars_is_refused_without_a_fetch(self):
         # Act
         result = self._call({"url": URL, "max_chars": 0})

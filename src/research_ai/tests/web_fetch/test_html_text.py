@@ -86,6 +86,31 @@ class HtmlToMarkdownTests(TestCase):
         self.assertIn("Data", text)
         self.assertNotIn("http://[", text)
 
+    def test_images_keep_absolute_sources_but_not_icons_or_inline_data(self):
+        # Arrange
+        page = (
+            f"<body><p>{BODY}</p>"
+            '<figure><img src="/fig/1.png" alt="Figure 1:\n enhancer map" '
+            'title="Click to enlarge"></figure>'
+            '<img src="/blank.gif" data-src="fig/2.jpg" alt="Figure 2">'
+            '<table><tr><td><img src="fig/3.png" alt="Figure 3"></td></tr></table>'
+            '<img src="/logo.png" width="24" alt="Logo">'
+            '<img src="data:image/png;base64,AAAA" alt="Inline">'
+            "</body>"
+        ).encode()
+
+        # Act
+        _, text = html_to_markdown(
+            page, base_url="https://example.org/a/page", encoding=None
+        )
+
+        # Assert
+        self.assertIn("![Figure 1: enhancer map](https://example.org/fig/1.png)", text)
+        self.assertIn("![Figure 2](https://example.org/a/fig/2.jpg)", text)
+        self.assertIn("![Figure 3](https://example.org/a/fig/3.png)", text)
+        for dropped in ("Click to enlarge", "Logo", "Inline", "data:", "blank.gif"):
+            self.assertNotIn(dropped, text)
+
 
 class LooksLikeChallengeTests(TestCase):
     def test_spots_an_interstitial_but_not_an_article(self):

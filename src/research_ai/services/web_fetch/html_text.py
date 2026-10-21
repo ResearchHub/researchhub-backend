@@ -1,4 +1,4 @@
-"""A fetched HTML page as Markdown, links made absolute."""
+"""A fetched HTML page as Markdown, links and image sources made absolute."""
 
 import re
 from urllib.parse import urljoin, urlsplit
@@ -21,6 +21,8 @@ _DROPPED_TAGS = (
     "footer",
 )
 _BLANK_LINES = re.compile(r"\n{3,}")
+# An image declared smaller on a side is an icon, spacer or tracking pixel.
+_MIN_IMAGE_EDGE_PX = 32
 # Markers of a bot-detection interstitial (Cloudflare, DataDome, Imperva, AWS WAF).
 _CHALLENGE_MARKERS = (
     "cf-chl-",
@@ -35,7 +37,9 @@ _CHALLENGE_MARKERS = (
 
 class _Converter(MarkdownConverter):
     def __init__(self):
-        super().__init__(heading_style="ATX", strip=["img"])
+        # Figures are often laid out in tables; anywhere else inline, an image is
+        # reduced to its alt text.
+        super().__init__(heading_style="ATX", keep_inline_images_in=["td", "th"])
 
 
 def looks_like_challenge(data: bytes) -> bool:
@@ -62,6 +66,12 @@ def html_to_markdown(
             del link["href"]
         # Rendered into every Markdown link, where it only repeats the text.
         del link["title"]
+    for image in soup.find_all("img"):
+        source = _image_source(image, base_url)
+        if source is None or _declared_tiny(image):
+            image.decompose()
+        else:
+            image.attrs = {"src": source, "alt": " ".join(image.get("alt", "").split())}
     root = soup.body or soup
     root_length = len(root.get_text())
     for name in ("main", "article"):
@@ -74,6 +84,29 @@ def html_to_markdown(
             break
     text = _Converter().convert_soup(root)
     return title, _BLANK_LINES.sub("\n\n", text).strip()
+
+
+def _image_source(image, base_url: str) -> str | None:
+    """The image's absolute web URL: for a lazy-loaded one, its real source."""
+    for name in ("data-src", "src"):
+        value = image.get(name)
+        if not isinstance(value, str) or value.strip().lower().startswith("data:"):
+            continue
+        try:
+            source = urljoin(base_url, value.strip())
+        except ValueError:
+            continue
+        if urlsplit(source).scheme in ("http", "https"):
+            return source
+    return None
+
+
+def _declared_tiny(image) -> bool:
+    for name in ("width", "height"):
+        value = str(image.get(name, "")).strip().removesuffix("px")
+        if value.isdigit() and int(value) < _MIN_IMAGE_EDGE_PX:
+            return True
+    return False
 
 
 def _document_base(base_url: str, href: str) -> str:

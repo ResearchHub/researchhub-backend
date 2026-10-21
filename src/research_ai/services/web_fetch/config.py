@@ -12,6 +12,7 @@ from django.conf import settings
 _SETTING_OVERRIDES = {
     "max_pdf_bytes": "RESEARCH_AI_WEB_FETCH_MAX_PDF_BYTES",
     "max_page_bytes": "RESEARCH_AI_WEB_FETCH_MAX_PAGE_BYTES",
+    "max_image_bytes": "RESEARCH_AI_WEB_FETCH_MAX_IMAGE_BYTES",
     "timeout_seconds": "RESEARCH_AI_WEB_FETCH_TIMEOUT_SECONDS",
     "connect_timeout_seconds": "RESEARCH_AI_WEB_FETCH_CONNECT_TIMEOUT_SECONDS",
     "max_redirects": "RESEARCH_AI_WEB_FETCH_MAX_REDIRECTS",
@@ -31,6 +32,9 @@ class WebFetchConfig:
     # HTML and plain text; parsed in the worker itself, not a sandboxed child.
     max_page_bytes: int = 5 * 1024 * 1024
 
+    # The upload cap, as for a PDF; decoded in a sandboxed child.
+    max_image_bytes: int = 25 * 1024 * 1024
+
     # The whole direct request, redirects and body included.
     timeout_seconds: float = 20.0
 
@@ -49,7 +53,8 @@ class WebFetchConfig:
     max_files_per_conversation: int = 30
 
     # Open-access hosts (and their subdomains) requested directly to keep the
-    # original file; every other URL goes to the fetch API.
+    # original file; every other URL goes to the fetch API, except an image
+    # URL, which is requested from any host for an image response only.
     direct_hosts: tuple[str, ...] = (
         "aclanthology.org",
         "arxiv.org",

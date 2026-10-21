@@ -18,7 +18,7 @@ from research_ai.services.web_fetch import (
 )
 from research_ai.services.web_fetch import service as service_module
 from research_ai.services.web_fetch.exa import ExaContents, FallbackError
-from research_ai.tests.agent_files.helpers import FakeBucket, pdf_bytes
+from research_ai.tests.agent_files.helpers import FakeBucket, image_bytes, pdf_bytes
 from researchhub.services.private_storage_service import PrivateStorageService
 from utils.safe_http import UnsafeAddressError
 from utils.test_helpers import AWSMockTestCase
@@ -126,6 +126,42 @@ class WebFetchServiceTests(AWSMockTestCase):
         self.assertEqual(self.bucket.objects[file.storage_key], pdf)
         self.assertTrue(file.storage_key.endswith("/crispr-screens.pdf"))
 
+    def test_an_image_url_off_the_direct_list_is_fetched_as_an_image(self):
+        # Arrange
+        image_url = "https://media.cdn.test/figures/fig1.PNG"
+        self.context = [Message(role="user", content=[TextBlock(image_url)])]
+        png = image_bytes()
+        self.respond = lambda request: httpx.Response(
+            200, headers={"content-type": "image/png"}, content=png
+        )
+
+        # Act
+        fetched = self._fetch(image_url)
+
+        # Assert
+        file = fetched.file
+        self.assertEqual(fetched.path, DIRECT)
+        self.assertEqual(self.requests, [image_url])
+        self.assertEqual(file.source, AgentFile.Source.WEB)
+        self.assertEqual(file.content_type, "image/png")
+        self.assertEqual(file.filename, "media.cdn.test/figures/fig1.PNG")
+        self.assertEqual(self.bucket.objects[file.storage_key], png)
+        self.assertTrue(file.storage_key.endswith("/fig1.png"))
+        self.fallback.text.assert_not_called()
+
+    def test_an_image_url_off_the_direct_list_keeps_only_an_image(self):
+        # Arrange
+        image_url = "https://media.cdn.test/figures/fig1.png"
+        self.context = [Message(role="user", content=[TextBlock(image_url)])]
+
+        # Act
+        fetched = self._fetch(image_url)
+
+        # Assert
+        self.assertEqual(fetched.path, FALLBACK)
+        self.assertEqual(fetched.file.source, AgentFile.Source.WEB_TEXT)
+        self.assertEqual(self.requests, [image_url])
+
     def test_redirects_are_followed_to_the_page(self):
         # Arrange
         moved = "https://cdn.example.org/a/crispr"
@@ -155,9 +191,15 @@ class WebFetchServiceTests(AWSMockTestCase):
             ),
             ("too large", lambda r: _html(r, body=HTML * 100)),
             (
-                "unsupported content type image/png",
+                "not a readable image",
                 lambda r: httpx.Response(
                     200, headers={"content-type": "image/png"}, content=b"png"
+                ),
+            ),
+            (
+                "unsupported content type image/avif",
+                lambda r: httpx.Response(
+                    200, headers={"content-type": "image/avif"}, content=b"avif"
                 ),
             ),
             (
