@@ -28,3 +28,15 @@ def handle_social_profile_image(
     """
     service = UserSignupService()
     service.set_social_profile_image(user)
+
+
+@receiver(user_signed_up)
+@receiver(user_logged_in)
+def handle_x_profile_link(
+    sender: type, request: HttpRequest, user: User, **kwargs: Any
+) -> None:
+    """
+    After a user signs up or logs in with X, link their X profile to their author.
+    """
+    service = UserSignupService()
+    service.set_x_profile_link(user)

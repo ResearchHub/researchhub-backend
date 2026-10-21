@@ -215,3 +215,102 @@ class SetGoogleProfileImageTests(TestCase):
         # Assert
         # User ID should be in the log message
         self.assertIn(str(self.user.id), logs.output[0])
+
+
+class SetXProfileLinkTests(TestCase):
+    def setUp(self):
+        self.service = UserSignupService(
+            amplitude_client=Mock(),
+            mailchimp_client=Mock(),
+        )
+        self.user = create_random_default_user("x_profile_test")
+
+    def _create_x_account(self, user=None, uid="123", username="xuser"):
+        return SocialAccount.objects.create(
+            user=user or self.user,
+            provider="twitter_oauth2",
+            uid=uid,
+            extra_data={"id": uid, "name": "X User", "username": username},
+        )
+
+    def test_sets_x_profile_link_from_x_account(self):
+        """
+        Test that the author's X link is set from their X username.
+        """
+        # Arrange
+        self._create_x_account()
+
+        # Act
+        self.service.set_x_profile_link(self.user)
+
+        # Assert
+        self.user.author_profile.refresh_from_db()
+        self.assertEqual(self.user.author_profile.twitter, "https://x.com/xuser")
+
+    def test_does_not_overwrite_existing_x_profile_link(self):
+        """
+        Test that an existing X link on the author profile is preserved.
+        """
+        # Arrange
+        existing_link = "https://x.com/existing"
+        self.user.author_profile.twitter = existing_link
+        self.user.author_profile.save()
+        self._create_x_account()
+
+        # Act
+        self.service.set_x_profile_link(self.user)
+
+        # Assert
+        self.user.author_profile.refresh_from_db()
+        self.assertEqual(self.user.author_profile.twitter, existing_link)
+
+    def test_does_nothing_when_no_x_account(self):
+        """
+        Test that nothing happens when the user has no X account.
+        """
+        # Arrange
+        SocialAccount.objects.create(
+            user=self.user, provider="google", uid="123", extra_data={}
+        )
+
+        # Act
+        self.service.set_x_profile_link(self.user)
+
+        # Assert
+        self.user.author_profile.refresh_from_db()
+        self.assertIsNone(self.user.author_profile.twitter)
+
+    def test_does_nothing_when_x_account_has_no_username(self):
+        """
+        Test that nothing happens when the X account has no username.
+        """
+        # Arrange
+        SocialAccount.objects.create(
+            user=self.user, provider="twitter_oauth2", uid="123", extra_data={}
+        )
+
+        # Act
+        self.service.set_x_profile_link(self.user)
+
+        # Assert
+        self.user.author_profile.refresh_from_db()
+        self.assertIsNone(self.user.author_profile.twitter)
+
+    def test_logs_error_when_multiple_x_accounts(self):
+        """
+        Test that an error is logged when the user has multiple X accounts.
+        """
+        # Arrange
+        self._create_x_account(uid="123", username="first")
+        self._create_x_account(uid="456", username="second")
+
+        # Act
+        with self.assertLogs(
+            "oauth.services.user_signup_service", level="ERROR"
+        ) as logs:
+            self.service.set_x_profile_link(self.user)
+
+        # Assert
+        self.assertIn(str(self.user.id), logs.output[0])
+        self.user.author_profile.refresh_from_db()
+        self.assertIsNone(self.user.author_profile.twitter)

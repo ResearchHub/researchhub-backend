@@ -97,3 +97,26 @@ class UserSignupService:
         if author_profile and not author_profile.profile_image:
             author_profile.profile_image = picture_url
             author_profile.save(update_fields=["profile_image"])
+
+    def set_x_profile_link(self, user: User) -> None:
+        """Set the author's X profile link from their X account if not already set."""
+        author_profile = getattr(user, "author_profile", None)
+        if not author_profile or author_profile.twitter:
+            return
+
+        try:
+            social_account = SocialAccount.objects.get(
+                provider="twitter_oauth2", user=user
+            )
+        except SocialAccount.DoesNotExist:
+            return
+        except SocialAccount.MultipleObjectsReturned:
+            logger.error(f"User {user.id} has multiple twitter_oauth2 social accounts")
+            return
+
+        username = social_account.extra_data.get("username")
+        if not username:
+            return
+
+        author_profile.twitter = f"https://x.com/{username}"
+        author_profile.save(update_fields=["twitter"])
