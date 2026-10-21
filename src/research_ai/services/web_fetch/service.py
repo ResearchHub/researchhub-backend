@@ -307,18 +307,21 @@ class WebFetchService:
         data = self._body(response, config.max_page_bytes, deadline)
         if data.startswith(b"%PDF-"):
             return self._pdf(data, url)
+        return self._page(data, content_type, response.charset_encoding, url)
+
+    def _page(
+        self, data: bytes, content_type: str, encoding: str | None, url: str
+    ) -> _Document:
         if content_type in _HTML_TYPES:
             if looks_like_challenge(data):
                 raise _DirectFetchError("bot challenge page")
-            title, text = html_to_markdown(
-                data, base_url=url, encoding=response.charset_encoding
-            )
+            title, text = html_to_markdown(data, base_url=url, encoding=encoding)
             stored_type, extension = "text/html", ".html"
         else:
             title = ""
-            text = data.decode(response.charset_encoding or "utf-8", "replace")
+            text = data.decode(encoding or "utf-8", "replace")
             stored_type, extension = content_type, ".txt"
-        if _readable_chars(text) < config.min_page_chars:
+        if _readable_chars(text) < self.config.min_page_chars:
             raise _DirectFetchError("no readable text")
         max_chars = self.file_config.max_text_chars
         return _Document(

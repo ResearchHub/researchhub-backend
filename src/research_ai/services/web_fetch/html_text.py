@@ -58,6 +58,14 @@ def html_to_markdown(
     base = soup.find("base", href=True)
     if base is not None:
         base_url = _document_base(base_url, base["href"])
+    _absolutize_links(soup, base_url)
+    _keep_images(soup, base_url)
+    root = _content_root(soup)
+    text = _Converter().convert_soup(root)
+    return title, _BLANK_LINES.sub("\n\n", text).strip()
+
+
+def _absolutize_links(soup, base_url: str) -> None:
     for link in soup.find_all("a", href=True):
         try:
             link["href"] = urljoin(base_url, link["href"])
@@ -66,24 +74,27 @@ def html_to_markdown(
             del link["href"]
         # Rendered into every Markdown link, where it only repeats the text.
         del link["title"]
+
+
+def _keep_images(soup, base_url: str) -> None:
+    """Drops images with no web source or a tiny declared size; keeps src and alt."""
     for image in soup.find_all("img"):
         source = _image_source(image, base_url)
         if source is None or _declared_tiny(image):
             image.decompose()
         else:
             image.attrs = {"src": source, "alt": " ".join(image.get("alt", "").split())}
+
+
+def _content_root(soup):
     root = soup.body or soup
     root_length = len(root.get_text())
     for name in ("main", "article"):
         element = soup.find(name)
-        if element is None:
-            continue
         # A small one is a fragment of the page, not its content.
-        if len(element.get_text()) * 2 >= root_length:
-            root = element
-            break
-    text = _Converter().convert_soup(root)
-    return title, _BLANK_LINES.sub("\n\n", text).strip()
+        if element is not None and len(element.get_text()) * 2 >= root_length:
+            return element
+    return root
 
 
 def _image_source(image, base_url: str) -> str | None:
