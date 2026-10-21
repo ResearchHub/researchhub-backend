@@ -503,6 +503,7 @@ OPENAI_API_KEY = os.environ.get(
     getattr(keys, "OPENAI_API_KEY", ""),
 )
 
+
 # Claude Platform on AWS (research_ai agent core). Anthropic's own Claude
 # Developer Platform fronted by AWS SigV4 auth and Marketplace billing --
 # distinct from Amazon Bedrock. Requests are signed with the ambient AWS
@@ -519,6 +520,14 @@ OPENROUTER_API_KEY = os.environ.get(
     "OPENROUTER_API_KEY",
     getattr(keys, "OPENROUTER_API_KEY", ""),
 )
+
+# AI-generated proposal and RFP cover banners, through OpenRouter's Image API.
+# Sunburst is the precision tier of GPT Image 2.5, for legible banner text.
+# Pages show the banner cut to about 3:1; 21:9 is the widest ratio the model
+# offers, and the prompt keeps the text clear of the cut.
+COVER_IMAGE_MODEL = os.environ.get("COVER_IMAGE_MODEL", "openai/gpt-image-2.5-sunburst")
+COVER_IMAGE_ASPECT_RATIO = os.environ.get("COVER_IMAGE_ASPECT_RATIO", "21:9")
+COVER_IMAGE_QUALITY = os.environ.get("COVER_IMAGE_QUALITY", "medium")
 
 # Mistral OCR (research_ai chat files). Optional: when set, scanned PDF pages
 # are read by OCR; without it they are only marked as having no text layer.

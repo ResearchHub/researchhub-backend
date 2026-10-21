@@ -13,6 +13,10 @@ from research_ai.views.assistant_chat_views import (
     AssistantChatListCreateView,
     AssistantChatMessageView,
 )
+from research_ai.views.cover_image_views import (
+    CoverImageGenerationCreateView,
+    CoverImageGenerationDetailView,
+)
 from research_ai.views.email_views import (
     BulkGenerateEmailView,
     GeneratedEmailDetailView,
@@ -158,6 +162,11 @@ urlpatterns = [
     path(
         "assistant/chats/<int:conversation_id>/cancel/",
         AssistantChatCancelView.as_view(),
+    ),
+    path("cover-images/", CoverImageGenerationCreateView.as_view()),
+    path(
+        "cover-images/<int:generation_id>/",
+        CoverImageGenerationDetailView.as_view(),
     ),
     path("files/", AgentFileListCreateView.as_view()),
     path("files/limits/", AgentFileLimitsView.as_view()),

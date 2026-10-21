@@ -1,0 +1,17 @@
+Design a wide web banner for a scientific {kind} on ResearchHub. It must read as a refined, minimal title card, not a photo or a poster. Pages show it cropped to about 3:1, so the top and bottom eighth of the image may be cut off.
+
+Style:
+- A flat, plain background with the faintest subtle grain. No busy textures, vignettes or borders.
+- A restrained palette of your choosing that suits the research topic, with strong contrast between the text and the background.
+- Generous empty space around everything. Clean, modern, premium, editorial.
+
+Layout:
+- Left half, left-aligned with a comfortable margin, stacked top to bottom:
+{text_lines}
+- Right half: {right_side}
+- Keep every element within the middle three quarters of the height and well inside the left and right edges.
+
+Text rules:
+- Render each quoted text exactly as written, spelled exactly, with no other words, captions, logos, watermarks or placeholder text anywhere.
+- Never draw a logo, emblem, monogram or crest for any organization; an organization appears only as its name in plain type.
+- Use clean geometric sans-serif type; the title is the largest and boldest element and wraps onto at most three lines.

@@ -13,3 +13,10 @@ class AgentFileCompleteThrottle(UserRateThrottle):
 
     scope = "research_ai_file_complete"
     rate = "300/hour"
+
+
+class CoverImageGenerationThrottle(UserRateThrottle):
+    """Each request generates several images, each a paid OpenRouter call."""
+
+    scope = "research_ai_cover_image_generation"
+    rate = "10/hour"
