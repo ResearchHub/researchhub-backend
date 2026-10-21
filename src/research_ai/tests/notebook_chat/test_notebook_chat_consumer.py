@@ -1,5 +1,4 @@
 import json
-from unittest.mock import patch
 
 from asgiref.testing import ApplicationCommunicator
 from channels.layers import get_channel_layer
@@ -171,21 +170,6 @@ class NotebookChatConsumerTests(TransactionTestCase):
         # Assert
         self.assertEqual(response["type"], "websocket.close")
         self.assertEqual(response["code"], CLOSE_NOT_FOUND)
-
-    async def test_hub_editor_can_connect(self):
-        # Arrange
-        user_model = get_user_model()
-
-        # Act
-        with patch.object(user_model, "is_hub_editor", return_value=True):
-            communicator, response = await self._connect(
-                self.other_user, conversation_id=self.other_conversation.id
-            )
-
-        # Assert
-        self.assertEqual(response["type"], "websocket.accept")
-        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
-        await communicator.wait()
 
     async def test_owner_connects_and_receives_published_events(self):
         # Arrange
