@@ -50,6 +50,7 @@ _MAX_FULLTEXT_SOURCE_CHARS = 120000
 _MAX_PASSAGES = 5
 _MAX_FULLTEXT_QUERY_CHARS = 500
 _MAX_CARD_AUTHORS = 3  # authors named per work; author_count covers the rest
+_LIST_AUTHORSHIPS_CAP = 100  # OpenAlex list responses truncate authorships here
 
 _DOI_PREFIX = re.compile(r"^(?:https?://(?:dx\.|www\.)?doi\.org/|doi:)", re.IGNORECASE)
 _OPENALEX_WORK_ID = re.compile(r"W\d+", re.IGNORECASE)
@@ -95,9 +96,10 @@ def _author_view(record: dict) -> dict:
 def _attribution(work: dict) -> dict:
     """What citing a work needs beyond its title and year."""
     authors = list(work.get("authors") or [])
+    count = len(authors)
     return {
         "authors": authors[:_MAX_CARD_AUTHORS],
-        "author_count": len(authors),
+        "author_count": f"{count}+" if count >= _LIST_AUTHORSHIPS_CAP else count,
         "venue": work.get("venue") or "",
     }
 

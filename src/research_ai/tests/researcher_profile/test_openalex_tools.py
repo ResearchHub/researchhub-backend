@@ -102,6 +102,22 @@ class DispatchTests(SimpleTestCase):
         self.assertEqual(card["author_count"], 4)
         self.assertEqual(card["venue"], "Nature")
 
+    def test_work_cards_mark_a_capped_author_list_as_a_minimum(self):
+        # Arrange: OpenAlex list responses stop at 100 authorships.
+        entity = create_oa_work("Consortium Paper", 2024, "middle")
+        entity["authorships"] = [
+            {"author": {"display_name": f"Author {i}"}} for i in range(100)
+        ]
+        client = MagicMock()
+        client.get_works.return_value = ([entity], None)
+        toolset = OpenAlexToolset(client=client).as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch("get_author_works", {"openalex_author_id": "A123"})
+
+        # Assert
+        self.assertEqual(result["works"][0]["author_count"], "100+")
+
     def test_get_author_works_passes_cursor_and_keeps_broad_page_size(self):
         # Arrange
         client = MagicMock()
