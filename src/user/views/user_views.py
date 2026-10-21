@@ -105,7 +105,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         if user:
             # ORCID connects profiles but does not provide account sign-in.
             social_account = (
-                user.socialaccount_set.filter(provider__in=["google", "twitter_oauth2"])
+                user.socialaccount_set.filter(provider__in=["google", "x_oauth2"])
                 .order_by("provider")
                 .first()
             )

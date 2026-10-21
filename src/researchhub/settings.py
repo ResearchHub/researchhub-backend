@@ -385,10 +385,12 @@ SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "EMAIL_AUTHENTICATION": True,
     },
+    # allauth's X provider id. The SocialApp must set provider_id="x_oauth2",
+    # which is what X social accounts are stored under.
     "twitter_oauth2": {
         "EMAIL_AUTHENTICATION": True,
         "SCOPE": ["users.read", "users.email", "tweet.read"],
-        # Sent as user.fields; TwitterOAuth2Adapter requires confirmed_email.
+        # Sent as user.fields; XOAuth2Adapter requires confirmed_email.
         "FIELDS": [
             "id",
             "name",

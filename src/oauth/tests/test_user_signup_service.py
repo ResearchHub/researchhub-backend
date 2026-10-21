@@ -244,7 +244,7 @@ class SetXProfileLinkTests(TestCase):
                 for i, username in enumerate(usernames):
                     SocialAccount.objects.create(
                         user=user,
-                        provider="twitter_oauth2",
+                        provider="x_oauth2",
                         uid=f"{user.id}-{i}",
                         extra_data={"username": username} if username else {},
                     )

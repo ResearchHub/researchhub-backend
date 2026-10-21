@@ -13,17 +13,18 @@ from user.models import User
 @patch.object(UserSignupService, "track_signup")
 @patch.object(requests.Session, "get")
 @patch.object(OAuth2Client, "get_access_token")
-class TwitterLoginViewTests(APITestCase):
-    url = "/api/auth/twitter/login/"
+class XLoginViewTests(APITestCase):
+    url = "/api/auth/x/login/"
     payload = {
         "code": "auth-code",
         "code_verifier": "v" * 43,
-        "redirect_uri": "https://www.researchhub.com/api/auth/callback/twitter",
+        "redirect_uri": "https://www.researchhub.com/api/auth/callback/x",
     }
 
     def setUp(self):
         app = SocialApp.objects.create(
             provider="twitter_oauth2",
+            provider_id="x_oauth2",
             name="X",
             client_id="test-id",
             secret="test-secret",
@@ -66,6 +67,7 @@ class TwitterLoginViewTests(APITestCase):
 
         user = User.objects.get(email="user@example.com")
         self.assertTrue(user.emailaddress_set.get(primary=True).verified)
+        self.assertTrue(user.socialaccount_set.filter(provider="x_oauth2").exists())
         self.assertEqual(user.author_profile.twitter, "https://x.com/xuser")
         self.assertEqual(
             user.author_profile.profile_image, "https://pbs.twimg.com/xuser.jpg"

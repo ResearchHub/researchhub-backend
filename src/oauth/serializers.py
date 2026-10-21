@@ -9,7 +9,7 @@ from django.urls.exceptions import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from oauth.adapters import TwitterOAuth2Adapter
+from oauth.adapters import XOAuth2Adapter
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class SocialLoginSerializer(BaseSocialLoginSerializer):
             )
 
 
-class TwitterLoginSerializer(SocialLoginSerializer):
+class XLoginSerializer(SocialLoginSerializer):
     access_token = None
     id_token = None
     code = serializers.CharField(trim_whitespace=False)
@@ -63,7 +63,7 @@ class TwitterLoginSerializer(SocialLoginSerializer):
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """Exchange an X authorization code for this application's access token."""
         request = self._get_request()
-        adapter = TwitterOAuth2Adapter(request)
+        adapter = XOAuth2Adapter(request)
         app = adapter.get_provider().app
         client = OAuth2Client(
             request,

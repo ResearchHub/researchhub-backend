@@ -2,14 +2,15 @@ from typing import Any
 
 from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialApp, SocialLogin, SocialToken
-from allauth.socialaccount.providers.twitter_oauth2.views import (
-    TwitterOAuth2Adapter as BaseTwitterOAuth2Adapter,
-)
+from allauth.socialaccount.providers.twitter_oauth2.views import TwitterOAuth2Adapter
 from django.http import HttpRequest
 from rest_framework import serializers
 
 
-class TwitterOAuth2Adapter(BaseTwitterOAuth2Adapter):
+class XOAuth2Adapter(TwitterOAuth2Adapter):
+    # Matches SocialApp.provider_id; allauth's base provider stays twitter_oauth2.
+    provider_id = "x_oauth2"
+
     def complete_login(
         self,
         request: HttpRequest,

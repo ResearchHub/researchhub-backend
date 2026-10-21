@@ -76,7 +76,7 @@ class UserSignupService:
 
     def set_social_profile_image(self, user: User) -> None:
         """Set the user's profile image from a social account if not already set."""
-        for provider in ("google", "twitter_oauth2"):
+        for provider in ("google", "x_oauth2"):
             try:
                 social_account = SocialAccount.objects.get(provider=provider, user=user)
                 break
@@ -105,13 +105,11 @@ class UserSignupService:
             return
 
         try:
-            social_account = SocialAccount.objects.get(
-                provider="twitter_oauth2", user=user
-            )
+            social_account = SocialAccount.objects.get(provider="x_oauth2", user=user)
         except SocialAccount.DoesNotExist:
             return
         except SocialAccount.MultipleObjectsReturned:
-            logger.error(f"User {user.id} has multiple twitter_oauth2 social accounts")
+            logger.error(f"User {user.id} has multiple X social accounts")
             return
 
         username = social_account.extra_data.get("username")
