@@ -7,7 +7,6 @@ from researchhub_document.related_models.constants.document_type import CHANGELO
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.documents.base import BaseDocument
 from search.documents.hub import HubDocument
-from search.documents.journal import JournalDocument
 from search.documents.post import PostDocument
 
 INDEX_CONFIGS = {
@@ -25,13 +24,6 @@ INDEX_CONFIGS = {
             Hub.objects.filter(is_removed=True).exclude(namespace="journal").only("id")
         ),
         "label": "Hubs",
-    },
-    "journal": {
-        "document": JournalDocument,
-        "queryset": lambda: Hub.objects.filter(
-            is_removed=True, namespace="journal"
-        ).only("id"),
-        "label": "Journals",
     },
 }
 

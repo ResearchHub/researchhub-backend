@@ -14,56 +14,6 @@ class BaseSearchFilterBackend(BaseFilterBackend):
         raise NotImplementedError("Subclasses must implement filter_queryset()")
 
 
-class SearchFilterBackend(BaseSearchFilterBackend):
-    """
-    Filter backend for full-text search.
-    Replaces CompoundSearchFilterBackend from django_elasticsearch_dsl_drf.
-    """
-
-    search_param = "search"
-
-    def get_search_query(self, request, view):
-        """
-        Get search query from request parameters.
-        """
-        return request.query_params.get(self.search_param, "").strip()
-
-    def filter_queryset(self, request, queryset, view):
-        """
-        Filter queryset based on search query.
-        """
-        search_query = self.get_search_query(request, view)
-        if not search_query:
-            return queryset
-
-        # Get search fields from view
-        search_fields = getattr(view, "search_fields", {})
-        if not search_fields:
-            return queryset
-
-        # Build multi-match query
-        queries = []
-        for field, options in search_fields.items():
-            if isinstance(options, dict):
-                field_name = options.get("field", field)
-                boost = options.get("boost", 1)
-            else:
-                field_name = field
-                boost = 1
-
-            queries.append(
-                Q("match", **{field_name: {"query": search_query, "boost": boost}})
-            )
-
-        if queries:
-            combined_query = queries[0]
-            for query in queries[1:]:
-                combined_query = combined_query | query
-            queryset = queryset.query(combined_query)
-
-        return queryset
-
-
 class OrderingFilterBackend(BaseSearchFilterBackend):
     """
     Filter backend for ordering/sorting.
@@ -230,24 +180,6 @@ class HighlightBackend(BaseSearchFilterBackend):
         queryset = queryset.highlight(**highlight_options)
 
         return queryset
-
-
-class DefaultOrderingFilterBackend(OrderingFilterBackend):
-    """
-    Apply default ordering if no ordering is specified.
-    Replaces DefaultOrderingFilterBackend from django_elasticsearch_dsl_drf.
-    """
-
-    def get_ordering(self, request, view):
-        """
-        Get ordering, using default if not specified in request.
-        """
-        param_ordering = super().get_ordering(request, view)
-        if param_ordering:
-            return param_ordering
-
-        # Use default ordering from view
-        return getattr(view, "ordering", None)
 
 
 class PostFilterFilteringFilterBackend(FilteringFilterBackend):

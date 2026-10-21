@@ -18,7 +18,7 @@ from user.tests.helpers import create_random_authenticated_user
 
 COMMAND = "remove_deleted_docs_from_index"
 PATCH_PREFIX = f"search.management.commands.{COMMAND}"
-DOC_CLASSES = ("PostDocument", "HubDocument", "JournalDocument")
+DOC_CLASSES = ("PostDocument", "HubDocument")
 
 
 def _mock_mget_all_found(index, body):
@@ -51,9 +51,6 @@ class RemoveDeletedDocsFromIndexTests(TestCase):
     def setUp(self):
         self.hub_active = Hub.objects.create(name="Active Hub")
         self.hub_removed = Hub.objects.create(name="Removed Hub", is_removed=True)
-        self.journal_removed = Hub.objects.create(
-            name="Removed Journal", is_removed=True, namespace="journal"
-        )
 
         self.user = create_random_authenticated_user("testuser")
 
