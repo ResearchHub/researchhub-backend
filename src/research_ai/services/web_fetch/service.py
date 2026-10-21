@@ -1,10 +1,10 @@
 """Fetching a web page or PDF for a chat agent and keeping it as an ``AgentFile``.
 
-A page on an open-access host is requested directly from the worker; the
-original response is stored in the private bucket and read like an attached
-file, a PDF through the same extraction. Any other host, or a direct request
-that is blocked, fails, or yields no readable text, gets the fetch API's text
-instead (``Source.WEB_TEXT``).
+A page on an open-access host, or an image URL on any host, is requested
+directly from the worker; the original response is stored in the private bucket
+and read like an attached file, a PDF or image through the same extraction. Any
+other URL, or a direct request that is blocked, fails, or yields no readable
+text, gets the fetch API's text instead (``Source.WEB_TEXT``).
 Only URLs already in the conversation are fetched, by either path.
 """
 
@@ -24,7 +24,14 @@ from research_ai.models import AgentConversation, AgentFile
 from research_ai.models.agent_file import WEB_SOURCES
 from research_ai.services.agent.types import Message
 from research_ai.services.agent_files.config import AgentFileConfig
-from research_ai.services.agent_files.extraction import PDF, UnreadableFileError
+from research_ai.services.agent_files.extraction import (
+    KINDS_BY_EXTENSION,
+    PDF,
+    FileKind,
+    UnreadableFileError,
+    kind_for_content_type,
+    resolve_kind,
+)
 from research_ai.services.agent_files.extraction_service import TextExtractionService
 from research_ai.services.agent_files.image_loader import KEY_PREFIX
 from research_ai.services.agent_files.mistral_ocr import MistralOcr
@@ -50,11 +57,20 @@ USER_AGENT = (
     "ResearchHubBot/1.0 (+https://www.researchhub.com; fetches pages a "
     "user's research chat links to)"
 )
-_ACCEPT = "text/html,application/xhtml+xml,application/pdf,text/plain;q=0.9,*/*;q=0.1"
+_ACCEPT = (
+    "text/html,application/xhtml+xml,application/pdf,text/plain;q=0.9,"
+    # Named so a CDN choosing a format by Accept sends one we read, not AVIF.
+    "image/png,image/jpeg,image/webp,image/gif;q=0.8,*/*;q=0.1"
+)
 _HTML_TYPES = frozenset({"text/html", "application/xhtml+xml"})
 _TEXT_TYPES = frozenset({"text/plain", "text/markdown"})
 # Served for PDFs by some hosts; the body's magic number decides.
 _BINARY_TYPES = frozenset({"application/pdf", "application/octet-stream", ""})
+_IMAGE_EXTENSIONS = {
+    kind.content_type: extension
+    for extension, kind in reversed(KINDS_BY_EXTENSION.items())
+    if kind.is_image
+}
 _BLOCKED_STATUSES = frozenset({401, 403, 429, 503})
 _MARKDOWN = "text/markdown"
 _MAX_TITLE_CHARS = 255
@@ -112,6 +128,11 @@ def _key_name(url: str, extension: str) -> str:
     return (
         f"{slugify(stem)[:100] or slugify(parts.hostname or '') or 'page'}{extension}"
     )
+
+
+def _is_image_url(url: str) -> bool:
+    kind = resolve_kind(urlsplit(url).path)
+    return kind is not None and kind.is_image
 
 
 def _content_type(response: httpx.Response) -> str:
@@ -218,9 +239,11 @@ class WebFetchService:
     # -- direct path ------------------------------------------------------
 
     def _direct(self, url: str, deadline: float) -> _Document:
+        image_url = _is_image_url(url)
         current = url
         for _ in range(self.config.max_redirects + 1):
-            if not self.config.allows_direct(current):
+            open_access = self.config.allows_direct(current)
+            if not open_access and not image_url:
                 raise _DirectFetchError("not an open-access host")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -238,7 +261,9 @@ class WebFetchService:
                 raise _DirectFetchError(f"request failed ({type(exc).__name__})")
             try:
                 if not response.is_redirect:
-                    return self._document(response, current, deadline)
+                    return self._document(
+                        response, current, deadline, images_only=not open_access
+                    )
                 location = response.headers.get("location")
             finally:
                 response.close()
@@ -252,8 +277,9 @@ class WebFetchService:
         raise _DirectFetchError("too many redirects")
 
     def _document(
-        self, response: httpx.Response, url: str, deadline: float
+        self, response: httpx.Response, url: str, deadline: float, *, images_only
     ) -> _Document:
+        """``images_only`` refuses all but an image, unread: a host off the list."""
         status = response.status_code
         if status in _BLOCKED_STATUSES or response.headers.get("cf-mitigated"):
             raise _DirectFetchError(f"blocked (HTTP {status})")
@@ -261,6 +287,14 @@ class WebFetchService:
             raise _DirectFetchError(f"HTTP {status}")
         content_type = _content_type(response)
         config = self.config
+        kind = kind_for_content_type(content_type)
+        if kind is not None and kind.is_image:
+            data = self._body(response, config.max_image_bytes, deadline)
+            return self._image(data, kind, url)
+        if images_only:
+            raise _DirectFetchError(
+                f"unsupported content type {content_type or 'none'}"
+            )
         if content_type in _BINARY_TYPES:
             data = self._body(response, config.max_pdf_bytes, deadline)
             if not data.startswith(b"%PDF-"):
@@ -273,18 +307,21 @@ class WebFetchService:
         data = self._body(response, config.max_page_bytes, deadline)
         if data.startswith(b"%PDF-"):
             return self._pdf(data, url)
+        return self._page(data, content_type, response.charset_encoding, url)
+
+    def _page(
+        self, data: bytes, content_type: str, encoding: str | None, url: str
+    ) -> _Document:
         if content_type in _HTML_TYPES:
             if looks_like_challenge(data):
                 raise _DirectFetchError("bot challenge page")
-            title, text = html_to_markdown(
-                data, base_url=url, encoding=response.charset_encoding
-            )
+            title, text = html_to_markdown(data, base_url=url, encoding=encoding)
             stored_type, extension = "text/html", ".html"
         else:
             title = ""
-            text = data.decode(response.charset_encoding or "utf-8", "replace")
+            text = data.decode(encoding or "utf-8", "replace")
             stored_type, extension = content_type, ".txt"
-        if _readable_chars(text) < config.min_page_chars:
+        if _readable_chars(text) < self.config.min_page_chars:
             raise _DirectFetchError("no readable text")
         max_chars = self.file_config.max_text_chars
         return _Document(
@@ -333,6 +370,27 @@ class WebFetchService:
             final_url=url,
             page_count=extracted.page_count,
             pages_without_text=len(extracted.pages_without_text),
+        )
+
+    def _image(self, data: bytes, kind: FileKind, url: str) -> _Document:
+        try:
+            extracted = self.extraction.extract(
+                data, kind, max_chars=self.file_config.max_text_chars
+            )
+        except UnreadableFileError:
+            raise _DirectFetchError("not a readable image")
+        except Exception:
+            logger.exception("fetched image could not be read")
+            raise _DirectFetchError("the image could not be read")
+        # The text is what OCR read in it, often none: the image itself is viewed.
+        return _Document(
+            data=data,
+            content_type=kind.content_type,
+            extension=_IMAGE_EXTENSIONS[kind.content_type],
+            title="",
+            text=extracted.text,
+            truncated=extracted.truncated,
+            final_url=url,
         )
 
     # -- fallback path ----------------------------------------------------
