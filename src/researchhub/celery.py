@@ -23,7 +23,6 @@ QUEUE_CACHES = "caches"
 QUEUE_CONTRIBUTIONS = "contributions"
 QUEUE_ELASTIC_SEARCH = "elastic_search"
 QUEUE_EXTERNAL_REPORTING = "external_reporting"
-QUEUE_HUBS = "hubs"
 QUEUE_NOTIFICATION = "notifications"
 QUEUE_PAPER_METADATA = "paper_metadata"
 QUEUE_PAPER_METRICS = "paper_metrics"
@@ -67,15 +66,6 @@ app.conf.beat_schedule = {
         "options": {
             "priority": 2,
             "queue": QUEUE_CACHES,
-        },
-    },
-    # Hub
-    "hub_calculate-and-set-hub-counts": {
-        "task": "hub.tasks.calculate_and_set_hub_counts",
-        "schedule": crontab(minute=0, hour=0),
-        "options": {
-            "priority": 5,
-            "queue": QUEUE_HUBS,
         },
     },
     "purchase_complete-eligible-fundraises": {
