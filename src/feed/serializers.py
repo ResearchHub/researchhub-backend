@@ -1374,9 +1374,9 @@ class ActivityFeedEntrySerializer(FeedEntrySerializer):
         return _slim_activity_content(super().get_content_object(obj))
 
 
-# What activity clients read from each comment up a reply chain. The rest of a
-# parent (its document, with that document's fundraise and reviews) repeats what
-# the entry already carries.
+# The parent comment, as activity cards quote it: who wrote it, its text and the
+# text's format, and its type (cards say "Replied to a peer review" from it).
+# Cards show only the comment replied to, never the ones above it.
 ACTIVITY_PARENT_COMMENT_FIELDS = (
     "id",
     "author",
@@ -1386,33 +1386,52 @@ ACTIVITY_PARENT_COMMENT_FIELDS = (
 )
 
 
-def _slim_parent_comment(parent):
-    if not isinstance(parent, dict):
-        return parent
-    slim = {key: parent[key] for key in ACTIVITY_PARENT_COMMENT_FIELDS if key in parent}
-    slim["parent_comment"] = _slim_parent_comment(parent.get("parent_comment"))
-    return slim
+def _without_review_list(work):
+    """A serialized post or paper without ``reviews``, its list of every review."""
+    return {key: value for key, value in work.items() if key != "reviews"}
+
+
+def _quoted_parent(parent):
+    """The comment a reply is to, cut down to ``ACTIVITY_PARENT_COMMENT_FIELDS``.
+
+    Leaves out its own ``parent_comment``, and with it the rest of the thread, as
+    well as the post, fundraise and reviews that every parent repeats.
+    """
+    return {key: parent[key] for key in ACTIVITY_PARENT_COMMENT_FIELDS if key in parent}
 
 
 def _slim_activity_content(content):
-    """An activity entry's content object, without the copies it doesn't need.
+    """An activity entry's ``content_object`` without data its clients don't read.
 
-    A work's review list is left out of the post or paper, and of the one a
-    comment is on: ``related_work`` carries the work's peer reviews instead.
-    A comment's own ``review`` stays. Parent comments keep only what
-    ``ACTIVITY_PARENT_COMMENT_FIELDS`` names.
+    1. A post (or paper) entry's content object is the work itself: its
+       ``reviews`` list is dropped.
+    2. A comment entry carries the work it is on as ``post`` (or ``paper``):
+       that work's ``reviews`` list is dropped too. The comment's own ``review``,
+       which a peer review's score is on, is kept.
+    3. A reply's ``parent_comment`` keeps only what cards quote (see
+       ``_quoted_parent``).
 
-    Returns a copy; the content stored on the feed entry is left as it is.
+    Clients read a work's rating from ``related_work.review_metrics`` and its
+    first few assessed reviewers from ``related_work.assessed_reviews``; the
+    dropped lists held every review, assessed or not.
+
+    Paper content only reaches the moderators' hidden-entries list: the public
+    activity feed leaves papers out.
+
+    Returns new dicts; the content stored on the feed entry is not modified.
     """
     if not isinstance(content, dict):
         return content
-    slim = {key: value for key, value in content.items() if key != "reviews"}
-    for work_key in ("post", "paper"):
-        work = slim.get(work_key)
-        if isinstance(work, dict):
-            slim[work_key] = {k: v for k, v in work.items() if k != "reviews"}
-    if "parent_comment" in slim:
-        slim["parent_comment"] = _slim_parent_comment(slim["parent_comment"])
+
+    slim = _without_review_list(content)  # 1.
+
+    for work_key in ("post", "paper"):  # 2.
+        if isinstance(slim.get(work_key), dict):
+            slim[work_key] = _without_review_list(slim[work_key])
+
+    if isinstance(slim.get("parent_comment"), dict):  # 3.
+        slim["parent_comment"] = _quoted_parent(slim["parent_comment"])
+
     return slim
 
 

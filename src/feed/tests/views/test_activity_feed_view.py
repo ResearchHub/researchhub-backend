@@ -15,7 +15,12 @@ from rest_framework.test import APIClient, APITestCase
 
 from discussion.models import Vote
 from feed.models import FeedEntry
-from feed.serializers import FeedEntrySerializer, RelatedWorkSerializer
+from feed.serializers import (
+    ACTIVITY_PARENT_COMMENT_FIELDS,
+    CommentSerializer,
+    FeedEntrySerializer,
+    RelatedWorkSerializer,
+)
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Paper
 from purchase.models import FundingPool, Fundraise
@@ -2233,7 +2238,7 @@ class ActivityFeedSlimContentTests(ActivityFeedBaseTests):
         self.assertEqual(content["post"], {"id": 3, "title": "Proposal"})
         self.assertEqual(content["bounties"], [])
 
-    def test_parent_comments_keep_only_what_clients_read(self):
+    def test_parent_comment_keeps_only_what_cards_quote(self):
         # Arrange
         stored = self._parent(10, parent=self._parent(9, parent=self._parent(8)))
         self.prereg_entry.content = stored
@@ -2242,24 +2247,61 @@ class ActivityFeedSlimContentTests(ActivityFeedBaseTests):
         # Act
         content = self._get_content(self.prereg_entry)
 
-        # Assert — every level, down to the end of the chain.
-        parent = content["parent_comment"]
-        for comment_id in (9, 8):
-            self.assertEqual(
-                set(parent),
-                {
-                    "id",
-                    "author",
-                    "comment_content_json",
-                    "comment_content_type",
-                    "comment_type",
-                    "parent_comment",
-                },
-            )
-            self.assertEqual(parent["id"], comment_id)
-            self.assertEqual(parent["author"], {"id": 2, "first_name": "Ada"})
-            parent = parent["parent_comment"]
-        self.assertIsNone(parent)
+        # Assert — the comment replied to, without the thread above it.
+        self.assertEqual(
+            content["parent_comment"],
+            {
+                "id": 9,
+                "author": {"id": 2, "first_name": "Ada"},
+                "comment_content_json": {"ops": [{"insert": "comment 9"}]},
+                "comment_content_type": "QUILL_EDITOR",
+                "comment_type": "GENERIC_COMMENT",
+            },
+        )
+
+    def test_reply_serialized_from_the_comment(self):
+        # Arrange — a real reply, serialized live by CommentSerializer.
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.prereg_post.id,
+            created_by=self.user,
+        )
+        parent = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "parent"}]},
+            created_by=self.user,
+            thread=thread,
+        )
+        reply = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "reply"}]},
+            created_by=self.user,
+            thread=thread,
+            parent=parent,
+        )
+        entry = _make_feed_entry(
+            RhCommentModel, reply.id, self.prereg_doc, user=self.user
+        )
+
+        # Act
+        content = self._get_content(entry)
+
+        # Assert
+        self.assertEqual(content["id"], reply.id)
+        self.assertNotIn("reviews", content["post"])
+        self.assertEqual(content["post"]["id"], self.prereg_post.id)
+        quoted = content["parent_comment"]
+        self.assertEqual(set(quoted), set(ACTIVITY_PARENT_COMMENT_FIELDS))
+        self.assertEqual(quoted["id"], parent.id)
+        self.assertEqual(
+            quoted["comment_content_json"], {"ops": [{"insert": "parent"}]}
+        )
+        self.assertEqual(quoted["author"]["id"], self.user.author_profile.id)
+
+    def test_quoted_parent_fields_are_comment_fields(self):
+        # A field renamed on CommentSerializer would otherwise vanish silently.
+        self.assertLessEqual(
+            set(ACTIVITY_PARENT_COMMENT_FIELDS),
+            set(CommentSerializer().fields),
+        )
 
     def test_other_feeds_keep_review_lists(self):
         # Arrange
