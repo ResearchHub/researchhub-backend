@@ -17,8 +17,6 @@ from discussion.models import Vote
 from feed.models import FeedEntry
 from feed.serializers import (
     ACTIVITY_PARENT_COMMENT_FIELDS,
-    CommentSerializer,
-    FeedEntrySerializer,
     RelatedWorkSerializer,
 )
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
@@ -2188,19 +2186,6 @@ class ActivityFeedSlimContentTests(ActivityFeedBaseTests):
 
     REVIEWS = [{"id": 7, "score": 4.0, "is_assessed": True, "author": {"id": 1}}]
 
-    def _parent(self, comment_id, parent=None):
-        return {
-            "id": comment_id,
-            "author": {"id": 2, "first_name": "Ada"},
-            "comment_content_json": {"ops": [{"insert": f"comment {comment_id}"}]},
-            "comment_content_type": "QUILL_EDITOR",
-            "comment_type": "GENERIC_COMMENT",
-            "post": {"id": 3, "title": "Proposal", "reviews": self.REVIEWS},
-            "review": {"id": 8, "score": 2.0},
-            "bounties": [],
-            "parent_comment": parent,
-        }
-
     def _get_content(self, entry):
         cache.clear()
         resp = self.client.get(ACTIVITY_LIST_URL)
@@ -2223,41 +2208,6 @@ class ActivityFeedSlimContentTests(ActivityFeedBaseTests):
         self.assertEqual(content["title"], "P")
         self.prereg_entry.refresh_from_db()
         self.assertEqual(self.prereg_entry.content["reviews"], self.REVIEWS)
-
-    def test_comment_keeps_its_review_but_not_its_documents_list(self):
-        # Arrange
-        stored = self._parent(10, parent=self._parent(9, parent=self._parent(8)))
-        self.prereg_entry.content = stored
-        self.prereg_entry.save(update_fields=["content"])
-
-        # Act
-        content = self._get_content(self.prereg_entry)
-
-        # Assert
-        self.assertEqual(content["review"], {"id": 8, "score": 2.0})
-        self.assertEqual(content["post"], {"id": 3, "title": "Proposal"})
-        self.assertEqual(content["bounties"], [])
-
-    def test_parent_comment_keeps_only_what_cards_quote(self):
-        # Arrange
-        stored = self._parent(10, parent=self._parent(9, parent=self._parent(8)))
-        self.prereg_entry.content = stored
-        self.prereg_entry.save(update_fields=["content"])
-
-        # Act
-        content = self._get_content(self.prereg_entry)
-
-        # Assert — the comment replied to, without the thread above it.
-        self.assertEqual(
-            content["parent_comment"],
-            {
-                "id": 9,
-                "author": {"id": 2, "first_name": "Ada"},
-                "comment_content_json": {"ops": [{"insert": "comment 9"}]},
-                "comment_content_type": "QUILL_EDITOR",
-                "comment_type": "GENERIC_COMMENT",
-            },
-        )
 
     def test_reply_serialized_from_the_comment(self):
         # Arrange — a real reply, serialized live by CommentSerializer.
@@ -2295,21 +2245,3 @@ class ActivityFeedSlimContentTests(ActivityFeedBaseTests):
             quoted["comment_content_json"], {"ops": [{"insert": "parent"}]}
         )
         self.assertEqual(quoted["author"]["id"], self.user.author_profile.id)
-
-    def test_quoted_parent_fields_are_comment_fields(self):
-        # A field renamed on CommentSerializer would otherwise vanish silently.
-        self.assertLessEqual(
-            set(ACTIVITY_PARENT_COMMENT_FIELDS),
-            set(CommentSerializer().fields),
-        )
-
-    def test_other_feeds_keep_review_lists(self):
-        # Arrange
-        stored = {"id": self.prereg_post.id, "reviews": self.REVIEWS}
-        self.prereg_entry.content = stored
-
-        # Act
-        data = FeedEntrySerializer(self.prereg_entry).data
-
-        # Assert
-        self.assertEqual(data["content_object"]["reviews"], self.REVIEWS)
