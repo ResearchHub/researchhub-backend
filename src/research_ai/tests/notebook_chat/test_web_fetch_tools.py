@@ -106,6 +106,37 @@ class WebFetchToolsetTests(TestCase):
         context = self.service.fetch.call_args.kwargs["context"]
         self.assertTrue(mentioned(URL, context))
 
+    def test_a_pdf_points_to_the_pages_tool_when_offered(self):
+        # Arrange
+        pdf = make_file(
+            self.file.user,
+            conversation=self.conversation,
+            source="WEB",
+            source_url=URL,
+        )
+        self.service.fetch.return_value = FetchedPage(file=pdf, path=DIRECT)
+        self.toolset = WebFetchToolset(
+            conversation=self.conversation,
+            context=lambda: self.context,
+            service=self.service,
+            pages_tool=True,
+        )
+
+        # Act
+        result = self._call({"url": URL})
+
+        # Assert
+        self.assertEqual(result["kind"], "PDF")
+        self.assertIn("view_attachment_pages", result["note"])
+
+    def test_an_out_of_range_max_chars_is_refused_without_a_fetch(self):
+        # Act
+        result = self._call({"url": URL, "max_chars": 0})
+
+        # Assert
+        self.assertIn("max_chars must be between 1", result["error"])
+        self.service.fetch.assert_not_called()
+
     def test_a_failed_fetch_is_an_error_for_the_model(self):
         # Arrange
         self.service.fetch.side_effect = WebFetchError(
