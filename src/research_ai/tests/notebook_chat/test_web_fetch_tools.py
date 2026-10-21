@@ -3,7 +3,12 @@ from unittest.mock import Mock
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from research_ai.services.agent.types import Message, TextBlock
+from research_ai.services.agent.types import (
+    Message,
+    TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+)
 from research_ai.services.agent_persistence import AgentConversationService
 from research_ai.services.notebook_chat.web_fetch_tools import (
     WEB_FETCH,
@@ -16,6 +21,7 @@ from research_ai.services.web_fetch import (
     WebFetchError,
     WebFetchService,
 )
+from research_ai.services.web_fetch.scope import mentioned
 from research_ai.tests.agent_files.helpers import make_file
 
 URL = "https://journal.example.org/articles/crispr-screens"
@@ -72,6 +78,33 @@ class WebFetchToolsetTests(TestCase):
         self.assertEqual(result["text"], TEXT[: result["end_char"]])
         self.assertEqual(result["next_start_char"], result["end_char"])
         self.assertLessEqual(result["end_char"], 1000)
+
+    def test_a_search_result_url_can_be_fetched_once_the_call_is_recorded(self):
+        # Arrange
+        self.context = [
+            Message(role="user", content=[TextBlock("Find CRISPR screen papers")]),
+            Message(
+                role="assistant",
+                content=[
+                    ToolUseBlock(id="t1", name="web_search", input={"query": "crispr"})
+                ],
+            ),
+            Message(
+                role="user",
+                content=[ToolResultBlock(tool_use_id="t1", content={"url": URL})],
+            ),
+            Message(
+                role="assistant",
+                content=[ToolUseBlock(id="t2", name=WEB_FETCH, input={"url": URL})],
+            ),
+        ]
+
+        # Act
+        self._call({"url": URL})
+
+        # Assert
+        context = self.service.fetch.call_args.kwargs["context"]
+        self.assertTrue(mentioned(URL, context))
 
     def test_a_failed_fetch_is_an_error_for_the_model(self):
         # Arrange

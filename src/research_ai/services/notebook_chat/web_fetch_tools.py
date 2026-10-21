@@ -5,10 +5,11 @@ text, and the attachment tools read, search or show the rest by its id.
 """
 
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 
 from research_ai.models import AgentConversation
 from research_ai.services.agent import Tool
-from research_ai.services.agent.types import Message
+from research_ai.services.agent.types import Message, ToolUseBlock
 from research_ai.services.agent_files.extraction import PDF
 from research_ai.services.notebook_chat.attachment_tools import (
     DEFAULT_READ_CHARS,
@@ -27,6 +28,26 @@ _KINDS = {
     "text/html": "web page",
     "text/markdown": "web page text from a fetch service",
 }
+
+
+def _without_fetch_calls(context: Sequence[Message]) -> list[Message]:
+    """``context`` minus its ``web_fetch`` calls, the one running now included.
+
+    The scope check treats a URL the model wrote into a tool input as its own, so
+    a fetch call would disqualify the very URL it asks for. Safe only while the
+    tool never echoes a URL it refused.
+    """
+    return [
+        replace(
+            message,
+            content=[
+                block
+                for block in message.content
+                if not (isinstance(block, ToolUseBlock) and block.name == WEB_FETCH)
+            ],
+        )
+        for message in context
+    ]
 
 
 class WebFetchToolset:
@@ -113,7 +134,7 @@ class WebFetchToolset:
             fetched = self._service.fetch(
                 args.get("url"),
                 conversation=self._conversation,
-                context=self._context(),
+                context=_without_fetch_calls(self._context()),
             )
         except WebFetchError as exc:
             return {"error": str(exc)}
