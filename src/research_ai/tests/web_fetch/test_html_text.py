@@ -93,6 +93,8 @@ class HtmlToMarkdownTests(TestCase):
             '<figure><img src="/fig/1.png" alt="Figure 1:\n enhancer map" '
             'title="Click to enlarge"></figure>'
             '<img src="/blank.gif" data-src="fig/2.jpg" alt="Figure 2">'
+            '<img data-src="" src="fig/4.png" alt="Figure 4">'
+            '<img data-src="#lazy" src="fig/5.png" alt="Figure 5">'
             '<table><tr><td><img src="fig/3.png" alt="Figure 3"></td></tr></table>'
             '<img src="/logo.png" width="24" alt="Logo">'
             '<img src="data:image/png;base64,AAAA" alt="Inline">'
@@ -108,6 +110,8 @@ class HtmlToMarkdownTests(TestCase):
         self.assertIn("![Figure 1: enhancer map](https://example.org/fig/1.png)", text)
         self.assertIn("![Figure 2](https://example.org/a/fig/2.jpg)", text)
         self.assertIn("![Figure 3](https://example.org/a/fig/3.png)", text)
+        self.assertIn("![Figure 4](https://example.org/a/fig/4.png)", text)
+        self.assertIn("![Figure 5](https://example.org/a/fig/5.png)", text)
         for dropped in ("Click to enlarge", "Logo", "Inline", "data:", "blank.gif"):
             self.assertNotIn(dropped, text)
 

@@ -101,10 +101,14 @@ def _image_source(image, base_url: str) -> str | None:
     """The image's absolute web URL: for a lazy-loaded one, its real source."""
     for name in ("data-src", "src"):
         value = image.get(name)
-        if not isinstance(value, str) or value.strip().lower().startswith("data:"):
+        if not isinstance(value, str):
+            continue
+        value = value.strip()
+        # A blank or fragment-only value resolves to the page itself.
+        if not value or value.startswith("#") or value.lower().startswith("data:"):
             continue
         try:
-            source = urljoin(base_url, value.strip())
+            source = urljoin(base_url, value)
         except ValueError:
             continue
         if urlsplit(source).scheme in ("http", "https"):
