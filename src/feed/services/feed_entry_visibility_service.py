@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Count, Prefetch, Q, QuerySet
 
 from feed.models import FeedEntry, HiddenFeedEntry
+from feed.serializers import assessed_reviews_prefetch
 from purchase.models import Fundraise, Grant
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import User
@@ -66,6 +67,7 @@ class FeedEntryVisibilityService:
                     ).prefetch_related("nonprofit_links__nonprofit"),
                 ),
                 "unified_document__paper__authors",
+                assessed_reviews_prefetch(),
             )
             .order_by("-feed_hide__created_date")
         )

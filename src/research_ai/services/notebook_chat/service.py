@@ -100,6 +100,7 @@ from research_ai.services.agent_persistence.activity import (
     conversation_activity_events,
 )
 from research_ai.services.citation_tools import CitationToolset
+from research_ai.services.message_screening import MessageScreeningService
 from research_ai.services.note_tools import NoteToolset
 from research_ai.services.notebook_chat.activity import (
     PHASE_RESPONDING,
@@ -262,6 +263,7 @@ class NotebookChatService:
         note_creation_service: NoteCreationService | None = None,
         file_service: AgentFileService | None = None,
         page_image_service: PageImageService | None = None,
+        screening_service: MessageScreeningService | None = None,
         workflow: str = WORKFLOW,
     ):
         self.workflow = workflow
@@ -312,6 +314,11 @@ class NotebookChatService:
         self.files = AgentFileService() if file_service is None else file_service
         self.page_images = (
             PageImageService() if page_image_service is None else page_image_service
+        )
+        self.screening = (
+            MessageScreeningService()
+            if screening_service is None
+            else screening_service
         )
         self._config = config
 
@@ -888,6 +895,7 @@ class NotebookChatService:
             )
             recorder.on_run_failed(error)
             return {"execution_id": execution.id, "error": str(error)}
+        self._screen_message(trigger, note)
 
         provider_options = {
             key: stored_configuration[key]
@@ -1010,6 +1018,15 @@ class NotebookChatService:
             "iterations": result.iterations,
             "final_text": result.final_text,
         }
+
+    def _screen_message(
+        self, message: AgentConversationMessage, note: Note | None
+    ) -> None:
+        # Record only, so a screening failure must never fail the turn.
+        try:
+            self.screening.screen(message, note=note)
+        except Exception:  # noqa: BLE001
+            logger.exception("could not screen chat message %s", message.id)
 
     def _attached_page_images(
         self, attachments: Sequence[Attachment]

@@ -129,11 +129,12 @@ class PrivateStorageService:
             ExpiresIn=expires_in,
         )
 
-    def write(self, key: str, data: bytes, *, content_type: str) -> None:
-        """Store ``data`` at ``key``, replacing any object already there."""
-        self._s3().put_object(
+    def write(self, key: str, data: bytes, *, content_type: str) -> str:
+        """Store ``data`` at ``key``, replacing any object there; returns its ETag."""
+        response = self._s3().put_object(
             Bucket=self.bucket, Key=key, Body=data, ContentType=content_type
         )
+        return response.get("ETag", "")
 
     def delete(self, key: str) -> None:
         self._s3().delete_object(Bucket=self.bucket, Key=key)

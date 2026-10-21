@@ -940,6 +940,39 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.FAILED)
         self.assertIn("provider exploded", result["error"])
 
+    def test_run_turn_screens_the_users_message(self):
+        # Arrange
+        execution, _delay = self._submit("Write an SEO article about keto gummies.")
+        screening = Mock()
+        service = _make_service(
+            provider=FakeProvider([text_turn("Answer")]), screening_service=screening
+        )
+
+        # Act
+        service.run_turn(execution.id)
+
+        # Assert
+        screening.screen.assert_called_once_with(
+            execution.trigger_message, note=self.note
+        )
+
+    def test_run_turn_survives_a_screening_failure(self):
+        # Arrange
+        execution, _delay = self._submit()
+        screening = Mock()
+        screening.screen.side_effect = RuntimeError("database gone")
+        service = _make_service(
+            provider=FakeProvider([text_turn("Answer")]), screening_service=screening
+        )
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.SUCCEEDED)
+        self.assertEqual(result["final_text"], "Answer")
+
     def test_failed_enqueue_fails_the_execution_and_frees_the_conversation(self):
         # Arrange & Act: the broker refuses the task after the turn committed.
         with (
