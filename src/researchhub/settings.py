@@ -165,8 +165,6 @@ HEALTH_CHECK_TOKEN = os.environ.get("HEALTH_CHECK_TOKEN", keys.HEALTH_CHECK_TOKE
 # Application definition
 
 INSTALLED_APPS = [
-    # Daphne needs to be first
-    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -255,7 +253,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 if USE_DEBUG_TOOLBAR:
-    print("Using Debug Toolbar")  # noqa: T201
     DEBUG_TOOLBAR_CONFIG = {
         "SHOW_TOOLBAR_CALLBACK": lambda request: True,
     }
@@ -551,6 +548,11 @@ RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
 # it needs reviewed pricing. Empty stops new moves, not ones already made.
 RESEARCH_AI_REFUSAL_FALLBACK_MODEL = os.environ.get(
     "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3"
+)
+
+# Score each chat message for spam and off-purpose use with Jev (record only).
+RESEARCH_AI_MESSAGE_SCREENING = not TESTING and (
+    os.environ.get("RESEARCH_AI_MESSAGE_SCREENING", "true").lower() == "true"
 )
 
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(

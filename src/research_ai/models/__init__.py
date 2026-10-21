@@ -12,6 +12,7 @@ from .email_template import EmailTemplate
 from .expert import Expert
 from .expert_search import ExpertSearch
 from .generated_email import GeneratedEmail
+from .message_screening import AgentMessageScreening
 from .proposal_draft import ProposalDraft
 from .search_expert import SearchExpert
 from .usage_event import LLMUsageEvent
@@ -23,6 +24,7 @@ __all__ = [
     "AgentExecution",
     "AgentExecutionMessage",
     "AgentFile",
+    "AgentMessageScreening",
     "CoverImageGeneration",
     "EmailTemplate",
     "Expert",

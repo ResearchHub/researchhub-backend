@@ -29,6 +29,10 @@ from research_ai.services.proposal_draft.cancel_service import ACTIVE_STATUSES
 from research_ai.services.proposal_draft.liveness_service import (
     ProposalDraftLivenessService,
 )
+from research_ai.services.social_share_service import (
+    GENERATION_TIME_LIMIT_SECONDS,
+    SocialShareService,
+)
 from research_ai.services.usage_budget import ReservationHeartbeat
 from research_ai.services.usage_budget.reservation import reservation_deadline
 from researchhub.celery import QUEUE_AGENTS, app
@@ -645,3 +649,13 @@ def send_queued_emails_task(
             )
             failed += 1
     return {"sent": sent, "failed": failed}
+
+
+@app.task(
+    queue=QUEUE_AGENTS,
+    soft_time_limit=GENERATION_TIME_LIMIT_SECONDS,
+    time_limit=GENERATION_TIME_LIMIT_SECONDS + 10,
+)
+def generate_share_post_task(post_id: int, lock_key: str, token: str):
+    """Write and cache the share post the API queued for ``post_id``."""
+    SocialShareService().generate_and_cache(post_id, lock_key, token)

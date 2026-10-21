@@ -978,6 +978,48 @@ class NotebookChatActivityProjectionTests(TestCase):
         self.assertEqual(event["label"], "Selected an RFP")
         self.assertNotIn("sources", event)
 
+    def test_web_fetch_reports_its_url_and_the_page_as_a_source(self):
+        # Arrange
+        url = "https://journal.example.org/articles/crispr-screens"
+        self._add_trace_row(
+            1,
+            [
+                {
+                    "type": "tool_use",
+                    "id": "t1",
+                    "name": "web_fetch",
+                    "input": {"url": url},
+                }
+            ],
+            AgentExecutionMessage.Provenance.MODEL,
+        )
+        self._add_trace_row(
+            2,
+            [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "t1",
+                    "content": {
+                        "url": url,
+                        "title": "CRISPR screens",
+                        "text": "Private page text",
+                    },
+                }
+            ],
+            AgentExecutionMessage.Provenance.TOOL,
+            role="user",
+        )
+        self._finish()
+
+        # Act
+        event = self._single_event()
+
+        # Assert
+        self.assertEqual(event["label"], "Read a web page")
+        self.assertEqual(event["detail"], url)
+        self.assertEqual(event["sources"], [{"title": "CRISPR screens", "url": url}])
+        self.assertNotIn("Private page text", str(event))
+
     def test_selected_rfp_read_has_a_safe_label_and_source(self):
         # Arrange
         self._add_trace_row(

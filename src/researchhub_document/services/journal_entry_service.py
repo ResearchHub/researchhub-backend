@@ -2,6 +2,7 @@ import json
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Exists, F, OuterRef, QuerySet
@@ -112,7 +113,10 @@ class JournalEntryService:
         return []
 
     def register_registered_report_doi(self, report: ResearchhubPost) -> None:
-        """Register and persist the published report's journal DOI."""
+        """Register and persist the report's journal DOI in production."""
+        if not settings.PRODUCTION:
+            return
+
         doi = self._doi_factory(
             journal=PaperVersion.RESEARCHHUB,
             version=report.version_number,

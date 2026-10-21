@@ -53,6 +53,7 @@ from research_ai.views.proposal_draft_views import (
     ProposalDraftCreateView,
     ProposalDraftDetailView,
 )
+from research_ai.views.social_share_views import SharePostView
 from research_ai.views.template_views import TemplateDetailView, TemplateListView
 
 urlpatterns = [
@@ -163,6 +164,7 @@ urlpatterns = [
         "assistant/chats/<int:conversation_id>/cancel/",
         AssistantChatCancelView.as_view(),
     ),
+    path("share/posts/<int:post_id>/social-post/", SharePostView.as_view()),
     path("cover-images/", CoverImageGenerationCreateView.as_view()),
     path(
         "cover-images/<int:generation_id>/",

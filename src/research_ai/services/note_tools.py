@@ -53,6 +53,7 @@ from research_ai.services.note_block_edits import (
     apply_block_edits,
     check_block_edits,
     parse_block_edits,
+    parse_edit_blocks,
 )
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -63,7 +64,6 @@ from utils.prosemirror import (
     EDITOR_ID_ATTRS,
     compact_blocks,
     is_trailing_paragraph,
-    parse_blocks,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,17 +79,24 @@ _CREATABLE_NOTE_TYPES = (PREREGISTRATION, GRANT)
 _BLOCK_FORMAT = (
     "Blocks use a compact Tiptap form: a bare string directly in the "
     "top-level blocks array is a plain paragraph. Inside a node's `content`, "
-    "a bare string is unmarked inline text, never a paragraph. Nested "
-    "paragraphs must keep explicit paragraph objects. In bulletList and "
-    "orderedList, every listItem must start with a paragraph; never put "
-    "bare strings directly in listItem.content. Example: "
+    "a bare string is unmarked inline text. A list is "
     '{"type": "bulletList", "content": [{"type": "listItem", '
     '"content": [{"type": "paragraph", "content": ["Bullet text"]}]}]}. '
-    "Use the same listItem structure for orderedList. Attributes equal to "
-    "the editor default are omitted. "
-    "Reference URLs must be clickable: use text nodes with "
-    'marks: [{"type": "link", "attrs": {"href": "https://..."}}]. '
-    "Do not write Markdown link syntax into note text."
+    "Attributes equal to the editor default are omitted. Marked text is a "
+    "text node, e.g. "
+    '{"type": "text", "text": "Smith 2024", "marks": [{"type": "bold"}, '
+    '{"type": "link", "attrs": {"href": "https://..."}}]}; reference URLs '
+    "must be link marks like this, never Markdown link syntax."
+)
+# Only edit_note needs to know what it may write.
+_EDIT_FORMAT = (
+    "Node types: paragraph, heading (attrs.level), bulletList, orderedList, "
+    "taskList/taskItem (attrs.checked), codeBlock (attrs.language), "
+    "blockquoteFigure, table/tableRow/tableCell, horizontalRule, hardBreak. "
+    'Math: {"type": "blockMath", "attrs": {"latex": "E = mc^2"}}, or '
+    "inlineMath with the same attrs inside a paragraph. Marks: bold, italic, "
+    "underline, strike, code, subscript, superscript, highlight, link. Never "
+    "write test content into the user's note."
 )
 
 
@@ -234,10 +241,10 @@ class NoteToolset:
                     "note's current version to re-apply your edit against. "
                     "Send only the blocks you are changing -- "
                     "untouched blocks stay exactly as stored. "
-                    f"{_BLOCK_FORMAT} New blocks are validated against the "
-                    "editor schema; invalid ones reject the whole edit. Each "
-                    "edit is saved as a new version, so prior content is "
-                    "kept as history."
+                    f"{_BLOCK_FORMAT} {_EDIT_FORMAT} New blocks are validated "
+                    "against the editor schema; invalid ones reject the whole "
+                    "edit. Each edit is saved as a new version, so prior "
+                    "content is kept as history."
                 ),
                 input_schema={
                     "type": "object",
@@ -477,10 +484,9 @@ class NoteToolset:
             edits = parse_block_edits(input.get("edits"))
             for index, edit in enumerate(edits):
                 if edit.blocks is not None:
-                    try:
-                        edit.blocks = parse_blocks(BLOCK_EDITOR, edit.blocks)
-                    except ValueError as exc:
-                        raise ValueError(f"edits[{index}]: {exc}") from exc
+                    edit.blocks = parse_edit_blocks(
+                        BLOCK_EDITOR, edit.blocks, f"edits[{index}].blocks"
+                    )
         except ValueError as exc:
             return {
                 "error": f"{exc}. No edits were saved by this call. "

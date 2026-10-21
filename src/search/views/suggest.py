@@ -310,7 +310,7 @@ class SuggestView(APIView):
                     suggest_field = "full_name_suggest"
                     # Filter out suspended users for defense-in-depth
                     search = search.filter("term", is_suspended=False)
-                elif index in ["hub", "journal"]:
+                elif index == "hub":
                     suggest_field = "name_suggest"
 
                 try:

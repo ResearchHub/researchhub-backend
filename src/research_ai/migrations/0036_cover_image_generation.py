@@ -7,7 +7,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("research_ai", "0034_agentfile_source"),
+        ("research_ai", "0035_agentmessagescreening"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
