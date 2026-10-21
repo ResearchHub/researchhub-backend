@@ -2,8 +2,14 @@ from unittest.mock import MagicMock
 
 from django.test import TestCase
 
-from research_ai.models import EmailTemplate, OutreachCampaign, OutreachMailbox
+from research_ai.models import (
+    EmailTemplate,
+    GeneratedEmail,
+    OutreachCampaign,
+    OutreachMailbox,
+)
 from research_ai.services.outreach.campaign_service import (
+    CampaignNotEmptyError,
     CampaignNotFoundError,
     CampaignNotReadyError,
     CampaignTemplateNotFoundError,
@@ -69,7 +75,7 @@ class PublishCampaignTests(TestCase):
         self.assertEqual(campaign.status, OutreachCampaign.Status.ACTIVE)
         self.assertIsNotNone(campaign.published_at)
 
-    def test_publish_updates_existing_when_snapshot_changed(self):
+    def test_publish_always_creates_new_campaign_for_same_template(self):
         # Arrange
         existing = OutreachCampaign.objects.create(
             editor=self.editor,
@@ -81,63 +87,24 @@ class PublishCampaignTests(TestCase):
             published_variable_keys=["expert_name"],
             status=OutreachCampaign.Status.ACTIVE,
         )
-        self.client.update_campaign.return_value = {"id": "camp-existing"}
+        self.client.create_campaign.return_value = {"id": "camp-second"}
 
         # Act
         campaign = self.service.publish_template(
-            self.editor, self.template.id, name="Renamed campaign"
+            self.editor, self.template.id, name="Second campaign"
         )
 
         # Assert
-        self.client.create_campaign.assert_not_called()
-        self.client.update_campaign.assert_called_once()
-        kwargs = self.client.update_campaign.call_args.kwargs
-        self.assertEqual(self.client.update_campaign.call_args.args[0], "camp-existing")
-        self.assertEqual(kwargs["name"], "Renamed campaign")
-        self.assertEqual(kwargs["subject"], "Hello {{expert_name}}")
-        self.assertIn("{{rfp_title}}", kwargs["body"])
-        self.assertEqual(kwargs["email_list"], [self.mailbox.email])
-        self.assertEqual(kwargs["daily_limit"], self.mailbox.daily_limit)
-        self.assertIn("campaign_schedule", kwargs)
-
-        campaign.refresh_from_db()
-        self.assertEqual(campaign.id, existing.id)
-        self.assertEqual(campaign.name, "Renamed campaign")
-        self.assertEqual(campaign.published_subject, self.template.email_subject)
+        self.client.create_campaign.assert_called_once()
+        self.client.update_campaign.assert_not_called()
+        self.assertNotEqual(campaign.id, existing.id)
+        self.assertEqual(campaign.external_campaign_id, "camp-second")
         self.assertEqual(
-            campaign.published_variable_keys,
-            ["expert_affiliation", "expert_name", "rfp_title"],
+            OutreachCampaign.objects.filter(
+                editor=self.editor, template=self.template
+            ).count(),
+            2,
         )
-
-    def test_publish_syncs_email_list_without_sequences_when_snapshot_unchanged(self):
-        # Arrange
-        OutreachCampaign.objects.create(
-            editor=self.editor,
-            template=self.template,
-            name="Same name",
-            external_campaign_id="camp-same",
-            published_subject=self.template.email_subject,
-            published_body=self.template.email_body,
-            published_variable_keys=[
-                "expert_affiliation",
-                "expert_name",
-                "rfp_title",
-            ],
-            status=OutreachCampaign.Status.ACTIVE,
-        )
-        self.client.update_campaign.return_value = {"id": "camp-same"}
-
-        # Act
-        self.service.publish_template(self.editor, self.template.id, name="Same name")
-
-        # Assert
-        kwargs = self.client.update_campaign.call_args.kwargs
-        self.assertEqual(kwargs["email_list"], [self.mailbox.email])
-        self.assertEqual(kwargs["daily_limit"], self.mailbox.daily_limit)
-        self.assertNotIn("name", kwargs)
-        self.assertNotIn("subject", kwargs)
-        self.assertNotIn("body", kwargs)
-        self.assertNotIn("campaign_schedule", kwargs)
 
     def test_publish_uses_sum_of_mailbox_daily_limits(self):
         # Arrange
@@ -161,39 +128,6 @@ class PublishCampaignTests(TestCase):
             set(kwargs["email_list"]), {self.mailbox.email, "second@gmail.com"}
         )
 
-    def test_publish_recreates_when_instantly_returns_not_found(self):
-        # Arrange
-        OutreachCampaign.objects.create(
-            editor=self.editor,
-            template=self.template,
-            name="Gone",
-            external_campaign_id="camp-gone",
-            published_subject=self.template.email_subject,
-            published_body=self.template.email_body,
-            published_variable_keys=["expert_name"],
-            status=OutreachCampaign.Status.ACTIVE,
-        )
-        self.client.update_campaign.side_effect = InstantlyNotFoundError(
-            "missing",
-            status_code=404,
-        )
-        self.client.create_campaign.return_value = {"id": "camp-recreated"}
-
-        # Act
-        campaign = self.service.publish_template(
-            self.editor, self.template.id, name="Recreated"
-        )
-
-        # Assert
-        self.client.create_campaign.assert_called_once()
-        self.assertEqual(
-            self.client.create_campaign.call_args.kwargs["name"], "Recreated"
-        )
-        self.client.activate_campaign.assert_called_once_with("camp-recreated")
-        campaign.refresh_from_db()
-        self.assertEqual(campaign.external_campaign_id, "camp-recreated")
-        self.assertEqual(campaign.name, "Recreated")
-
     def test_publish_rejects_blank_name(self):
         # Arrange / Act / Assert
         with self.assertRaises(CampaignValidationError):
@@ -205,6 +139,134 @@ class PublishCampaignTests(TestCase):
         with self.assertRaises(CampaignTemplateNotFoundError):
             self.service.publish_template(self.editor, 999999, name="Missing template")
         self.client.create_campaign.assert_not_called()
+
+
+class UpdateCampaignTests(TestCase):
+    def setUp(self):
+        self.editor = create_random_authenticated_user("camp_upd")
+        self.client = MagicMock()
+        self.service = OutreachCampaignService(client=self.client)
+        self.template = EmailTemplate.objects.create(
+            created_by=self.editor,
+            name="Invite Experts",
+            email_subject="Hello {{expert.name}}",
+            email_body="Body {{rfp.title}}",
+        )
+        self.campaign = OutreachCampaign.objects.create(
+            editor=self.editor,
+            template=self.template,
+            name="Original",
+            external_campaign_id="camp-upd-1",
+            published_subject="Hello {{expert.name}}",
+            published_body="Body {{rfp.title}}",
+            published_variable_keys=["expert_name", "rfp_title"],
+            status=OutreachCampaign.Status.ACTIVE,
+        )
+
+    def test_update_patches_name_and_copy_on_instantly(self):
+        # Arrange
+        self.client.update_campaign.return_value = {"id": "camp-upd-1"}
+
+        # Act
+        updated = self.service.update_campaign(
+            self.editor,
+            self.campaign.id,
+            name="Renamed",
+            published_subject="Hi {{expert.name}}",
+            published_body="Join {{rfp.title}}",
+        )
+
+        # Assert
+        kwargs = self.client.update_campaign.call_args.kwargs
+        self.assertEqual(self.client.update_campaign.call_args.args[0], "camp-upd-1")
+        self.assertEqual(kwargs["name"], "Renamed")
+        self.assertEqual(kwargs["subject"], "Hi {{expert_name}}")
+        self.assertEqual(kwargs["body"], "Join {{rfp_title}}")
+        self.assertIn("campaign_schedule", kwargs)
+        updated.refresh_from_db()
+        self.assertEqual(updated.name, "Renamed")
+        self.assertEqual(updated.published_subject, "Hi {{expert.name}}")
+        self.assertEqual(updated.published_body, "Join {{rfp.title}}")
+        self.assertEqual(updated.published_variable_keys, ["expert_name", "rfp_title"])
+
+    def test_update_name_only_skips_sequences(self):
+        # Arrange
+        self.client.update_campaign.return_value = {"id": "camp-upd-1"}
+
+        # Act
+        self.service.update_campaign(self.editor, self.campaign.id, name="Name only")
+
+        # Assert
+        kwargs = self.client.update_campaign.call_args.kwargs
+        self.assertEqual(kwargs["name"], "Name only")
+        self.assertNotIn("subject", kwargs)
+        self.assertNotIn("body", kwargs)
+
+    def test_update_rejects_empty_payload(self):
+        with self.assertRaises(CampaignValidationError):
+            self.service.update_campaign(self.editor, self.campaign.id)
+
+
+class DeleteCampaignTests(TestCase):
+    def setUp(self):
+        self.editor = create_random_authenticated_user("camp_del")
+        self.client = MagicMock()
+        self.service = OutreachCampaignService(client=self.client)
+        self.template = EmailTemplate.objects.create(
+            created_by=self.editor,
+            name="Invite Experts",
+            email_subject="Hello",
+            email_body="Body",
+        )
+        self.campaign = OutreachCampaign.objects.create(
+            editor=self.editor,
+            template=self.template,
+            name="Deletable",
+            external_campaign_id="camp-del-1",
+            published_subject="Hello",
+            published_body="Body",
+            status=OutreachCampaign.Status.ACTIVE,
+        )
+
+    def test_delete_removes_provider_and_local_when_empty(self):
+        # Arrange
+        self.client.delete_campaign.return_value = {"id": "camp-del-1"}
+        campaign_id = self.campaign.id
+
+        # Act
+        self.service.delete_campaign(self.editor, campaign_id)
+
+        # Assert
+        self.client.delete_campaign.assert_called_once_with("camp-del-1")
+        self.assertFalse(OutreachCampaign.objects.filter(id=campaign_id).exists())
+
+    def test_delete_blocked_when_emails_exist(self):
+        # Arrange
+        GeneratedEmail.objects.create(
+            created_by=self.editor,
+            outreach_campaign=self.campaign,
+            expert_email="a@example.edu",
+            status=GeneratedEmail.Status.SENDING,
+        )
+
+        # Act / Assert
+        with self.assertRaises(CampaignNotEmptyError):
+            self.service.delete_campaign(self.editor, self.campaign.id)
+        self.client.delete_campaign.assert_not_called()
+        self.assertTrue(OutreachCampaign.objects.filter(id=self.campaign.id).exists())
+
+    def test_delete_tolerates_provider_not_found(self):
+        # Arrange
+        self.client.delete_campaign.side_effect = InstantlyNotFoundError(
+            "gone", status_code=404
+        )
+        campaign_id = self.campaign.id
+
+        # Act
+        self.service.delete_campaign(self.editor, campaign_id)
+
+        # Assert
+        self.assertFalse(OutreachCampaign.objects.filter(id=campaign_id).exists())
 
 
 class ActivateCampaignTests(TestCase):

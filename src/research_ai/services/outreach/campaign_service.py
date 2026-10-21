@@ -8,7 +8,6 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from research_ai.models import (
-    EmailTemplate,
     Expert,
     ExpertSearch,
     GeneratedEmail,
@@ -64,8 +63,12 @@ class CampaignValidationError(CampaignError):
     """Raised when experts or published variables fail validation."""
 
 
+class CampaignNotEmptyError(CampaignError):
+    """Raised when delete is blocked because the campaign has leads/sends."""
+
+
 class OutreachCampaignService:
-    """Publish, list, and send per-editor outreach campaigns from shared templates."""
+    """Create, list, patch, and send per-editor outreach campaigns."""
 
     def __init__(self, *, client: InstantlyClient | None = None):
         self.client = client if client is not None else InstantlyClient()
@@ -110,11 +113,11 @@ class OutreachCampaignService:
         self, editor: User, template_id: int, *, name: str
     ) -> OutreachCampaign:
         """
-        Idempotent upsert of one outreach campaign for ``(editor, template)``.
+        Create a new outreach campaign from a template draft.
 
-        ``name`` is required and is stored locally and sent to the provider.
-        Creates and activates on first publish when the editor has active
-        mailboxes.
+        Copies subject/body into the campaign snapshot and creates a provider
+        campaign. The template is not linked for later sync — edit the campaign
+        via ``update_campaign`` instead.
         """
         campaign_name = _normalize_campaign_name(name)
         if not campaign_name:
@@ -127,112 +130,150 @@ class OutreachCampaignService:
         active_mailboxes = list(active_mailboxes_for_editor(editor))
         active_emails = [m.email for m in active_mailboxes]
         daily_limit = sum(m.daily_limit for m in active_mailboxes)
-        provider_subject = flatten_placeholders_for_provider(
-            template.email_subject or ""
-        )
-        provider_body = flatten_placeholders_for_provider(template.email_body or "")
-        variable_keys = published_variable_keys(
-            template.email_subject or "",
-            template.email_body or "",
+        subject = template.email_subject or ""
+        body = template.email_body or ""
+        variable_keys = published_variable_keys(subject, body)
+        provider_subject = flatten_placeholders_for_provider(subject)
+        provider_body = flatten_placeholders_for_provider(body)
+
+        external_id = self._create_provider_campaign(
+            name=campaign_name,
+            subject=provider_subject,
+            body=provider_body,
+            email_list=active_emails,
+            daily_limit=daily_limit,
         )
 
-        with transaction.atomic():
-            campaign, _created = (
-                OutreachCampaign.objects.select_for_update()
-                .select_related("template")
-                .get_or_create(
-                    editor=editor,
-                    template=template,
-                    defaults={
-                        "name": campaign_name,
-                        "published_subject": template.email_subject or "",
-                        "published_body": template.email_body or "",
-                        "published_variable_keys": variable_keys,
-                        "status": (
-                            OutreachCampaign.Status.ACTIVE
-                            if active_emails
-                            else OutreachCampaign.Status.NO_ACTIVE_MAILBOXES
-                        ),
-                    },
-                )
-            )
-            campaign_id = campaign.id
-            snapshot_changed = _snapshot_changed(
-                campaign,
-                template=template,
-                variable_keys=variable_keys,
-            )
-            name_changed = (campaign.name or "") != campaign_name
-            previous_external_id = (campaign.external_campaign_id or "").strip()
-            previous_status = campaign.status
+        return OutreachCampaign.objects.create(
+            editor=editor,
+            template=template,
+            name=campaign_name,
+            external_campaign_id=external_id,
+            published_subject=subject,
+            published_body=body,
+            published_variable_keys=variable_keys,
+            published_at=timezone.now(),
+            status=(
+                OutreachCampaign.Status.ACTIVE
+                if active_emails
+                else OutreachCampaign.Status.NO_ACTIVE_MAILBOXES
+            ),
+        )
 
-        if not previous_external_id:
-            external_id = self._create_provider_campaign(
-                name=campaign_name,
-                subject=provider_subject,
-                body=provider_body,
-                email_list=active_emails,
-                daily_limit=daily_limit,
+    def update_campaign(
+        self,
+        editor: User,
+        campaign_id: int,
+        *,
+        name: str | None = None,
+        published_subject: str | None = None,
+        published_body: str | None = None,
+    ) -> OutreachCampaign:
+        """
+        Patch campaign name and/or subject/body on RH and Instantly.
+
+        Template edits do not affect an already-created campaign.
+        """
+        if name is None and published_subject is None and published_body is None:
+            raise CampaignValidationError(
+                "At least one of name, published_subject, or published_body "
+                "is required."
             )
-        else:
+
+        campaign = (
+            OutreachCampaign.objects.select_related("template")
+            .filter(id=campaign_id, editor=editor)
+            .first()
+        )
+        if campaign is None:
+            raise CampaignNotFoundError("Outreach campaign not found.")
+        external_id = (campaign.external_campaign_id or "").strip()
+        if not external_id:
+            raise CampaignNotReadyError(
+                "Campaign has not been published to the outreach provider."
+            )
+
+        next_name = campaign.name or ""
+        if name is not None:
+            next_name = _normalize_campaign_name(name)
+            if not next_name:
+                raise CampaignValidationError("Campaign name cannot be blank.")
+
+        next_subject = (
+            published_subject
+            if published_subject is not None
+            else (campaign.published_subject or "")
+        )
+        next_body = (
+            published_body
+            if published_body is not None
+            else (campaign.published_body or "")
+        )
+        name_changed = next_name != (campaign.name or "")
+        copy_changed = next_subject != (campaign.published_subject or "") or (
+            next_body != (campaign.published_body or "")
+        )
+        if not name_changed and not copy_changed:
+            return campaign
+
+        update_kwargs: dict = {}
+        if name_changed:
+            update_kwargs["name"] = next_name
+        if copy_changed:
+            update_kwargs.update(
+                subject=flatten_placeholders_for_provider(next_subject),
+                body=flatten_placeholders_for_provider(next_body),
+                campaign_schedule=DEFAULT_CAMPAIGN_SCHEDULE,
+            )
+        self.client.update_campaign(external_id, **update_kwargs)
+
+        campaign.name = next_name
+        campaign.published_subject = next_subject
+        campaign.published_body = next_body
+        if copy_changed:
+            campaign.published_variable_keys = published_variable_keys(
+                next_subject, next_body
+            )
+        campaign.save(
+            update_fields=[
+                "name",
+                "published_subject",
+                "published_body",
+                "published_variable_keys",
+                "updated_date",
+            ]
+        )
+        return campaign
+
+    def delete_campaign(self, editor: User, campaign_id: int) -> None:
+        """
+        Delete a campaign with no leads/sends from Instantly and locally.
+
+        Blocked when any ``GeneratedEmail`` is linked to the campaign.
+        """
+        campaign = OutreachCampaign.objects.filter(
+            id=campaign_id, editor=editor
+        ).first()
+        if campaign is None:
+            raise CampaignNotFoundError("Outreach campaign not found.")
+
+        if GeneratedEmail.objects.filter(outreach_campaign=campaign).exists():
+            raise CampaignNotEmptyError(
+                "Cannot delete a campaign that has queued or sent emails."
+            )
+
+        external_id = (campaign.external_campaign_id or "").strip()
+        if external_id:
             try:
-                self._update_provider_campaign(
-                    previous_external_id,
-                    name=campaign_name,
-                    subject=provider_subject,
-                    body=provider_body,
-                    email_list=active_emails,
-                    daily_limit=daily_limit,
-                    snapshot_changed=snapshot_changed,
-                    name_changed=name_changed,
-                    previous_status=previous_status,
-                )
-                external_id = previous_external_id
+                self.client.delete_campaign(external_id)
             except InstantlyNotFoundError:
                 logger.info(
-                    "Provider campaign %s missing; recreating for editor=%s "
-                    "template=%s",
-                    previous_external_id,
-                    editor.id,
-                    template.id,
-                )
-                external_id = self._create_provider_campaign(
-                    name=campaign_name,
-                    subject=provider_subject,
-                    body=provider_body,
-                    email_list=active_emails,
-                    daily_limit=daily_limit,
+                    "Provider campaign %s already missing; deleting local row %s",
+                    external_id,
+                    campaign.id,
                 )
 
-        with transaction.atomic():
-            campaign = (
-                OutreachCampaign.objects.select_for_update()
-                .select_related("template")
-                .get(id=campaign_id)
-            )
-            campaign.name = campaign_name
-            campaign.external_campaign_id = external_id
-            campaign.published_subject = template.email_subject or ""
-            campaign.published_body = template.email_body or ""
-            campaign.published_variable_keys = variable_keys
-            campaign.published_at = timezone.now()
-            if active_emails:
-                campaign.status = OutreachCampaign.Status.ACTIVE
-            else:
-                campaign.status = OutreachCampaign.Status.NO_ACTIVE_MAILBOXES
-            campaign.save(
-                update_fields=[
-                    "name",
-                    "external_campaign_id",
-                    "published_subject",
-                    "published_body",
-                    "published_variable_keys",
-                    "published_at",
-                    "status",
-                    "updated_date",
-                ]
-            )
-            return campaign
+        campaign.delete()
 
     def _create_provider_campaign(
         self,
@@ -259,39 +300,6 @@ class OutreachCampaignService:
         if email_list:
             self.client.activate_campaign(external_id)
         return external_id
-
-    def _update_provider_campaign(
-        self,
-        external_id: str,
-        *,
-        name: str,
-        subject: str,
-        body: str,
-        email_list: list[str],
-        daily_limit: int,
-        snapshot_changed: bool,
-        name_changed: bool,
-        previous_status: str,
-    ) -> None:
-        update_kwargs: dict = {
-            "email_list": email_list,
-            "daily_limit": daily_limit,
-        }
-        if name_changed:
-            update_kwargs["name"] = name
-        if snapshot_changed:
-            update_kwargs.update(
-                subject=subject,
-                body=body,
-                campaign_schedule=DEFAULT_CAMPAIGN_SCHEDULE,
-            )
-        self.client.update_campaign(external_id, **update_kwargs)
-
-        if email_list:
-            if previous_status != OutreachCampaign.Status.ACTIVE:
-                self.client.activate_campaign(external_id)
-        else:
-            self.client.pause_campaign(external_id)
 
     def activate_campaign(self, editor: User, campaign_id: int) -> OutreachCampaign:
         """
@@ -719,19 +727,6 @@ def _lead_ids_by_email(result: dict | None) -> dict[str, str]:
         if email and lead_id is not None and str(lead_id).strip():
             mapping[email] = str(lead_id).strip()
     return mapping
-
-
-def _snapshot_changed(
-    campaign: OutreachCampaign,
-    *,
-    template: EmailTemplate,
-    variable_keys: list[str],
-) -> bool:
-    return (
-        (campaign.published_subject or "") != (template.email_subject or "")
-        or (campaign.published_body or "") != (template.email_body or "")
-        or list(campaign.published_variable_keys or []) != list(variable_keys)
-    )
 
 
 def _normalize_campaign_name(name: str) -> str:
