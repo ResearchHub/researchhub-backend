@@ -2,12 +2,10 @@ from django.urls import include, path, re_path
 from rest_framework.routers import DefaultRouter
 
 from search.views import HubSuggesterDocumentView
-from search.views.journal import JournalDocumentView
 from search.views.suggest import SuggestView
 from search.views.unified_search import UnifiedSearchView
 
 router = DefaultRouter()
-journal = router.register(r"journal", JournalDocumentView, basename="journal_document")
 hub_suggester = router.register(
     r"hubs", HubSuggesterDocumentView, basename="hubs_document"
 )
