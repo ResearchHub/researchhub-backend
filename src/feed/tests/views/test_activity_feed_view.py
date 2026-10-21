@@ -15,7 +15,10 @@ from rest_framework.test import APIClient, APITestCase
 
 from discussion.models import Vote
 from feed.models import FeedEntry
-from feed.serializers import RelatedWorkSerializer
+from feed.serializers import (
+    ACTIVITY_PARENT_COMMENT_FIELDS,
+    RelatedWorkSerializer,
+)
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Paper
 from purchase.models import FundingPool, Fundraise
@@ -2176,3 +2179,69 @@ class ActivityFeedReviewMetricsTests(ActivityFeedBaseTests):
         self.assertEqual(related_work["review_metrics"], {"avg": 3.0, "count": 2})
         self.assertEqual(self.prereg_doc.get_review_details(), {"avg": 3.0, "count": 2})
         self.assertEqual(len(related_work["assessed_reviews"]), 2)
+
+
+class ActivityFeedSlimContentTests(ActivityFeedBaseTests):
+    """content_object leaves out the copies related_work makes redundant."""
+
+    REVIEWS = [{"id": 7, "score": 4.0, "is_assessed": True, "author": {"id": 1}}]
+
+    def _get_content(self, entry):
+        cache.clear()
+        resp = self.client.get(ACTIVITY_LIST_URL)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        found = next((e for e in resp.data["results"] if e["id"] == entry.id), None)
+        self.assertIsNotNone(found, f"Feed entry {entry.id} not found in response")
+        return found["content_object"]
+
+    def test_post_leaves_out_its_review_list(self):
+        # Arrange
+        stored = {"id": self.prereg_post.id, "title": "P", "reviews": self.REVIEWS}
+        self.prereg_entry.content = stored
+        self.prereg_entry.save(update_fields=["content"])
+
+        # Act
+        content = self._get_content(self.prereg_entry)
+
+        # Assert — and the stored content is left as it was.
+        self.assertNotIn("reviews", content)
+        self.assertEqual(content["title"], "P")
+        self.prereg_entry.refresh_from_db()
+        self.assertEqual(self.prereg_entry.content["reviews"], self.REVIEWS)
+
+    def test_reply_serialized_from_the_comment(self):
+        # Arrange — a real reply, serialized live by CommentSerializer.
+        thread = RhCommentThreadModel.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.prereg_post.id,
+            created_by=self.user,
+        )
+        parent = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "parent"}]},
+            created_by=self.user,
+            thread=thread,
+        )
+        reply = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "reply"}]},
+            created_by=self.user,
+            thread=thread,
+            parent=parent,
+        )
+        entry = _make_feed_entry(
+            RhCommentModel, reply.id, self.prereg_doc, user=self.user
+        )
+
+        # Act
+        content = self._get_content(entry)
+
+        # Assert
+        self.assertEqual(content["id"], reply.id)
+        self.assertNotIn("reviews", content["post"])
+        self.assertEqual(content["post"]["id"], self.prereg_post.id)
+        quoted = content["parent_comment"]
+        self.assertEqual(set(quoted), set(ACTIVITY_PARENT_COMMENT_FIELDS))
+        self.assertEqual(quoted["id"], parent.id)
+        self.assertEqual(
+            quoted["comment_content_json"], {"ops": [{"insert": "parent"}]}
+        )
+        self.assertEqual(quoted["author"]["id"], self.user.author_profile.id)
