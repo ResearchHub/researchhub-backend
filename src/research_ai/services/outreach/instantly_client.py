@@ -23,7 +23,7 @@ GMAIL_IMAP_PORT = 993
 GMAIL_SMTP_HOST = "smtp.gmail.com"
 GMAIL_SMTP_PORT = 587
 
-DEFAULT_ACCOUNT_DAILY_LIMIT = 30
+DEFAULT_ACCOUNT_DAILY_LIMIT = 10
 
 # Instantly account status codes.
 ACCOUNT_STATUS_ACTIVE = 1
@@ -272,7 +272,7 @@ class InstantlyClient:
         campaign_schedule: dict[str, Any] | None = None,
         **extra: Any,
     ) -> dict[str, Any]:
-        """PATCH campaign fields used on republish / mailbox detach."""
+        """PATCH campaign fields (copy, mailboxes, limits)."""
         payload: dict[str, Any] = dict(extra)
         if subject is not None and body is not None:
             payload["sequences"] = [
@@ -299,6 +299,10 @@ class InstantlyClient:
 
     def pause_campaign(self, campaign_id: str) -> dict[str, Any]:
         return self._request("POST", f"/campaigns/{campaign_id}/pause")
+
+    def delete_campaign(self, campaign_id: str) -> dict[str, Any] | None:
+        """Delete a campaign (``DELETE /campaigns/{id}``)."""
+        return self._request("DELETE", f"/campaigns/{campaign_id}")
 
     def add_leads(
         self,

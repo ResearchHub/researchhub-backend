@@ -45,7 +45,7 @@ class OutreachMailbox(DefaultModel, SoftDeletableModel):
         db_comment="Local mailbox lifecycle; maps from provider account status.",
     )
     daily_limit = models.PositiveIntegerField(
-        default=30,
+        default=10,
         db_comment="Cached daily send limit for this account.",
     )
     reply_to = models.EmailField(

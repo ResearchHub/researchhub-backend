@@ -18,6 +18,7 @@ from research_ai.serializers import (
     OutreachCampaignPublishSerializer,
     OutreachCampaignSendSerializer,
     OutreachCampaignSerializer,
+    OutreachCampaignUpdateSerializer,
     OutreachMailboxAdminSerializer,
     OutreachMailboxConnectSerializer,
     OutreachMailboxOAuthInitSerializer,
@@ -26,6 +27,7 @@ from research_ai.serializers import (
 )
 from research_ai.services.outreach.campaign_service import (
     CampaignError,
+    CampaignNotEmptyError,
     CampaignNotFoundError,
     CampaignNotReadyError,
     CampaignTemplateNotFoundError,
@@ -289,7 +291,7 @@ class TemplateRewriteView(APIView):
 class TemplatePublishView(APIView):
     """
     POST /api/research_ai/expert-finder/templates/<template_id>/publish/
-    Idempotent upsert of the requesting editor's outreach campaign.
+    Always creates a new outreach campaign from the template draft.
     Body: ``{"name": "..."}`` (required campaign display name).
     """
 
@@ -328,7 +330,7 @@ class TemplatePublishView(APIView):
             )
 
         out = OutreachCampaignSerializer(campaign)
-        return Response(out.data, status=status.HTTP_200_OK)
+        return Response(out.data, status=status.HTTP_201_CREATED)
 
 
 class OutreachCampaignListView(APIView):
@@ -354,6 +356,83 @@ class OutreachCampaignListView(APIView):
                 "offset": offset,
             }
         )
+
+
+class OutreachCampaignDetailView(APIView):
+    """
+    PATCH/DELETE /api/research_ai/expert-finder/outreach-campaigns/<campaign_id>/
+
+    PATCH: update name and/or published subject/body (synced to Instantly).
+    DELETE: remove campaign when it has no linked emails (queued or sent).
+    """
+
+    permission_classes = OUTREACH_EDITOR_PERMISSIONS
+
+    def patch(self, request, campaign_id):
+        cid, err = _parse_positive_int(campaign_id, "campaign ID")
+        if err:
+            return err
+
+        ser = OutreachCampaignUpdateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        try:
+            campaign = OutreachCampaignService().update_campaign(
+                request.user,
+                cid,
+                **ser.validated_data,
+            )
+        except CampaignNotFoundError:
+            return Response(
+                {"detail": "Outreach campaign not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except CampaignNotReadyError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except CampaignValidationError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except InstantlyAPIError as exc:
+            return _outreach_provider_error_response(exc)
+        except CampaignError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(OutreachCampaignSerializer(campaign).data)
+
+    def delete(self, request, campaign_id):
+        cid, err = _parse_positive_int(campaign_id, "campaign ID")
+        if err:
+            return err
+
+        try:
+            OutreachCampaignService().delete_campaign(request.user, cid)
+        except CampaignNotFoundError:
+            return Response(
+                {"detail": "Outreach campaign not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except CampaignNotEmptyError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except InstantlyAPIError as exc:
+            return _outreach_provider_error_response(exc)
+        except CampaignError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class OutreachCampaignActivateView(APIView):

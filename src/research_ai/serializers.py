@@ -1043,7 +1043,6 @@ class OutreachCampaignSerializer(serializers.ModelSerializer):
 
     template_id = serializers.IntegerField(source="template.id", read_only=True)
     template_name = serializers.CharField(source="template.name", read_only=True)
-    has_unpublished_changes = serializers.SerializerMethodField()
     counts = serializers.SerializerMethodField()
 
     class Meta:
@@ -1059,20 +1058,11 @@ class OutreachCampaignSerializer(serializers.ModelSerializer):
             "published_variable_keys",
             "status",
             "published_at",
-            "has_unpublished_changes",
             "counts",
             "created_date",
             "updated_date",
         ]
         read_only_fields = fields
-
-    def get_has_unpublished_changes(self, obj):
-        template = obj.template
-        if template is None:
-            return False
-        return (obj.published_subject or "") != (template.email_subject or "") or (
-            obj.published_body or ""
-        ) != (template.email_body or "")
 
     def get_counts(self, obj):
         return {
@@ -1085,9 +1075,31 @@ class OutreachCampaignSerializer(serializers.ModelSerializer):
 
 
 class OutreachCampaignPublishSerializer(serializers.Serializer):
-    """Request for POST /expert-finder/templates/<id>/publish/."""
+    """Request for POST /expert-finder/templates/<id>/publish/ (always creates)."""
 
     name = serializers.CharField(max_length=100, trim_whitespace=True)
+
+
+class OutreachCampaignUpdateSerializer(serializers.Serializer):
+    """Request for PATCH /expert-finder/outreach-campaigns/<id>/."""
+
+    name = serializers.CharField(
+        max_length=100, required=False, trim_whitespace=True, allow_blank=False
+    )
+    published_subject = serializers.CharField(required=False, allow_blank=True)
+    published_body = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if (
+            "name" not in attrs
+            and "published_subject" not in attrs
+            and "published_body" not in attrs
+        ):
+            raise serializers.ValidationError(
+                "At least one of name, published_subject, or published_body "
+                "is required."
+            )
+        return attrs
 
 
 class OutreachCampaignSendSerializer(serializers.Serializer):

@@ -102,6 +102,7 @@ class OutreachMailboxService:
             enable_slow_ramp=True,
             reply_to=normalized_reply_to or None,
         )
+        self._enable_warmup_best_effort(normalized)
         account = self.client.get_account(normalized)
         return self._upsert_mailbox_from_provider_account(
             editor,
@@ -247,6 +248,8 @@ class OutreachMailboxService:
             )
             raise
 
+        self._enable_warmup_best_effort(email)
+
         mailbox = self._upsert_mailbox_from_provider_account(
             editor,
             email=email,
@@ -374,6 +377,15 @@ class OutreachMailboxService:
                 "This email address is already connected."
             )
 
+    def _enable_warmup_best_effort(self, email: str) -> None:
+        """Start Instantly warmup for a newly connected account; never block connect."""
+        try:
+            self.client.enable_warmup([email])
+        except InstantlyAPIError:
+            logger.warning(
+                "Failed to enable Instantly warmup for %s", email, exc_info=True
+            )
+
     def _upsert_mailbox_from_provider_account(
         self,
         editor: User,
@@ -480,9 +492,7 @@ class OutreachMailboxService:
             OutreachMailbox.objects.select_related("editor").order_by("-created_date")
         )
         account_by_email = self._provider_accounts_by_email()
-        total_sent_by_email = total_sent_by_sender_account(
-            [m.email for m in mailboxes]
-        )
+        total_sent_by_email = total_sent_by_sender_account([m.email for m in mailboxes])
         for mailbox in mailboxes:
             apply_warmup_attrs(mailbox, account_by_email.get(mailbox.email.lower()))
             mailbox.total_sent = total_sent_by_email.get(mailbox.email.lower(), 0)
@@ -759,7 +769,7 @@ def apply_warmup_attrs(
     if isinstance(account, dict) and account.get("warmup_status") is not None:
         try:
             status = int(account["warmup_status"])
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             status = None
     mailbox.warmup_enabled = status == WARMUP_STATUS_ACTIVE
 

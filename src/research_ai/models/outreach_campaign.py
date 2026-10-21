@@ -7,8 +7,10 @@ from utils.models import DefaultModel
 
 class OutreachCampaign(DefaultModel):
     """
-    Per-editor outreach campaign published from a shared EmailTemplate.
-    Unique on (editor, template); republish updates the same provider campaign.
+    Per-editor outreach campaign created from a shared EmailTemplate draft.
+
+    After create, subject/body live on the campaign (``published_*``) and are
+    edited via campaign PATCH — not by changing the template.
     """
 
     class Status(models.TextChoices):
@@ -75,16 +77,14 @@ class OutreachCampaign(DefaultModel):
     class Meta:
         db_table = "research_ai_outreach_campaign"
         ordering = ["-updated_date"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["editor", "template"],
-                name="ra_oc_editor_template_unique",
-            ),
-        ]
         indexes = [
             models.Index(
                 fields=["editor", "status"],
                 name="ra_oc_editor_status",
+            ),
+            models.Index(
+                fields=["editor", "template"],
+                name="ra_oc_editor_template",
             ),
         ]
 

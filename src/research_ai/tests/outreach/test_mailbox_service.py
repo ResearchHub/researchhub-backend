@@ -83,7 +83,7 @@ class ConnectMailboxTests(TestCase):
         self.client.get_account.return_value = {
             "email": self.gmail,
             "status": 1,
-            "daily_limit": 30,
+            "daily_limit": DEFAULT_ACCOUNT_DAILY_LIMIT,
             "provider_code": PROVIDER_CODE_CUSTOM_IMAP_SMTP,
         }
 
@@ -100,22 +100,49 @@ class ConnectMailboxTests(TestCase):
         self.assertEqual(kwargs["email"], self.gmail)
         self.assertEqual(kwargs["app_password"], self.app_password)
         self.assertEqual(kwargs["daily_limit"], DEFAULT_ACCOUNT_DAILY_LIMIT)
+        self.assertEqual(kwargs["daily_limit"], 10)
         self.assertTrue(kwargs["enable_slow_ramp"])
         self.assertIsNone(kwargs["reply_to"])
         self.assertEqual(kwargs["first_name"], self.editor.first_name)
         self.assertEqual(kwargs["last_name"], self.editor.last_name)
+        self.client.enable_warmup.assert_called_once_with([self.gmail])
         self.client.get_account.assert_called_once_with(self.gmail)
 
         mailbox.refresh_from_db()
         self.assertEqual(mailbox.editor_id, self.editor.id)
         self.assertEqual(mailbox.email, self.gmail)
         self.assertEqual(mailbox.status, OutreachMailbox.Status.ACTIVE)
-        self.assertEqual(mailbox.daily_limit, 30)
+        self.assertEqual(mailbox.daily_limit, DEFAULT_ACCOUNT_DAILY_LIMIT)
         self.assertEqual(mailbox.reply_to, "")
         field_names = {f.name for f in mailbox._meta.get_fields()}
         self.assertNotIn("app_password", field_names)
         self.assertNotIn("password", field_names)
         self.assertNotIn(self.app_password, mailbox.__dict__.values())
+
+    def test_connect_continues_when_warmup_enable_fails(self):
+        # Arrange
+        self.client.create_gmail_account.return_value = {"email": self.gmail}
+        self.client.enable_warmup.side_effect = InstantlyAPIError(
+            "warmup failed", status_code=502
+        )
+        self.client.get_account.return_value = {
+            "email": self.gmail,
+            "status": 1,
+            "daily_limit": DEFAULT_ACCOUNT_DAILY_LIMIT,
+            "provider_code": PROVIDER_CODE_CUSTOM_IMAP_SMTP,
+        }
+
+        # Act
+        mailbox = self.service.connect_mailbox(
+            self.editor,
+            email=self.gmail,
+            app_password=self.app_password,
+        )
+
+        # Assert
+        self.client.enable_warmup.assert_called_once_with([self.gmail])
+        self.assertEqual(mailbox.email, self.gmail)
+        self.assertEqual(mailbox.status, OutreachMailbox.Status.ACTIVE)
 
     def test_connect_sends_and_caches_reply_to(self):
         # Arrange
@@ -943,6 +970,7 @@ class PollOAuthTests(TestCase):
         self.assertEqual(second["mailbox"].id, mailbox.id)
         self.client.get_oauth_session_status.assert_called_once_with(self.session_id)
         self.client.get_account.assert_called_once_with(self.workspace_email)
+        self.client.enable_warmup.assert_called_once_with([self.workspace_email])
         self.assertIsNone(
             cache.get(OAUTH_PENDING_KEY.format(session_id=self.session_id))
         )
