@@ -66,8 +66,12 @@ Run the application by typing the following into integrated terminal:
 
 ```shell
 cd src
-python manage.py runserver
+uv run uvicorn researchhub.asgi:application \
+  --host 0.0.0.0 --port 8000 --reload --lifespan off
 ```
+
+Uvicorn does not run Django's startup system checks. Run
+`uv run python manage.py check` separately when needed.
 
 Alternatively, debugging of the application is possible with the following launch configuration (in `.vscode/launch.json`):
 
@@ -79,9 +83,17 @@ Alternatively, debugging of the application is possible with the following launc
       "name": "Python: Django",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/src/manage.py",
-      "args": ["runserver", "[::]:8000"],
+      "module": "uvicorn",
+      "cwd": "${workspaceFolder}/src",
+      "args": [
+        "researchhub.asgi:application",
+        "--host", "0.0.0.0",
+        "--port", "8000",
+        "--reload",
+        "--lifespan", "off"
+      ],
       "django": true,
+      "subProcess": true,
       "autoStartBrowser": false
     }
   ]
