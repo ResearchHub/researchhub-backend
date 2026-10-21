@@ -49,16 +49,21 @@ class ExaContents:
             body = response.json()
         except ValueError:
             raise FallbackError("fetch service returned invalid JSON")
-        status = next(iter(body.get("statuses") or []), {})
-        if status.get("status") == "error":
-            error = status.get("error") or {}
+        if not isinstance(body, dict):
+            raise FallbackError("fetch service returned invalid JSON")
+        status = _first(body, "statuses")
+        if isinstance(status, dict) and status.get("status") == "error":
+            error = status.get("error")
+            tag = error.get("tag") if isinstance(error, dict) else None
             raise FallbackError(
-                f"fetch service could not read the page ({error.get('tag') or 'error'})"
+                f"fetch service could not read the page ({tag or 'error'})"
             )
-        result = next(iter(body.get("results") or []), None)
-        if not isinstance(result, dict) or not str(result.get("text") or "").strip():
+        result = _first(body, "results")
+        text = result.get("text") if isinstance(result, dict) else None
+        if not isinstance(text, str) or not text.strip():
             raise FallbackError("fetch service returned no text")
-        return str(result.get("title") or ""), str(result["text"])
+        title = result.get("title")
+        return (title if isinstance(title, str) else ""), text
 
     def _key(self) -> str:
         if self._api_key is not None:
@@ -69,3 +74,8 @@ class ExaContents:
         if self._client is None:
             self._client = httpx.Client()
         return self._client
+
+
+def _first(body: dict, key: str):
+    items = body.get(key)
+    return items[0] if isinstance(items, list) and items else None

@@ -3,8 +3,6 @@ from dataclasses import dataclass
 
 from opensearchpy import Q
 
-from utils.doi import DOI
-
 
 @dataclass
 class FieldConfig:
@@ -44,7 +42,6 @@ class DocumentQueryBuilder:
         ("simple_match_fuzzy", "all"): 0.2,
         # Phrase strategy boosts
         ("phrase", "title"): 0.6,
-        ("phrase", "abstract"): 0.75,
         ("phrase", "content"): 0.6,
         # Prefix strategy boosts
         ("prefix", "all"): 0.5,
@@ -54,28 +51,10 @@ class DocumentQueryBuilder:
         ("fuzzy", "content"): None,
     }
     TITLE_FIELDS = [
-        FieldConfig(
-            "paper_title", boost=3.0, query_types=["phrase", "prefix", "fuzzy"]
-        ),
         FieldConfig("title", boost=3.0, query_types=["phrase", "prefix", "fuzzy"]),
     ]
 
     AUTHOR_FIELDS = [
-        FieldConfig(
-            "raw_authors.full_name",
-            boost=3.0,
-            query_types=["cross_fields", "fuzzy", "prefix"],
-        ),
-        FieldConfig(
-            "raw_authors.last_name",
-            boost=2.5,
-            query_types=["cross_fields", "fuzzy", "prefix"],
-        ),
-        FieldConfig(
-            "raw_authors.first_name",
-            boost=2.0,
-            query_types=["cross_fields", "fuzzy", "prefix"],
-        ),
         FieldConfig(
             "authors.full_name",
             boost=3.0,
@@ -94,7 +73,6 @@ class DocumentQueryBuilder:
     ]
 
     CONTENT_FIELDS = [
-        FieldConfig("abstract", boost=1.0, query_types=["phrase", "fuzzy"]),
         FieldConfig("renderable_text", boost=1.0, query_types=["fuzzy"]),
     ]
 
@@ -102,7 +80,6 @@ class DocumentQueryBuilder:
         self.query = query
         self._query_terms: list[str] = [w for w in (query or "").split() if w]
         self.should_clauses: list[Q] = []
-        self._add_doi_match_if_applicable()
 
     @staticmethod
     def _is_single_word_query(query: str) -> bool:
@@ -121,16 +98,6 @@ class DocumentQueryBuilder:
 
     def _is_short_enough_for_fuzzy_content(self) -> bool:
         return self._get_query_term_count() <= self.MAX_TERMS_FOR_FUZZY_CONTENT_FIELDS
-
-    def _add_doi_match_if_applicable(self):
-        try:
-            if DOI.is_doi(self.query):
-                normalized_doi = DOI.normalize_doi(self.query)
-                self.should_clauses.append(
-                    Q("term", doi={"value": normalized_doi, "boost": 8.0})
-                )
-        except Exception:
-            pass
 
     def add_author_title_combination_strategy(self) -> DocumentQueryBuilder:
         truncated_query = self._limit_query_to_max_words(
@@ -190,26 +157,22 @@ class DocumentQueryBuilder:
     ) -> DocumentQueryBuilder:
         queries = []
         for field in fields:
-            if "phrase" in (field.query_types or []):
-                field_slop = 2 if field.name == "abstract" else slop
-                if field.name == "abstract":
-                    strategy_boost = self.STRATEGY_BOOSTS[("phrase", "abstract")]
-                else:
-                    category = self._get_field_category(field)
-                    strategy_boost = self.STRATEGY_BOOSTS[("phrase", category)]
-                field_boost = field.boost * strategy_boost
-                queries.append(
-                    Q(
-                        "match_phrase",
-                        **{
-                            field.name: {
-                                "query": self.query,
-                                "slop": field_slop,
-                                "boost": field_boost,
-                            }
-                        },
-                    )
+            if "phrase" not in (field.query_types or []):
+                continue
+            category = self._get_field_category(field)
+            strategy_boost = self.STRATEGY_BOOSTS[("phrase", category)]
+            queries.append(
+                Q(
+                    "match_phrase",
+                    **{
+                        field.name: {
+                            "query": self.query,
+                            "slop": slop,
+                            "boost": field.boost * strategy_boost,
+                        }
+                    },
                 )
+            )
 
         if queries:
             phrase_query = Q("dis_max", queries=queries, tie_breaker=0.1)
@@ -251,7 +214,7 @@ class DocumentQueryBuilder:
         return restrict_to_author_title_only and field.name not in author_title_names
 
     def _get_fuzzy_boost(self, field: FieldConfig) -> float:
-        if field.name in ["paper_title", "title"]:
+        if field.name == "title":
             return self.STRATEGY_BOOSTS[("fuzzy", "title")]
         if "authors" in field.name:
             return self.STRATEGY_BOOSTS[("fuzzy", "author")]
@@ -299,7 +262,7 @@ class DocumentQueryBuilder:
         field_list = []
         for field in fields:
             if "fuzzy" in (field.query_types or []):
-                if field.name in ["paper_title", "title"]:
+                if field.name == "title":
                     fuzzy_boost = 4.0
                 elif "authors" in field.name:
                     fuzzy_boost = 2.0
@@ -337,7 +300,7 @@ class DocumentQueryBuilder:
         return self
 
     def _get_field_category(self, field: FieldConfig) -> str:
-        if field.name in ["paper_title", "title"]:
+        if field.name == "title":
             return "title"
         if "authors" in field.name:
             return "author"
@@ -369,10 +332,10 @@ class DocumentQueryBuilder:
                     },
                 )
             )
-            if self._is_short_enough_for_fuzzy_content() and field.name not in [
-                "abstract",
-                "renderable_text",
-            ]:
+            if (
+                self._is_short_enough_for_fuzzy_content()
+                and field.name != "renderable_text"
+            ):
                 fuzzy_multiplier = self.STRATEGY_BOOSTS[("simple_match_fuzzy", "all")]
                 self.should_clauses.append(
                     Q(
@@ -467,7 +430,7 @@ class UnifiedSearchQueryBuilder:
             Q(
                 "multi_match",
                 query=query,
-                fields=["paper_title^7", "title^7"],
+                fields=["title^7"],
                 type="best_fields",
                 operator="and",
                 boost=8.0,

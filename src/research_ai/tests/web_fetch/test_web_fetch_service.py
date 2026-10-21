@@ -1,5 +1,5 @@
 from unittest import TestCase
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import httpx
 from django.contrib.auth import get_user_model
@@ -16,6 +16,7 @@ from research_ai.services.web_fetch import (
     WebFetchError,
     WebFetchService,
 )
+from research_ai.services.web_fetch import service as service_module
 from research_ai.services.web_fetch.exa import ExaContents, FallbackError
 from research_ai.tests.agent_files.helpers import FakeBucket, pdf_bytes
 from researchhub.services.private_storage_service import PrivateStorageService
@@ -144,28 +145,43 @@ class WebFetchServiceTests(AWSMockTestCase):
 
     def test_an_unusable_direct_response_falls_back_to_the_fetch_api(self):
         challenge = b"<html><title>Just a moment...</title>" + HTML
-        cases = {
-            "blocked (HTTP 403)": lambda r: _html(r, 403),
-            "blocked (HTTP 429)": lambda r: _html(r, 429),
-            "bot challenge page": lambda r: _html(r, body=challenge),
-            "no readable text": lambda r: _html(
-                r, body=b"<body><div id=app></div></body>"
+        cases = [
+            ("blocked (HTTP 403)", lambda r: _html(r, 403)),
+            ("blocked (HTTP 429)", lambda r: _html(r, 429)),
+            ("bot challenge page", lambda r: _html(r, body=challenge)),
+            (
+                "no readable text",
+                lambda r: _html(r, body=b"<body><div id=app></div></body>"),
             ),
-            "too large": lambda r: _html(r, body=HTML * 100),
-            "unsupported content type image/png": lambda r: httpx.Response(
-                200, headers={"content-type": "image/png"}, content=b"png"
+            ("too large", lambda r: _html(r, body=HTML * 100)),
+            (
+                "unsupported content type image/png",
+                lambda r: httpx.Response(
+                    200, headers={"content-type": "image/png"}, content=b"png"
+                ),
             ),
-            "redirected to a URL that cannot be fetched": lambda r: httpx.Response(
-                302, headers={"location": "file:///etc/passwd"}
+            (
+                "redirected to a URL that cannot be fetched",
+                lambda r: httpx.Response(
+                    302, headers={"location": "file:///etc/passwd"}
+                ),
             ),
-            "not an open-access host": lambda r: httpx.Response(
-                302, headers={"location": "https://publisher.test/crispr"}
+            (
+                "redirected to a URL that cannot be fetched",
+                lambda r: httpx.Response(302, headers={"location": "http://["}),
             ),
-            "request failed (ConnectTimeout)": Mock(
-                side_effect=httpx.ConnectTimeout("slow")
+            (
+                "not an open-access host",
+                lambda r: httpx.Response(
+                    302, headers={"location": "https://publisher.test/crispr"}
+                ),
             ),
-        }
-        for reason, respond in cases.items():
+            (
+                "request failed (ConnectTimeout)",
+                Mock(side_effect=httpx.ConnectTimeout("slow")),
+            ),
+        ]
+        for reason, respond in cases:
             with self.subTest(reason):
                 # Arrange
                 AgentFile.objects.all().delete()
@@ -191,6 +207,32 @@ class WebFetchServiceTests(AWSMockTestCase):
                 self.fallback.text.assert_called_with(
                     URL, max_chars=10_000, timeout=30.0
                 )
+
+    def test_a_redirect_near_the_deadline_gets_only_the_time_left(self):
+        # Arrange
+        moved = "https://cdn.example.org/a/crispr"
+        clock = [100.0]
+        timeouts = []
+
+        def respond(request):
+            timeouts.append(request.extensions["timeout"])
+            if str(request.url) == moved:
+                return _html(request)
+            clock[0] += 18  # The first hop takes 18 of the 20 seconds.
+            return httpx.Response(301, headers={"location": moved})
+
+        self.respond = respond
+
+        # Act
+        with patch.object(service_module.time, "monotonic", lambda: clock[0]):
+            fetched = self._fetch()
+
+        # Assert
+        self.assertEqual(fetched.path, DIRECT)
+        self.assertEqual(timeouts[0]["read"], 20.0)
+        self.assertEqual(timeouts[0]["connect"], 5.0)
+        self.assertEqual(timeouts[1]["read"], 2.0)
+        self.assertEqual(timeouts[1]["connect"], 2.0)
 
     def test_a_host_off_the_direct_list_goes_straight_to_the_fetch_api(self):
         # Arrange

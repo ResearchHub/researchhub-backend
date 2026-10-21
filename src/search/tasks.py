@@ -2,11 +2,9 @@ import logging
 from collections.abc import Iterable, Iterator
 from itertools import islice
 
-from paper.models import Paper
 from researchhub.celery import QUEUE_ELASTIC_SEARCH, app
 from researchhub_document.models import ResearchhubPost
 from search.documents.base import BaseDocument
-from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
 from search.documents.user import UserDocument
 from user.models import User
@@ -24,13 +22,6 @@ def update_user_related_documents(user_id: int, batch_size: int = 500) -> None:
     if user is None:
         logger.info("Skipping index updates due to user_id=%s not found", user_id)
         return
-
-    # Update papers
-    _update_document(
-        PaperDocument(),
-        Paper.objects.filter(uploaded_by=user).iterator(chunk_size=batch_size),
-        batch_size=batch_size,
-    )
 
     # Update posts
     _update_document(

@@ -59,28 +59,6 @@ class DOI:
         return f"https://doi.org/{doi}"
 
     @staticmethod
-    def get_variants(doi):
-        """Return all variants of a DOI for searching.
-        Args:
-            doi: Any DOI format (bare, with domain, or full URL)
-        Returns:
-            List of variants: [normalized URL, domain-only, bare DOI]
-            Empty list if input is invalid
-        """
-        normalized = DOI.normalize_doi(doi)
-        if not normalized:
-            return []
-
-        # Extract bare DOI from normalized version
-        bare_doi = normalized.split("doi.org/")[-1]
-
-        return [
-            normalized,  # Full URL: https://doi.org/XXX
-            f"doi.org/{bare_doi}",  # Domain only: doi.org/XXX
-            bare_doi,  # Bare DOI: XXX
-        ]
-
-    @staticmethod
     def get_bare_doi(doi):
         """Extract bare DOI from any DOI format.
         Args:

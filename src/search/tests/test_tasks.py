@@ -2,7 +2,6 @@ from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
-from paper.tests.helpers import create_paper
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from search.tasks import update_user_related_documents
 from user.tests.helpers import create_random_authenticated_user
@@ -12,8 +11,6 @@ class UserSearchDocumentUpdateTaskTests(TestCase):
     def setUp(self):
         self.user1 = create_random_authenticated_user("search_update_user")
         self.user2 = create_random_authenticated_user("search_update_other")
-        self.paper1 = create_paper(title="paper1", uploaded_by=self.user1)
-        self.paper2 = create_paper(title="paper2", uploaded_by=self.user2)
         self.post = ResearchhubPost.objects.create(
             created_by=self.user1,
             title="User Post",
@@ -35,10 +32,8 @@ class UserSearchDocumentUpdateTaskTests(TestCase):
 
     @patch("search.tasks.UserDocument.update")
     @patch("search.tasks.PostDocument.update")
-    @patch("search.tasks.PaperDocument.update")
     def test_update_user_related_documents(
         self,
-        paper_update_mock: Mock,
         post_update_mock: Mock,
         user_update_mock: Mock,
     ):
@@ -53,16 +48,13 @@ class UserSearchDocumentUpdateTaskTests(TestCase):
         update_user_related_documents(user_id)
 
         # Assert
-        self.assertEqual(_get_updated_ids(paper_update_mock), [self.paper1.id])
         self.assertEqual(_get_updated_ids(post_update_mock), [self.post.id])
         self.assertEqual(_get_updated_ids(user_update_mock), [self.user1.id])
 
     @patch("search.tasks.UserDocument.update")
     @patch("search.tasks.PostDocument.update")
-    @patch("search.tasks.PaperDocument.update")
     def test_update_user_related_documents_missing_user(
         self,
-        paper_update_mock: Mock,
         post_update_mock: Mock,
         user_update_mock: Mock,
     ):
@@ -77,7 +69,6 @@ class UserSearchDocumentUpdateTaskTests(TestCase):
         update_user_related_documents(missing_user_id)
 
         # Assert
-        paper_update_mock.assert_not_called()
         post_update_mock.assert_not_called()
         user_update_mock.assert_not_called()
 
