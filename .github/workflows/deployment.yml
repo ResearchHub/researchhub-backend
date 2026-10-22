@@ -151,7 +151,7 @@ jobs:
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             channel: ${{ vars.SLACK_CHANNEL_ID }}
-            text: "${{ env.DEPLOY_STARTED }} ${{ env.DEPLOY_SUMMARY }}${{ steps.behind.outputs.note }}"
+            text: ${{ toJSON(format('{0} {1}{2}', env.DEPLOY_STARTED, env.DEPLOY_SUMMARY, steps.behind.outputs.note)) }}
 
   notify-end:
     needs:
@@ -176,4 +176,4 @@ jobs:
           payload: |
             channel: ${{ vars.SLACK_CHANNEL_ID }}
             ts: "${{ needs.notify-start.outputs.ts }}"
-            text: "${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && env.DEPLOY_FAILED || env.DEPLOY_SUCCEEDED }} ${{ env.DEPLOY_SUMMARY }}${{ needs.notify-start.outputs.behind_note }}"
+            text: ${{ toJSON(format('{0} {1}{2}', (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && env.DEPLOY_FAILED || env.DEPLOY_SUCCEEDED, env.DEPLOY_SUMMARY, needs.notify-start.outputs.behind_note)) }}
