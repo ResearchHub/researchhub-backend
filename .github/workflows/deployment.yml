@@ -119,7 +119,7 @@ jobs:
     secrets: inherit
 
   notify-start:
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_env == 'prod'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-26.04
     permissions:
       contents: read
