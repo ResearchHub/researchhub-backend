@@ -27,6 +27,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env || 'staging' }}
   cancel-in-progress: false
 
+env:
+  DEPLOY_SUMMARY: "`${{ github.event.inputs.git_ref }}` to ${{ github.event.inputs.deploy_env }} (started by ${{ github.actor }}) · <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+
 jobs:
   build:
     if: |
@@ -114,3 +117,45 @@ jobs:
       git_sha: ${{ needs.migrate.outputs.git_sha }}
       service: celery-flower
     secrets: inherit
+
+  notify-start:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_env == 'prod'
+    runs-on: ubuntu-26.04
+    permissions: {}
+    outputs:
+      ts: ${{ steps.slack.outputs.ts }}
+    steps:
+      - name: Post deployment start to Slack
+        id: slack
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ vars.SLACK_CHANNEL_ID }}
+            text: ":rocket: Deploying ${{ env.DEPLOY_SUMMARY }}"
+
+  notify-end:
+    needs:
+      - notify-start
+      - build
+      - migrate
+      - deploy-api
+      - deploy-celery-beat
+      - deploy-celery-worker
+      - deploy-celery-worker-lite
+      - deploy-celery-flower
+    # always, so failed and cancelled deploys update the message too
+    if: always() && needs.notify-start.outputs.ts
+    runs-on: ubuntu-26.04
+    permissions: {}
+    steps:
+      - name: Update Slack message with deployment result
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          method: chat.update
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: ${{ vars.SLACK_CHANNEL_ID }}
+            ts: "${{ needs.notify-start.outputs.ts }}"
+            text: "${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && ':x: Failed to deploy' || ':white_check_mark: Deployed' }} ${{ env.DEPLOY_SUMMARY }}"
