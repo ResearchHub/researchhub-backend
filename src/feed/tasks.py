@@ -302,20 +302,6 @@ def _get_authors_for_item(item: Any, item_content_type: ContentType) -> list[Aut
                 and item.funder.author_profile
             ):
                 authors = [item.funder.author_profile]
-        case "fundraise":
-            post = None
-            if item.unified_document is not None and hasattr(
-                item.unified_document, "posts"
-            ):
-                post = item.unified_document.posts.first()
-            if post is not None and hasattr(post, "authors"):
-                authors = list(post.authors.all())
-            elif (
-                item.created_by
-                and hasattr(item.created_by, "author_profile")
-                and item.created_by.author_profile
-            ):
-                authors = [item.created_by.author_profile]
 
     return authors
 
