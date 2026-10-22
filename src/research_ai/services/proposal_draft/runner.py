@@ -70,6 +70,7 @@ from research_ai.services.agent_persistence import (
     AgentExecutionService,
     NoteAgentConversationService,
 )
+from research_ai.services.citation_tools import CitationToolset
 from research_ai.services.proposal_draft.cancel_service import (
     ProposalDraftCancelledError,
 )
@@ -85,7 +86,6 @@ from research_ai.services.proposal_draft.run_state import ProposalRunState
 from research_ai.services.proposal_draft.tools import (
     ProposalContextToolset,
     ProposalFulltextToolset,
-    ProposalVerificationToolset,
     ProposalWebSearchToolset,
     assemble_proposal,
 )
@@ -169,9 +169,7 @@ class _ProposalDraftRunner:
         self.context_toolset = ProposalContextToolset(
             search_expert, provenance=self.provenance
         )
-        self.verification_toolset = ProposalVerificationToolset(
-            oa_client=self.oa_client
-        )
+        self.verification_toolset = CitationToolset(oa_client=self.oa_client)
         self.fulltext_toolset = ProposalFulltextToolset(search_expert)
         self.openalex_toolset = OpenAlexToolset(client=self.oa_client)
         # Its own provenance -- deliberately NOT self.provenance -- so web results

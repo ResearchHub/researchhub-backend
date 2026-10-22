@@ -67,10 +67,10 @@ MODEL_SETTINGS = {
 }
 
 
-def _make_service(provider=None, **kwargs):
+def _make_service(provider=None, oa_client=None, **kwargs):
     return NotebookChatService(
         provider=provider,
-        oa_client=Mock(),
+        oa_client=Mock() if oa_client is None else oa_client,
         web_search_client=Mock(configured=False),
         **kwargs,
     )
@@ -717,6 +717,25 @@ class NotebookChatServiceTests(TestCase):
                 tool_names = complete.call_args.kwargs["rendered_tools"]
                 self.assertEqual("read_rfp_details" in tool_names, offered)
                 self.assertEqual("update_rfp_details" in tool_names, offered)
+
+    def test_run_turn_lists_closed_access_works_by_default(self):
+        # Arrange
+        execution, _delay = self._submit()
+        oa_client = Mock()
+        oa_client.get_works.return_value = ([], None)
+        provider = FakeProvider(
+            [
+                tool_turn("t1", "get_author_works", {"openalex_author_id": "A1"}),
+                text_turn("Done."),
+            ]
+        )
+
+        # Act
+        _make_service(provider=provider, oa_client=oa_client).run_turn(execution.id)
+
+        # Assert
+        oa_client.get_works.assert_called_once()
+        self.assertIs(oa_client.get_works.call_args.kwargs["open_access_only"], False)
 
     def test_run_turn_continues_past_the_former_model_call_limit(self):
         # Arrange
