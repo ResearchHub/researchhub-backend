@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -18,7 +18,7 @@ from purchase.models import Fundraise
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee, BountySolution, Distribution
+from reputation.models import Bounty, BountyFee, BountySolution, Distribution, Escrow
 from reputation.tasks import check_open_bounties
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -1963,12 +1963,13 @@ class BountyAssessmentPhaseTests(APITestCase):
     def _authenticate_bounty_manager(self, user=None):
         self.client.force_authenticate(user or self.foundation)
 
-    def _create_bounty(self, amount=100, expiration_date=None):
+    def _create_bounty(self, amount=100, expiration_date=None, item=None):
         """Helper to create a bounty."""
+        item = item or self.comment
         data = {
             "amount": amount,
-            "item_content_type": self.comment._meta.model_name,
-            "item_object_id": self.comment.id,
+            "item_content_type": item._meta.model_name,
+            "item_object_id": item.id,
         }
         if expiration_date:
             data["expiration_date"] = expiration_date.isoformat()
@@ -2030,6 +2031,194 @@ class BountyAssessmentPhaseTests(APITestCase):
         # Verify refund was issued
         final_foundation_balance = self.foundation.get_balance()
         self.assertGreater(final_foundation_balance, initial_foundation_balance)
+
+    def _create_assessment_bounty(self, amount=100, item=None):
+        self._authenticate_bounty_manager()
+        bounty_res = self._create_bounty(amount=amount, item=item)
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty = Bounty.objects.get(id=bounty_res.data["id"])
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(UTC) + timedelta(days=5)
+        bounty.save()
+        return bounty
+
+    def _end_assessment(self, bounty):
+        bounty.assessment_end_date = datetime.now(UTC) - timedelta(hours=1)
+        bounty.save(update_fields=["assessment_end_date"])
+
+    def _add_funder(self, bounty, user, amount):
+        Bounty.objects.create(
+            parent=bounty,
+            escrow=bounty.escrow,
+            amount=amount,
+            created_by=user,
+            item=bounty.item,
+            unified_document=bounty.unified_document,
+            status=bounty.status,
+        )
+        Escrow.objects.filter(id=bounty.escrow_id).update(
+            amount_holding=F("amount_holding") + amount
+        )
+
+    def test_bounty_with_fractional_remainder_expires_and_refunds_remainder(self):
+        """A partial award leaving a fractional remainder must not block expiry."""
+        # Arrange
+        bounty = self._create_assessment_bounty(amount=100)
+        award_res = self.client.post(
+            f"/api/bounty/{bounty.id}/approve_bounty/",
+            [
+                {
+                    "amount": "33.5",
+                    "object_id": self.child_comment.id,
+                    "content_type": self.child_comment._meta.model_name,
+                }
+            ],
+        )
+        self.assertEqual(award_res.status_code, 200)
+        self._end_assessment(bounty)
+        initial_foundation_balance = self.foundation.get_balance()
+
+        # Act
+        check_open_bounties()
+
+        # Assert
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.EXPIRED)
+        self.assertEqual(bounty.escrow.amount_holding, 0)
+        self.assertEqual(bounty.escrow.status, Escrow.EXPIRED)
+        self.assertEqual(
+            self.foundation.get_balance() - initial_foundation_balance,
+            decimal.Decimal("66.5"),
+        )
+
+    def test_multi_funder_bounty_with_fractional_remainder_refunds_each_funder(self):
+        """Funders' shares of a fractional remainder never exceed the escrow."""
+        # Arrange
+        bounty = self._create_assessment_bounty(amount=100)
+        self._add_funder(bounty, self.user_2, 50)
+        Escrow.objects.filter(id=bounty.escrow_id).update(
+            amount_holding=decimal.Decimal("116.5")
+        )
+        self._end_assessment(bounty)
+        initial_foundation_balance = self.foundation.get_balance()
+        initial_user_2_balance = self.user_2.get_balance()
+
+        # Act
+        check_open_bounties()
+
+        # Assert
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.EXPIRED)
+        self.assertEqual(bounty.children.get().status, Bounty.EXPIRED)
+        foundation_refund = self.foundation.get_balance() - initial_foundation_balance
+        user_2_refund = self.user_2.get_balance() - initial_user_2_balance
+        self.assertAlmostEqual(foundation_refund, decimal.Decimal("77.6666666666"))
+        self.assertAlmostEqual(user_2_refund, decimal.Decimal("38.8333333333"))
+        self.assertLessEqual(
+            bounty.escrow.amount_holding, decimal.Decimal("0.0000000001")
+        )
+
+    def test_failed_refund_rolls_back_refunds_to_other_funders(self):
+        """If one funder's refund fails, no funder is refunded, so retries are safe."""
+        # Arrange
+        bounty = self._create_assessment_bounty(amount=100)
+        self._add_funder(bounty, self.user_2, 50)
+        self._end_assessment(bounty)
+        initial_foundation_balance = self.foundation.get_balance()
+        original_refund = Escrow.refund
+        calls = []
+
+        def refund_fails_for_second_funder(escrow, recipient, amount, **kwargs):
+            calls.append(recipient)
+            if len(calls) == 2:
+                return False
+            return original_refund(escrow, recipient, amount, **kwargs)
+
+        # Act
+        with patch.object(
+            Escrow,
+            "refund",
+            autospec=True,
+            side_effect=refund_fails_for_second_funder,
+        ):
+            closed = bounty.close(Bounty.EXPIRED)
+
+        # Assert
+        self.assertFalse(closed)
+        self.assertEqual(len(calls), 2)
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.ASSESSMENT)
+        self.assertEqual(bounty.escrow.amount_holding, 150)
+        self.assertEqual(self.foundation.get_balance(), initial_foundation_balance)
+
+    def test_failed_refund_logs_only_the_failing_bounty(self):
+        """The task logs the failing bounty's id and still expires the others."""
+        # Arrange
+        failing = self._create_assessment_bounty()
+        healthy = self._create_assessment_bounty(
+            item=create_rh_comment(created_by=self.recipient)
+        )
+        self._end_assessment(failing)
+        self._end_assessment(healthy)
+        original_close = Bounty.close
+
+        def close_fails_for_one_bounty(bounty, status):
+            if bounty.id == failing.id:
+                return False
+            return original_close(bounty, status)
+
+        # Act
+        with (
+            patch.object(
+                Bounty,
+                "close",
+                autospec=True,
+                side_effect=close_fails_for_one_bounty,
+            ),
+            self.assertLogs("reputation.tasks", level="ERROR") as logs,
+        ):
+            check_open_bounties()
+
+        # Assert
+        self.assertEqual(len(logs.records), 1)
+        self.assertEqual(logs.records[0].args[0], failing.id)
+        failing.refresh_from_db()
+        healthy.refresh_from_db()
+        self.assertEqual(failing.status, Bounty.ASSESSMENT)
+        self.assertEqual(healthy.status, Bounty.EXPIRED)
+
+    def test_error_closing_one_bounty_does_not_stop_the_others(self):
+        """An exception on one bounty is logged and the rest still expire."""
+        # Arrange
+        broken = self._create_assessment_bounty()
+        healthy = self._create_assessment_bounty(
+            item=create_rh_comment(created_by=self.recipient)
+        )
+        self._end_assessment(broken)
+        self._end_assessment(healthy)
+        original_close = Bounty.close
+
+        def close_raises_for_one_bounty(bounty, status):
+            if bounty.id == broken.id:
+                raise decimal.InvalidOperation
+            return original_close(bounty, status)
+
+        # Act
+        with (
+            patch.object(
+                Bounty,
+                "close",
+                autospec=True,
+                side_effect=close_raises_for_one_bounty,
+            ),
+            self.assertLogs("reputation.tasks", level="ERROR") as logs,
+        ):
+            check_open_bounties()
+
+        # Assert
+        self.assertEqual(logs.records[0].args[0], broken.id)
+        healthy.refresh_from_db()
+        self.assertEqual(healthy.status, Bounty.EXPIRED)
 
     def test_creator_can_award_during_assessment_phase(self):
         """Test that bounty creator can award solutions during ASSESSMENT phase."""
