@@ -40,6 +40,10 @@ class HubDocument(BaseDocument):
 
     class Index:
         name = "hub"
+        settings = {
+            "number_of_shards": 1,
+            "auto_expand_replicas": "0-2",
+        }
 
     class Django:
         model = Hub
