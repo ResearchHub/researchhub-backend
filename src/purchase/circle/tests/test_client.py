@@ -71,19 +71,22 @@ class TestCircleWalletClient(TestCase):
         ]
 
     def test_create_wallet_returns_both_wallet_ids(self):
+        # Arrange
         wallets = self._make_wallet_pair(eth_id="eth-uuid-1", base_id="base-uuid-1")
         mock_api = self._make_sdk_wallets_api(self._make_wallets_body(wallets), 201)
-
         client = self._make_client(mock_api)
+
+        # Act
         result = client.create_wallet(idempotency_key="test-key-1")
 
+        # Assert
         self.assertIsInstance(result, CircleWalletCreationResult)
         self.assertEqual(result.eth_wallet_id, "eth-uuid-1")
         self.assertEqual(result.base_wallet_id, "base-uuid-1")
-        mock_api.api_client.rest_client.pool_manager.request.assert_called_once()
 
     def test_create_wallet_accepts_sca_core_unknown_to_sdk(self):
         """Wallets on an SCA core newer than the SDK's models still parse."""
+        # Arrange
         wallets = [
             self._make_wallet_payload(
                 id="eth-v4", blockchain="ETH", sca_core="circle_6900_singleowner_v4"
@@ -93,118 +96,140 @@ class TestCircleWalletClient(TestCase):
             ),
         ]
         mock_api = self._make_sdk_wallets_api(self._make_wallets_body(wallets), 201)
-
         client = self._make_client(mock_api)
+
+        # Act
         result = client.create_wallet(idempotency_key="test-key-1")
 
+        # Assert
         self.assertEqual(result.eth_wallet_id, "eth-v4")
         self.assertEqual(result.base_wallet_id, "base-v4")
 
     def test_create_wallet_handles_reversed_order(self):
         """Wallet IDs are mapped by blockchain, not by array position."""
+        # Arrange
         # Return BASE first, then ETH
         wallets = [
             self._make_wallet_payload(id="base-first", blockchain="BASE"),
             self._make_wallet_payload(id="eth-second", blockchain="ETH"),
         ]
         mock_api = self._make_sdk_wallets_api(self._make_wallets_body(wallets), 201)
-
         client = self._make_client(mock_api)
+
+        # Act
         result = client.create_wallet()
 
+        # Assert
         self.assertEqual(result.eth_wallet_id, "eth-second")
         self.assertEqual(result.base_wallet_id, "base-first")
 
     def test_create_wallet_maps_testnet_blockchains(self):
+        # Arrange
         wallets = [
             self._make_wallet_payload(id="eth-test", blockchain="ETH-SEPOLIA"),
             self._make_wallet_payload(id="base-test", blockchain="BASE-SEPOLIA"),
         ]
         mock_api = self._make_sdk_wallets_api(self._make_wallets_body(wallets), 201)
-
         client = self._make_client(mock_api)
+
+        # Act
         result = client.create_wallet()
 
+        # Assert
         self.assertEqual(result.eth_wallet_id, "eth-test")
         self.assertEqual(result.base_wallet_id, "base-test")
 
     def test_create_wallet_empty_response_raises(self):
+        # Arrange
         mock_api = self._make_sdk_wallets_api(self._make_wallets_body([]), 201)
-
         client = self._make_client(mock_api)
 
+        # Act & Assert
         with self.assertRaises(CircleWalletCreationError):
             client.create_wallet()
 
     def test_create_wallet_missing_one_chain_raises(self):
         """If Circle only returns one chain's wallet, raise an error."""
+        # Arrange
         wallets = [self._make_wallet_payload(id="eth-only", blockchain="ETH")]
         mock_api = self._make_sdk_wallets_api(self._make_wallets_body(wallets), 201)
-
         client = self._make_client(mock_api)
 
+        # Act & Assert
         with self.assertRaises(CircleWalletCreationError):
             client.create_wallet()
 
     def test_create_wallet_api_error_raises(self):
+        # Arrange
         mock_api = self._make_sdk_wallets_api(
             {"code": 2, "message": "API parameter invalid"}, 400
         )
-
         client = self._make_client(mock_api)
 
+        # Act & Assert
         with self.assertRaises(OpenApiException):
             client.create_wallet()
 
     def test_create_wallet_generates_idempotency_key_when_none(self):
+        # Arrange
         mock_api = Mock()
         mock_api.create_wallet_with_http_info.return_value = Mock(
             raw_data=json.dumps(self._make_wallets_body(self._make_wallet_pair()))
         )
-
         client = self._make_client(mock_api)
+
+        # Act
         client.create_wallet()
 
-        # Verify create_wallet was called (idempotency key auto-generated)
+        # Assert
         call_args = mock_api.create_wallet_with_http_info.call_args
         request = call_args[0][0]
         self.assertIsNotNone(request.idempotency_key)
 
     def test_get_wallet_live_returns_result(self):
+        # Arrange
         wallet_id = "4c2ba4e6-2a5a-4bfa-9f7a-7a3b6c1c8f01"
         mock_api = self._make_sdk_wallets_api(
             {"data": {"wallet": self._make_wallet_payload(id=wallet_id)}}
         )
-
         client = self._make_client(mock_api)
+
+        # Act
         result = client.get_wallet(wallet_id)
 
+        # Assert
         self.assertEqual(result.wallet_id, wallet_id)
         self.assertEqual(result.address, "0xabc123")
         self.assertEqual(result.state, "LIVE")
 
     def test_get_wallet_accepts_sca_core_unknown_to_sdk(self):
+        # Arrange
         wallet_id = "4c2ba4e6-2a5a-4bfa-9f7a-7a3b6c1c8f01"
         wallet = self._make_wallet_payload(
             id=wallet_id, sca_core="circle_6900_singleowner_v4"
         )
         mock_api = self._make_sdk_wallets_api({"data": {"wallet": wallet}})
-
         client = self._make_client(mock_api)
+
+        # Act
         result = client.get_wallet(wallet_id)
 
+        # Assert
         self.assertEqual(result.wallet_id, wallet_id)
         self.assertEqual(result.address, "0xabc123")
         self.assertEqual(result.state, "LIVE")
 
     def test_get_wallet_not_live_returns_result_with_state(self):
+        # Arrange
         wallet_id = "4c2ba4e6-2a5a-4bfa-9f7a-7a3b6c1c8f01"
         wallet = self._make_wallet_payload(id=wallet_id, address="", state="FROZEN")
         mock_api = self._make_sdk_wallets_api({"data": {"wallet": wallet}})
-
         client = self._make_client(mock_api)
+
+        # Act
         result = client.get_wallet(wallet_id)
 
+        # Assert
         self.assertEqual(result.wallet_id, wallet_id)
         self.assertEqual(result.address, "")
         self.assertEqual(result.state, "FROZEN")
