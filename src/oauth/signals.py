@@ -40,3 +40,15 @@ def handle_x_profile_link(
     """
     service = UserSignupService()
     service.set_x_profile_link(user)
+
+
+@receiver(user_signed_up)
+@receiver(user_logged_in)
+def handle_x_identity_verification(
+    sender: type, request: HttpRequest, user: User, **kwargs: Any
+) -> None:
+    """
+    After a user signs up or logs in with X, verify them if X verified their identity.
+    """
+    service = UserSignupService()
+    service.verify_x_identity(user)
