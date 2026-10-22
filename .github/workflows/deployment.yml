@@ -180,4 +180,4 @@ jobs:
           payload: |
             channel: ${{ vars.SLACK_CHANNEL_ID }}
             ts: "${{ needs.notify-start.outputs.ts }}"
-            text: ${{ toJSON(format('{0} {1}{2}', (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && env.DEPLOY_FAILED || env.DEPLOY_SUCCEEDED, env.DEPLOY_REF, needs.notify-start.outputs.commit, env.DEPLOY_TARGET, needs.notify-start.outputs.behind_note)) }}
+            text: ${{ toJSON(format('{0} {1}{2} {3}{4}', (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && env.DEPLOY_FAILED || env.DEPLOY_SUCCEEDED, env.DEPLOY_REF, needs.notify-start.outputs.commit, env.DEPLOY_TARGET, needs.notify-start.outputs.behind_note)) }}
