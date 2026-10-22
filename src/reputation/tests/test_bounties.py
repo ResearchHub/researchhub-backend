@@ -1074,6 +1074,26 @@ class BountyViewTests(APITestCase):
         # Assert
         self.assertEqual(res.data["results"][0]["id"], larger_amount_id)
 
+    def test_sort_bounties_by_newest_alias(self):
+        # Arrange
+        self._authenticate_bounty_manager()
+        paper_id, proposal_id = self._create_paper_and_proposal_bounties()
+
+        # Act
+        res = self.client.get("/api/bounty/", {"sort": "newest"})
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        ids = [b["id"] for b in res.data["results"]]
+        self.assertLess(ids.index(proposal_id), ids.index(paper_id))
+
+    def test_list_rejects_unknown_sort(self):
+        # Act
+        res = self.client.get("/api/bounty/", {"sort": "amount"})
+
+        # Assert
+        self.assertEqual(res.status_code, 400)
+
     def test_user_vote_included_in_bounty_response(self):
         """Test that user's vote is correctly included in bounty serialization"""
         # Arrange

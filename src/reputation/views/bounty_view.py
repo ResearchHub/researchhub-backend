@@ -254,6 +254,15 @@ class BountyViewSet(viewsets.ModelViewSet):
     filterset_fields = ["item_content_type__model", "item_object_id", "status"]
 
     DEFAULT_SORT = "-created_date"
+    ALLOWED_SORTS = (
+        "-created_date",
+        "created_date",
+        "-expiration_date",
+        "expiration_date",
+        "-total_amount",
+        "total_amount",
+    )
+    SORT_ALIASES = {"newest": "-created_date"}
     ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel", "thread", "researchhubpost")
     ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel", "thread", "comment", "reply")
 
@@ -833,11 +842,14 @@ class BountyViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         sort = self.request.query_params.get("sort", self.DEFAULT_SORT)
+        sort = self.SORT_ALIASES.get(sort, sort)
+        if sort not in self.ALLOWED_SORTS:
+            return Response({"detail": "Invalid sort"}, status=400)
 
         queryset = self.filter_queryset(self.get_queryset())
 
         # Sorting by amount requires calculating total including child bounties
-        if sort == "-total_amount":
+        if sort.lstrip("-") == "total_amount":
             children_sum = (
                 Bounty.objects.filter(parent=OuterRef("pk"))
                 .values("parent")
