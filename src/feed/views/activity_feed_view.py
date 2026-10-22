@@ -601,10 +601,6 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 FundingActivity.TIP_REVIEW,
             ],
         )
-        completed_fundraise = Fundraise.objects.filter(
-            id=OuterRef("object_id"),
-            status=Fundraise.COMPLETED,
-        )
 
         return queryset.filter(
             Q(
@@ -612,7 +608,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 object_id__in=contribution_purchase_ids,
             )
             | Q(content_type=usd_contribution_type)
-            | (Q(content_type=fundraise_ct) & Q(Exists(completed_fundraise)))
+            | Q(content_type=fundraise_ct)
             | Q(
                 content_type=post_ct,
                 unified_document__document_type=GRANT,

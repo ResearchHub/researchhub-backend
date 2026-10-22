@@ -662,7 +662,7 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
 
 
 class FundraiseCompletedContentSerializer(serializers.Serializer):
-    """Serializer for a fully funded (COMPLETED) fundraise feed item."""
+    """Serializer for a fully funded fundraise feed item (goal met)."""
 
     id = serializers.IntegerField()
     status = serializers.CharField()
