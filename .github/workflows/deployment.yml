@@ -121,10 +121,24 @@ jobs:
   notify-start:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy_env == 'prod'
     runs-on: ubuntu-26.04
-    permissions: {}
+    permissions:
+      contents: read
     outputs:
+      behind_note: ${{ steps.behind.outputs.note }}
       ts: ${{ steps.slack.outputs.ts }}
     steps:
+      - name: Count commits behind main
+        id: behind
+        # The notification goes out without the note if the comparison fails
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_REF: ${{ github.event.inputs.git_ref || github.sha }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/compare/main...$GIT_REF" \
+            --jq '"note=" + if .behind_by > 0 then " · :warning: \(.behind_by) commit(s) behind `main`" else "" end' \
+            >> "$GITHUB_OUTPUT"
+
       - name: Post deployment start to Slack
         id: slack
         uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
@@ -133,7 +147,7 @@ jobs:
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             channel: ${{ vars.SLACK_CHANNEL_ID }}
-            text: ":ship: Shipping ${{ env.DEPLOY_SUMMARY }}"
+            text: ":ship: Shipping ${{ env.DEPLOY_SUMMARY }}${{ steps.behind.outputs.note }}"
 
   notify-end:
     needs:
@@ -158,4 +172,4 @@ jobs:
           payload: |
             channel: ${{ vars.SLACK_CHANNEL_ID }}
             ts: "${{ needs.notify-start.outputs.ts }}"
-            text: "${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && ':x: Failed to deploy' || ':white_check_mark: Deployed' }} ${{ env.DEPLOY_SUMMARY }}"
+            text: "${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && ':x: Failed to deploy' || ':white_check_mark: Deployed' }} ${{ env.DEPLOY_SUMMARY }}${{ needs.notify-start.outputs.behind_note }}"
