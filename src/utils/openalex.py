@@ -1,6 +1,6 @@
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from unicodedata import normalize
 
 from dateutil import parser
@@ -66,6 +66,24 @@ def author_institution_names(entity: dict) -> list[str]:
         if inst.get("display_name"):
             names.append(inst["display_name"])
     return names
+
+
+def work_author_names(entity: dict) -> list[str]:
+    """Author display names on an OpenAlex work entity, in authorship order.
+
+    List responses cap ``authorships`` at 100; a single-work fetch has them all.
+    """
+    names = [
+        str(((authorship or {}).get("author") or {}).get("display_name") or "").strip()
+        for authorship in entity.get("authorships") or []
+    ]
+    return [name for name in names if name]
+
+
+def work_venue(entity: dict) -> str:
+    """The journal or repository of a work's primary location (``""`` when none)."""
+    source = (entity.get("primary_location") or {}).get("source") or {}
+    return str(source.get("display_name") or "").strip()
 
 
 @dataclass
@@ -145,6 +163,8 @@ class Work:
     pdf_url: str = ""
     is_oa: bool = False
     abstract: str = ""
+    authors: list[str] = field(default_factory=list)
+    venue: str = ""
 
     @classmethod
     def from_openalex(cls, entity: dict, *, author_id: str | None = None):
@@ -172,6 +192,8 @@ class Work:
             abstract=rebuild_sentence_from_inverted_index(
                 entity.get("abstract_inverted_index") or {}
             ),
+            authors=work_author_names(entity),
+            venue=work_venue(entity),
         )
 
     @staticmethod
@@ -221,6 +243,8 @@ class Work:
             "pdf_url": self.pdf_url,
             "is_oa": self.is_oa,
             "abstract": self.abstract,
+            "authors": list(self.authors),
+            "venue": self.venue,
         }
 
 

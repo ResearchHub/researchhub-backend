@@ -12,10 +12,10 @@ import re
 from collections.abc import Callable
 
 from research_ai.models import ProposalDraft
+from research_ai.services.citation_tools import CitationToolset
 from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.scope import format_award, max_aims_for_budget
 from research_ai.services.proposal_draft.tools import (
-    ProposalVerificationToolset,
     assemble_proposal,
     valid_aims,
 )
@@ -137,7 +137,7 @@ class ProposalGateRunner:
         *,
         config: ProposalDraftConfig,
         panel,
-        verification_toolset: ProposalVerificationToolset,
+        verification_toolset: CitationToolset,
         judge_context: Callable[[dict], dict],
         grounded_urls: Callable[[], set[str]],
         award_context: Callable[[], dict] | None = None,

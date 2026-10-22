@@ -10,13 +10,16 @@ invents an author id, a DOI, or a PDF link.
 ``build_tools()`` returns the list of ``Tool``s; ``as_toolset()`` wraps them in a
 core ``Toolset`` ready to hand to an ``Agent``.
 
-The toolset also retains the full ground-truth record of every work it hands
-back, keyed by ``source_url`` (``returned_works``). The agent materializes the
+The toolset also retains the full ground-truth record of every work it lists,
+keyed by ``source_url`` (``returned_works``). The agent materializes the
 final profile from these records so a hallucinated citation cannot survive.
 """
 
 import logging
+import re
 from collections.abc import Callable
+
+import requests
 
 from research_ai.services.agent import Tool, Toolset
 from research_ai.services.passage_search import relevant_passages
@@ -24,7 +27,7 @@ from research_ai.services.pdf_text import (
     extract_text_from_pdf_bytes,
     get_pdf_bytes_from_url,
 )
-from utils.openalex import OpenAlex, Work
+from utils.openalex import OpenAlex, Work, normalize_openalex_id
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,15 @@ _MAX_FULLTEXT_FETCHES = 6  # per-run ceiling on full-text reads
 _MAX_FULLTEXT_SOURCE_CHARS = 120000
 _MAX_PASSAGES = 5
 _MAX_FULLTEXT_QUERY_CHARS = 500
+_MAX_CARD_AUTHORS = 3  # authors named per work; author_count covers the rest
+_LIST_AUTHORSHIPS_CAP = 100  # OpenAlex list responses truncate authorships here
+
+_DOI_PREFIX = re.compile(r"^(?:https?://(?:dx\.|www\.)?doi\.org/|doi:)", re.IGNORECASE)
+_OPENALEX_WORK_ID = re.compile(r"W\d+", re.IGNORECASE)
+_UNKNOWN_WORK_ERROR = (
+    "No OpenAlex work matches this source_url; pass the work's DOI or "
+    "OpenAlex work URL."
+)
 
 
 def _institution_names(record: dict) -> list[str]:
@@ -81,6 +93,23 @@ def _author_view(record: dict) -> dict:
     }
 
 
+def _attribution(work: dict) -> dict:
+    """What citing a work needs beyond its title and year."""
+    authors = list(work.get("authors") or [])
+    count = len(authors)
+    return {
+        "authors": authors[:_MAX_CARD_AUTHORS],
+        "author_count": f"{count}+" if count >= _LIST_AUTHORSHIPS_CAP else count,
+        "venue": work.get("venue") or "",
+    }
+
+
+def _bare_doi(source_url: str) -> str:
+    """The DOI in a doi.org URL, ``doi:`` string, or bare DOI (``""`` otherwise)."""
+    doi = _DOI_PREFIX.sub("", source_url)
+    return doi if doi.startswith("10.") else ""
+
+
 class OpenAlexToolset:
     """OpenAlex-backed tools plus the terminal ``submit_profile`` tool.
 
@@ -96,8 +125,10 @@ class OpenAlexToolset:
         client: OpenAlex | None = None,
         pdf_text_fetcher: Callable[[str], str] | None = None,
         max_fulltext_fetches: int = _MAX_FULLTEXT_FETCHES,
+        open_access_only_default: bool = True,
     ):
         self._oa = client or OpenAlex()
+        self._open_access_only_default = open_access_only_default
         self._pdf_text_fetcher = pdf_text_fetcher or self._fetch_pdf_text
         self._max_fulltext_fetches = max_fulltext_fetches
         self._fulltext_fetches_used = 0
@@ -106,6 +137,8 @@ class OpenAlexToolset:
         # keyed by source_url. The profile is materialized from these rather
         # than from the model's (often mangled) copy of each work.
         self.returned_works: dict[str, dict] = {}
+        # Unlisted works read by DOI/URL; never in returned_works, which grounds.
+        self._resolved_works: dict[str, dict] = {}
         # Captured input of the terminal submit_profile call (None until called).
         self.submitted: dict | None = None
 
@@ -201,7 +234,8 @@ class OpenAlexToolset:
                         "open_access_only": {
                             "type": "boolean",
                             "description": (
-                                "Restrict to open-access works (default true)."
+                                "Restrict to open-access works (default "
+                                f"{str(self._open_access_only_default).lower()})."
                             ),
                         },
                         "max_results": {
@@ -225,8 +259,9 @@ class OpenAlexToolset:
             Tool(
                 name=GET_WORK_ABSTRACT,
                 description=(
-                    "Fetch the abstract of one work returned by get_author_works. "
-                    "Pass its source_url exactly. Use this inexpensive detail "
+                    "Fetch one work's abstract, with its authors, year, and "
+                    "venue, by DOI or OpenAlex work URL -- such as the "
+                    "source_url of a listed work. Use this inexpensive detail "
                     "read to screen candidate papers before searching full text."
                 ),
                 input_schema={
@@ -234,10 +269,7 @@ class OpenAlexToolset:
                     "properties": {
                         "source_url": {
                             "type": "string",
-                            "description": (
-                                "The work's source_url, exactly as returned by "
-                                "get_author_works."
-                            ),
+                            "description": "The work's DOI or OpenAlex work URL.",
                         }
                     },
                     "required": ["source_url"],
@@ -247,12 +279,12 @@ class OpenAlexToolset:
             Tool(
                 name=SEARCH_WORK_FULLTEXT,
                 description=(
-                    "Search the readable full text of a work returned by "
-                    "get_author_works for a focused question, method, instrument, "
-                    "model system, or finding. Returns only the most relevant "
-                    "passages, never the whole paper. Does not substitute the "
-                    "abstract when no PDF is readable; call get_work_abstract "
-                    "separately. Limited to "
+                    "Search the readable full text of one work, by DOI or "
+                    "OpenAlex work URL, for a focused question, method, "
+                    "instrument, model system, or finding. Returns only the most "
+                    "relevant passages, never the whole paper. Does not "
+                    "substitute the abstract when no PDF is readable; call "
+                    "get_work_abstract separately. Limited to "
                     f"{self._max_fulltext_fetches} document fetches per run."
                 ),
                 input_schema={
@@ -260,10 +292,7 @@ class OpenAlexToolset:
                     "properties": {
                         "source_url": {
                             "type": "string",
-                            "description": (
-                                "The work's source_url, exactly as returned by "
-                                "get_author_works."
-                            ),
+                            "description": "The work's DOI or OpenAlex work URL.",
                         },
                         "query": {
                             "type": "string",
@@ -362,7 +391,7 @@ class OpenAlexToolset:
         except ValueError as exc:
             return {"error": str(exc)}
         cursor = str(args.get("cursor") or "").strip() or "*"
-        open_access_only = args.get("open_access_only", True)
+        open_access_only = args.get("open_access_only", self._open_access_only_default)
         raw_works, next_cursor = self._oa.get_works(
             openalex_author_id=author_id,
             next_cursor=cursor,
@@ -391,26 +420,19 @@ class OpenAlexToolset:
         source_url = str((args or {}).get("source_url") or "").strip()
         if not source_url:
             return {"error": "source_url is required"}
-        work = self.returned_works.get(source_url)
+        work = self._work(source_url)
         if work is None:
-            return {
-                "error": (
-                    "Unknown source_url -- it must match a work returned by "
-                    "get_author_works."
-                )
-            }
+            return {"error": _UNKNOWN_WORK_ERROR}
+        detail = {
+            "source_url": work["source_url"],
+            "title": str(work.get("title") or "").strip(),
+            "publication_year": work.get("publication_year"),
+            **_attribution(work),
+        }
         abstract = str(work.get("abstract") or "").strip()
         if not abstract:
-            return {
-                "source_url": source_url,
-                "title": str(work.get("title") or "").strip(),
-                "error": "No abstract is available for this work.",
-            }
-        return {
-            "source_url": source_url,
-            "title": str(work.get("title") or "").strip(),
-            "abstract": abstract,
-        }
+            return {**detail, "error": "No abstract is available for this work."}
+        return {**detail, "abstract": abstract}
 
     def _search_work_fulltext(self, args: dict) -> dict:
         source_url = str((args or {}).get("source_url") or "").strip()
@@ -431,14 +453,10 @@ class OpenAlexToolset:
         except ValueError as exc:
             return {"error": str(exc)}
 
-        work = self.returned_works.get(source_url)
+        work = self._work(source_url)
         if work is None:
-            return {
-                "error": (
-                    "Unknown source_url -- it must match a work returned by "
-                    "get_author_works."
-                )
-            }
+            return {"error": _UNKNOWN_WORK_ERROR}
+        source_url = work["source_url"]
         text, source_truncated, error = self._fulltext(source_url, work)
         if error is not None:
             return error
@@ -467,6 +485,34 @@ class OpenAlexToolset:
                 "characters of the extracted PDF text."
             )
         return result
+
+    def _work(self, source_url: str) -> dict | None:
+        """The work at ``source_url``: one this toolset listed, else looked up."""
+        if source_url in self.returned_works:
+            return self.returned_works[source_url]
+        if source_url not in self._resolved_works:
+            work = self._resolve_work(source_url)
+            if work is None:
+                return None
+            self._resolved_works[source_url] = work
+        return self._resolved_works[source_url]
+
+    def _resolve_work(self, source_url: str) -> dict | None:
+        doi = _bare_doi(source_url)
+        work_id = normalize_openalex_id(source_url)
+        if doi:
+            entity = self._oa.get_work_by_doi(doi)
+        elif _OPENALEX_WORK_ID.fullmatch(work_id):
+            try:
+                entity = self._oa.get_work(work_id.upper())
+            except requests.HTTPError as exc:
+                if getattr(exc.response, "status_code", None) != 404:
+                    raise
+                entity = None
+        else:
+            return None
+        work = Work.from_openalex(entity) if isinstance(entity, dict) else None
+        return work.as_dict() if work is not None else None
 
     def _fulltext(self, source_url: str, work: dict) -> tuple[str, bool, dict | None]:
         if source_url in self._fulltext_cache:
@@ -499,6 +545,7 @@ class OpenAlexToolset:
     def _work_card(work: dict) -> dict:
         return {
             "title": work.get("title"),
+            **_attribution(work),
             "publication_date": work.get("publication_date"),
             "publication_year": work.get("publication_year"),
             "source_url": work.get("source_url"),

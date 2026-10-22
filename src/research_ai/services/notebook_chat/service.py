@@ -99,6 +99,7 @@ from research_ai.services.agent_persistence import (
 from research_ai.services.agent_persistence.activity import (
     conversation_activity_events,
 )
+from research_ai.services.citation_tools import CitationToolset
 from research_ai.services.message_screening import MessageScreeningService
 from research_ai.services.note_tools import NoteToolset
 from research_ai.services.notebook_chat.activity import (
@@ -936,6 +937,7 @@ class NotebookChatService:
         # One read, so the prompt lists exactly the notes the tools allow.
         linked_notes = self._linked_notes(conversation) if note is None else []
         note_toolset = self._note_toolset(conversation, note, linked_notes)
+        oa_client = self._oa_client or OpenAlex()
         toolset = compose_notebook_toolset(
             note_toolset=note_toolset,
             user_profile_toolset=UserProfileToolset(user=conversation.user),
@@ -956,7 +958,11 @@ class NotebookChatService:
                 if note is None or note.document_type == GRANT
                 else None
             ),
-            openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),
+            # Unlike the profile builder, the chat lists closed-access works too.
+            openalex_toolset=OpenAlexToolset(
+                client=oa_client, open_access_only_default=False
+            ),
+            citation_toolset=CitationToolset(oa_client=oa_client),
             web_search_toolset=NotebookWebSearchToolset(client=self._web_search_client),
             # Read back from the durable rows, which hold every message so far.
             web_fetch_toolset=WebFetchToolset(

@@ -9,8 +9,6 @@ sections assembler:
 - ``fulltext_tools`` -- on-demand full-text reads of the researcher's own works.
 - ``web_search_tools`` -- research-only web search for facts outside the
   researcher's papers (grounds prose, not citations).
-- ``verification_tools`` -- deterministic citation verification (the loop's
-  external grounded signal).
 - ``assembly`` -- build the readable text + ProseMirror doc from the submitted
   sections (the panel scores every submit at the gate, not via an agent tool).
 - ``judge_context`` -- pure compaction helpers that assemble the evidence
@@ -30,9 +28,6 @@ from research_ai.services.proposal_draft.tools.fulltext_tools import (
     ProposalFulltextToolset,
 )
 from research_ai.services.proposal_draft.tools.judge_context import build_judge_context
-from research_ai.services.proposal_draft.tools.verification_tools import (
-    ProposalVerificationToolset,
-)
 from research_ai.services.proposal_draft.tools.web_search_tools import (
     ProposalWebSearchToolset,
 )
@@ -40,7 +35,6 @@ from research_ai.services.proposal_draft.tools.web_search_tools import (
 __all__ = [
     "ProposalContextToolset",
     "ProposalFulltextToolset",
-    "ProposalVerificationToolset",
     "ProposalWebSearchToolset",
     "assemble_proposal",
     "build_judge_context",

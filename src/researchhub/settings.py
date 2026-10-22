@@ -730,6 +730,13 @@ OPENSEARCH_DSL_PARALLEL = True
 OPENSEARCH_DSL_QUERYSET_PAGINATION = 1024
 OPENSEARCH_DSL_SIGNAL_PROCESSOR = "search.celery.CelerySignalProcessor"
 
+# OpenSearch index settings
+OPENSEARCH_DSL_INDEX_SETTINGS = {
+    "number_of_shards": 1,
+    # One copy per node, up to one per availability zone in a 3-AZ domain
+    "auto_expand_replicas": "0-2",
+}
+
 # Disable OpenSearch auto-sync in test environment
 if TESTING:
     OPENSEARCH_DSL_AUTOSYNC = False

@@ -92,6 +92,7 @@ class ComposeToolsetTests(TestCase):
             researcher_profile_toolset=ResearcherProfileToolset(user=_make_user()),
             grant_toolset=empty,
             openalex_toolset=Mock(build_tools=Mock(return_value=[])),
+            citation_toolset=empty,
             web_search_toolset=empty,
         )
         # Assert
