@@ -5,6 +5,7 @@ from allauth.socialaccount.providers.oauth2.client import OAuth2Client, OAuth2Er
 from dj_rest_auth.registration.serializers import (
     SocialLoginSerializer as BaseSocialLoginSerializer,
 )
+from django.conf import settings
 from django.urls.exceptions import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
@@ -58,10 +59,11 @@ class XLoginSerializer(SocialLoginSerializer):
     code_verifier = serializers.CharField(
         min_length=43, max_length=128, trim_whitespace=False
     )
-    redirect_uri = serializers.URLField()
+    redirect_uri = serializers.URLField(required=False)
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         """Exchange an X authorization code for this application's access token."""
+        attrs.pop("redirect_uri", None)
         request = self._get_request()
         adapter = XOAuth2Adapter(request)
         app = adapter.get_provider().app
@@ -71,7 +73,7 @@ class XLoginSerializer(SocialLoginSerializer):
             app.secret,
             adapter.access_token_method,
             adapter.access_token_url,
-            attrs.pop("redirect_uri"),
+            settings.X_REDIRECT_URI,
             basic_auth=adapter.basic_auth,
         )
         try:

@@ -7,7 +7,7 @@ from mailing_list.services import EmailService
 from user.custom_allauth import CustomAccountAdapter, CustomResetPasswordForm
 
 SETTINGS = {
-    "BASE_FRONTEND_URL": "https://www.researchhub.com",
+    "AUTH_FRONTEND_URL": "https://www.researchhub.com",
     "ASSETS_BASE_URL": "https://assets.researchhub.com",
 }
 

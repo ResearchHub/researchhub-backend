@@ -60,6 +60,11 @@ elif PRODUCTION:
 elif CLOUD:
     BASE_FRONTEND_URL = "https://www.staging.researchhub.com"
 
+# TODO: Temporarily hardcoded for testing auth on experiment staging.
+# Revert to BASE_FRONTEND_URL before merging.
+AUTH_FRONTEND_URL = "https://experiment.staging.researchhub.com"
+X_REDIRECT_URI = f"{AUTH_FRONTEND_URL}/api/auth/callback/x"
+
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 # Logging

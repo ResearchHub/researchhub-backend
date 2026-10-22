@@ -15,7 +15,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
     def get_email_confirmation_url(
         self, request: HttpRequest, emailconfirmation
     ) -> str:
-        return f"{settings.BASE_FRONTEND_URL}/verify/{emailconfirmation.key}"
+        return f"{settings.AUTH_FRONTEND_URL}/verify/{emailconfirmation.key}"
 
     def send_confirmation_mail(
         self, request: HttpRequest, emailconfirmation, signup: bool
@@ -57,7 +57,7 @@ class CustomResetPasswordForm(ResetPasswordForm):
         for user in self.users:
             uid = user_pk_to_url_str(user)
             token = token_generator.make_token(user)
-            reset_url = f"{settings.BASE_FRONTEND_URL}/reset/{uid}/{token}"
+            reset_url = f"{settings.AUTH_FRONTEND_URL}/reset/{uid}/{token}"
             subject = "Reset Your Password"
             email_service.send_transactional_email(
                 email,
