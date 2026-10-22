@@ -82,6 +82,8 @@ def create_feed_entry(
     action_date = item.created_date
     if item_content_type.model == "fundingactivity":
         action_date = item.activity_date
+    elif item_content_type.model == "fundraise":
+        action_date = item.updated_date
     elif (
         action == FeedEntry.PUBLISH
         and item_content_type.model == "paper"
@@ -226,7 +228,7 @@ def _get_unified_document(
         ResearchhubUnifiedDocument or None if item type isnot supported.
     """
     match item_content_type.model:
-        case "bounty" | "paper" | "researchhubpost":
+        case "bounty" | "paper" | "researchhubpost" | "fundraise":
             doc = item.unified_document
         case "rhcommentmodel":
             doc = item.thread.unified_document
@@ -300,6 +302,20 @@ def _get_authors_for_item(item: Any, item_content_type: ContentType) -> list[Aut
                 and item.funder.author_profile
             ):
                 authors = [item.funder.author_profile]
+        case "fundraise":
+            post = None
+            if item.unified_document is not None and hasattr(
+                item.unified_document, "posts"
+            ):
+                post = item.unified_document.posts.first()
+            if post is not None and hasattr(post, "authors"):
+                authors = list(post.authors.all())
+            elif (
+                item.created_by
+                and hasattr(item.created_by, "author_profile")
+                and item.created_by.author_profile
+            ):
+                authors = [item.created_by.author_profile]
 
     return authors
 

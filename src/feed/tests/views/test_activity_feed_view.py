@@ -1516,6 +1516,31 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
             user=self.user,
         )
 
+        # Bypass signals so setUp can attach its own feed entry.
+        self.completed_fundraise = Fundraise.objects.create(
+            unified_document=self.proposal_doc,
+            created_by=self.user,
+            goal_amount=Decimal("500.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        Fundraise.objects.filter(pk=self.completed_fundraise.pk).update(
+            status=Fundraise.COMPLETED
+        )
+        self.completed_fundraise.refresh_from_db()
+        self.completed_fundraise_entry = _make_feed_entry(
+            Fundraise,
+            self.completed_fundraise.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+        self.open_fundraise_entry = _make_feed_entry(
+            Fundraise,
+            self.fundraise.id,
+            self.proposal_doc,
+            user=self.user,
+        )
+
     def test_scope_financial_includes_rsc_and_usd_contributions(self):
         # Act
         resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
@@ -1528,6 +1553,16 @@ class ActivityFeedFinancialScopeTests(AWSMockTestCase):
         self.assertIn(self.pool_entry.id, ids)
         self.assertNotIn(self.unrelated_entry.id, ids)
         self.assertNotIn(self.boost_entry.id, ids)
+
+    def test_scope_financial_includes_completed_fundraise_entries(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "financial"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {entry["id"] for entry in resp.data["results"]}
+        self.assertIn(self.completed_fundraise_entry.id, ids)
+        self.assertNotIn(self.open_fundraise_entry.id, ids)
 
     def test_scope_financial_includes_grant_post_entries(self):
         # Act
