@@ -32,7 +32,8 @@ env:
   DEPLOY_STARTED: "${{ github.event.inputs.deploy_env == 'prod' && ':ship: Shipping' || ':rocket: Deploying' }}"
   DEPLOY_SUCCEEDED: "${{ github.event.inputs.deploy_env == 'prod' && ':white_check_mark: Shipped' || ':white_check_mark: Deployed' }}"
   DEPLOY_FAILED: "${{ github.event.inputs.deploy_env == 'prod' && ':x: Failed to ship' || ':x: Failed to deploy' }}"
-  DEPLOY_SUMMARY: "`${{ github.event.inputs.git_ref }}` to *${{ github.event.inputs.deploy_env }}* (started by ${{ github.actor }}) · <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+  DEPLOY_REF: "`${{ github.event.inputs.git_ref }}`"
+  DEPLOY_TARGET: "to *${{ github.event.inputs.deploy_env }}* (started by ${{ github.actor }}) · <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
 
 jobs:
   build:
@@ -128,20 +129,23 @@ jobs:
     permissions:
       contents: read
     outputs:
-      behind_note: ${{ steps.behind.outputs.note }}
+      commit: ${{ steps.compare.outputs.commit }}
+      behind_note: ${{ steps.compare.outputs.note }}
       ts: ${{ steps.slack.outputs.ts }}
     steps:
-      - name: Count commits behind main
-        id: behind
-        # The notification goes out without the note if the comparison fails
+      - name: Compare with main
+        id: compare
+        # The notification goes out without the commit and note if the comparison fails
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           GIT_REF: ${{ github.event.inputs.git_ref || github.sha }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/compare/main...$GIT_REF" \
-            --jq '"note=" + if .behind_by > 0 then " · :warning: \(.behind_by) commit(s) behind `main`" else "" end' \
-            >> "$GITHUB_OUTPUT"
+          # Compared from the ref, so base_commit is the deployed commit and ahead_by is how far main is ahead
+          gh api "repos/$GITHUB_REPOSITORY/compare/$GIT_REF...main" --jq '
+            "commit= (<\(.base_commit.html_url)|\(.base_commit.sha[:7])>)",
+            "note=" + if .ahead_by > 0 then " · :warning: \(.ahead_by) commit(s) behind `main`" else "" end
+          ' >> "$GITHUB_OUTPUT"
 
       - name: Post deployment start to Slack
         id: slack
@@ -151,7 +155,7 @@ jobs:
           token: ${{ secrets.SLACK_BOT_TOKEN }}
           payload: |
             channel: ${{ vars.SLACK_CHANNEL_ID }}
-            text: ${{ toJSON(format('{0} {1}{2}', env.DEPLOY_STARTED, env.DEPLOY_SUMMARY, steps.behind.outputs.note)) }}
+            text: ${{ toJSON(format('{0} {1}{2} {3}{4}', env.DEPLOY_STARTED, env.DEPLOY_REF, steps.compare.outputs.commit, env.DEPLOY_TARGET, steps.compare.outputs.note)) }}
 
   notify-end:
     needs:
@@ -176,4 +180,4 @@ jobs:
           payload: |
             channel: ${{ vars.SLACK_CHANNEL_ID }}
             ts: "${{ needs.notify-start.outputs.ts }}"
-            text: ${{ toJSON(format('{0} {1}{2}', (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && env.DEPLOY_FAILED || env.DEPLOY_SUCCEEDED, env.DEPLOY_SUMMARY, needs.notify-start.outputs.behind_note)) }}
+            text: ${{ toJSON(format('{0} {1}{2}', (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && env.DEPLOY_FAILED || env.DEPLOY_SUCCEEDED, env.DEPLOY_REF, needs.notify-start.outputs.commit, env.DEPLOY_TARGET, needs.notify-start.outputs.behind_note)) }}
