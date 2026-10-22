@@ -7,12 +7,12 @@ from rest_framework.test import APITestCase
 
 from research_ai.models import CoverImageGeneration
 
-COVER_IMAGES_URL = "/api/research_ai/cover-images/"
-ENQUEUE = "research_ai.services.cover_image_service._enqueue_cover_image_generation"
-
 
 @override_settings(OPENROUTER_API_KEY="or-test-key")
 class CoverImageGenerationViewTests(APITestCase):
+    COVER_IMAGES_URL = "/api/research_ai/cover-images/"
+    ENQUEUE = "research_ai.services.cover_image_service._enqueue_cover_image_generation"
+
     def setUp(self):
         super().setUp()
         cache.clear()
@@ -44,7 +44,9 @@ class CoverImageGenerationViewTests(APITestCase):
         self.client.force_authenticate(None)
 
         # Act
-        response = self.client.post(COVER_IMAGES_URL, self._payload(), format="json")
+        response = self.client.post(
+            self.COVER_IMAGES_URL, self._payload(), format="json"
+        )
 
         # Assert
         self.assertEqual(response.status_code, 401)
@@ -55,7 +57,9 @@ class CoverImageGenerationViewTests(APITestCase):
         self.owner.save(update_fields=["probable_spammer"])
 
         # Act
-        response = self.client.post(COVER_IMAGES_URL, self._payload(), format="json")
+        response = self.client.post(
+            self.COVER_IMAGES_URL, self._payload(), format="json"
+        )
 
         # Assert
         self.assertEqual(response.status_code, 403)
@@ -63,7 +67,9 @@ class CoverImageGenerationViewTests(APITestCase):
     @patch(ENQUEUE)
     def test_post_starts_a_generation(self, enqueue):
         # Act
-        response = self.client.post(COVER_IMAGES_URL, self._payload(), format="json")
+        response = self.client.post(
+            self.COVER_IMAGES_URL, self._payload(), format="json"
+        )
 
         # Assert
         self.assertEqual(response.status_code, 201)
@@ -78,17 +84,33 @@ class CoverImageGenerationViewTests(APITestCase):
     def test_post_rejects_an_unsupported_document_type(self, enqueue):
         # Act
         response = self.client.post(
-            COVER_IMAGES_URL, self._payload(document_type="PAPER"), format="json"
+            self.COVER_IMAGES_URL, self._payload(document_type="PAPER"), format="json"
         )
 
         # Assert
         self.assertEqual(response.status_code, 400)
         enqueue.assert_not_called()
 
+    @patch(ENQUEUE)
+    def test_post_rejects_another_users_logo(self, enqueue):
+        # Act
+        response = self.client.post(
+            self.COVER_IMAGES_URL,
+            self._payload(logo_key=f"uploads/posts/users/{self.other.id}/abc/logo.png"),
+            format="json",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "invalid_logo")
+        enqueue.assert_not_called()
+
     @override_settings(OPENROUTER_API_KEY="")
     def test_post_without_openrouter_configured_is_unavailable(self):
         # Act
-        response = self.client.post(COVER_IMAGES_URL, self._payload(), format="json")
+        response = self.client.post(
+            self.COVER_IMAGES_URL, self._payload(), format="json"
+        )
 
         # Assert
         self.assertEqual(response.status_code, 503)
@@ -104,7 +126,7 @@ class CoverImageGenerationViewTests(APITestCase):
         )
 
         # Act
-        response = self.client.get(f"{COVER_IMAGES_URL}{generation.id}/")
+        response = self.client.get(f"{self.COVER_IMAGES_URL}{generation.id}/")
 
         # Assert
         self.assertEqual(response.status_code, 200)
@@ -121,7 +143,7 @@ class CoverImageGenerationViewTests(APITestCase):
         )
 
         # Act
-        response = self.client.get(f"{COVER_IMAGES_URL}{generation.id}/")
+        response = self.client.get(f"{self.COVER_IMAGES_URL}{generation.id}/")
 
         # Assert
         self.assertEqual(response.status_code, 404)

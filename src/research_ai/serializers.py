@@ -1178,3 +1178,6 @@ class CoverImageGenerationCreateSerializer(serializers.Serializer):
         allow_null=True,
         default=None,
     )
+    logo_key = serializers.CharField(
+        max_length=512, required=False, allow_blank=True, default=""
+    )

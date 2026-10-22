@@ -12,6 +12,6 @@ Layout:
 - Keep every element within the middle three quarters of the height and well inside the left and right edges.
 
 Text rules:
-- Render each quoted text exactly as written, spelled exactly, with no other words, captions, logos, watermarks or placeholder text anywhere.
-- Never draw a logo, emblem, monogram or crest for any organization; an organization appears only as its name in plain type.
+- Render each quoted text exactly as written, spelled exactly, with no other words, captions, watermarks or placeholder text anywhere.
+{logo_rule}
 - Use clean geometric sans-serif type; the title is the largest and boldest element and wraps onto at most three lines.

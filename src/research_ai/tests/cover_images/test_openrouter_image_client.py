@@ -5,7 +5,6 @@ from unittest import TestCase
 import httpx
 
 from research_ai.services.openrouter_image_client import (
-    OPENROUTER_IMAGES_URL,
     OpenRouterImageClient,
     OpenRouterImageError,
 )
@@ -37,7 +36,7 @@ class OpenRouterImageClientTests(TestCase):
 
         # Assert
         self.assertEqual(image, b"image-bytes")
-        self.assertEqual(str(requests[0].url), OPENROUTER_IMAGES_URL)
+        self.assertEqual(str(requests[0].url), OpenRouterImageClient.URL)
         self.assertEqual(requests[0].headers["Authorization"], "Bearer or-test-key")
         self.assertEqual(
             json.loads(requests[0].content),
@@ -48,6 +47,26 @@ class OpenRouterImageClientTests(TestCase):
                 "aspect_ratio": "21:9",
                 "quality": "medium",
             },
+        )
+
+    def test_sends_reference_images(self):
+        # Arrange
+        bodies = []
+
+        def handler(request):
+            bodies.append(json.loads(request.content))
+            image = base64.b64encode(b"image-bytes").decode()
+            return httpx.Response(200, json={"data": [{"b64_json": image}]})
+
+        # Act
+        _client(handler).generate(
+            model="m", prompt="p", reference_images=["data:image/png;base64,AAA="]
+        )
+
+        # Assert
+        self.assertEqual(
+            bodies[0]["input_references"],
+            [{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAA="}}],
         )
 
     def test_an_error_response_raises(self):

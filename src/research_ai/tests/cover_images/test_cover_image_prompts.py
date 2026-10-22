@@ -1,12 +1,7 @@
 from decimal import Decimal
 from unittest import TestCase
 
-from research_ai.prompts.cover_image_prompts import (
-    MAX_SUBTITLE_CHARS,
-    VARIANT_COUNT,
-    build_cover_image_prompts,
-    format_usd_compact,
-)
+from research_ai.prompts.cover_image_prompts import CoverImagePrompts
 
 
 class FormatUsdCompactTests(TestCase):
@@ -21,7 +16,7 @@ class FormatUsdCompactTests(TestCase):
         for amount, expected in cases.items():
             with self.subTest(amount=amount):
                 # Act
-                formatted = format_usd_compact(amount)
+                formatted = CoverImagePrompts.format_usd_compact(amount)
 
                 # Assert
                 self.assertEqual(formatted, expected)
@@ -30,7 +25,7 @@ class FormatUsdCompactTests(TestCase):
 class BuildCoverImagePromptsTests(TestCase):
     def test_rfp_prompts_show_label_title_funding_subtitle_and_organization(self):
         # Act
-        prompts = build_cover_image_prompts(
+        prompts = CoverImagePrompts.build(
             document_type="GRANT",
             title="Epothilone B and anesthetic sensitivity",
             subtitle="Independent replication in rodents & Tetrahymena",
@@ -39,8 +34,8 @@ class BuildCoverImagePromptsTests(TestCase):
         )
 
         # Assert
-        self.assertEqual(len(prompts), VARIANT_COUNT)
-        self.assertEqual(len(set(prompts)), VARIANT_COUNT)
+        self.assertEqual(len(prompts), CoverImagePrompts.VARIANT_COUNT)
+        self.assertEqual(len(set(prompts)), CoverImagePrompts.VARIANT_COUNT)
         for prompt in prompts:
             self.assertIn('"REQUEST FOR PROPOSALS"', prompt)
             self.assertIn('"Epothilone B and anesthetic sensitivity"', prompt)
@@ -50,7 +45,7 @@ class BuildCoverImagePromptsTests(TestCase):
 
     def test_proposal_prompts_ask_for_funding_without_an_organization(self):
         # Act
-        prompts = build_cover_image_prompts(
+        prompts = CoverImagePrompts.build(
             document_type="PREREGISTRATION",
             title="A study",
             funding_amount_usd=Decimal(5000),
@@ -64,10 +59,10 @@ class BuildCoverImagePromptsTests(TestCase):
 
     def test_leaves_out_missing_funding_and_a_long_subtitle(self):
         # Act
-        prompts = build_cover_image_prompts(
+        prompts = CoverImagePrompts.build(
             document_type="GRANT",
             title="A study",
-            subtitle="x" * (MAX_SUBTITLE_CHARS + 1),
+            subtitle="x" * (CoverImagePrompts.MAX_SUBTITLE_CHARS + 1),
         )
 
         # Assert
@@ -77,7 +72,7 @@ class BuildCoverImagePromptsTests(TestCase):
 
     def test_user_text_cannot_break_out_of_its_quotes(self):
         # Act
-        prompts = build_cover_image_prompts(
+        prompts = CoverImagePrompts.build(
             document_type="GRANT", title='The "best"\nstudy {title}'
         )
 
@@ -86,7 +81,7 @@ class BuildCoverImagePromptsTests(TestCase):
 
     def test_leaves_the_colors_to_the_model(self):
         # Act
-        prompts = build_cover_image_prompts(
+        prompts = CoverImagePrompts.build(
             document_type="GRANT", title="A study", organization="A Foundation"
         )
 
@@ -100,7 +95,7 @@ class BuildCoverImagePromptsTests(TestCase):
         for organization in ("Athanatos Foundation", ""):
             with self.subTest(organization=organization):
                 # Act
-                prompts = build_cover_image_prompts(
+                prompts = CoverImagePrompts.build(
                     document_type="GRANT", title="A study", organization=organization
                 )
 
@@ -108,3 +103,19 @@ class BuildCoverImagePromptsTests(TestCase):
                 for prompt in prompts:
                     self.assertIn("Never draw a logo", prompt)
                     self.assertNotRegex(prompt, r"(?i)\barcs?\b")
+
+    def test_with_a_logo_asks_to_reproduce_it_exactly(self):
+        # Act
+        prompts = CoverImagePrompts.build(
+            document_type="GRANT",
+            title="A study",
+            organization="Athanatos Foundation",
+            has_logo=True,
+        )
+
+        # Assert
+        self.assertEqual(len(prompts), CoverImagePrompts.VARIANT_COUNT)
+        for prompt in prompts:
+            self.assertIn("the provided logo, reproduced exactly", prompt)
+            self.assertIn("Reproduce it faithfully", prompt)
+            self.assertNotIn("Never draw a logo", prompt)

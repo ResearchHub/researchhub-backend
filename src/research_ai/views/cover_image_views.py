@@ -1,7 +1,8 @@
 """API for AI-generated proposal and RFP cover images.
 
-1. ``POST cover-images/`` with the banner's text starts generating
-   (``PENDING``).
+1. ``POST cover-images/`` with the banner's text, and optionally the
+   ``logo_key`` of a logo uploaded through the asset upload endpoint, starts
+   generating (``PENDING``).
 2. Poll ``GET cover-images/<id>/`` until ``COMPLETED`` (with ``images``, each a
    ``key`` and ``url``) or ``FAILED`` (with ``error``).
 3. Send the chosen image's ``key`` as the post's ``image``, like an uploaded
@@ -21,18 +22,16 @@ from research_ai.serializers import CoverImageGenerationCreateSerializer
 from research_ai.services.cover_image_service import (
     CoverImageGenerationEnqueueError,
     CoverImageGenerationUnavailableError,
+    CoverImageLogoError,
     CoverImageService,
-    public_generation,
 )
 from research_ai.throttles import CoverImageGenerationThrottle
-
-COVER_IMAGE_PERMISSIONS = [IsAuthenticated, ResearchAIBudgetPermission]
 
 
 class CoverImageGenerationCreateView(APIView):
     """Start generating cover image options."""
 
-    permission_classes = COVER_IMAGE_PERMISSIONS
+    permission_classes = [IsAuthenticated, ResearchAIBudgetPermission]
     throttle_classes = [CoverImageGenerationThrottle]
 
     def post(self, request):
@@ -41,6 +40,11 @@ class CoverImageGenerationCreateView(APIView):
         service = CoverImageService()
         try:
             generation = service.start(user=request.user, **serializer.validated_data)
+        except CoverImageLogoError as error:
+            return Response(
+                {"detail": str(error), "code": "invalid_logo"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except CoverImageGenerationUnavailableError:
             return Response(
                 {
@@ -57,19 +61,17 @@ class CoverImageGenerationCreateView(APIView):
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
-        return Response(
-            public_generation(generation, service), status=status.HTTP_201_CREATED
-        )
+        return Response(service.public(generation), status=status.HTTP_201_CREATED)
 
 
 class CoverImageGenerationDetailView(APIView):
     """Read a generation request's state and, once done, its images."""
 
-    permission_classes = COVER_IMAGE_PERMISSIONS
+    permission_classes = [IsAuthenticated, ResearchAIBudgetPermission]
 
     def get(self, request, generation_id):
         service = CoverImageService()
         generation = service.get_for_user(request.user, generation_id)
         if generation is None:
             raise Http404
-        return Response(public_generation(generation, service))
+        return Response(service.public(generation))

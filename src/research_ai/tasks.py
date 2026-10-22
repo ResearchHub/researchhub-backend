@@ -47,8 +47,6 @@ PROPOSAL_DRAFT_TIME_LIMIT = 4 * 60 * 60
 HARD_TIME_LIMIT_GRACE = 5 * 60
 # A lost file task is failed by the first status read past its timeout.
 AGENT_FILE_PROCESSING_TIME_LIMIT = 5 * 60
-# The image calls run in parallel, each with its own OpenRouter timeout.
-COVER_IMAGE_GENERATION_TIME_LIMIT = 6 * 60
 
 
 def _update_search_progress(
@@ -304,8 +302,8 @@ def process_agent_file_task(file_id: int):
 
 @app.task(
     queue=QUEUE_AGENTS,
-    soft_time_limit=COVER_IMAGE_GENERATION_TIME_LIMIT,
-    time_limit=COVER_IMAGE_GENERATION_TIME_LIMIT + HARD_TIME_LIMIT_GRACE,
+    soft_time_limit=CoverImageService.TIME_LIMIT_SECONDS,
+    time_limit=CoverImageService.TIME_LIMIT_SECONDS + HARD_TIME_LIMIT_GRACE,
 )
 def generate_cover_images_task(generation_id: int):
     """

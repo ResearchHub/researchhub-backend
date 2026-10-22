@@ -1,3 +1,4 @@
+import base64
 import io
 from datetime import timedelta
 from decimal import Decimal
@@ -9,13 +10,12 @@ from django.utils import timezone
 from PIL import Image
 
 from research_ai.models import CoverImageGeneration
-from research_ai.prompts.cover_image_prompts import VARIANT_COUNT
+from research_ai.prompts.cover_image_prompts import CoverImagePrompts
 from research_ai.services.cover_image_service import (
-    STALE_AFTER,
     CoverImageGenerationEnqueueError,
     CoverImageGenerationUnavailableError,
+    CoverImageLogoError,
     CoverImageService,
-    public_generation,
 )
 
 
@@ -88,6 +88,77 @@ class CoverImageServiceTests(TestCase):
         generation = CoverImageGeneration.objects.get()
         self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
 
+    def test_start_refuses_a_logo_the_user_did_not_upload(self):
+        # Act / Assert
+        with self.assertRaises(CoverImageLogoError):
+            self.service.start(
+                user=self.user,
+                document_type="GRANT",
+                title="A study",
+                logo_key="uploads/posts/users/999999/abc/logo.png",
+            )
+        self.assertFalse(CoverImageGeneration.objects.exists())
+
+    def test_start_keeps_the_users_logo(self):
+        # Arrange
+        logo_key = f"uploads/posts/users/{self.user.id}/abc/logo.png"
+
+        # Act
+        generation = self.service.start(
+            user=self.user, document_type="GRANT", title="A study", logo_key=logo_key
+        )
+
+        # Assert
+        self.assertEqual(generation.logo_key, logo_key)
+
+    def test_run_places_the_logo_from_a_scaled_down_reference(self):
+        # Arrange
+        generation = self._generation(
+            logo_key=f"uploads/posts/users/{self.user.id}/abc/logo.png"
+        )
+        self.storage.open.return_value = io.BytesIO(_png(2048, 512))
+
+        # Act
+        self.service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.COMPLETED)
+        call = self.client.generate.call_args_list[0].kwargs
+        self.assertIn("the provided logo", call["prompt"])
+        (reference,) = call["reference_images"]
+        prefix = "data:image/png;base64,"
+        self.assertTrue(reference.startswith(prefix))
+        with Image.open(io.BytesIO(base64.b64decode(reference[len(prefix) :]))) as logo:
+            self.assertEqual(logo.size, (1024, 256))
+
+    def test_run_fails_when_the_logo_cannot_be_read(self):
+        # Arrange
+        generation = self._generation(
+            logo_key=f"uploads/posts/users/{self.user.id}/abc/logo.png"
+        )
+        self.storage.open.side_effect = FileNotFoundError("gone")
+
+        # Act
+        self.service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.client.generate.assert_not_called()
+
+    def test_run_without_a_logo_sends_no_reference(self):
+        # Arrange
+        generation = self._generation()
+
+        # Act
+        self.service.run(generation.id)
+
+        # Assert
+        call = self.client.generate.call_args_list[0].kwargs
+        self.assertIsNone(call["reference_images"])
+        self.assertIn("Never draw a logo", call["prompt"])
+
     def test_run_generates_and_stores_one_banner_per_variant(self):
         # Arrange
         generation = self._generation()
@@ -98,8 +169,10 @@ class CoverImageServiceTests(TestCase):
         # Assert
         generation.refresh_from_db()
         self.assertEqual(generation.status, CoverImageGeneration.Status.COMPLETED)
-        self.assertEqual(len(generation.image_keys), VARIANT_COUNT)
-        self.assertEqual(self.client.generate.call_count, VARIANT_COUNT)
+        self.assertEqual(len(generation.image_keys), CoverImagePrompts.VARIANT_COUNT)
+        self.assertEqual(
+            self.client.generate.call_count, CoverImagePrompts.VARIANT_COUNT
+        )
         for key in generation.image_keys:
             self.assertTrue(key.startswith(f"uploads/posts/users/{self.user.id}/"))
             self.assertTrue(key.endswith("/cover.jpg"))
@@ -168,7 +241,9 @@ class CoverImageServiceTests(TestCase):
         # Arrange
         generation = self._generation()
         CoverImageGeneration.objects.filter(id=generation.id).update(
-            created_date=timezone.now() - STALE_AFTER - timedelta(minutes=1)
+            created_date=timezone.now()
+            - CoverImageService.STALE_AFTER
+            - timedelta(minutes=1)
         )
 
         # Act
@@ -177,7 +252,7 @@ class CoverImageServiceTests(TestCase):
         # Assert
         self.assertEqual(found.status, CoverImageGeneration.Status.FAILED)
 
-    def test_public_generation_lists_image_urls(self):
+    def test_public_lists_image_urls(self):
         # Arrange
         generation = self._generation(
             status=CoverImageGeneration.Status.COMPLETED,
@@ -185,7 +260,7 @@ class CoverImageServiceTests(TestCase):
         )
 
         # Act
-        data = public_generation(generation, self.service)
+        data = self.service.public(generation)
 
         # Assert
         self.assertEqual(

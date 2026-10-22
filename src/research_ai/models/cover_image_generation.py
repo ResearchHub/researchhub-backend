@@ -33,6 +33,12 @@ class CoverImageGeneration(DefaultModel):
     funding_amount_usd = models.DecimalField(
         max_digits=14, decimal_places=2, null=True, blank=True
     )
+    logo_key = models.CharField(
+        max_length=512,
+        blank=True,
+        default="",
+        db_comment="Storage key of a logo the user uploaded to place in the banners.",
+    )
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.PENDING
     )
