@@ -7,7 +7,7 @@ from django.http import Http404
 from django.utils.text import slugify
 from rest_framework import serializers, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import APIException, PermissionDenied
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
     AllowAny,
@@ -56,10 +56,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
     RegisteredReportPublishSerializer,
     ResearchhubPostSerializer,
 )
-from researchhub_document.services.journal_entry_service import (
-    JournalEntryService,
-    RegisteredReportDOIRegistrationError,
-)
+from researchhub_document.services.journal_entry_service import JournalEntryService
 from researchhub_document.services.journey_service import JourneyService
 from researchhub_document.services.note_publication_service import (
     NotePublicationService,
@@ -87,14 +84,6 @@ class ChangelogPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
-
-
-class RegisteredReportDOIRegistrationFailed(APIException):
-    """Return an upstream-service error when Crossref rejects a report DOI."""
-
-    status_code = status.HTTP_502_BAD_GATEWAY
-    default_detail = "Unable to register a DOI for the registered report."
-    default_code = "registered_report_doi_registration_failed"
 
 
 class ResearchhubPostViewSet(
@@ -488,7 +477,6 @@ class ResearchhubPostViewSet(
                         registered_report_proposal.journey,
                         rh_post,
                     )
-                    journal_entry_service.register_registered_report_doi(rh_post)
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
@@ -638,8 +626,6 @@ class ResearchhubPostViewSet(
 
         except serializers.ValidationError as e:
             return Response({"error": e.detail}, status=400)
-        except RegisteredReportDOIRegistrationError as error:
-            raise RegisteredReportDOIRegistrationFailed from error
         except ValueError as e:
             return Response({"error": str(e)}, status=400)
         except (KeyError, TypeError) as e:
