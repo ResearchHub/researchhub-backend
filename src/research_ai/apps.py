@@ -12,11 +12,12 @@ class ResearchAIConfig(AppConfig):
 
     def __init__(self, app_name, app_module):
         super().__init__(app_name, app_module)
-        # Patch provider SDKs before Django imports models and provider clients.
-        initialize_tracing(
-            project_id=settings.BRAINTRUST_PROJECT_ID,
-            project_name=settings.BRAINTRUST_PROJECT_NAME,
-        )
+        if not settings.TESTING:
+            # Patch provider SDKs before Django imports models and provider clients.
+            initialize_tracing(
+                project_id=settings.BRAINTRUST_PROJECT_ID,
+                project_name=settings.BRAINTRUST_PROJECT_NAME,
+            )
 
     def ready(self):
         import research_ai.signals  # noqa: F401
