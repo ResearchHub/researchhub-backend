@@ -278,6 +278,7 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         self.assertEqual(related_work["document_type"], "PREREGISTRATION")
         self.assertEqual(related_work["title"], "Prereg Post")
         self.assertIn("fundraise", related_work)
+        self.assertEqual(related_work["fundraise"]["id"], self.fundraise.id)
         self.assertEqual(related_work["fundraise"]["status"], Fundraise.OPEN)
         self.assertIn("goal_amount", related_work["fundraise"])
         self.assertIn("amount_raised", related_work["fundraise"])
