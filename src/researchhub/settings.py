@@ -858,19 +858,6 @@ EXPERT_FINDER_OUTREACH_ENABLED = (
     os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
 )
 
-# Crossref
-CROSSREF_DOI_RSC_FEE = 5
-CROSSREF_DOI_PREFIX = "10.55277/researchhub."
-CROSSREF_DOI_RHJ_PREFIX = "10.55277/rhj."
-CROSSREF_DOI_SUFFIX_LENGTH = 8
-CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", keys.CROSSREF_LOGIN_ID)
-CROSSREF_LOGIN_PASSWORD = os.environ.get(
-    "CROSSREF_LOGIN_PASSWORD", keys.CROSSREF_LOGIN_PASSWORD
-)
-CROSSREF_API_URL = (
-    f"https://{'doi' if PRODUCTION else 'test'}.crossref.org/servlet/deposit"
-)
-
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", keys.WEB3_NETWORK)
 WEB3_KEYSTORE_SECRET_ID = os.environ.get(
     "WEB3_KEYSTORE_SECRET_ID", keys.WEB3_KEYSTORE_SECRET_ID

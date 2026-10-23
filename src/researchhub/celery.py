@@ -189,15 +189,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
-    # Preregistration DOI assignment
-    "researchhub-document_assign-preregistration-dois": {
-        "task": "researchhub_document.tasks.assign_preregistration_dois",
-        "schedule": crontab(hour=6, minute=0),
-        "options": {
-            "priority": 3,
-            "queue": QUEUE_PAPER_MISC,
-        },
-    },
     # Research AI
     "research-ai-reclaim-lost-agent-runs": {
         "task": "research_ai.tasks.reclaim_lost_agent_runs",
