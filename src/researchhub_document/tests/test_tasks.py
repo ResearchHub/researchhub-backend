@@ -129,3 +129,51 @@ class AssignPreregistrationDoisTests(TestCase):
         second_preregistration.refresh_from_db()
         self.assertIsNone(preregistration.doi)
         self.assertEqual(second_preregistration.doi, "10.55277/ok")
+
+    @patch("researchhub_document.tasks.DOI")
+    def test_stops_batch_when_crossref_rejects_credentials(
+        self, mock_doi_cls: MagicMock
+    ) -> None:
+        """Verify an auth failure stops the batch and is logged once."""
+        # Arrange
+        preregistration = self._create_post(days_old=10)
+        second_preregistration = self._create_post(days_old=14)
+        mock_doi_cls.side_effect = [
+            self._build_mock_doi("10.55277/denied", status_code=401),
+            self._build_mock_doi("10.55277/ok"),
+        ]
+
+        # Act
+        with self.assertLogs("researchhub_document.tasks", level="ERROR") as logs:
+            assign_preregistration_dois()
+
+        # Assert
+        preregistration.refresh_from_db()
+        second_preregistration.refresh_from_db()
+        self.assertIsNone(preregistration.doi)
+        self.assertIsNone(second_preregistration.doi)
+        self.assertEqual(mock_doi_cls.call_count, 1)
+        self.assertEqual(len(logs.records), 1)
+        self.assertIn("rejected credentials", logs.output[0])
+
+    @patch("researchhub_document.tasks.DOI")
+    def test_continues_when_crossref_returns_non_auth_error(
+        self, mock_doi_cls: MagicMock
+    ) -> None:
+        """Verify a per-post Crossref error does not stop later posts."""
+        # Arrange
+        preregistration = self._create_post(days_old=10)
+        second_preregistration = self._create_post(days_old=14)
+        mock_doi_cls.side_effect = [
+            self._build_mock_doi("10.55277/fail", status_code=500),
+            self._build_mock_doi("10.55277/ok"),
+        ]
+
+        # Act
+        assign_preregistration_dois()
+
+        # Assert
+        preregistration.refresh_from_db()
+        second_preregistration.refresh_from_db()
+        self.assertIsNone(preregistration.doi)
+        self.assertEqual(second_preregistration.doi, "10.55277/ok")

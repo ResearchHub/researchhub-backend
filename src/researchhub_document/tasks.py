@@ -13,6 +13,9 @@ from utils.doi import DOI
 
 logger = logging.getLogger(__name__)
 
+# Crossref rejects the account itself, so every remaining deposit would fail.
+CROSSREF_AUTH_FAILURE_STATUSES = {401, 403}
+
 
 @app.task(queue=QUEUE_PAPER_MISC)
 def assign_preregistration_dois() -> None:
@@ -47,6 +50,13 @@ def assign_preregistration_dois() -> None:
                 post.doi = doi.doi
                 post.save(update_fields=["doi"])
                 assigned_count += 1
+            elif response.status_code in CROSSREF_AUTH_FAILURE_STATUSES:
+                logger.error(
+                    f"Crossref rejected credentials (status {response.status_code}) "
+                    f"for post {post.id}; check CROSSREF_LOGIN_ID and "
+                    f"CROSSREF_LOGIN_PASSWORD. Stopping DOI assignment batch."
+                )
+                break
             else:
                 logger.error(
                     f"Crossref API failure for post {post.id}: "
