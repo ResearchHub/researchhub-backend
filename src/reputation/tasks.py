@@ -192,13 +192,23 @@ def check_open_bounties():
         assessment_time_left__lte=timedelta(days=0)
     )
     for bounty in expired_assessment_bounties.iterator():
-        refund_status = bounty.close(Bounty.EXPIRED)
+        # One bad bounty must not stop the rest from expiring
+        try:
+            refunded = bounty.close(Bounty.EXPIRED)
+        except Exception:
+            logger.exception("Failed to expire bounty %s", bounty.id)
+            continue
+        if not refunded:
+            logger.error(
+                "Failed to refund bounty %s (escrow %s holding %s)",
+                bounty.id,
+                bounty.escrow_id,
+                bounty.escrow.amount_holding,
+            )
+            continue
         bounty.unified_document.update_filters(
             (FILTER_BOUNTY_EXPIRED, FILTER_BOUNTY_OPEN)
         )
-        if refund_status is False:
-            ids = expired_assessment_bounties.values_list("id", flat=True)
-            logger.error("Failed to refund bounties: %s", ids)
 
 
 @app.task(queue=QUEUE_PURCHASES)
