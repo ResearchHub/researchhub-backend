@@ -7,6 +7,7 @@ from django.utils import timezone
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
 from research_ai.services.agent_files import AgentFileService
+from research_ai.services.cover_image_service import CoverImageService
 from research_ai.services.expert_finder import finder as expert_finder_mod
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
@@ -297,6 +298,18 @@ def process_agent_file_task(file_id: int):
     Extract the text of one uploaded chat file.
     """
     return {"file_id": file_id, "status": AgentFileService().process(file_id)}
+
+
+@app.task(
+    queue=QUEUE_AGENTS,
+    soft_time_limit=CoverImageService.TIME_LIMIT_SECONDS,
+    time_limit=CoverImageService.TIME_LIMIT_SECONDS + HARD_TIME_LIMIT_GRACE,
+)
+def generate_cover_images_task(generation_id: int):
+    """
+    Generate the cover image options of one proposal or RFP request.
+    """
+    CoverImageService().run(generation_id)
 
 
 @app.task(queue=QUEUE_AGENTS)
