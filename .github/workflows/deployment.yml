@@ -33,7 +33,7 @@ env:
   DEPLOY_SUCCEEDED: "${{ github.event.inputs.deploy_env == 'prod' && ':white_check_mark: Shipped' || ':white_check_mark: Deployed' }}"
   DEPLOY_FAILED: "${{ github.event.inputs.deploy_env == 'prod' && ':x: Failed to ship' || ':x: Failed to deploy' }}"
   DEPLOY_REF: "`${{ github.event.inputs.git_ref }}`"
-  DEPLOY_TARGET: "to *${{ github.event.inputs.deploy_env }}* (started by ${{ github.actor }}) · <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+  DEPLOY_TARGET: "to *${{ github.event.inputs.deploy_env }}* (started by ${{ github.actor }}) | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
 
 jobs:
   build:
@@ -143,8 +143,8 @@ jobs:
         run: |
           # Compared from the ref, so base_commit is the deployed commit and ahead_by is how far main is ahead
           gh api "repos/$GITHUB_REPOSITORY/compare/$GIT_REF...main" --jq '
-            "commit= (<\(.base_commit.html_url)|\(.base_commit.sha[:7])>)",
-            "note=" + if .ahead_by > 0 then " · :warning: \(.ahead_by) commit(s) behind `main`" else "" end
+            "commit= [<\(.base_commit.html_url)|\(.base_commit.sha[:7])>]",
+            "note=" + if .ahead_by > 0 then " | :warning: \(.ahead_by) commit(s) behind `main`" else "" end
           ' >> "$GITHUB_OUTPUT"
 
       - name: Post deployment start to Slack
