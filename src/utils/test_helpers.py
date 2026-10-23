@@ -72,7 +72,12 @@ class AWSMockMixin:
 
 # Convenience classes for common use cases
 class AWSMockTestCase(AWSMockMixin, TestCase):
-    """TestCase with AWS mocking. For most tests."""
+    """TestCase with AWS mocking during class fixtures and individual tests."""
+
+    @classmethod
+    def setUpClass(cls):
+        with patch("boto3.Session.client"):
+            super().setUpClass()
 
 
 class AWSMockTransactionTestCase(AWSMockMixin, TransactionTestCase):
