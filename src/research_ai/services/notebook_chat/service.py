@@ -115,6 +115,7 @@ from research_ai.services.notebook_chat.attachment_tools import (
     attachment_usage,
 )
 from research_ai.services.notebook_chat.config import NotebookChatConfig
+from research_ai.services.notebook_chat.cover_logo_tools import CoverLogoToolset
 from research_ai.services.notebook_chat.events import (
     TURN_CANCELLED,
     TURN_FAILED,
@@ -954,6 +955,14 @@ class NotebookChatService:
                     user=conversation.user, get_note=note_toolset.get_readable_note
                 )
                 if note is None or note.document_type == GRANT
+                else None
+            ),
+            # Only a proposal or RFP has generated covers to put a logo in.
+            cover_logo_toolset=(
+                CoverLogoToolset(
+                    note=note, conversation=conversation, user=conversation.user
+                )
+                if note is not None and note.document_type in (PREREGISTRATION, GRANT)
                 else None
             ),
             openalex_toolset=OpenAlexToolset(client=self._oa_client or OpenAlex()),

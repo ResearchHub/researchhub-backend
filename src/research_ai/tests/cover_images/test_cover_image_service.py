@@ -5,18 +5,25 @@ from decimal import Decimal
 from unittest.mock import Mock
 
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image
 
-from research_ai.models import CoverImageGeneration
+from note.tests.helpers import create_note
+from research_ai.models import CoverImageGeneration, NoteCoverLogo
 from research_ai.prompts.cover_image_prompts import CoverImagePrompts
+from research_ai.services.agent_persistence import AgentConversationService
 from research_ai.services.cover_image_service import (
     CoverImageGenerationEnqueueError,
     CoverImageGenerationUnavailableError,
-    CoverImageLogoError,
+    CoverImageNoteError,
     CoverImageService,
 )
+from research_ai.tests.agent_files.helpers import make_file
+from researchhub_access_group.constants import ADMIN
+from researchhub_access_group.models import Permission
+from researchhub_document.models import ResearchhubUnifiedDocument
 
 
 def _png(width: int = 42, height: int = 18) -> bytes:
@@ -38,8 +45,12 @@ class CoverImageServiceTests(TestCase):
         self.storage.save.side_effect = lambda key, content: key
         self.storage.url.side_effect = lambda key: f"https://cdn.test/{key}"
         self.enqueue = Mock()
+        self.private_storage = Mock()
         self.service = CoverImageService(
-            client=self.client, storage=self.storage, enqueue=self.enqueue
+            client=self.client,
+            storage=self.storage,
+            enqueue=self.enqueue,
+            private_storage=self.private_storage,
         )
 
     def _generation(self, **overrides):
@@ -88,35 +99,76 @@ class CoverImageServiceTests(TestCase):
         generation = CoverImageGeneration.objects.get()
         self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
 
-    def test_start_refuses_a_logo_the_user_did_not_upload(self):
-        # Act / Assert
-        with self.assertRaises(CoverImageLogoError):
-            self.service.start(
+    def _note(self, *, access=True):
+        note, _ = create_note(self.user, organization=None)
+        if access:
+            Permission.objects.create(
+                access_type=ADMIN,
+                content_type=ContentType.objects.get_for_model(
+                    ResearchhubUnifiedDocument
+                ),
+                object_id=note.unified_document_id,
                 user=self.user,
-                document_type="GRANT",
-                title="A study",
-                logo_key="uploads/posts/users/999999/abc/logo.png",
+            )
+        return note
+
+    def _chat_logo(self, note):
+        conversations = AgentConversationService()
+        conversation = conversations.create(user=self.user, workflow="notebook_chat")
+        message = conversations.add_human_message(conversation, "Here is our logo")
+        logo = make_file(
+            self.user,
+            message=message,
+            filename="logo.png",
+            content_type="image/png",
+            text="",
+            etag='"logo-etag"',
+        )
+        NoteCoverLogo.objects.create(note=note, file=logo, set_by=self.user)
+        return logo
+
+    def test_start_refuses_a_note_the_user_cannot_open(self):
+        # Arrange
+        note = self._note(access=False)
+
+        # Act / Assert
+        with self.assertRaises(CoverImageNoteError):
+            self.service.start(
+                user=self.user, document_type="GRANT", title="A study", note_id=note.id
             )
         self.assertFalse(CoverImageGeneration.objects.exists())
 
-    def test_start_keeps_the_users_logo(self):
+    def test_start_takes_the_logo_the_notes_chat_recorded(self):
         # Arrange
-        logo_key = f"uploads/posts/users/{self.user.id}/abc/logo.png"
+        note = self._note()
+        logo = self._chat_logo(note)
 
         # Act
         generation = self.service.start(
-            user=self.user, document_type="GRANT", title="A study", logo_key=logo_key
+            user=self.user, document_type="GRANT", title="A study", note_id=note.id
         )
 
         # Assert
-        self.assertEqual(generation.logo_key, logo_key)
+        self.assertEqual(generation.note, note)
+        self.assertEqual(generation.logo_file, logo)
+
+    def test_start_for_a_note_without_a_cover_logo_uses_none(self):
+        # Arrange
+        note = self._note()
+
+        # Act
+        generation = self.service.start(
+            user=self.user, document_type="GRANT", title="A study", note_id=note.id
+        )
+
+        # Assert
+        self.assertIsNone(generation.logo_file)
 
     def test_run_places_the_logo_from_a_scaled_down_reference(self):
         # Arrange
-        generation = self._generation(
-            logo_key=f"uploads/posts/users/{self.user.id}/abc/logo.png"
-        )
-        self.storage.open.return_value = io.BytesIO(_png(2048, 512))
+        logo = self._chat_logo(self._note())
+        generation = self._generation(logo_file=logo)
+        self.private_storage.read.return_value = _png(2048, 512)
 
         # Act
         self.service.run(generation.id)
@@ -124,20 +176,25 @@ class CoverImageServiceTests(TestCase):
         # Assert
         generation.refresh_from_db()
         self.assertEqual(generation.status, CoverImageGeneration.Status.COMPLETED)
+        self.private_storage.read.assert_called_once_with(
+            logo.storage_key,
+            max_bytes=CoverImageService.LOGO_MAX_BYTES,
+            if_match='"logo-etag"',
+        )
         call = self.client.generate.call_args_list[0].kwargs
         self.assertIn("the provided logo", call["prompt"])
         (reference,) = call["reference_images"]
         prefix = "data:image/png;base64,"
         self.assertTrue(reference.startswith(prefix))
-        with Image.open(io.BytesIO(base64.b64decode(reference[len(prefix) :]))) as logo:
-            self.assertEqual(logo.size, (1024, 256))
+        with Image.open(
+            io.BytesIO(base64.b64decode(reference[len(prefix) :]))
+        ) as image:
+            self.assertEqual(image.size, (1024, 256))
 
     def test_run_fails_when_the_logo_cannot_be_read(self):
         # Arrange
-        generation = self._generation(
-            logo_key=f"uploads/posts/users/{self.user.id}/abc/logo.png"
-        )
-        self.storage.open.side_effect = FileNotFoundError("gone")
+        generation = self._generation(logo_file=self._chat_logo(self._note()))
+        self.private_storage.read.side_effect = ValueError("object exceeds limit")
 
         # Act
         self.service.run(generation.id)

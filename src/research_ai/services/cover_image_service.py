@@ -3,9 +3,11 @@
 ``start`` records a request and queues it; a worker calls ``run``, which asks
 OpenRouter for one banner per prompt variant in parallel and stores each, as a
 JPEG, in the default storage under the same key layout as user-uploaded post
-covers. A logo the user uploaded is sent along as a reference image to place
-in the banner. The client polls the request until it completes, shows the
-banners, and sends the key of the one the user picks as the post's ``image``.
+covers. When the request is for a note whose chat agent recorded a cover logo
+(an image the user attached in the chat), that image is sent along as a
+reference to place in the banners. The client polls the request until it
+completes, shows the banners, and sends the key of the one the user picks as
+the post's ``image``.
 """
 
 import base64
@@ -23,9 +25,11 @@ from django.core.files.storage import default_storage
 from django.utils import timezone
 from PIL import Image
 
-from research_ai.models import CoverImageGeneration
+from note.models import Note
+from research_ai.models import AgentFile, CoverImageGeneration, NoteCoverLogo
 from research_ai.prompts.cover_image_prompts import CoverImagePrompts
 from research_ai.services.openrouter_image_client import OpenRouterImageClient
+from researchhub.services.private_storage_service import PrivateStorageService
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +42,8 @@ class CoverImageGenerationEnqueueError(RuntimeError):
     """The request was recorded but could not be queued; it is marked failed."""
 
 
-class CoverImageLogoError(ValueError):
-    """The logo key is not one of the user's own uploads."""
+class CoverImageNoteError(ValueError):
+    """The note does not exist or the user cannot open it."""
 
 
 def _enqueue_cover_image_generation(generation_id: int) -> None:
@@ -59,8 +63,7 @@ class CoverImageService:
     JPEG_QUALITY = 90
     # A logo is scaled down to this before it is sent; it only needs to be legible.
     LOGO_MAX_SIDE = 1024
-    # Where the asset upload endpoint puts a user's post images.
-    LOGO_KEY_PREFIX = "uploads/posts/users/{user_id}/"
+    LOGO_MAX_BYTES = 25 * 1024 * 1024
 
     ACTIVE_STATUSES = (
         CoverImageGeneration.Status.PENDING,
@@ -80,9 +83,14 @@ class CoverImageService:
         client: OpenRouterImageClient | None = None,
         storage=None,
         enqueue: Callable[[int], None] | None = None,
+        private_storage: PrivateStorageService | None = None,
     ):
         self.client = client if client is not None else self._default_client()
         self.storage = storage if storage is not None else default_storage
+        # Chat attachments, the cover logo among them, live in the private bucket.
+        self.private_storage = (
+            private_storage if private_storage is not None else PrivateStorageService()
+        )
         self.enqueue = (
             enqueue if enqueue is not None else _enqueue_cover_image_generation
         )
@@ -101,24 +109,30 @@ class CoverImageService:
         subtitle: str = "",
         organization: str = "",
         funding_amount_usd: Decimal | None = None,
-        logo_key: str = "",
+        note_id: int | None = None,
     ) -> CoverImageGeneration:
-        """Record a generation request and queue it for a worker."""
+        """Record a generation request and queue it for a worker.
+
+        With ``note_id``, the covers use that note's cover logo, if its chat
+        recorded one.
+        """
         if self.client is None:
             raise CoverImageGenerationUnavailableError(
                 "Cover image generation is not configured."
             )
-        if logo_key and not self._is_users_upload(user, logo_key):
-            raise CoverImageLogoError("The logo must be an image you uploaded.")
+        note = self._readable_note(user, note_id) if note_id is not None else None
+        if note_id is not None and note is None:
+            raise CoverImageNoteError("Note not found.")
 
         generation = CoverImageGeneration.objects.create(
             created_by=user,
+            note=note,
             document_type=document_type,
             title=title,
             subtitle=subtitle,
             organization=organization,
             funding_amount_usd=funding_amount_usd,
-            logo_key=logo_key,
+            logo_file=self.cover_logo(note) if note is not None else None,
         )
         try:
             self.enqueue(generation.id)
@@ -152,9 +166,9 @@ class CoverImageService:
         generation = CoverImageGeneration.objects.get(id=generation_id)
 
         references = []
-        if generation.logo_key:
+        if generation.logo_file_id:
             try:
-                references.append(self._logo_reference(generation.logo_key))
+                references.append(self._logo_reference(generation.logo_file))
             except Exception:  # noqa: BLE001 - storage and image errors vary
                 logger.exception("could not read cover image logo %s", generation.id)
                 self._fail(generation, "Could not read the logo")
@@ -203,14 +217,34 @@ class CoverImageService:
             "error": self.GENERATION_FAILED_MESSAGE if failed else None,
         }
 
-    def _is_users_upload(self, user, key: str) -> bool:
-        prefix = self.LOGO_KEY_PREFIX.format(user_id=user.id)
-        return key.startswith(prefix) and ".." not in key
+    @staticmethod
+    def cover_logo(note: Note) -> AgentFile | None:
+        """The note's cover logo, while its attachment can still be read."""
+        logo = (
+            NoteCoverLogo.objects.select_related("file")
+            .filter(note=note, file__status=AgentFile.Status.READY)
+            .first()
+        )
+        return logo.file if logo is not None else None
 
-    def _logo_reference(self, key: str) -> str:
-        """The logo as a PNG data URL, scaled down for the request."""
-        with self.storage.open(key, "rb") as file:
-            data = file.read()
+    @staticmethod
+    def _readable_note(user, note_id: int) -> Note | None:
+        note = (
+            Note.objects.select_related("unified_document")
+            .filter(id=note_id, unified_document__is_removed=False)
+            .first()
+        )
+        return note if note is not None and note.permissions.has_user(user) else None
+
+    def _logo_reference(self, file: AgentFile) -> str:
+        """The logo as a PNG data URL, scaled down for the request.
+
+        Read from the original upload, not its rendered page, which drops
+        transparency.
+        """
+        data = self.private_storage.read(
+            file.storage_key, max_bytes=self.LOGO_MAX_BYTES, if_match=file.etag
+        )
         with Image.open(io.BytesIO(data)) as logo:
             logo = logo.convert("RGBA")
             logo.thumbnail((self.LOGO_MAX_SIDE, self.LOGO_MAX_SIDE))

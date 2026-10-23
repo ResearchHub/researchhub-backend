@@ -5,6 +5,7 @@ from django.core.cache import cache
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
+from note.tests.helpers import create_note
 from research_ai.models import CoverImageGeneration
 
 
@@ -92,17 +93,18 @@ class CoverImageGenerationViewTests(APITestCase):
         enqueue.assert_not_called()
 
     @patch(ENQUEUE)
-    def test_post_rejects_another_users_logo(self, enqueue):
+    def test_post_rejects_a_note_the_user_cannot_open(self, enqueue):
+        # Arrange
+        note, _ = create_note(self.other, organization=None)
+
         # Act
         response = self.client.post(
-            self.COVER_IMAGES_URL,
-            self._payload(logo_key=f"uploads/posts/users/{self.other.id}/abc/logo.png"),
-            format="json",
+            self.COVER_IMAGES_URL, self._payload(note_id=note.id), format="json"
         )
 
         # Assert
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["code"], "invalid_logo")
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data["code"], "note_not_found")
         enqueue.assert_not_called()
 
     @override_settings(OPENROUTER_API_KEY="")
