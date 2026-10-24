@@ -414,6 +414,8 @@ DATABASES = {
         "PASSWORD": DB_PASS,
         "TEST": {
             "NAME": "test_researchhub",
+            # Build the test DB from models; TEST_MIGRATE=true runs migrations.
+            "MIGRATE": os.environ.get("TEST_MIGRATE", "false").lower() == "true",
         },
     }
 }
