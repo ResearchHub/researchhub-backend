@@ -1,4 +1,4 @@
-from paper.models import Paper
+from paper.models import Paper, PaperVersion
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
@@ -28,4 +28,12 @@ def create_paper(
     paper.unified_document = unified_doc
     paper.save()
 
+    return paper
+
+
+def add_to_journal(paper):
+    """Puts the paper in the ResearchHub Journal, whose papers still have pages."""
+    PaperVersion.objects.update_or_create(
+        paper=paper, defaults={"journal": PaperVersion.RESEARCHHUB}
+    )
     return paper
