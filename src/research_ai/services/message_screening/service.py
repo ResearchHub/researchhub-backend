@@ -2,8 +2,6 @@
 
 import logging
 
-from django.conf import settings
-
 from note.related_models.note_model import Note
 from research_ai.models import AgentConversationMessage, AgentMessageScreening
 from research_ai.services.agent.errors import AgentRunError
@@ -91,11 +89,7 @@ class MessageScreeningService:
         through, so a Jev outage never stops chat.
         """
         screening = self.screen(message, note=note)
-        return (
-            screening is not None
-            and screening.flagged
-            and settings.RESEARCH_AI_MESSAGE_BLOCKING
-        )
+        return screening is not None and screening.flagged
 
     def screen(
         self, message: AgentConversationMessage, *, note: Note | None = None

@@ -7,9 +7,9 @@ from utils.models import DefaultModel
 class AgentMessageScreening(DefaultModel):
     """A decision model's verdict on whether a chat message is spam or off-purpose.
 
-    A flagged message's turn fails before the model sees it, unless
-    ``RESEARCH_AI_MESSAGE_BLOCKING`` is off. Probabilities are null when the
-    call failed, and ``error`` says why; such a message is let through.
+    A flagged message's turn fails before the model sees it. Probabilities
+    are null when the call failed, and ``error`` says why; such a message is
+    let through.
     """
 
     message = models.OneToOneField(

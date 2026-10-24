@@ -184,33 +184,14 @@ class MessageScreeningServiceTests(TestCase):
         # Assert
         self.assertFalse(rejected)
 
-    @override_settings(RESEARCH_AI_MESSAGE_BLOCKING=False)
-    def test_records_but_lets_through_a_flagged_message_when_blocking_is_off(self):
+    @override_settings(TESTING=False, OPENROUTER_API_KEY="")
+    def test_nothing_is_screened_or_rejected_without_an_api_key(self):
         # Arrange
-        service = MessageScreeningService(
-            client=jev_client(promotional=0.99, off_purpose=0.99)
-        )
+        service = MessageScreeningService()
 
         # Act
         rejected = service.rejects(self.message)
 
         # Assert
         self.assertFalse(rejected)
-        self.assertTrue(AgentMessageScreening.objects.get(message=self.message).flagged)
-
-    @override_settings(RESEARCH_AI_MESSAGE_SCREENING=False, OPENROUTER_API_KEY="k")
-    def test_nothing_is_rejected_when_screening_is_off(self):
-        # Act
-        rejected = MessageScreeningService().rejects(self.message)
-
-        # Assert
-        self.assertFalse(rejected)
-
-    @override_settings(RESEARCH_AI_MESSAGE_SCREENING=False, OPENROUTER_API_KEY="k")
-    def test_nothing_is_screened_when_screening_is_off(self):
-        # Act
-        screening = MessageScreeningService().screen(self.message)
-
-        # Assert
-        self.assertIsNone(screening)
         self.assertFalse(AgentMessageScreening.objects.exists())
