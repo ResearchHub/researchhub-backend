@@ -150,29 +150,29 @@ class CacheInvalidationTests(AWSMockTestCase):
 
 
 class FeedCachingTests(APITestCase):
-    def setUp(self):
-        cache.clear()
-        self.user = create_random_default_user("cache_test_user")
-        self.hub, _ = Hub.objects.get_or_create(
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = create_random_default_user("cache_test_user")
+        cls.hub, _ = Hub.objects.get_or_create(
             slug="biorxiv", defaults={"name": "bioRxiv"}
         )
 
-        self.unified_document = ResearchhubUnifiedDocument.objects.create(
+        cls.unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type="POST"
         )
-        self.unified_document.hubs.add(self.hub)
+        cls.unified_document.hubs.add(cls.hub)
 
-        create_follow(self.user, self.hub)
+        create_follow(cls.user, cls.hub)
 
-        self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        self.paper_content_type = ContentType.objects.get_for_model(Paper)
+        cls.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+        cls.paper_content_type = ContentType.objects.get_for_model(Paper)
 
         for i in range(150):
             if i % 2 == 0:
                 unified_doc = ResearchhubUnifiedDocument.objects.create(
                     document_type="PAPER"
                 )
-                unified_doc.hubs.add(self.hub)
+                unified_doc.hubs.add(cls.hub)
 
                 paper = Paper.objects.create(
                     title=f"Test Paper {i}",
@@ -184,23 +184,23 @@ class FeedCachingTests(APITestCase):
                     action="PUBLISH",
                     action_date=timezone.now(),
                     object_id=paper.id,
-                    content_type=self.paper_content_type,
+                    content_type=cls.paper_content_type,
                     unified_document=unified_doc,
                     content={},
                     metrics={},
                     pdf_copyright_allows_display=True,
                 )
-                feed_entry.hubs.add(self.hub)
+                feed_entry.hubs.add(cls.hub)
             else:
                 unified_doc = ResearchhubUnifiedDocument.objects.create(
                     document_type="POST"
                 )
-                unified_doc.hubs.add(self.hub)
+                unified_doc.hubs.add(cls.hub)
 
                 post = ResearchhubPost.objects.create(
                     title=f"Test Post {i}",
                     document_type="POST",
-                    created_by=self.user,
+                    created_by=cls.user,
                     unified_document=unified_doc,
                 )
 
@@ -208,12 +208,15 @@ class FeedCachingTests(APITestCase):
                     action="PUBLISH",
                     action_date=timezone.now(),
                     object_id=post.id,
-                    content_type=self.post_content_type,
+                    content_type=cls.post_content_type,
                     unified_document=unified_doc,
                     content={},
                     metrics={},
                 )
-                feed_entry.hubs.add(self.hub)
+                feed_entry.hubs.add(cls.hub)
+
+    def setUp(self):
+        cache.clear()
 
     def tearDown(self):
         cache.clear()
