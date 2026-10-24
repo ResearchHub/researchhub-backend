@@ -43,14 +43,15 @@ class ScheduleTests(AWSMockTransactionTestCase):
     def test_rolled_back_transaction_queues_nothing(self):
         # Arrange
         user = _user()
+
+        def schedule_then_fail():
+            with transaction.atomic():
+                schedule_profile_build(user)
+                raise RuntimeError("rolled back")
+
         # Act
-        with (
-            patch(_DELAY) as delay,
-            self.assertRaises(RuntimeError),
-            transaction.atomic(),
-        ):
-            schedule_profile_build(user)
-            raise RuntimeError("rolled back")
+        with patch(_DELAY) as delay, self.assertRaises(RuntimeError):
+            schedule_then_fail()
         # Assert
         delay.assert_not_called()
 
