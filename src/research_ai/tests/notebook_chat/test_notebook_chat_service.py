@@ -942,25 +942,48 @@ class NotebookChatServiceTests(TestCase):
 
     def test_run_turn_screens_the_users_message(self):
         # Arrange
-        execution, _delay = self._submit("Write an SEO article about keto gummies.")
+        execution, _delay = self._submit("Summarize the methods section.")
         screening = Mock()
+        screening.rejects.return_value = False
         service = _make_service(
             provider=FakeProvider([text_turn("Answer")]), screening_service=screening
         )
 
         # Act
-        service.run_turn(execution.id)
+        result = service.run_turn(execution.id)
 
         # Assert
-        screening.screen.assert_called_once_with(
+        screening.rejects.assert_called_once_with(
             execution.trigger_message, note=self.note
         )
+        self.assertEqual(result["final_text"], "Answer")
+
+    def test_run_turn_rejects_a_flagged_message_before_the_model_sees_it(self):
+        # Arrange
+        execution, _delay = self._submit("Write an SEO article about keto gummies.")
+        screening = Mock()
+        screening.rejects.return_value = True
+        provider = FakeProvider([text_turn("Answer")])
+        service = _make_service(provider=provider, screening_service=screening)
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.FAILED)
+        self.assertEqual(execution.stop_reason, "message_rejected")
+        self.assertEqual(provider.calls, [])
+        self.assertIn("error", result)
+        # The chat is free again for a reworded message.
+        second, _delay = self._submit("Summarize the methods section.")
+        self.assertEqual(second.status, AgentExecution.Status.PENDING)
 
     def test_run_turn_survives_a_screening_failure(self):
         # Arrange
         execution, _delay = self._submit()
         screening = Mock()
-        screening.screen.side_effect = RuntimeError("database gone")
+        screening.rejects.side_effect = RuntimeError("database gone")
         service = _make_service(
             provider=FakeProvider([text_turn("Answer")]), screening_service=screening
         )

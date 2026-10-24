@@ -541,11 +541,6 @@ RESEARCH_AI_REFUSAL_FALLBACK_MODEL = os.environ.get(
     "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3"
 )
 
-# Score each chat message for spam and off-purpose use with Jev (record only).
-RESEARCH_AI_MESSAGE_SCREENING = not TESTING and (
-    os.environ.get("RESEARCH_AI_MESSAGE_SCREENING", "true").lower() == "true"
-)
-
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
     "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
     getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),

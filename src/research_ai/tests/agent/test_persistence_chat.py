@@ -42,6 +42,7 @@ from research_ai.services.agent_persistence.content import (
     MAX_TRACE_MESSAGE_BYTES,
     json_size_bytes,
 )
+from research_ai.services.message_screening import MessageRejectedError
 from research_ai.tests.agent.persistence_test_helpers import (
     AgentPersistenceTestCase,
     FakeProvider,
@@ -929,6 +930,15 @@ class PublicErrorTaxonomyTests(AgentPersistenceTestCase):
         # Assert: retrying the same prompt would be refused again.
         self.assertEqual(error["code"], "content_refused")
         self.assertFalse(error["retryable"])
+
+    def test_rejected_message_renders_message_rejected_and_not_retryable(self):
+        # Arrange / Act
+        error = self._fail_with(MessageRejectedError("chat message 7 was flagged"))
+
+        # Assert: the same message would be flagged again.
+        self.assertEqual(error["code"], "message_rejected")
+        self.assertFalse(error["retryable"])
+        self.assertNotIn("flagged", error["message"])
 
     def test_interrupted_execution_renders_agent_interrupted(self):
         # Arrange / Act: the worker observed the user's own stop mid-run.
