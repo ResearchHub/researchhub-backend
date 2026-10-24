@@ -671,6 +671,50 @@ class ActivityFeedGrantFilterTests(AWSMockTestCase):
         self.assertEqual(ids, {grant_entry.id})
 
 
+class ActivityFeedDocumentFilterTests(ActivityFeedBaseTests):
+    """Test ?unified_document_id= filtering to one document's activity."""
+
+    def test_document_filter_returns_only_that_documents_entries(self):
+        # Arrange
+        comment_entry = _make_feed_entry(
+            RhCommentModel,
+            object_id=7777,
+            unified_document=self.prereg_doc,
+            user=self.user,
+        )
+
+        # Act
+        resp = self.client.get(
+            ACTIVITY_LIST_URL, {"unified_document_id": self.prereg_doc.id}
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        ids = {e["id"] for e in resp.data["results"]}
+        self.assertEqual(ids, {self.prereg_entry.id, comment_entry.id})
+
+    def test_document_filter_invalid_id_returns_empty(self):
+        # Act
+        resp = self.client.get(ACTIVITY_LIST_URL, {"unified_document_id": "abc"})
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["results"], [])
+
+    @patch("feed.views.activity_feed_view.cache")
+    def test_document_filter_skips_shared_cache(self, mock_cache):
+        # Act
+        resp = self.client.get(
+            ACTIVITY_LIST_URL,
+            {"unified_document_id": self.prereg_doc.id, "page": 1},
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        mock_cache.get.assert_not_called()
+        mock_cache.set.assert_not_called()
+
+
 class ActivityFeedContentTypeFilterTests(ActivityFeedBaseTests):
     """Test ?content_type= and ?comment_type= filtering."""
 
