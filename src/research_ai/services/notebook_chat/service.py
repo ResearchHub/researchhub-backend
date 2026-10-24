@@ -140,6 +140,7 @@ from research_ai.services.notebook_chat.toolset import (
     compose_notebook_toolset,
 )
 from research_ai.services.notebook_chat.web_fetch_tools import WebFetchToolset
+from research_ai.services.researcher_profile import schedule_profile_build
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from research_ai.services.usage_budget import (
     AgentLoopBudgetRecorder,
@@ -549,6 +550,8 @@ class NotebookChatService:
                 user=user, workflow=self.workflow, title=title
             )
             self.note_conversations.attach(conversation, note)
+            # Ready the researcher profile the chat grounds drafting in.
+            schedule_profile_build(user)
         return conversation
 
     def rename_conversation(

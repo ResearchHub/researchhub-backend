@@ -41,9 +41,8 @@ class Expert(DefaultModel):
         default=dict,
         blank=True,
         db_comment=(
-            "Persisted, source-attributed researcher profile built once by "
-            "researcher_profile_service (OpenAlex/ORCID resolver + web search) and "
-            "reused by the proposal draft engine and source verifier."
+            "Deprecated, no longer written: superseded by "
+            "research_ai_researcher_profile. To be dropped."
         ),
     )
     is_manually_added = models.BooleanField(

@@ -13,6 +13,7 @@ from .expert_search import ExpertSearch
 from .generated_email import GeneratedEmail
 from .message_screening import AgentMessageScreening
 from .proposal_draft import ProposalDraft
+from .researcher_profile import ResearcherProfile
 from .search_expert import SearchExpert
 from .usage_event import LLMUsageEvent
 
@@ -31,5 +32,6 @@ __all__ = [
     "LLMUsageEvent",
     "NoteAgentConversation",
     "ProposalDraft",
+    "ResearcherProfile",
     "SearchExpert",
 ]

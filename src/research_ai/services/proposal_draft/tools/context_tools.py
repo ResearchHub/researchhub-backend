@@ -2,7 +2,7 @@
 
 A ``ProposalContextToolset`` resolves the whole proposal input from a single
 ``SearchExpert`` -- the RFP terms (via the grant on the expert search's unified
-document) and the persisted researcher profile (via the expert). The tools only
+document) and the expert's ``ResearcherProfile``. The tools only
 read already-persisted data, so they hold ground truth the agent cannot invent.
 
 Provenance: ``get_researcher_profile`` records each profile work's
@@ -14,6 +14,7 @@ run.
 
 import logging
 
+from research_ai.models import ResearcherProfile
 from research_ai.services.agent import Tool, Toolset
 
 logger = logging.getLogger(__name__)
@@ -32,11 +33,20 @@ class ProposalContextToolset:
         provenance: Shared set of source/PDF URLs seen across the run.
             ``get_researcher_profile`` adds each profile work's URLs to it. A
             fresh set is created when omitted.
+        profile: The expert's ``ResearcherProfile``, read at call time so a
+            build that lands mid-run is seen. Looked up when omitted.
     """
 
-    def __init__(self, search_expert, *, provenance: set[str] | None = None):
+    def __init__(
+        self,
+        search_expert,
+        *,
+        provenance: set[str] | None = None,
+        profile: ResearcherProfile | None = None,
+    ):
         self.search_expert = search_expert
         self.provenance = provenance if provenance is not None else set()
+        self._profile = profile
 
     # -- tool construction ------------------------------------------------
 
@@ -105,7 +115,7 @@ class ProposalContextToolset:
         }
 
     def _get_researcher_profile(self, _args: dict) -> dict:
-        profile = self.search_expert.expert.profile or {}
+        profile = profile_data(self._profile, self.search_expert)
         for work in profile.get("works") or []:
             if not isinstance(work, dict):
                 continue
@@ -114,3 +124,13 @@ class ProposalContextToolset:
                 if url:
                     self.provenance.add(url)
         return profile
+
+
+def profile_data(profile, search_expert) -> dict:
+    """The profile's agent output, looking the expert's row up when not given."""
+    if profile is None:
+        profile = ResearcherProfile.objects.filter(
+            expert_id=search_expert.expert_id
+        ).first()
+    data = getattr(profile, "data", None)
+    return data if isinstance(data, dict) else {}

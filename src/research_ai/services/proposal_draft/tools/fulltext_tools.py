@@ -19,6 +19,7 @@ from research_ai.services.pdf_text import (
     get_paper_pdf_bytes,
     get_pdf_bytes_from_url,
 )
+from research_ai.services.proposal_draft.tools.context_tools import profile_data
 from research_ai.services.proposal_draft.tools.doi import strip_doi_prefix
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,8 @@ class ProposalFulltextToolset:
     Args:
         search_expert: resolves the ``Expert`` whose profile holds the works
             (their ``pdf_url`` / ``abstract`` and the source_url the agent cites).
+        profile: the expert's ``ResearcherProfile``, read at call time so works
+            from a build that lands mid-run are readable. Looked up when omitted.
         max_fetches: per-run ceiling on full-text reads.
         paper_lookup: injectable ``doi -> Paper | None`` resolver (tests).
     """
@@ -68,15 +71,19 @@ class ProposalFulltextToolset:
         self,
         search_expert,
         *,
+        profile=None,
         max_fetches: int = _DEFAULT_MAX_FETCHES,
         paper_lookup=None,
     ):
         self.search_expert = search_expert
+        self._profile = profile
         self.max_fetches = max_fetches
         self._paper_lookup = paper_lookup or self._default_paper_lookup
         self._fetches_used = 0
-        profile = getattr(search_expert.expert, "profile", None) or {}
-        self._works_by_url = {
+
+    def _works_by_url(self) -> dict[str, dict]:
+        profile = profile_data(self._profile, self.search_expert)
+        return {
             str(w.get("source_url") or "").strip(): w
             for w in (profile.get("works") or [])
             if isinstance(w, dict) and str(w.get("source_url") or "").strip()
@@ -108,7 +115,7 @@ class ProposalFulltextToolset:
         if not source_url:
             return {"error": "source_url is required"}
 
-        work = self._works_by_url.get(source_url)
+        work = self._works_by_url().get(source_url)
         if work is None:
             return {
                 "error": (

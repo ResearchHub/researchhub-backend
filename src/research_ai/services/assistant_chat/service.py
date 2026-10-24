@@ -21,6 +21,7 @@ from research_ai.services.notebook_chat.service import (
     ASSISTANT_WORKFLOW,
     NotebookChatService,
 )
+from research_ai.services.researcher_profile import schedule_profile_build
 
 WORKFLOW = ASSISTANT_WORKFLOW
 
@@ -67,9 +68,12 @@ class AssistantChatService:
         ]
 
     def create_conversation(self, user, title: str = "") -> AgentConversation:
-        return self.engine.conversations.create(
+        conversation = self.engine.conversations.create(
             user=user, workflow=WORKFLOW, title=title
         )
+        # Ready the researcher profile the chat grounds drafting in.
+        schedule_profile_build(user)
+        return conversation
 
     def rename_conversation(
         self, conversation: AgentConversation, title: str

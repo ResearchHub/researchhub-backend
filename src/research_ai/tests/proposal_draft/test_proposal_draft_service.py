@@ -24,6 +24,7 @@ from research_ai.models import (
     Expert,
     ExpertSearch,
     ProposalDraft,
+    ResearcherProfile,
     SearchExpert,
 )
 from research_ai.services.agent import LLMProvider
@@ -46,11 +47,12 @@ from research_ai.services.proposal_draft.cancel_service import (
     ProposalDraftCancelService,
 )
 from research_ai.services.proposal_draft.draft_recorder import DraftRecorder
-from research_ai.services.proposal_draft.runner import (
-    PROFILE_SCHEMA_VERSION,
-    _ProposalDraftRunner,
-)
+from research_ai.services.proposal_draft.runner import _ProposalDraftRunner
 from research_ai.services.proposal_draft.tools.assembly import assemble_proposal
+from research_ai.services.researcher_profile import ResearcherProfileService
+from research_ai.services.researcher_profile.agent import (
+    SCHEMA_VERSION as PROFILE_SCHEMA_VERSION,
+)
 from researchhub_access_group.constants import ADMIN, NO_ACCESS
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -277,7 +279,13 @@ class ProposalDraftServiceTests(TestCase):
             email="jane@example.edu",
             first_name="Jane",
             last_name="Smith",
-            profile={
+        )
+        ResearcherProfile.objects.create(
+            expert=self.expert,
+            status=ResearcherProfile.Status.READY,
+            schema_version=PROFILE_SCHEMA_VERSION,
+            built_at=timezone.now(),
+            data={
                 # Current schema so the run reuses it instead of rebuilding.
                 "schema_version": PROFILE_SCHEMA_VERSION,
                 "resolution": {"openalex_author_id": "A1", "confidence": 0.9},
@@ -825,6 +833,47 @@ class ProposalDraftServiceTests(TestCase):
         self.assertIn("did not submit", result["error_message"])
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
         self.assertEqual(draft.last_submission, {})
+
+    # -- the profile lands on ResearcherProfile and is readable mid-run ---
+
+    def test_profile_built_by_the_run_is_stored_and_readable(self):
+        # Arrange: a never-built profile and a build that returns one new work.
+        ResearcherProfile.objects.filter(expert=self.expert).update(
+            status=ResearcherProfile.Status.PENDING, data={}, schema_version=0
+        )
+        built = {
+            "schema_version": PROFILE_SCHEMA_VERSION,
+            "resolution": {"openalex_author_id": "A2", "confidence": 0.8},
+            "works": [{"title": "New", "source_url": "https://doi.org/10.1/new"}],
+            "errors": [],
+        }
+        service = ResearcherProfileService(build=lambda seed, **kwargs: built)
+        draft = ProposalDraft.objects.create(
+            search_expert=self.search_expert,
+            status=ProposalDraft.Status.PENDING,
+            step=ProposalDraft.Step.QUEUED,
+        )
+        runner = _ProposalDraftRunner(
+            self.search_expert,
+            draft,
+            provider=_ScriptedProvider([]),
+            oa_client=_FakeOpenAlex(),
+            profile_service=service,
+        )
+
+        # Act
+        runner._ensure_profile()
+
+        # Assert: stored on the profile row, not Expert.profile, and the
+        # full-text tool built before the build sees the new work.
+        row = ResearcherProfile.objects.get(expert=self.expert)
+        self.assertEqual(row.status, ResearcherProfile.Status.READY)
+        self.assertEqual(row.openalex_author_id, "A2")
+        self.expert.refresh_from_db()
+        self.assertEqual(self.expert.profile, {})
+        self.assertIn(
+            "https://doi.org/10.1/new", runner.fulltext_toolset._works_by_url()
+        )
 
     # -- the web_search tool is composed into the agent toolset ----------
 

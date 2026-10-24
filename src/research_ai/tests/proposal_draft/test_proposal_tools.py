@@ -7,7 +7,12 @@ from django.test import TestCase
 from django.utils import timezone
 
 from purchase.models import Grant
-from research_ai.models import Expert, ExpertSearch, SearchExpert
+from research_ai.models import (
+    Expert,
+    ExpertSearch,
+    ResearcherProfile,
+    SearchExpert,
+)
 from research_ai.services.citation_tools import CitationToolset
 from research_ai.services.proposal_draft.tools.context_tools import (
     ProposalContextToolset,
@@ -68,7 +73,11 @@ class ProposalToolsTestCase(TestCase):
             email="jane@example.edu",
             first_name="Jane",
             last_name="Smith",
-            profile={
+        )
+        ResearcherProfile.objects.create(
+            expert=self.expert,
+            status=ResearcherProfile.Status.READY,
+            data={
                 "resolution": {"openalex_author_id": "A1", "confidence": 0.9},
                 "works": [
                     {
