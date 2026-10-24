@@ -256,6 +256,23 @@ class EnsureTests(TestCase):
         self.assertIsNone(self.profile.lease_expires_at)
         self.assertFalse(service.needs_build(self.profile))
 
+    def test_subject_adopted_during_the_build_survives_the_save(self):
+        # Arrange: an expert-only profile whose user is linked mid-build.
+        expert = Expert.objects.create(email="jd@lab.edu", first_name="Jane")
+        profile = ResearcherProfile.objects.create(expert=expert)
+        user = _user("late@example.edu")
+
+        def build(seed, **kwargs):
+            ResearcherProfileService()._adopt(profile, user=user)
+            return _built()
+
+        # Act
+        ResearcherProfileService(build=build).ensure(profile)
+        # Assert
+        profile.refresh_from_db()
+        self.assertEqual(profile.user, user)
+        self.assertEqual(profile.status, Status.READY)
+
     def test_build_runs_on_the_profiles_seed(self):
         # Arrange
         build = Mock(return_value=_built())
@@ -361,6 +378,20 @@ class EnsureForUserTests(TestCase):
         # Assert
         build.assert_not_called()
         self.assertEqual(profile.status, Status.PENDING)
+        self.assertGreater(profile.next_attempt_at, timezone.now())
+
+    def test_unbuildable_seed_is_deferred(self):
+        # Arrange
+        user = create_user(first_name="", last_name="", email="anon@example.edu")
+        author = user.author_profile
+        author.first_name = author.last_name = ""
+        author.save()
+        build = Mock()
+        # Act
+        profile = ResearcherProfileService(build=build).ensure_for_user(user)
+        # Assert
+        build.assert_not_called()
+        self.assertGreater(profile.next_attempt_at, timezone.now())
 
     def test_exhausted_budget_defers_the_build(self):
         # Arrange
@@ -371,6 +402,7 @@ class EnsureForUserTests(TestCase):
             profile = ResearcherProfileService(build=build).ensure_for_user(user)
         # Assert
         self.assertEqual(profile.status, Status.PENDING)
+        self.assertGreater(profile.next_attempt_at, timezone.now())
 
 
 class DueForSweepTests(TestCase):
@@ -390,6 +422,19 @@ class DueForSweepTests(TestCase):
         due = ResearcherProfileService().due_for_sweep(limit=10)
         # Assert
         self.assertCountEqual(due, [pending.user_id, stale.user_id])
+
+    def test_skips_rows_waiting_out_a_deferral(self):
+        # Arrange: a deferred pending row ahead of a fresh one in sweep order.
+        deferred = ResearcherProfile.objects.create(
+            user=_user("a@example.edu"),
+            next_attempt_at=timezone.now() + timedelta(hours=12),
+        )
+        fresh = ResearcherProfile.objects.create(user=_user("b@example.edu"))
+        # Act
+        due = ResearcherProfileService().due_for_sweep(limit=1)
+        # Assert
+        self.assertEqual(due, [fresh.user_id])
+        self.assertNotIn(deferred.user_id, due)
 
     def test_respects_the_limit(self):
         # Arrange

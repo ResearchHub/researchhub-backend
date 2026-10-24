@@ -84,7 +84,7 @@ class ResearcherProfile(DefaultModel):
     next_attempt_at = models.DateTimeField(
         null=True,
         blank=True,
-        db_comment="Earliest retry after a failed build.",
+        db_comment="Earliest retry after a failed or deferred build.",
     )
     lease_expires_at = models.DateTimeField(
         null=True,

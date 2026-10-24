@@ -96,7 +96,7 @@ class Migration(migrations.Migration):
                     "next_attempt_at",
                     models.DateTimeField(
                         blank=True,
-                        db_comment="Earliest retry after a failed build.",
+                        db_comment="Earliest retry after a failed or deferred build.",
                         null=True,
                     ),
                 ),

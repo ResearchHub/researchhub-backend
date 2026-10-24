@@ -4,6 +4,7 @@ import importlib
 from unittest.mock import patch
 
 from django.apps import apps
+from django.db import transaction
 from django.test import TestCase
 
 from research_ai import tasks
@@ -11,6 +12,7 @@ from research_ai.models import Expert, ResearcherProfile
 from research_ai.services.assistant_chat.service import AssistantChatService
 from research_ai.services.researcher_profile import schedule_profile_build
 from user.tests.helpers import create_user
+from utils.test_helpers import AWSMockTransactionTestCase
 
 _DELAY = "research_ai.tasks.ensure_researcher_profile_task.delay"
 _copy_migration = importlib.import_module(
@@ -22,19 +24,31 @@ def _user(email="jane@example.edu"):
     return create_user(first_name="Jane", last_name="Doe", email=email)
 
 
-class ScheduleTests(TestCase):
-    def test_queues_the_build_on_commit(self):
+class ScheduleTests(AWSMockTransactionTestCase):
+    def test_queues_the_build_only_once_the_transaction_commits(self):
+        # Arrange
+        user = _user()
+        # Act
+        with patch(_DELAY) as delay, transaction.atomic():
+            schedule_profile_build(user)
+            queued_before_commit = delay.called
+        # Assert
+        self.assertFalse(queued_before_commit)
+        delay.assert_called_once_with(user.pk)
+
+    def test_rolled_back_transaction_queues_nothing(self):
         # Arrange
         user = _user()
         # Act
         with (
             patch(_DELAY) as delay,
-            self.captureOnCommitCallbacks(execute=True),
+            self.assertRaises(RuntimeError),
+            transaction.atomic(),
         ):
             schedule_profile_build(user)
-            delay.assert_not_called()
+            raise RuntimeError("rolled back")
         # Assert
-        delay.assert_called_once_with(user.pk)
+        delay.assert_not_called()
 
     def test_enqueue_failure_is_swallowed(self):
         # Arrange
@@ -42,7 +56,7 @@ class ScheduleTests(TestCase):
         # Act & Assert: a missed trigger must not break the caller.
         with (
             patch(_DELAY, side_effect=ConnectionError("broker down")),
-            self.captureOnCommitCallbacks(execute=True),
+            transaction.atomic(),
         ):
             schedule_profile_build(user)
 
@@ -50,10 +64,7 @@ class ScheduleTests(TestCase):
         # Arrange
         user = _user()
         # Act
-        with (
-            patch(_DELAY) as delay,
-            self.captureOnCommitCallbacks(execute=True),
-        ):
+        with patch(_DELAY) as delay, transaction.atomic():
             AssistantChatService().create_conversation(user)
         # Assert
         delay.assert_called_once_with(user.pk)

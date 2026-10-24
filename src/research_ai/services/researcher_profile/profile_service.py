@@ -53,6 +53,22 @@ MAX_ATTEMPTS = 5
 REFRESH_AFTER = timedelta(days=180)
 RETRY_BASE = timedelta(hours=1)  # doubled per consecutive failure
 _MAX_ERROR_CHARS = 2000
+DEFER = timedelta(days=1)  # sweep holds off a row it could not build
+_BUILD_FIELDS = [
+    "data",
+    "status",
+    "schema_version",
+    "openalex_author_id",
+    "orcid",
+    "confidence",
+    "inputs_hash",
+    "built_at",
+    "attempts",
+    "last_error",
+    "next_attempt_at",
+    "lease_expires_at",
+    "updated_date",
+]
 
 Status = ResearcherProfile.Status
 
@@ -136,17 +152,14 @@ class ResearcherProfileService:
 
         Seed changes are not detected here (that needs each user's author
         row); the chat triggers catch those when the user next opens a chat.
+        Rows waiting out a retry backoff or a deferral are skipped until then.
         """
         now = self._now()
         due = (
             Q(status=Status.PENDING)
             | Q(status=Status.BUILDING, lease_expires_at__lt=now)
             | Q(status=Status.BUILDING, lease_expires_at__isnull=True)
-            | Q(
-                Q(next_attempt_at__isnull=True) | Q(next_attempt_at__lte=now),
-                status=Status.FAILED,
-                attempts__lt=MAX_ATTEMPTS,
-            )
+            | Q(status=Status.FAILED, attempts__lt=MAX_ATTEMPTS)
             | Q(
                 Q(schema_version__lt=SCHEMA_VERSION)
                 | Q(built_at__isnull=True)
@@ -154,8 +167,9 @@ class ResearcherProfileService:
                 status__in=(Status.READY, Status.UNRESOLVED),
             )
         )
+        not_waiting = Q(next_attempt_at__isnull=True) | Q(next_attempt_at__lte=now)
         return list(
-            ResearcherProfile.objects.filter(due, user__isnull=False)
+            ResearcherProfile.objects.filter(due, not_waiting, user__isnull=False)
             .order_by("updated_date")
             .values_list("user_id", flat=True)[:limit]
         )
@@ -200,19 +214,30 @@ class ResearcherProfileService:
         return profile
 
     def ensure_for_user(self, user) -> ResearcherProfile:
-        """Background build for ``user``, charged to their Research AI budget."""
+        """Background build for ``user``, charged to their Research AI budget.
+
+        A row that cannot be built now (nothing to search on, blocked tier,
+        exhausted budget) is deferred, so the sweep moves on to other rows
+        instead of selecting it again every night.
+        """
         profile = self.get_or_create_for_user(user)
-        if not self.needs_build(profile):
+        seed = seed_for_profile(profile)
+        if not seed.is_buildable:
+            self._defer(profile)
+            return profile
+        if not self.needs_build(profile, seed):
             return profile
         try:
             provider, recorder = _user_runtime(user)
         except ModelNotAllowedError as exc:
             logger.info("researcher profile for user %s skipped: %s", user.pk, exc)
+            self._defer(profile)
             return profile
         try:
             return self.ensure(profile, provider=provider, recorder=recorder)
         except BudgetExceededError as exc:
             logger.info("researcher profile for user %s deferred: %s", user.pk, exc)
+            self._defer(profile)
             return profile
 
     # -- row writes -------------------------------------------------------
@@ -259,6 +284,10 @@ class ResearcherProfileService:
         profile.refresh_from_db()
         return previous_status
 
+    def _defer(self, profile: ResearcherProfile) -> None:
+        profile.next_attempt_at = self._now() + DEFER
+        profile.save(update_fields=["next_attempt_at", "updated_date"])
+
     def _release(self, profile: ResearcherProfile, previous_status: str) -> None:
         profile.status = previous_status
         profile.lease_expires_at = None
@@ -282,7 +311,9 @@ class ResearcherProfileService:
         profile.last_error = "; ".join(data.get("errors") or [])[:_MAX_ERROR_CHARS]
         profile.next_attempt_at = None
         profile.lease_expires_at = None
-        profile.save()
+        # Never the subject links: a user or expert may have been adopted onto
+        # this row while the build ran, and the in-memory copy predates that.
+        profile.save(update_fields=_BUILD_FIELDS)
 
     def _record_failure(
         self, profile: ResearcherProfile, seed: ProfileSeed, errors: list[str]
