@@ -100,7 +100,10 @@ from research_ai.services.agent_persistence.activity import (
     conversation_activity_events,
 )
 from research_ai.services.citation_tools import CitationToolset
-from research_ai.services.message_screening import MessageScreeningService
+from research_ai.services.message_screening import (
+    MessageRejectedError,
+    MessageScreeningService,
+)
 from research_ai.services.note_tools import NoteToolset
 from research_ai.services.notebook_chat.activity import (
     PHASE_RESPONDING,
@@ -901,7 +904,12 @@ class NotebookChatService:
             )
             recorder.on_run_failed(error)
             return {"execution_id": execution.id, "error": str(error)}
-        self._screen_message(trigger, note)
+        if self._rejects_message(trigger, note):
+            error = MessageRejectedError(
+                f"chat message {trigger.id} was flagged as spam or off-purpose"
+            )
+            recorder.on_run_failed(error)
+            return {"execution_id": execution.id, "error": str(error)}
 
         provider_options = {
             key: stored_configuration[key]
@@ -1032,14 +1040,15 @@ class NotebookChatService:
             "final_text": result.final_text,
         }
 
-    def _screen_message(
+    def _rejects_message(
         self, message: AgentConversationMessage, note: Note | None
-    ) -> None:
-        # Record only, so a screening failure must never fail the turn.
+    ) -> bool:
+        # A screening failure lets the message through; it must never fail the turn.
         try:
-            self.screening.screen(message, note=note)
+            return self.screening.rejects(message, note=note)
         except Exception:  # noqa: BLE001
             logger.exception("could not screen chat message %s", message.id)
+            return False
 
     def _attached_page_images(
         self, attachments: Sequence[Attachment]

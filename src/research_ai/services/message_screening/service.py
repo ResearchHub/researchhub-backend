@@ -1,9 +1,12 @@
-"""Score chat messages for spam and off-purpose use, and record the verdict."""
+"""Score chat messages for spam and off-purpose use, and keep flagged ones out."""
 
 import logging
 
+from django.conf import settings
+
 from note.related_models.note_model import Note
 from research_ai.models import AgentConversationMessage, AgentMessageScreening
+from research_ai.services.agent.errors import AgentRunError
 from research_ai.services.message_screening.jev_client import DecisionError, JevClient
 
 logger = logging.getLogger(__name__)
@@ -67,11 +70,32 @@ QUESTIONS = {
 }
 
 
+class MessageRejectedError(AgentRunError):
+    """The user's message was flagged, so the turn never reached the model."""
+
+    stop_reason = "message_rejected"
+
+
 class MessageScreeningService:
-    """Records a Jev verdict per user message; the verdict changes nothing yet."""
+    """Records a Jev verdict per user message, and rejects flagged ones."""
 
     def __init__(self, client: JevClient | None = None):
         self.client = JevClient.from_settings() if client is None else client
+
+    def rejects(
+        self, message: AgentConversationMessage, *, note: Note | None = None
+    ) -> bool:
+        """Whether to keep the message from the model.
+
+        Only a flagged verdict rejects: a message Jev could not score goes
+        through, so a Jev outage never stops chat.
+        """
+        screening = self.screen(message, note=note)
+        return (
+            screening is not None
+            and screening.flagged
+            and settings.RESEARCH_AI_MESSAGE_BLOCKING
+        )
 
     def screen(
         self, message: AgentConversationMessage, *, note: Note | None = None

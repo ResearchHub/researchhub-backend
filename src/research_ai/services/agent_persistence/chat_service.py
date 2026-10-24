@@ -281,6 +281,17 @@ class AgentChatService:
                 "retryable": False,
                 "message": "The agent declined to complete this request.",
             }
+        if execution.stop_reason == "message_rejected":
+            # Screening flagged the message as spam or off-purpose; the same
+            # message would be flagged again.
+            return {
+                "code": "message_rejected",
+                "retryable": False,
+                "message": (
+                    "The assistant only helps with research, so this request "
+                    "wasn't sent. Try rewording it around your research."
+                ),
+            }
         if execution.stop_reason == "budget_exhausted":
             return {
                 "code": "usage_limit_exceeded",
