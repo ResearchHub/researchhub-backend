@@ -288,8 +288,8 @@ class AgentChatService:
                 "code": "message_rejected",
                 "retryable": False,
                 "message": (
-                    "The assistant only helps with research, so this request "
-                    "wasn't sent. Try rewording it around your research."
+                    "The assistant can only help with research, so this request "
+                    "wasn't sent."
                 ),
             }
         if execution.stop_reason == "budget_exhausted":
