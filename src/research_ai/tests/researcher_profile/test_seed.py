@@ -1,6 +1,7 @@
 """Tests for the researcher-profile agent seed."""
 
 import unittest
+from types import SimpleNamespace
 
 from django.test import TestCase
 
@@ -35,6 +36,14 @@ class SeedFromUserTests(TestCase):
 
 
 class SeedTests(unittest.TestCase):
+    def test_user_without_an_author_profile_seeds_from_account_names(self):
+        # Arrange
+        user = SimpleNamespace(first_name="Jane", last_name="Doe", author_profile=None)
+        # Act
+        seed = seed_from_user(user)
+        # Assert
+        self.assertEqual(seed, ProfileSeed(name="Jane Doe"))
+
     def test_expert_seed_mines_the_orcid_from_sources(self):
         # Arrange
         expert = make_expert(

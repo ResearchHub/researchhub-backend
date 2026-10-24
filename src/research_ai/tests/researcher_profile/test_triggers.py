@@ -1,15 +1,19 @@
 """Tests for what queues researcher-profile builds, and the Expert.profile copy."""
 
 import importlib
+from io import StringIO
 from unittest.mock import patch
 
 from django.apps import apps
+from django.core.management import CommandError, call_command
 from django.db import transaction
 from django.test import TestCase
 
 from research_ai import tasks
-from research_ai.models import Expert, ResearcherProfile
+from research_ai.models import AgentConversation, Expert, ResearcherProfile
 from research_ai.services.assistant_chat.service import AssistantChatService
+from research_ai.services.notebook_chat import ASSISTANT_WORKFLOW
+from research_ai.services.notebook_chat import WORKFLOW as NOTEBOOK_WORKFLOW
 from research_ai.services.researcher_profile import schedule_profile_build
 from user.tests.helpers import create_user
 from utils.test_helpers import AWSMockTransactionTestCase
@@ -68,6 +72,75 @@ class ScheduleTests(AWSMockTransactionTestCase):
             AssistantChatService().create_conversation(user)
         # Assert
         delay.assert_called_once_with(user.pk)
+
+
+class ScheduleGuardTests(TestCase):
+    def test_no_user_queues_nothing(self):
+        # Act
+        with patch(_DELAY) as delay, self.captureOnCommitCallbacks(execute=True):
+            schedule_profile_build(None)
+        # Assert
+        delay.assert_not_called()
+
+
+class BackfillCommandTests(TestCase):
+    def setUp(self):
+        self.users = [_user("a@example.edu"), _user("b@example.edu")]
+        for user in self.users:
+            AgentConversation.objects.create(user=user, workflow=NOTEBOOK_WORKFLOW)
+        # A second chat for the same user is still one build.
+        AgentConversation.objects.create(
+            user=self.users[0], workflow=ASSISTANT_WORKFLOW
+        )
+        AgentConversation.objects.create(
+            user=_user("gone@example.edu"), workflow=NOTEBOOK_WORKFLOW, is_removed=True
+        )
+        AgentConversation.objects.create(
+            user=_user("other@example.edu"), workflow="proposal_draft"
+        )
+
+    def test_queues_each_chat_user_once(self):
+        # Act
+        with patch(_DELAY) as delay:
+            call_command("backfill_researcher_profiles", stdout=StringIO())
+        # Assert
+        self.assertCountEqual(
+            [call.args[0] for call in delay.call_args_list],
+            [user.pk for user in self.users],
+        )
+
+    def test_dry_run_queues_nothing(self):
+        # Arrange
+        out = StringIO()
+        # Act
+        with patch(_DELAY) as delay:
+            call_command("backfill_researcher_profiles", "--dry-run", stdout=out)
+        # Assert
+        delay.assert_not_called()
+        self.assertIn("Would queue 2", out.getvalue())
+
+    def test_limit_caps_the_queue(self):
+        # Act
+        with patch(_DELAY) as delay:
+            call_command(
+                "backfill_researcher_profiles", "--limit", "1", stdout=StringIO()
+            )
+        # Assert
+        self.assertEqual(delay.call_count, 1)
+
+    def test_user_ids_override_the_chat_users(self):
+        # Act
+        with patch(_DELAY) as delay:
+            call_command(
+                "backfill_researcher_profiles", "--user-ids", "7,8", stdout=StringIO()
+            )
+        # Assert
+        self.assertEqual([call.args[0] for call in delay.call_args_list], [7, 8])
+
+    def test_bad_user_ids_are_rejected(self):
+        # Act & Assert
+        with self.assertRaises(CommandError):
+            call_command("backfill_researcher_profiles", "--user-ids", "a,b")
 
 
 class TaskTests(TestCase):

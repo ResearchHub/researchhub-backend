@@ -8,12 +8,16 @@ from django.utils import timezone
 
 from research_ai.models import Expert, ResearcherProfile
 from research_ai.services.agent.errors import BudgetExceededError
-from research_ai.services.researcher_profile import ResearcherProfileService
+from research_ai.services.researcher_profile import (
+    ResearcherProfileService,
+    profile_service,
+)
 from research_ai.services.researcher_profile.agent import (
     NO_SUBMISSION_ERROR,
     SCHEMA_VERSION,
 )
 from research_ai.services.researcher_profile.profile_service import (
+    FEATURE,
     MAX_ATTEMPTS,
     REFRESH_AFTER,
 )
@@ -116,6 +120,58 @@ class LookupTests(TestCase):
         # Assert
         self.assertEqual(profile.pk, built.pk)
         self.assertEqual(profile.expert, expert)
+
+    def test_expert_reuses_their_existing_profile(self):
+        # Arrange
+        expert = Expert.objects.create(email="jd@lab.edu")
+        existing = ResearcherProfile.objects.create(expert=expert)
+        # Act
+        profile = ResearcherProfileService().get_or_create_for_expert(expert)
+        # Assert
+        self.assertEqual(profile.pk, existing.pk)
+
+    def test_creates_an_expert_profile_when_none_matches(self):
+        # Arrange
+        expert = Expert.objects.create(email="jd@lab.edu")
+        # Act
+        profile = ResearcherProfileService().get_or_create_for_expert(expert)
+        # Assert
+        self.assertEqual(profile.expert, expert)
+        self.assertIsNone(profile.user_id)
+
+    def test_concurrent_create_returns_the_row_that_won(self):
+        # Arrange: another trigger created the user's row first.
+        user = _user()
+        winner = ResearcherProfile.objects.create(user=user)
+        # Act
+        profile = ResearcherProfileService()._create(user=user)
+        # Assert
+        self.assertEqual(profile.pk, winner.pk)
+
+    def test_concurrent_create_with_a_taken_expert_gives_the_user_a_row(self):
+        # Arrange: the expert was claimed by another row in the meantime.
+        user = _user()
+        expert = Expert.objects.create(email="jd@lab.edu")
+        ResearcherProfile.objects.create(expert=expert)
+        # Act
+        profile = ResearcherProfileService()._create(user=user, expert=expert)
+        # Assert
+        self.assertEqual(profile.user, user)
+        self.assertIsNone(profile.expert_id)
+
+    def test_adopt_refuses_a_user_who_already_has_a_profile(self):
+        # Arrange
+        user = _user()
+        ResearcherProfile.objects.create(user=user)
+        orphan = ResearcherProfile.objects.create(
+            expert=Expert.objects.create(email="jd@lab.edu")
+        )
+        # Act
+        adopted = ResearcherProfileService()._adopt(orphan, user=user)
+        # Assert
+        self.assertFalse(adopted)
+        orphan.refresh_from_db()
+        self.assertIsNone(orphan.user_id)
 
     def test_profile_for_user_does_not_write(self):
         # Arrange
@@ -279,7 +335,7 @@ class EnsureTests(TestCase):
         # Act
         ResearcherProfileService(build=build).ensure(self.profile)
         # Assert
-        (seed,), _kwargs = build.call_args
+        seed = build.call_args.args[0]
         self.assertEqual(seed.name, "Jane Doe")
 
     def test_unresolved_build_is_stored_as_unresolved(self):
@@ -368,6 +424,16 @@ class EnsureForUserTests(TestCase):
         self.assertIs(kwargs["provider"], provider)
         self.assertIs(kwargs["recorder"], recorder)
 
+    def test_current_profile_is_not_rebuilt_in_the_background(self):
+        # Arrange
+        user = _user()
+        _current(ResearcherProfile.objects.create(user=user))
+        # Act
+        with patch(_RUNTIME) as runtime:
+            ResearcherProfileService(build=Mock()).ensure_for_user(user)
+        # Assert
+        runtime.assert_not_called()
+
     def test_blocked_user_is_skipped(self):
         # Arrange
         user = _user()
@@ -442,3 +508,54 @@ class DueForSweepTests(TestCase):
             ResearcherProfile.objects.create(user=_user(f"u{index}@example.edu"))
         # Act & Assert
         self.assertEqual(len(ResearcherProfileService().due_for_sweep(limit=2)), 2)
+
+
+class UserRuntimeTests(TestCase):
+    def test_builds_on_the_tier_default_model_charged_to_the_user(self):
+        # Arrange
+        user = _user()
+        policy = Mock()
+        policy.name = "default"
+        provider = Mock(model_id="model-x")
+        with (
+            patch.object(profile_service, "resolve_ai_tier", return_value=policy),
+            patch.object(
+                profile_service, "resolve_default_model", return_value="bedrock:m"
+            ),
+            patch.object(
+                profile_service,
+                "effective_generation_options",
+                return_value=("low", None),
+            ),
+            patch.object(
+                profile_service, "resolve_provider", return_value=provider
+            ) as resolve_provider,
+        ):
+            # Act
+            built_provider, recorder = profile_service._user_runtime(user)
+        # Assert
+        self.assertIs(built_provider, provider)
+        resolve_provider.assert_called_once_with("bedrock:m", effort="low")
+        self.assertEqual(recorder.user, user)
+        self.assertEqual(recorder.feature, FEATURE)
+        self.assertEqual(recorder.provider, "bedrock")
+        self.assertEqual(recorder.model_id, "model-x")
+
+    def test_blocked_tier_raises(self):
+        # Arrange
+        policy = Mock()
+        policy.name = "blocked"
+        # Act & Assert
+        with (
+            patch.object(profile_service, "resolve_ai_tier", return_value=policy),
+            self.assertRaises(ModelNotAllowedError),
+        ):
+            profile_service._user_runtime(_user())
+
+
+class ProfileModelTests(TestCase):
+    def test_str_names_the_row_and_status(self):
+        # Arrange
+        profile = ResearcherProfile.objects.create(user=_user())
+        # Act & Assert
+        self.assertEqual(str(profile), f"ResearcherProfile {profile.id} (PENDING)")
