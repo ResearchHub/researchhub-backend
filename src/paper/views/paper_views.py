@@ -82,6 +82,14 @@ class PaperViewSet(
         # moderators / hub editors may see them until they are approved.
         queryset = queryset.visible_to(user)
 
+        # Paper pages are retired except for the journal's papers, so any other
+        # paper is not found. Moderators and editors still open any paper (the
+        # expert finder previews them).
+        if self.action == "retrieve" and not (
+            user.is_authenticated and user.is_moderator_or_editor()
+        ):
+            queryset = queryset.in_journal()
+
         if not user.is_anonymous and user.moderator and external_source:
             queryset = queryset.filter(
                 is_removed=False, retrieved_from_external_source=True

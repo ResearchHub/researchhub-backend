@@ -7,7 +7,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from discussion.constants.flag_reasons import SPAM
-from paper.tests.helpers import create_paper
+from paper.tests.helpers import add_to_journal, create_paper
 from reputation.models import Distribution
 from researchhub_document.helpers import create_post
 from user.tests.helpers import (
@@ -155,7 +155,7 @@ class AuditViewTests(APITestCase):
 
         creator = create_random_authenticated_user("comment_creator")
         replier = create_random_authenticated_user("comment_replier")
-        paper = create_paper(uploaded_by=creator)
+        paper = add_to_journal(create_paper(uploaded_by=creator))
 
         # Build a parent + child comment chain
         self.client.force_authenticate(creator)
