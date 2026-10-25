@@ -4,7 +4,13 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
-from purchase.models import Fundraise, Grant, GrantApplication, Purchase
+from purchase.models import (
+    FundingPool,
+    Fundraise,
+    Grant,
+    GrantApplication,
+    Purchase,
+)
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
@@ -23,6 +29,7 @@ class TestFundingOverviewService(TestCase):
         self.service = FundingOverviewService()
         self.user = create_random_authenticated_user("funder", moderator=True)
         self.fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+        self.funding_pool_ct = ContentType.objects.get_for_model(FundingPool)
         RscExchangeRate.objects.create(
             rate=0.5, real_rate=0.5, price_source="COIN_GECKO", target_currency="USD"
         )
@@ -56,6 +63,24 @@ class TestFundingOverviewService(TestCase):
 
         return grant, proposal_post, fundraise, applicant
 
+    def _create_grant_with_pool(self, creator=None, organization="Test Org"):
+        """Create a grant post with an open funding pool."""
+        creator = creator or create_random_authenticated_user("grant_creator")
+        grant_post = create_post(created_by=creator, document_type=GRANT_DOC_TYPE)
+        grant = Grant.objects.create(
+            created_by=creator,
+            unified_document=grant_post.unified_document,
+            amount=Decimal(1000),
+            status=Grant.OPEN,
+            organization=organization,
+        )
+        pool = FundingPool.objects.create(
+            grant=grant,
+            created_by=creator,
+            status=FundingPool.OPEN,
+        )
+        return grant, grant_post, pool, creator
+
     def _contribute(self, user, fundraise, rsc=0, usd_cents=0, rsc_usd_rate=None):
         """Create RSC and/or USD contribution from user to fundraise."""
         if rsc:
@@ -78,6 +103,19 @@ class TestFundingOverviewService(TestCase):
                 destination_org_id="test-org",
             )
 
+    def _contribute_to_pool(self, user, pool, rsc, rsc_usd_rate=None):
+        """Create a paid RSC contribution from user to a funding pool."""
+        return Purchase.objects.create(
+            user=user,
+            content_type=self.funding_pool_ct,
+            object_id=pool.id,
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            paid_status=Purchase.PAID,
+            amount=str(rsc),
+            rsc_usd_rate=rsc_usd_rate,
+        )
+
     def test_returns_expected_structure_with_zeros_for_new_user(self):
         # Arrange - uses setUp
 
@@ -94,6 +132,7 @@ class TestFundingOverviewService(TestCase):
             {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0},
         )
         self.assertEqual(result["supported_proposals"], [])
+        self.assertEqual(result["supported_grants"], [])
         self.assertEqual(result["supported_nonprofits"], [])
 
     def test_distributed_funds_tracks_funder_contributions(self):
@@ -404,3 +443,106 @@ class TestFundingOverviewService(TestCase):
         # Assert
         self.assertEqual(len(result["supported_proposals"]), 1)
         self.assertEqual(result["supported_nonprofits"], [])
+
+    def test_distributed_funds_includes_funding_pool_contributions(self):
+        # Arrange
+        _, _, pool, _ = self._create_grant_with_pool()
+        self._contribute_to_pool(self.user, pool, rsc=80, rsc_usd_rate=0.50)
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(result["distributed_funds"]["rsc"], 80.0)
+        self.assertAlmostEqual(result["distributed_funds"]["rsc_usd_snapshot"], 40.0)
+        self.assertEqual(result["distributed_funds"]["usd"], 0.0)
+        # Pool contributions are not co-funding a proposal, so matched stays zero.
+        self.assertEqual(result["matched_funds"]["rsc"], 0.0)
+
+    def test_distributed_funds_sums_fundraise_and_pool_contributions(self):
+        # Arrange
+        _, _, fundraise, _ = self._create_grant_with_proposal()
+        _, _, pool, _ = self._create_grant_with_pool()
+        self._contribute(
+            self.user, fundraise, rsc=100, usd_cents=2500, rsc_usd_rate=0.50
+        )
+        self._contribute_to_pool(self.user, pool, rsc=40, rsc_usd_rate=0.50)
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(result["distributed_funds"]["rsc"], 140.0)
+        self.assertAlmostEqual(result["distributed_funds"]["rsc_usd_snapshot"], 70.0)
+        self.assertEqual(result["distributed_funds"]["usd"], 25.0)
+
+    def test_supported_grants_returns_pool_contributions(self):
+        # Arrange
+        _, grant_post, pool, creator = self._create_grant_with_pool()
+        self._contribute_to_pool(self.user, pool, rsc=120, rsc_usd_rate=0.25)
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(result["supported_proposals"], [])
+        self.assertEqual(len(result["supported_grants"]), 1)
+        grant_row = result["supported_grants"][0]
+        self.assertEqual(grant_row["id"], grant_post.id)
+        self.assertEqual(
+            grant_row["unified_document"]["id"], grant_post.unified_document_id
+        )
+        self.assertEqual(grant_row["unified_document"]["title"], grant_post.title)
+        self.assertEqual(grant_row["unified_document"]["slug"], grant_post.slug)
+        self.assertEqual(grant_row["created_by"]["id"], creator.id)
+        self.assertEqual(grant_row["organization"], "Test Org")
+        self.assertEqual(grant_row["funded_amount"]["rsc"], 120.0)
+        self.assertAlmostEqual(grant_row["funded_amount"]["rsc_usd_snapshot"], 30.0)
+        self.assertEqual(grant_row["funded_amount"]["usd"], 0.0)
+
+    def test_supported_grants_empty_when_only_proposals_funded(self):
+        # Arrange
+        _, _, fundraise, _ = self._create_grant_with_proposal()
+        self._contribute(self.user, fundraise, rsc=50)
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(len(result["supported_proposals"]), 1)
+        self.assertEqual(result["supported_grants"], [])
+
+    def test_supported_grants_deduplicates_by_post(self):
+        # Arrange - two contributions to the same pool
+        _, grant_post, pool, _ = self._create_grant_with_pool()
+        self._contribute_to_pool(self.user, pool, rsc=50, rsc_usd_rate=0.50)
+        self._contribute_to_pool(self.user, pool, rsc=25, rsc_usd_rate=0.50)
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(len(result["supported_grants"]), 1)
+        self.assertEqual(result["supported_grants"][0]["id"], grant_post.id)
+        self.assertEqual(result["supported_grants"][0]["funded_amount"]["rsc"], 75.0)
+
+    def test_supported_grants_ignores_unpaid_pool_contributions(self):
+        # Arrange
+        _, _, pool, _ = self._create_grant_with_pool()
+        Purchase.objects.create(
+            user=self.user,
+            content_type=self.funding_pool_ct,
+            object_id=pool.id,
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            paid_status=Purchase.INITIATED,
+            amount="100",
+            rsc_usd_rate=0.50,
+        )
+
+        # Act
+        result = self.service.get_funding_overview(self.user)
+
+        # Assert
+        self.assertEqual(result["supported_grants"], [])
+        self.assertEqual(result["distributed_funds"]["rsc"], 0.0)

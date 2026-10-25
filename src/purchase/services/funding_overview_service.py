@@ -1,5 +1,7 @@
 """Services for funding and grant overview dashboard metrics."""
 
+from django.core.exceptions import ObjectDoesNotExist
+
 from organizations.models import NonprofitOrg
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -20,12 +22,14 @@ class FundingOverviewService(OverviewMixin):
             "matched_funds": self._matched_contributions_breakdown(
                 user.id, funded_fundraise_ids
             ),
-            "distributed_funds": self._user_contributions_breakdown(
-                user.id, funded_fundraise_ids
+            "distributed_funds": self._merge_currency_breakdowns(
+                self._user_contributions_breakdown(user.id, funded_fundraise_ids),
+                self._user_pool_contributions_breakdown(user.id),
             ),
             "supported_proposals": self._supported_proposals(
                 user.id, funded_fundraise_ids
             ),
+            "supported_grants": self._supported_grants(user.id),
             "supported_nonprofits": self._supported_nonprofits(funded_fundraise_ids),
         }
 
@@ -57,6 +61,39 @@ class FundingOverviewService(OverviewMixin):
             entry["funded_amount"] = (
                 contributions.get(fundraise.id, zero) if fundraise else zero
             )
+            results.append(entry)
+
+        return results
+
+    def _supported_grants(self, user_id: int) -> list[dict]:
+        """Grant/RFP posts whose funding pools the user contributed to."""
+        contributions = self._per_pool_user_contributions(user_id)
+        if not contributions:
+            return []
+
+        pool_ids = list(contributions.keys())
+        posts = (
+            ResearchhubPost.objects.filter(
+                unified_document__grants__funding_pool__id__in=pool_ids,
+            )
+            .select_related("unified_document", "created_by__author_profile")
+            .prefetch_related("unified_document__grants__funding_pool")
+            .distinct()
+        )
+
+        results = []
+        zero = {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0}
+        for post in posts:
+            grant = post.unified_document.grants.first()
+            pool = None
+            if grant is not None:
+                try:
+                    pool = grant.funding_pool
+                except ObjectDoesNotExist:
+                    pool = None
+            entry = self._serialize_proposal(post)
+            entry["organization"] = (grant.organization or "") if grant else ""
+            entry["funded_amount"] = contributions.get(pool.id, zero) if pool else zero
             results.append(entry)
 
         return results

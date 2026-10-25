@@ -33,6 +33,17 @@ class PurchaseQuerySet(models.QuerySet):
             content_type=ContentType.objects.get_for_model(Fundraise),
         )
 
+    def funding_pool_contributions(self):
+        """Filter for paid funding-pool (grant/RFP) contribution purchases."""
+        # Local import avoids a circular dependency with FundingPool → Purchase.
+        from purchase.related_models.funding_pool_model import FundingPool
+
+        return self.filter(
+            purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
+            content_type=ContentType.objects.get_for_model(FundingPool),
+            paid_status=Purchase.PAID,
+        )
+
     def for_fundraises(self, fundraise_ids: list[int]):
         """Filter by fundraise IDs."""
         return self.filter(object_id__in=fundraise_ids)
