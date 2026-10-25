@@ -270,6 +270,16 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
                 "object_id": kwargs.get("pk"),
             },
         },
+        # Funding pool contributions
+        "funding_pool_create_contribution": {
+            "activity_type": UserActivityTypes.FUND,
+            "properties": lambda: {
+                "purchase_id": _get_purchase_id_from_response(res),
+                "amount": _get_amount_from_response(res) or request.data.get("amount"),
+                "content_type": "funding_pool",
+                "object_id": kwargs.get("pk"),
+            },
+        },
         # Tips/Boosts (Purchase with BOOST type)
         "purchase_create": {
             "activity_type": UserActivityTypes.TIP,
