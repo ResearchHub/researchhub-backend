@@ -5,7 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from paper.models import Paper
+from paper.models import Paper, PaperVersion
 from paper.related_models.paper_model import JOURNAL_PAPER_IDS
 from paper.tests.helpers import add_to_journal, create_paper
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -234,6 +234,19 @@ class PaperJournalOnlyRetrieveTests(TestCase):
     def test_listed_journal_paper_is_retrievable(self):
         # Act & Assert
         self.assertEqual(self._status(self.listed_paper), status.HTTP_200_OK)
+
+    def test_versionless_original_of_journal_paper_is_retrievable(self):
+        # Arrange
+        original = create_paper(title="Original without a version row")
+        PaperVersion.objects.create(
+            paper=create_paper(title="Journal version 2"),
+            version=2,
+            original_paper=original,
+            journal=PaperVersion.RESEARCHHUB,
+        )
+
+        # Act & Assert
+        self.assertEqual(self._status(original), status.HTTP_200_OK)
 
     def test_other_paper_is_not_found(self):
         # Arrange

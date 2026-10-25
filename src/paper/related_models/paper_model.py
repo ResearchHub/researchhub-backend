@@ -3,7 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Func, Index, JSONField, Q
+from django.db.models import Exists, Func, Index, JSONField, OuterRef, Q
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
@@ -82,9 +82,20 @@ class PaperQuerySet(models.QuerySet):
         return self.filter(moderation_approved | Q(uploaded_by=user))
 
     def in_journal(self) -> PaperQuerySet:
-        """Restrict to the ResearchHub Journal's papers, the only ones with pages."""
+        """Restrict to the ResearchHub Journal's papers, the only ones with pages.
+
+        That includes the original of a journal version chain, which may have
+        no PaperVersion row of its own.
+        """
+        is_journal_original = Exists(
+            PaperVersion.objects.filter(
+                original_paper=OuterRef("pk"), journal=PaperVersion.RESEARCHHUB
+            )
+        )
         return self.filter(
-            Q(version__journal=PaperVersion.RESEARCHHUB) | Q(id__in=JOURNAL_PAPER_IDS)
+            Q(version__journal=PaperVersion.RESEARCHHUB)
+            | Q(id__in=JOURNAL_PAPER_IDS)
+            | is_journal_original
         )
 
 
