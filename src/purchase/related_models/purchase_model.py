@@ -31,6 +31,7 @@ class PurchaseQuerySet(models.QuerySet):
         return self.filter(
             purchase_type="FUNDRAISE_CONTRIBUTION",
             content_type=ContentType.objects.get_for_model(Fundraise),
+            funding_distribution__isnull=True,
         )
 
     def funding_pool_contributions(self):
