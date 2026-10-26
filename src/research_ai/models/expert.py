@@ -37,14 +37,6 @@ class Expert(DefaultModel):
     expertise = models.TextField(blank=True)
     notes = models.TextField(blank=True)
     sources = models.JSONField(default=list, blank=True)
-    profile = models.JSONField(
-        default=dict,
-        blank=True,
-        db_comment=(
-            "Deprecated, no longer written: superseded by "
-            "research_ai_researcher_profile. To be dropped."
-        ),
-    )
     is_manually_added = models.BooleanField(
         default=False,
         db_comment=(

@@ -864,13 +864,11 @@ class ProposalDraftServiceTests(TestCase):
         # Act
         runner._ensure_profile()
 
-        # Assert: stored on the profile row, not Expert.profile, and the
-        # full-text tool built before the build sees the new work.
+        # Assert: stored on the profile row, and the full-text tool built
+        # before the build sees the new work.
         row = ResearcherProfile.objects.get(expert=self.expert)
         self.assertEqual(row.status, ResearcherProfile.Status.READY)
         self.assertEqual(row.openalex_author_id, "A2")
-        self.expert.refresh_from_db()
-        self.assertEqual(self.expert.profile, {})
         self.assertIn(
             "https://doi.org/10.1/new", runner.fulltext_toolset._works_by_url()
         )
