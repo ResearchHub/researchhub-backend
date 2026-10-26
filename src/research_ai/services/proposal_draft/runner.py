@@ -89,6 +89,7 @@ from research_ai.services.proposal_draft.tools import (
     ProposalWebSearchToolset,
     assemble_proposal,
 )
+from research_ai.services.proposal_draft.tools.context_tools import profile_data
 from research_ai.services.proposal_draft.tools.judge_context import build_judge_context
 from research_ai.services.proposal_draft.toolset import (
     build_submit_tool,
@@ -255,7 +256,9 @@ class _ProposalDraftRunner:
             max_words=self.config.max_words,
         )
         user_prompt = build_proposal_user_prompt(
-            self.expert, self.rfp_context, profile=self.profile.data
+            self.expert,
+            self.rfp_context,
+            profile=profile_data(self.profile, self.search_expert),
         )
         agent = self._build_agent(system_prompt)
 
@@ -626,7 +629,7 @@ class _ProposalDraftRunner:
         submitted = submitted or {}
         return build_judge_context(
             rfp_context=self.rfp_context,
-            profile=self.profile.data,
+            profile=profile_data(self.profile, self.search_expert),
             citations=submitted.get("citations"),
             grounded_urls=self._grounded_urls(),
             max_rfp_chars=self.config.max_judge_rfp_chars,

@@ -5,6 +5,11 @@ New chats trigger a build on their own; this covers users whose chats predate
 ``ResearcherProfile``. Each queued build is an LLM run charged to that user's
 Research AI budget, and is a no-op when their profile is already current.
 
+At most ``DEFAULT_LIMIT`` users are queued per run unless ``--limit`` says
+otherwise, so a backfill cannot flood the agents queue. Users who already have
+a profile row are skipped (the nightly sweep keeps those current), so rerunning
+continues with the users not yet queued.
+
 Usage:
     python manage.py backfill_researcher_profiles --dry-run
     python manage.py backfill_researcher_profiles --limit 100
@@ -16,6 +21,8 @@ from django.core.management.base import BaseCommand, CommandError
 from research_ai.models import AgentConversation
 from research_ai.services.notebook_chat import ASSISTANT_WORKFLOW, WORKFLOW
 from research_ai.tasks import ensure_researcher_profile_task
+
+DEFAULT_LIMIT = 200
 
 
 class Command(BaseCommand):
@@ -30,8 +37,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--limit",
             type=int,
-            default=None,
-            help="Queue at most this many users.",
+            default=DEFAULT_LIMIT,
+            help=f"Queue at most this many users (default {DEFAULT_LIMIT}).",
         )
         parser.add_argument(
             "--dry-run",
@@ -61,11 +68,10 @@ class Command(BaseCommand):
                 workflow__in=(WORKFLOW, ASSISTANT_WORKFLOW),
                 is_removed=False,
                 user__isnull=False,
+                user__researcher_profile__isnull=True,
             )
             .order_by("user_id")
             .values_list("user_id", flat=True)
             .distinct()
         )
-        if options["limit"] is not None:
-            user_ids = user_ids[: options["limit"]]
-        return list(user_ids)
+        return list(user_ids[: options["limit"]])

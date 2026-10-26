@@ -138,6 +138,19 @@ class ProposalToolsTestCase(TestCase):
         # Assert
         self.assertIn("error", result)
 
+    def test_get_researcher_profile_sees_a_build_that_lands_after_setup(self):
+        # Arrange: the toolset holds the row before another worker's build.
+        profile = ResearcherProfile.objects.get(expert=self.expert)
+        toolset = ProposalContextToolset(self.search_expert, profile=profile)
+        ResearcherProfile.objects.filter(pk=profile.pk).update(
+            data={"works": [{"title": "New", "source_url": "https://doi.org/10.1/n"}]}
+        )
+        # Act
+        result = toolset.as_toolset().get("get_researcher_profile").handler({})
+        # Assert
+        self.assertEqual(result["works"][0]["title"], "New")
+        self.assertIn("https://doi.org/10.1/n", toolset.provenance)
+
     def test_get_researcher_profile_returns_profile_and_populates_provenance(self):
         # Arrange
         provenance: set[str] = set()

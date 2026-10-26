@@ -64,10 +64,21 @@ class ResearcherProfileToolset:
         if queued:
             schedule_profile_build(self._user)
         if profile is not None and profile.has_data:
-            return {
-                "status": "ready",
-                "profile": {key: profile.data.get(key) for key in _PROFILE_KEYS},
-            }
+            data = {key: profile.data.get(key) for key in _PROFILE_KEYS}
+            if profile.status == ResearcherProfile.Status.FAILED:
+                # The latest rebuild failed, possibly after the user changed
+                # their identity, so the kept profile may describe them wrongly.
+                return {
+                    "status": "stale",
+                    "profile": data,
+                    "guidance": (
+                        "This profile could not be refreshed and may be out of "
+                        "date or describe a different person. Confirm the "
+                        "identity against get_user_profile before relying on "
+                        "it, and never invent a track record."
+                    ),
+                }
+            return {"status": "ready", "profile": data}
         if queued or (
             profile is not None and profile.status == ResearcherProfile.Status.BUILDING
         ):

@@ -120,6 +120,21 @@ class GetResearcherProfileToolTests(TestCase):
         self.assertEqual(result["status"], "building")
         schedule.assert_not_called()
 
+    def test_failed_rebuild_serves_kept_data_as_stale(self, schedule):
+        # Arrange
+        user = _make_user()
+        _ready_profile(user=user)
+        ResearcherProfile.objects.filter(user=user).update(
+            status=ResearcherProfile.Status.FAILED, attempts=99
+        )
+        toolset = ResearcherProfileToolset(user=user)
+        # Act
+        result = _handler(toolset)({})
+        # Assert
+        self.assertEqual(result["status"], "stale")
+        self.assertEqual(result["profile"]["works"], [{"title": "Paper"}])
+        self.assertIn("different person", result["guidance"])
+
     def test_reports_no_profile_when_retries_are_exhausted(self, schedule):
         # Arrange
         user = _make_user()

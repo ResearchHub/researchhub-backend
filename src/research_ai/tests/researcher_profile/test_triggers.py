@@ -105,6 +105,17 @@ class BackfillCommandTests(TestCase):
             [user.pk for user in self.users],
         )
 
+    def test_users_with_a_profile_row_are_skipped(self):
+        # Arrange
+        ResearcherProfile.objects.create(user=self.users[0])
+        # Act
+        with patch(_DELAY) as delay:
+            call_command("backfill_researcher_profiles", stdout=StringIO())
+        # Assert
+        self.assertEqual(
+            [call.args[0] for call in delay.call_args_list], [self.users[1].pk]
+        )
+
     def test_dry_run_queues_nothing(self):
         # Arrange
         out = StringIO()

@@ -127,10 +127,16 @@ class ProposalContextToolset:
 
 
 def profile_data(profile, search_expert) -> dict:
-    """The profile's agent output, looking the expert's row up when not given."""
+    """The profile's agent output, read fresh at call time.
+
+    A saved row is reloaded so a build another worker finishes mid-run is
+    seen; the expert's row is looked up when none is given.
+    """
     if profile is None:
         profile = ResearcherProfile.objects.filter(
             expert_id=search_expert.expert_id
         ).first()
+    elif getattr(profile, "pk", None) is not None:
+        profile = ResearcherProfile.objects.filter(pk=profile.pk).only("data").first()
     data = getattr(profile, "data", None)
     return data if isinstance(data, dict) else {}

@@ -297,6 +297,8 @@ def reclaim_lost_agent_runs():
 
 @app.task(
     queue=QUEUE_AGENTS,
+    # Lowest priority, so queued profile builds yield to chat turns.
+    priority=9,
     soft_time_limit=RESEARCHER_PROFILE_TIME_LIMIT,
     time_limit=RESEARCHER_PROFILE_TIME_LIMIT + HARD_TIME_LIMIT_GRACE,
 )
