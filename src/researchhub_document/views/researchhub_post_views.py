@@ -318,6 +318,10 @@ class ResearchhubPostViewSet(
                 query_set = query_set.filter(id=post_id)
             if document_type is not None:
                 query_set = query_set.filter(document_type=document_type)
+            # Removed posts stay reachable by id so moderators and authors can
+            # still open and act on them; only listings leave them out.
+            if self.action == "list":
+                query_set = query_set.filter(unified_document__is_removed=False)
 
             return query_set.order_by("-created_date")
         except (KeyError, TypeError) as exception:

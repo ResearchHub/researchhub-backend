@@ -284,13 +284,21 @@ class ResearchhubPost(AbstractGenericReactionModel):
         return default_storage.url(self.image)
 
     def get_full_markdown(self):
+        if self.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
+            src = self.discussion_src
+        else:
+            src = self.eln_src
+        # Posts that predate stored bodies have no file to read.
+        if not src:
+            return None
         try:
-            if self.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                src = self.discussion_src
-            else:
-                src = self.eln_src
             with src.open() as file:
                 return file.read().decode("utf-8")
+        except FileNotFoundError:
+            logger.warning(
+                "Full markdown file %s missing for post %s", src.name, self.id
+            )
+            return None
         except Exception:
             logger.exception("Error getting full markdown for document %s", self.id)
             return None

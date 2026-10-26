@@ -3,6 +3,7 @@ from unittest.mock import patch
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.test import TestCase
 
 from hub.models import Hub
@@ -229,6 +230,37 @@ class ModelTests(TestCase):
 
         # Assert
         self.assertEqual(markdown, "Discussion body")
+
+    def test_get_full_markdown_returns_none_without_logging_when_no_file(self):
+        # Arrange
+        post = create_post(created_by=self.user, document_type="DISCUSSION")
+        logger_name = "researchhub_document.related_models.researchhub_post_model"
+
+        # Act
+        with self.assertNoLogs(logger_name):
+            markdown = post.get_full_markdown()
+
+        # Assert
+        self.assertIsNone(markdown)
+
+    def test_get_full_markdown_warns_when_file_is_missing(self):
+        # Arrange
+        post = create_post(created_by=self.user, document_type="PREREGISTRATION")
+        post.discussion_src.save("prereg.md", ContentFile(b"Proposal body"))
+        default_storage.delete(post.discussion_src.name)
+        logger_name = "researchhub_document.related_models.researchhub_post_model"
+
+        # Act
+        with self.assertLogs(logger_name, level="INFO") as logs:
+            markdown = post.get_full_markdown()
+
+        # Assert
+        self.assertIsNone(markdown)
+        self.assertEqual(len(logs.records), 1)
+        record = logs.records[0]
+        self.assertEqual(record.levelname, "WARNING")
+        self.assertIn(post.discussion_src.name, record.getMessage())
+        self.assertIsNone(record.exc_info)
 
 
 class ResearchhubPostStatusTests(TestCase):
