@@ -22,7 +22,7 @@ class HealthCheckViewTests(TestCase):
             {
                 "Cache(alias='default')": "OK",
                 "Database(alias='default')": "OK",
-                "GitHash(git_hash='abc1234')": "OK",
+                "GitHashHealthCheck(git_hash='abc1234')": "OK",
             },
         )
 
