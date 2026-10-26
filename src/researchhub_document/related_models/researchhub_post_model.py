@@ -47,6 +47,14 @@ class ResearchhubPostQuerySet(models.QuerySet):
             .order_by("-created_date")
         )
 
+    def public_sitemap_entries(self, document_type: str) -> ResearchhubPostQuerySet:
+        """Posts of one type the public sitemap lists, oldest first."""
+        return (
+            self.publicly_visible()
+            .filter(document_type=document_type, unified_document__is_removed=False)
+            .order_by("id")
+        )
+
     def visible_to(
         self,
         user: User | None,

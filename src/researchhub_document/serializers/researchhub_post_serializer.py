@@ -69,6 +69,15 @@ class RegisteredReportPublishSerializer(Serializer):
         return document
 
 
+class ResearchhubPostSitemapSerializer(ModelSerializer):
+    """Just the fields a sitemap URL needs, so listing posts reads no bodies."""
+
+    class Meta:
+        model = ResearchhubPost
+        fields = ["id", "slug", "updated_date"]
+        read_only_fields = fields
+
+
 class ResearchhubPostSerializer(
     ModelSerializer,
     GenericReactionSerializerMixin,
