@@ -7,9 +7,6 @@ logger = logging.getLogger(__name__)
 
 OPENAI_EXPERT_FINDER_MODEL = "gpt-6-luna"
 
-# GPT-6 models reason by default and reject sampling params with a 400.
-_NO_SAMPLING_PREFIXES: tuple[str, ...] = ("gpt-6",)
-
 
 class OpenAIExpertFinderService:
     """Call OpenAI for expert-finder table output (markdown)."""
@@ -25,7 +22,6 @@ class OpenAIExpertFinderService:
         user_prompt: str,
         *,
         max_tokens: int = 16_384,
-        temperature: float = 0.0,
     ) -> str:
         """
         Run expert discovery via the Responses API with web search.
@@ -53,7 +49,6 @@ class OpenAIExpertFinderService:
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 max_tokens=max_tokens,
-                temperature=temperature,
             )
         except Exception as e:
             logger.exception("OpenAI expert finder failed")
@@ -65,18 +60,15 @@ class OpenAIExpertFinderService:
         system_prompt: str,
         user_prompt: str,
         max_tokens: int,
-        temperature: float,
     ) -> str:
-        kwargs: dict = {}
-        if not self.model_id.startswith(_NO_SAMPLING_PREFIXES):
-            kwargs["temperature"] = temperature
+        # No temperature: GPT-6 models reason by default and reject sampling
+        # params with a 400.
         response = self._client.responses.create(
             model=self.model_id,
             instructions=system_prompt,
             input=user_prompt,
             tools=[{"type": "web_search"}],
             max_output_tokens=max_tokens,
-            **kwargs,
         )
         text = (response.output_text or "").strip()
         if not text:

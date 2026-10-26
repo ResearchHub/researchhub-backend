@@ -116,6 +116,21 @@ class OpenAIReviewContextServiceTests(SimpleTestCase):
 
     @override_settings(OPENAI_API_KEY="sk-test")
     @patch("ai_peer_review.services.openai_web_context_service.OpenAI")
+    def test_invoke_sends_temperature_to_models_that_accept_it(self, mock_openai_cls):
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        resp = MagicMock()
+        resp.output_text = "- bullet"
+        mock_client.responses.create.return_value = resp
+
+        svc = OpenAIReviewContextService()
+        svc.model_id = "gpt-5.4-mini"
+        svc.invoke("sys", "user", max_tokens=512, temperature=0.0)
+        kwargs = mock_client.responses.create.call_args.kwargs
+        self.assertEqual(kwargs["temperature"], 0.0)
+
+    @override_settings(OPENAI_API_KEY="sk-test")
+    @patch("ai_peer_review.services.openai_web_context_service.OpenAI")
     def test_invoke_falls_back_to_chat(self, mock_openai_cls):
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client

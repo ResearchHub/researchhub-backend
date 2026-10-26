@@ -109,7 +109,9 @@ class ProfileJudge:
             raw = self._get_llm().invoke(
                 system_prompt=PROFILE_MATCH_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
-                max_tokens=256,
+                # Haiku 5.5 thinks by default and thinking shares this budget;
+                # too small a budget ends the turn before the answer.
+                max_tokens=4096,
                 temperature=0.0,
             )
         except Exception:

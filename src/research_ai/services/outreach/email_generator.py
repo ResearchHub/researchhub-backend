@@ -326,7 +326,8 @@ def _generate_with_llm(
     raw = service.invoke(
         system_prompt=EMAIL_SYSTEM_PROMPT,
         user_prompt=prompt,
-        max_tokens=1024,
+        # Haiku 5.5 thinks by default and thinking shares this budget.
+        max_tokens=4096,
         temperature=0.3,
     )
     sig_source = _build_llm_sender_signature_data(user)
