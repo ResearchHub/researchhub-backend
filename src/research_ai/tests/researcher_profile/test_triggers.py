@@ -132,8 +132,10 @@ class BackfillCommandTests(TestCase):
             call_command(
                 "backfill_researcher_profiles", "--limit", "1", stdout=StringIO()
             )
-        # Assert
-        self.assertEqual(delay.call_count, 1)
+        # Assert: users are taken in id order.
+        self.assertEqual(
+            [call.args[0] for call in delay.call_args_list], [self.users[0].pk]
+        )
 
     def test_user_ids_override_the_chat_users(self):
         # Act
