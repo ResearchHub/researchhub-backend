@@ -262,22 +262,6 @@ class ModelTests(TestCase):
         self.assertIn(post.discussion_src.name, record.getMessage())
         self.assertIsNone(record.exc_info)
 
-    def test_get_full_markdown_logs_info_when_quarantined_file_is_missing(self):
-        # Arrange
-        post = create_post(created_by=self.user, document_type="GRANT")
-        post.discussion_src.save("grant.md", ContentFile(b"# RFP"))
-        default_storage.delete(post.discussion_src.name)
-        self.user.set_suspended()
-        logger_name = "researchhub_document.related_models.researchhub_post_model"
-
-        # Act
-        with self.assertLogs(logger_name, level="INFO") as logs:
-            markdown = post.get_full_markdown()
-
-        # Assert
-        self.assertIsNone(markdown)
-        self.assertEqual([r.levelname for r in logs.records], ["INFO"])
-
 
 class ResearchhubPostStatusTests(TestCase):
     def setUp(self):

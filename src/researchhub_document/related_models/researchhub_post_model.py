@@ -295,15 +295,9 @@ class ResearchhubPost(AbstractGenericReactionModel):
             with src.open() as file:
                 return file.read().decode("utf-8")
         except FileNotFoundError:
-            # Banning a user moves their files to quarantine (see
-            # `handle_spam_user_task`), so a suspended author's body is
-            # expected to be missing. Anything else is unexpected.
-            log = (
-                logger.info
-                if self.created_by and self.created_by.is_suspended
-                else logger.warning
+            logger.warning(
+                "Full markdown file %s missing for post %s", src.name, self.id
             )
-            log("Full markdown file %s missing for post %s", src.name, self.id)
             return None
         except Exception:
             logger.exception("Error getting full markdown for document %s", self.id)
