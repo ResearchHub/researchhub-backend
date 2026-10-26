@@ -81,12 +81,21 @@ LOGGING = {
             "exc_info_as_array": True,
             "stack_info_as_array": True,
         },
+        "json_access": {
+            "()": "utils.log_formatters.UvicornAccessJsonFormatter",
+            "fmt": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
     },
     "handlers": {
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
             "formatter": "json" if ELASTIC_BEANSTALK else "verbose",
+        },
+        "access": {
+            "class": "logging.StreamHandler",
+            "formatter": "json_access",
+            "stream": "ext://sys.stdout",
         },
     },
     "root": {
@@ -101,6 +110,13 @@ LOGGING = {
         },
     },
 }
+
+if ELASTIC_BEANSTALK:
+    LOGGING["loggers"] |= {
+        # Uvicorn loggers
+        "uvicorn": {"propagate": True},
+        "uvicorn.access": {"handlers": ["access"], "propagate": False},
+    }
 
 # Django Debug Toolbar
 USE_DEBUG_TOOLBAR = os.environ.get("USE_DEBUG_TOOLBAR", "False") == "True"
