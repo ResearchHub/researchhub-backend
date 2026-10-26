@@ -154,7 +154,8 @@ class RhCommentModel(
 
         2. **TIPTAP** – `comment_content_json` is a JSON representation of the
            ProseMirror node tree.  We need to recursively walk the tree and
-           concatenate the content of nodes whose ``type`` is ``"text"``.
+           concatenate the content of nodes whose ``type`` is ``"text"``, plus
+           the LaTeX source of ``inlineMath`` and ``blockMath`` nodes.
 
         In addition, the method guards against malformed / unexpected data so
         that property access never raises.
@@ -183,6 +184,12 @@ class RhCommentModel(
                     # If this node is a text node
                     if node.get("type") == "text" and "text" in node:
                         return node.get("text", "")
+
+                    # Math nodes keep their LaTeX source in attrs, not text
+                    if node.get("type") in ("inlineMath", "blockMath"):
+                        attrs = node.get("attrs")
+                        latex = attrs.get("latex") if isinstance(attrs, dict) else None
+                        return latex if isinstance(latex, str) else ""
 
                     # If the node has children, iterate through them
                     children = node.get("content")
