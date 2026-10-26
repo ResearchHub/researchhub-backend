@@ -32,102 +32,105 @@ from user.tests.helpers import create_moderator, create_random_default_user, cre
 
 
 class BountyViewTests(APITestCase):
-    def setUp(self):
-        self.bank_user = create_user(email="bank@researchhub.com")
-        self.user = create_random_default_user("bounty_user")
-        self.user_2 = create_random_default_user("bounty_user_2")
-        self.user_3 = create_random_default_user("bounty_user_3")
-        self.user_4 = create_random_default_user("bounty_user_4")
-        self.user_5 = create_random_default_user("bounty_user_5")
-        self.recipient = create_random_default_user("bounty_recipient")
-        self.moderator = create_moderator(first_name="moderator", last_name="moderator")
-        self.foundation = create_user(email=FOUNDATION_EMAIL)
-        self.foundation.is_official_account = True
-        self.foundation.save(update_fields=["is_official_account"])
+    @classmethod
+    def setUpTestData(cls):
+        cls.bank_user = create_user(email="bank@researchhub.com")
+        cls.user = create_random_default_user("bounty_user")
+        cls.user_2 = create_random_default_user("bounty_user_2")
+        cls.user_3 = create_random_default_user("bounty_user_3")
+        cls.user_4 = create_random_default_user("bounty_user_4")
+        cls.user_5 = create_random_default_user("bounty_user_5")
+        cls.recipient = create_random_default_user("bounty_recipient")
+        cls.moderator = create_moderator(first_name="moderator", last_name="moderator")
+        cls.foundation = create_user(email=FOUNDATION_EMAIL)
+        cls.foundation.is_official_account = True
+        cls.foundation.save(update_fields=["is_official_account"])
 
-        self.rh_official = create_random_default_user("rh_official")
-        self.rh_official.is_official_account = True
-        self.rh_official.save()
+        cls.rh_official = create_random_default_user("rh_official")
+        cls.rh_official.is_official_account = True
+        cls.rh_official.save()
 
-        self.comment = create_rh_comment(created_by=self.recipient)
-        self.child_comment_1 = create_rh_comment(
-            created_by=self.user_5, parent=self.comment
+        cls.comment = create_rh_comment(created_by=cls.recipient)
+        cls.child_comment_1 = create_rh_comment(
+            created_by=cls.user_5, parent=cls.comment
         )
-        self.child_comment_2 = create_rh_comment(
-            created_by=self.user_3, parent=self.comment
+        cls.child_comment_2 = create_rh_comment(
+            created_by=cls.user_3, parent=cls.comment
         )
-        self.child_comment_3 = create_rh_comment(
-            created_by=self.user_4, parent=self.comment
+        cls.child_comment_3 = create_rh_comment(
+            created_by=cls.user_4, parent=cls.comment
         )
-        self.comment.score = 1
-        self.comment.save()
-        self.hub = create_hub(namespace=Hub.Namespace.SUBCATEGORY)
-        self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+        cls.comment.score = 1
+        cls.comment.save()
+        cls.hub = create_hub(namespace=Hub.Namespace.SUBCATEGORY)
+        cls.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
 
-        self._create_vote(self.user, self.comment, Vote.UPVOTE)
-        self._create_vote(self.user_2, self.comment, Vote.UPVOTE)
-        self._create_vote(self.user_3, self.comment, Vote.DOWNVOTE)
-
-        self._authenticate_bounty_manager()
+        cls._create_vote(cls.user, cls.comment, Vote.UPVOTE)
+        cls._create_vote(cls.user_2, cls.comment, Vote.UPVOTE)
+        cls._create_vote(cls.user_3, cls.comment, Vote.DOWNVOTE)
 
         distribution = Dist("REWARD", 1000000000, give_rep=False)
 
         distributor = Distributor(
-            distribution, self.user, self.user, time.time(), self.user
+            distribution, cls.user, cls.user, time.time(), cls.user
         )
         distributor.distribute()
 
         distributor = Distributor(
             distribution,
-            self.rh_official,
-            self.rh_official,
+            cls.rh_official,
+            cls.rh_official,
             time.time(),
-            self.rh_official,
+            cls.rh_official,
         )
         distributor.distribute()
 
         distributor = Distributor(
-            distribution, self.user_2, self.user_2, time.time(), self.user_2
+            distribution, cls.user_2, cls.user_2, time.time(), cls.user_2
         )
         distributor.distribute()
 
         distributor = Distributor(
-            distribution, self.user_3, self.user_3, time.time(), self.user_3
+            distribution, cls.user_3, cls.user_3, time.time(), cls.user_3
         )
         distributor.distribute()
 
         distributor = Distributor(
-            distribution, self.user_4, self.user_4, time.time(), self.user_4
+            distribution, cls.user_4, cls.user_4, time.time(), cls.user_4
         )
         distributor.distribute()
 
         distributor = Distributor(
-            distribution, self.user_5, self.user_5, time.time(), self.user_5
+            distribution, cls.user_5, cls.user_5, time.time(), cls.user_5
         )
         distributor.distribute()
 
         distributor = Distributor(
             distribution,
-            self.foundation,
-            self.foundation,
+            cls.foundation,
+            cls.foundation,
             time.time(),
-            self.foundation,
+            cls.foundation,
         )
         distributor.distribute()
 
         distributor = Distributor(
             distribution,
-            self.moderator,
-            self.moderator,
+            cls.moderator,
+            cls.moderator,
             time.time(),
-            self.moderator,
+            cls.moderator,
         )
         distributor.distribute()
+
+    def setUp(self):
+        self._authenticate_bounty_manager()
 
     def _authenticate_bounty_manager(self, user=None):
         self.client.force_authenticate(user or self.foundation)
 
-    def _create_vote(self, user, item, vote_type):
+    @staticmethod
+    def _create_vote(user, item, vote_type):
         """Helper method to create votes"""
         content_type = ContentType.objects.get_for_model(item)
         vote = Vote.objects.create(
