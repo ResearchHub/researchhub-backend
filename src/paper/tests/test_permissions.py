@@ -4,14 +4,14 @@ from rest_framework.test import APITestCase
 
 from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
-from .helpers import create_paper
+from .helpers import add_to_journal, create_paper
 
 
 class PaperPermissionsIntegrationTests(APITestCase):
     def setUp(self):
         self.random_generator = random.Random("paper")
         self.base_url = "/api/paper/"
-        self.paper = create_paper()
+        self.paper = add_to_journal(create_paper())
         self.flag_reason = "Inappropriate"
 
     def test_can_flag_paper_with_minimum_reputation(self):

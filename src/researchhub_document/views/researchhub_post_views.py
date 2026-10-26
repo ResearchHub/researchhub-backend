@@ -55,6 +55,7 @@ from researchhub_document.serializers.registered_report_work_serializer import (
 from researchhub_document.serializers.researchhub_post_serializer import (
     RegisteredReportPublishSerializer,
     ResearchhubPostSerializer,
+    ResearchhubPostSitemapSerializer,
 )
 from researchhub_document.services.journal_entry_service import JournalEntryService
 from researchhub_document.services.journey_service import JourneyService
@@ -84,6 +85,12 @@ class ChangelogPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+class SitemapPagination(PageNumberPagination):
+    page_size = 1000
+    page_size_query_param = "page_size"
+    max_page_size = 1000
 
 
 class ResearchhubPostViewSet(
@@ -189,6 +196,28 @@ class ResearchhubPostViewSet(
             .first()
         )
         return Response(latest)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        pagination_class=SitemapPagination,
+    )
+    def sitemap(self, request: Request) -> Response:
+        """List public posts of one document type with only their URL fields."""
+        document_type = request.query_params.get("document_type")
+        if document_type not in RESEARCHHUB_POST_DOCUMENT_TYPES:
+            return Response(
+                {"detail": "A valid post document_type is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        posts = ResearchhubPost.objects.public_sitemap_entries(document_type).only(
+            "id", "slug", "updated_date"
+        )
+        page = self.paginate_queryset(posts)
+        serializer = ResearchhubPostSitemapSerializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
 
     @action(detail=True, methods=["get"])
     def registered_report_work(
@@ -318,6 +347,10 @@ class ResearchhubPostViewSet(
                 query_set = query_set.filter(id=post_id)
             if document_type is not None:
                 query_set = query_set.filter(document_type=document_type)
+            # Removed posts stay reachable by id so moderators and authors can
+            # still open and act on them; only listings leave them out.
+            if self.action == "list":
+                query_set = query_set.filter(unified_document__is_removed=False)
 
             return query_set.order_by("-created_date")
         except (KeyError, TypeError) as exception:
@@ -538,10 +571,7 @@ class ResearchhubPostViewSet(
                     GrantCacheMixin.invalidate_grant_feed_cache()
 
                 if not TESTING:
-                    if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                        rh_post.discussion_src.save(file_name, full_src_file)
-                    else:
-                        rh_post.eln_src.save(file_name, full_src_file)
+                    rh_post.discussion_src.save(file_name, full_src_file)
 
                 unified_document.update_filters(
                     (

@@ -71,6 +71,7 @@ def _price(
 # - OpenAI GPT-6 models: https://developers.openai.com/api/docs/models
 # OpenRouter rows rechecked against the live catalog 2026-10-06; GPT-6.1 Sol,
 # Grok 4.7, Muse Spark 1.3 and MiMo-V2.6-Pro added and Kimi K3 rechecked 2026-10-10.
+# Kimi K3.1 Pro added 2026-10-26 at Moonshot's standard (non-priority) rates.
 # Prices are keyed by the same normalized ids as model capabilities. Historical
 # ledger rows retain the charge applied when their request completed.
 _CLAUDE_PLATFORM_PRICING = {
@@ -176,6 +177,7 @@ _OPENROUTER_PRICING = {
     "deepseek/deepseek-v4-flash-0731": _price("0.0055", "1.28", "0.0055", "0.0055"),
     "deepseek/deepseek-v4-pro-0813": _price("0.66", "1.98", "0.022", "0.66"),
     "moonshotai/kimi-k3": _price("0.80", "15", "0.55", "0.80"),
+    "moonshotai/kimi-k3.1-pro": _price("2", "10", "0.20", "2"),
     "xiaomi/mimo-v2.6-pro": _price("0.435", "0.87", "0.0036", "0.435"),
     "qwen/qwen3.8-max-0902": _price("2", "6", "0.25", "2.50"),
 }
