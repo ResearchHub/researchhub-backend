@@ -50,6 +50,19 @@ class BedrockLLMServiceTests(SimpleTestCase):
         self.assertEqual(ic, {"maxTokens": 50})
 
     @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
+    def test_invoke_omits_temperature_for_haiku_5_5(self, mock_create_client):
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.converse.return_value = {
+            "output": {"message": {"content": [{"text": "x"}]}}
+        }
+        svc = BedrockLLMService()
+        svc.model_id = "us.anthropic.claude-haiku-5-5"
+        svc.invoke("s", "u", max_tokens=50, temperature=0.1)
+        ic = mock_client.converse.call_args.kwargs["inferenceConfig"]
+        self.assertEqual(ic, {"maxTokens": 50})
+
+    @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
     def test_invoke_raises_on_client_error(self, mock_create_client):
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
@@ -98,6 +111,7 @@ class OpenAIReviewContextServiceTests(SimpleTestCase):
         kwargs = mock_client.responses.create.call_args.kwargs
         self.assertEqual(kwargs["tools"], [{"type": "web_search"}])
         self.assertEqual(kwargs["max_output_tokens"], 512)
+        self.assertNotIn("temperature", kwargs)
         mock_client.chat.completions.create.assert_not_called()
 
     @override_settings(OPENAI_API_KEY="sk-test")

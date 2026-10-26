@@ -36,9 +36,9 @@ from utils.aws import bedrock_runtime_client
 logger = logging.getLogger(__name__)
 
 # Default generator model. Bedrock requires the cross-region inference profile
-# (the ``us.`` prefix); the bare ``anthropic.claude-opus-5`` is provisioned-
-# throughput only. Callers that want a different model pass ``model_id``.
-MODEL_ID = "us.anthropic.claude-opus-5"
+# (the ``us.`` prefix); the bare ``anthropic.claude-opus-5-5`` serves only
+# in-Region from eu-west-2. Callers that want a different model pass ``model_id``.
+MODEL_ID = "us.anthropic.claude-opus-5-5"
 
 # What ``max_tokens=None`` resolves to. Deliberately below the model's 128K
 # ceiling: ``converse`` is not streamed, so a longer emission would outlive the
@@ -66,14 +66,15 @@ _IMAGE_FORMATS = {
     "image/webp": "webp",
 }
 
-# Opus 4.7+, Sonnet 5, and Fable reject sampling params (temperature/top_p/
-# top_k) with a 400 ("`temperature` is deprecated for this model"). Match by
-# substring so the provider omits them for those models.
+# Opus 4.7+, Sonnet 5, Haiku 5.5, and Fable reject sampling params
+# (temperature/top_p/top_k) with a 400 ("`temperature` is deprecated for this
+# model"). Match by substring so the provider omits them for those models.
 _NO_SAMPLING_PARAMS = (
     "opus-4-7",
     "opus-4-8",
     "opus-5",
     "sonnet-5",
+    "haiku-5",
     "fable",
     "mythos",
 )

@@ -33,7 +33,7 @@ class GeneratorModelRefTests(SimpleTestCase):
         ref = generator_model_ref()
 
         # Assert
-        self.assertEqual(ref, "bedrock:us.anthropic.claude-opus-5")
+        self.assertEqual(ref, "bedrock:us.anthropic.claude-opus-5-5")
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="openrouter")
     def test_openrouter_ref_carries_provider_prefix(self):
@@ -41,7 +41,7 @@ class GeneratorModelRefTests(SimpleTestCase):
         ref = generator_model_ref()
 
         # Assert
-        self.assertEqual(ref, "openrouter:anthropic/claude-opus-5")
+        self.assertEqual(ref, "openrouter:anthropic/claude-opus-5.5")
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="acme")
     def test_unknown_provider_name_raises(self):

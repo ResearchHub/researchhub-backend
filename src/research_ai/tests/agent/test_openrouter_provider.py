@@ -446,16 +446,20 @@ class CompleteRequestTests(SimpleTestCase):
         self.assertNotIn("tools", provider._client.calls[0])
 
     def test_sampling_params_omitted_for_models_that_reject_them(self):
-        # Arrange
-        provider = _build_provider(
-            [_response(content="ok")], model_id="anthropic/claude-opus-5"
-        )
+        for model_id in (
+            "anthropic/claude-opus-5",
+            "anthropic/claude-opus-5.5",
+            "moonshotai/kimi-k3.1-pro",
+        ):
+            with self.subTest(model_id=model_id):
+                # Arrange
+                provider = _build_provider([_response(content="ok")], model_id=model_id)
 
-        # Act
-        _complete(provider)
+                # Act
+                _complete(provider)
 
-        # Assert
-        self.assertNotIn("temperature", provider._client.calls[0])
+                # Assert
+                self.assertNotIn("temperature", provider._client.calls[0])
 
     def test_gpt6_tool_calls_use_no_reasoning_and_no_sampling(self):
         # Arrange
@@ -777,12 +781,12 @@ class ErrorTests(SimpleTestCase):
 
 
 class DefaultsTests(SimpleTestCase):
-    def test_model_id_defaults_to_opus_5(self):
+    def test_model_id_defaults_to_opus_5_5(self):
         # Arrange / Act
         provider = _build_provider(model_id=None)
 
         # Assert
-        self.assertEqual(provider.model_id, "anthropic/claude-opus-5")
+        self.assertEqual(provider.model_id, "anthropic/claude-opus-5.5")
 
     def test_round_trip_arguments_encoding(self):
         # Arrange: an assistant tool call rendered then a result echoing its id.

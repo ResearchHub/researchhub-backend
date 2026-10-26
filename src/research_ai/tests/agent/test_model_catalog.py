@@ -100,6 +100,7 @@ class AvailableModelsTests(SimpleTestCase):
             "openrouter:openai/gpt-6-sol": (),
             "openrouter:openai/gpt-6-luna": (),
             "openrouter:qwen/qwen3.8-max-0902": ("adaptive",),
+            "openrouter:moonshotai/kimi-k3.1-pro": ("adaptive",),
         }
 
         # Act / Assert
@@ -109,6 +110,15 @@ class AvailableModelsTests(SimpleTestCase):
                 self.assertEqual(validate_model_ref(ref), ref)
                 self.assertEqual(capabilities.thinking, thinking)
                 self.assertIsNotNone(capabilities.max_output_tokens)
+
+    def test_mandatory_reasoning_models_on_openrouter_omit_temperature(self):
+        # Arrange / Act / Assert
+        for model_id in ("anthropic/claude-opus-5.5", "moonshotai/kimi-k3.1-pro"):
+            with self.subTest(model_id=model_id):
+                capabilities = model_capabilities("openrouter", model_id)
+                self.assertEqual(capabilities.thinking, ("adaptive",))
+                self.assertFalse(capabilities.temperature)
+                self.assertTrue(capabilities.vision)
 
     def test_gpt6_chat_completions_controls_are_tool_compatible(self):
         # Arrange / Act / Assert
@@ -137,6 +147,7 @@ class AvailableModelsTests(SimpleTestCase):
             "openrouter:openai/gpt-5.6-luna",
             "openrouter:google/gemini-3.8-flash",
             "openrouter:x-ai/grok-4.6",
+            "openrouter:moonshotai/kimi-k3",
             "openrouter:z-ai/glm-5.3-flash",
             "openrouter:deepseek/deepseek-v4-flash-0731",
             "openrouter:deepseek/deepseek-v4-pro-0813",
@@ -154,7 +165,7 @@ class AvailableModelsTests(SimpleTestCase):
                 "openrouter:openai/gpt-6.1-sol",
                 "openrouter:x-ai/grok-4.7",
                 "openrouter:meta/muse-spark-1.3",
-                "openrouter:moonshotai/kimi-k3",
+                "openrouter:moonshotai/kimi-k3.1-pro",
                 "openrouter:xiaomi/mimo-v2.6-pro",
             ],
         )
@@ -166,14 +177,14 @@ class AvailableModelsTests(SimpleTestCase):
                 )
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
-    def test_retired_bedrock_default_is_not_reinserted(self):
+    def test_bedrock_default_is_not_reinserted(self):
         # Act / Assert
         self.assertNotIn(
             default_model_ref(), {option.ref for option in available_models()}
         )
 
     @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="openrouter")
-    def test_retired_openrouter_default_is_not_reinserted(self):
+    def test_openrouter_default_is_not_reinserted(self):
         # Act / Assert
         self.assertNotIn(
             default_model_ref(), {option.ref for option in available_models()}

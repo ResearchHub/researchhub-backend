@@ -6,7 +6,7 @@ from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+_DEFAULT_MODEL = "us.anthropic.claude-haiku-5-5"
 
 BEDROCK_MODEL_ID = getattr(
     settings,
@@ -14,7 +14,7 @@ BEDROCK_MODEL_ID = getattr(
     _DEFAULT_MODEL,
 )
 
-_BEDROCK_OMIT_TEMPERATURE_SUBSTRINGS: tuple[str, ...] = ("opus-4-7",)
+_BEDROCK_OMIT_TEMPERATURE_SUBSTRINGS: tuple[str, ...] = ("opus-4-7", "haiku-5")
 
 
 def _converse_inference_config(

@@ -51,7 +51,8 @@ class OpenAIExpertFinderServiceTests(TestCase):
         self.assertEqual(kwargs["input"], "Find experts.")
         self.assertEqual(kwargs["tools"], [{"type": "web_search"}])
         self.assertEqual(kwargs["max_output_tokens"], 4096)
-        self.assertEqual(kwargs["temperature"], 0.1)
+        # GPT-6 models reject sampling params, so temperature is not sent.
+        self.assertNotIn("temperature", kwargs)
         mock_client.chat.completions.create.assert_not_called()
 
     @override_settings(OPENAI_API_KEY="sk-test")

@@ -5,7 +5,10 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-OPENAI_EXPERT_FINDER_MODEL = "gpt-5.4-mini"
+OPENAI_EXPERT_FINDER_MODEL = "gpt-6-luna"
+
+# GPT-6 models reason by default and reject sampling params with a 400.
+_NO_SAMPLING_PREFIXES: tuple[str, ...] = ("gpt-6",)
 
 
 class OpenAIExpertFinderService:
@@ -64,13 +67,16 @@ class OpenAIExpertFinderService:
         max_tokens: int,
         temperature: float,
     ) -> str:
+        kwargs: dict = {}
+        if not self.model_id.startswith(_NO_SAMPLING_PREFIXES):
+            kwargs["temperature"] = temperature
         response = self._client.responses.create(
             model=self.model_id,
             instructions=system_prompt,
             input=user_prompt,
             tools=[{"type": "web_search"}],
             max_output_tokens=max_tokens,
-            temperature=temperature,
+            **kwargs,
         )
         text = (response.output_text or "").strip()
         if not text:

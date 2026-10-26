@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 MAX_IMAGES_PER_BEDROCK_REQUEST = 20
 
-BEDROCK_MODEL_ID = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+BEDROCK_MODEL_ID = "us.anthropic.claude-haiku-5-5"
 BEDROCK_ANTHROPIC_VERSION = "bedrock-2023-05-31"
 
 # Figure selection criteria weights
@@ -551,9 +551,10 @@ on other criteria."""
                 toolConfig={
                     "tools": tools,
                 },
+                # Haiku 5.5 thinks by default, and thinking counts toward
+                # maxTokens; it also rejects any non-default temperature.
                 inferenceConfig={
-                    "maxTokens": 4096,
-                    "temperature": 0.0,
+                    "maxTokens": 8192,
                 },
             )
 
