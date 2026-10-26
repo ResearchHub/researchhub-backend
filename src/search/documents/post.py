@@ -97,6 +97,10 @@ class PostDocument(BaseDocument):
 
     class Index:
         name = "post"
+        settings = {
+            "number_of_shards": 1,
+            "auto_expand_replicas": "0-2",
+        }
 
     class Django:
         model = ResearchhubPost

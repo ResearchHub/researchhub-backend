@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -18,7 +18,7 @@ from purchase.models import Fundraise
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee, BountySolution, Distribution
+from reputation.models import Bounty, BountyFee, BountySolution, Distribution, Escrow
 from reputation.tasks import check_open_bounties
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -32,102 +32,108 @@ from user.tests.helpers import create_moderator, create_random_default_user, cre
 
 
 class BountyViewTests(APITestCase):
-    def setUp(self):
-        self.bank_user = create_user(email="bank@researchhub.com")
-        self.user = create_random_default_user("bounty_user")
-        self.user_2 = create_random_default_user("bounty_user_2")
-        self.user_3 = create_random_default_user("bounty_user_3")
-        self.user_4 = create_random_default_user("bounty_user_4")
-        self.user_5 = create_random_default_user("bounty_user_5")
-        self.recipient = create_random_default_user("bounty_recipient")
-        self.moderator = create_moderator(first_name="moderator", last_name="moderator")
-        self.foundation = create_user(email=FOUNDATION_EMAIL)
-        self.foundation.is_official_account = True
-        self.foundation.save(update_fields=["is_official_account"])
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
 
-        self.rh_official = create_random_default_user("rh_official")
-        self.rh_official.is_official_account = True
-        self.rh_official.save()
+        cls.bank_user = create_user(email="bank@researchhub.com")
+        cls.user = create_random_default_user("bounty_user")
+        cls.user_2 = create_random_default_user("bounty_user_2")
+        cls.user_3 = create_random_default_user("bounty_user_3")
+        cls.user_4 = create_random_default_user("bounty_user_4")
+        cls.user_5 = create_random_default_user("bounty_user_5")
+        cls.recipient = create_random_default_user("bounty_recipient")
+        cls.moderator = create_moderator(first_name="moderator", last_name="moderator")
+        cls.foundation = create_user(email=FOUNDATION_EMAIL)
+        cls.foundation.is_official_account = True
+        cls.foundation.save(update_fields=["is_official_account"])
 
-        self.comment = create_rh_comment(created_by=self.recipient)
-        self.child_comment_1 = create_rh_comment(
-            created_by=self.user_5, parent=self.comment
+        cls.rh_official = create_random_default_user("rh_official")
+        cls.rh_official.is_official_account = True
+        cls.rh_official.save()
+
+        cls.comment = create_rh_comment(created_by=cls.recipient)
+        cls.child_comment_1 = create_rh_comment(
+            created_by=cls.user_5, parent=cls.comment
         )
-        self.child_comment_2 = create_rh_comment(
-            created_by=self.user_3, parent=self.comment
+        cls.child_comment_2 = create_rh_comment(
+            created_by=cls.user_3, parent=cls.comment
         )
-        self.child_comment_3 = create_rh_comment(
-            created_by=self.user_4, parent=self.comment
+        cls.child_comment_3 = create_rh_comment(
+            created_by=cls.user_4, parent=cls.comment
         )
-        self.comment.score = 1
-        self.comment.save()
-        self.hub = create_hub(namespace=Hub.Namespace.SUBCATEGORY)
-        self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+        cls.comment.score = 1
+        cls.comment.save()
+        cls.hub = create_hub(namespace=Hub.Namespace.SUBCATEGORY)
+        cls.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
 
-        self._create_vote(self.user, self.comment, Vote.UPVOTE)
-        self._create_vote(self.user_2, self.comment, Vote.UPVOTE)
-        self._create_vote(self.user_3, self.comment, Vote.DOWNVOTE)
-
-        self._authenticate_bounty_manager()
+        cls._create_vote(cls.user, cls.comment, Vote.UPVOTE)
+        cls._create_vote(cls.user_2, cls.comment, Vote.UPVOTE)
+        cls._create_vote(cls.user_3, cls.comment, Vote.DOWNVOTE)
 
         distribution = Dist("REWARD", 1000000000, give_rep=False)
 
         distributor = Distributor(
-            distribution, self.user, self.user, time.time(), self.user
+            distribution, cls.user, cls.user, time.time(), cls.user
         )
         distributor.distribute()
 
         distributor = Distributor(
             distribution,
-            self.rh_official,
-            self.rh_official,
+            cls.rh_official,
+            cls.rh_official,
             time.time(),
-            self.rh_official,
+            cls.rh_official,
         )
         distributor.distribute()
 
         distributor = Distributor(
-            distribution, self.user_2, self.user_2, time.time(), self.user_2
+            distribution, cls.user_2, cls.user_2, time.time(), cls.user_2
         )
         distributor.distribute()
 
         distributor = Distributor(
-            distribution, self.user_3, self.user_3, time.time(), self.user_3
+            distribution, cls.user_3, cls.user_3, time.time(), cls.user_3
         )
         distributor.distribute()
 
         distributor = Distributor(
-            distribution, self.user_4, self.user_4, time.time(), self.user_4
+            distribution, cls.user_4, cls.user_4, time.time(), cls.user_4
         )
         distributor.distribute()
 
         distributor = Distributor(
-            distribution, self.user_5, self.user_5, time.time(), self.user_5
+            distribution, cls.user_5, cls.user_5, time.time(), cls.user_5
         )
         distributor.distribute()
 
         distributor = Distributor(
             distribution,
-            self.foundation,
-            self.foundation,
+            cls.foundation,
+            cls.foundation,
             time.time(),
-            self.foundation,
+            cls.foundation,
         )
         distributor.distribute()
 
         distributor = Distributor(
             distribution,
-            self.moderator,
-            self.moderator,
+            cls.moderator,
+            cls.moderator,
             time.time(),
-            self.moderator,
+            cls.moderator,
         )
         distributor.distribute()
+
+    def setUp(self):
+        super().setUp()
+        self._authenticate_bounty_manager()
 
     def _authenticate_bounty_manager(self, user=None):
         self.client.force_authenticate(user or self.foundation)
 
-    def _create_vote(self, user, item, vote_type):
+    @staticmethod
+    def _create_vote(user, item, vote_type):
         """Helper method to create votes"""
         content_type = ContentType.objects.get_for_model(item)
         vote = Vote.objects.create(
@@ -1074,6 +1080,26 @@ class BountyViewTests(APITestCase):
         # Assert
         self.assertEqual(res.data["results"][0]["id"], larger_amount_id)
 
+    def test_sort_bounties_by_newest_alias(self):
+        # Arrange
+        self._authenticate_bounty_manager()
+        paper_id, proposal_id = self._create_paper_and_proposal_bounties()
+
+        # Act
+        res = self.client.get("/api/bounty/", {"sort": "newest"})
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        ids = [b["id"] for b in res.data["results"]]
+        self.assertLess(ids.index(proposal_id), ids.index(paper_id))
+
+    def test_list_rejects_unknown_sort(self):
+        # Act
+        res = self.client.get("/api/bounty/", {"sort": "amount"})
+
+        # Assert
+        self.assertEqual(res.status_code, 400)
+
     def test_user_vote_included_in_bounty_response(self):
         """Test that user's vote is correctly included in bounty serialization"""
         # Arrange
@@ -1926,49 +1952,52 @@ class BountyViewTests(APITestCase):
 class BountyAssessmentPhaseTests(APITestCase):
     """Tests for the bounty assessment phase functionality."""
 
-    def setUp(self):
-        self.bank_user = create_user(email="bank@researchhub.com")
-        self.user = create_random_default_user("assessment_user")
-        self.user_2 = create_random_default_user("assessment_user_2")
-        self.recipient = create_random_default_user("assessment_recipient")
-        self.foundation = create_user(email=FOUNDATION_EMAIL)
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
 
-        self.comment = create_rh_comment(created_by=self.recipient)
-        self.child_comment = create_rh_comment(
-            created_by=self.user_2, parent=self.comment
-        )
-        self.hub = create_hub()
-        self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+        # Arrange
+        cls.bank_user = create_user(email="bank@researchhub.com")
+        cls.user = create_random_default_user("assessment_user")
+        cls.user_2 = create_random_default_user("assessment_user_2")
+        cls.recipient = create_random_default_user("assessment_recipient")
+        cls.foundation = create_user(email=FOUNDATION_EMAIL)
+
+        cls.comment = create_rh_comment(created_by=cls.recipient)
+        cls.child_comment = create_rh_comment(created_by=cls.user_2, parent=cls.comment)
+        cls.hub = create_hub()
+        cls.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
 
         distribution = Dist("REWARD", 1000000000, give_rep=False)
         distributor = Distributor(
-            distribution, self.user, self.user, time.time(), self.user
+            distribution, cls.user, cls.user, time.time(), cls.user
         )
         distributor.distribute()
 
         distributor = Distributor(
-            distribution, self.user_2, self.user_2, time.time(), self.user_2
+            distribution, cls.user_2, cls.user_2, time.time(), cls.user_2
         )
         distributor.distribute()
 
         distributor = Distributor(
             distribution,
-            self.foundation,
-            self.foundation,
+            cls.foundation,
+            cls.foundation,
             time.time(),
-            self.foundation,
+            cls.foundation,
         )
         distributor.distribute()
 
     def _authenticate_bounty_manager(self, user=None):
         self.client.force_authenticate(user or self.foundation)
 
-    def _create_bounty(self, amount=100, expiration_date=None):
+    def _create_bounty(self, amount=100, expiration_date=None, item=None):
         """Helper to create a bounty."""
+        item = item or self.comment
         data = {
             "amount": amount,
-            "item_content_type": self.comment._meta.model_name,
-            "item_object_id": self.comment.id,
+            "item_content_type": item._meta.model_name,
+            "item_object_id": item.id,
         }
         if expiration_date:
             data["expiration_date"] = expiration_date.isoformat()
@@ -2030,6 +2059,194 @@ class BountyAssessmentPhaseTests(APITestCase):
         # Verify refund was issued
         final_foundation_balance = self.foundation.get_balance()
         self.assertGreater(final_foundation_balance, initial_foundation_balance)
+
+    def _create_assessment_bounty(self, amount=100, item=None):
+        self._authenticate_bounty_manager()
+        bounty_res = self._create_bounty(amount=amount, item=item)
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty = Bounty.objects.get(id=bounty_res.data["id"])
+        bounty.status = Bounty.ASSESSMENT
+        bounty.assessment_end_date = datetime.now(UTC) + timedelta(days=5)
+        bounty.save()
+        return bounty
+
+    def _end_assessment(self, bounty):
+        bounty.assessment_end_date = datetime.now(UTC) - timedelta(hours=1)
+        bounty.save(update_fields=["assessment_end_date"])
+
+    def _add_funder(self, bounty, user, amount):
+        Bounty.objects.create(
+            parent=bounty,
+            escrow=bounty.escrow,
+            amount=amount,
+            created_by=user,
+            item=bounty.item,
+            unified_document=bounty.unified_document,
+            status=bounty.status,
+        )
+        Escrow.objects.filter(id=bounty.escrow_id).update(
+            amount_holding=F("amount_holding") + amount
+        )
+
+    def test_bounty_with_fractional_remainder_expires_and_refunds_remainder(self):
+        """A partial award leaving a fractional remainder must not block expiry."""
+        # Arrange
+        bounty = self._create_assessment_bounty(amount=100)
+        award_res = self.client.post(
+            f"/api/bounty/{bounty.id}/approve_bounty/",
+            [
+                {
+                    "amount": "33.5",
+                    "object_id": self.child_comment.id,
+                    "content_type": self.child_comment._meta.model_name,
+                }
+            ],
+        )
+        self.assertEqual(award_res.status_code, 200)
+        self._end_assessment(bounty)
+        initial_foundation_balance = self.foundation.get_balance()
+
+        # Act
+        check_open_bounties()
+
+        # Assert
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.EXPIRED)
+        self.assertEqual(bounty.escrow.amount_holding, 0)
+        self.assertEqual(bounty.escrow.status, Escrow.EXPIRED)
+        self.assertEqual(
+            self.foundation.get_balance() - initial_foundation_balance,
+            decimal.Decimal("66.5"),
+        )
+
+    def test_multi_funder_bounty_with_fractional_remainder_refunds_each_funder(self):
+        """Funders' shares of a fractional remainder never exceed the escrow."""
+        # Arrange
+        bounty = self._create_assessment_bounty(amount=100)
+        self._add_funder(bounty, self.user_2, 50)
+        Escrow.objects.filter(id=bounty.escrow_id).update(
+            amount_holding=decimal.Decimal("116.5")
+        )
+        self._end_assessment(bounty)
+        initial_foundation_balance = self.foundation.get_balance()
+        initial_user_2_balance = self.user_2.get_balance()
+
+        # Act
+        check_open_bounties()
+
+        # Assert
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.EXPIRED)
+        self.assertEqual(bounty.children.get().status, Bounty.EXPIRED)
+        foundation_refund = self.foundation.get_balance() - initial_foundation_balance
+        user_2_refund = self.user_2.get_balance() - initial_user_2_balance
+        self.assertAlmostEqual(foundation_refund, decimal.Decimal("77.6666666666"))
+        self.assertAlmostEqual(user_2_refund, decimal.Decimal("38.8333333333"))
+        self.assertLessEqual(
+            bounty.escrow.amount_holding, decimal.Decimal("0.0000000001")
+        )
+
+    def test_failed_refund_rolls_back_refunds_to_other_funders(self):
+        """If one funder's refund fails, no funder is refunded, so retries are safe."""
+        # Arrange
+        bounty = self._create_assessment_bounty(amount=100)
+        self._add_funder(bounty, self.user_2, 50)
+        self._end_assessment(bounty)
+        initial_foundation_balance = self.foundation.get_balance()
+        original_refund = Escrow.refund
+        calls = []
+
+        def refund_fails_for_second_funder(escrow, recipient, amount, **kwargs):
+            calls.append(recipient)
+            if len(calls) == 2:
+                return False
+            return original_refund(escrow, recipient, amount, **kwargs)
+
+        # Act
+        with patch.object(
+            Escrow,
+            "refund",
+            autospec=True,
+            side_effect=refund_fails_for_second_funder,
+        ):
+            closed = bounty.close(Bounty.EXPIRED)
+
+        # Assert
+        self.assertFalse(closed)
+        self.assertEqual(len(calls), 2)
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.ASSESSMENT)
+        self.assertEqual(bounty.escrow.amount_holding, 150)
+        self.assertEqual(self.foundation.get_balance(), initial_foundation_balance)
+
+    def test_failed_refund_logs_only_the_failing_bounty(self):
+        """The task logs the failing bounty's id and still expires the others."""
+        # Arrange
+        failing = self._create_assessment_bounty()
+        healthy = self._create_assessment_bounty(
+            item=create_rh_comment(created_by=self.recipient)
+        )
+        self._end_assessment(failing)
+        self._end_assessment(healthy)
+        original_close = Bounty.close
+
+        def close_fails_for_one_bounty(bounty, status):
+            if bounty.id == failing.id:
+                return False
+            return original_close(bounty, status)
+
+        # Act
+        with (
+            patch.object(
+                Bounty,
+                "close",
+                autospec=True,
+                side_effect=close_fails_for_one_bounty,
+            ),
+            self.assertLogs("reputation.tasks", level="ERROR") as logs,
+        ):
+            check_open_bounties()
+
+        # Assert
+        self.assertEqual(len(logs.records), 1)
+        self.assertEqual(logs.records[0].args[0], failing.id)
+        failing.refresh_from_db()
+        healthy.refresh_from_db()
+        self.assertEqual(failing.status, Bounty.ASSESSMENT)
+        self.assertEqual(healthy.status, Bounty.EXPIRED)
+
+    def test_error_closing_one_bounty_does_not_stop_the_others(self):
+        """An exception on one bounty is logged and the rest still expire."""
+        # Arrange
+        broken = self._create_assessment_bounty()
+        healthy = self._create_assessment_bounty(
+            item=create_rh_comment(created_by=self.recipient)
+        )
+        self._end_assessment(broken)
+        self._end_assessment(healthy)
+        original_close = Bounty.close
+
+        def close_raises_for_one_bounty(bounty, status):
+            if bounty.id == broken.id:
+                raise decimal.InvalidOperation
+            return original_close(bounty, status)
+
+        # Act
+        with (
+            patch.object(
+                Bounty,
+                "close",
+                autospec=True,
+                side_effect=close_raises_for_one_bounty,
+            ),
+            self.assertLogs("reputation.tasks", level="ERROR") as logs,
+        ):
+            check_open_bounties()
+
+        # Assert
+        self.assertEqual(logs.records[0].args[0], broken.id)
+        healthy.refresh_from_db()
+        self.assertEqual(healthy.status, Bounty.EXPIRED)
 
     def test_creator_can_award_during_assessment_phase(self):
         """Test that bounty creator can award solutions during ASSESSMENT phase."""

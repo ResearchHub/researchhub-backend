@@ -35,60 +35,57 @@ User = get_user_model()
 
 
 class FundingFeedViewSetTests(AWSMockTestCase):
-    def setUp(self):
-        super().setUp()
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
 
-        self.user = User.objects.create_user(
+        cls.user = User.objects.create_user(
             username="testuser", password=uuid.uuid4().hex
         )
-        self.unified_document = ResearchhubUnifiedDocument.objects.create(
+        cls.unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        self.hub = Hub.objects.create(
+        cls.hub = Hub.objects.create(
             name="Test Hub",
         )
 
         # Create a preregistration post
-        self.post = ResearchhubPost.objects.create(
+        cls.post = ResearchhubPost.objects.create(
             title="Test Preregistration",
-            created_by=self.user,
+            created_by=cls.user,
             document_type=PREREGISTRATION,
             renderable_text="This is a test preregistration post",
             slug="test-preregistration",
-            unified_document=self.unified_document,
+            unified_document=cls.unified_document,
             created_date=timezone.now(),
             score=11,
         )
 
-        # Set up API client
-        self.client = APIClient()
-        self.client.force_authenticate(user=self.user)
-
         # Create another user and their content for testing
-        self.other_user = User.objects.create_user(
+        cls.other_user = User.objects.create_user(
             username="otheruser", password=uuid.uuid4().hex
         )
-        self.other_unified_document = ResearchhubUnifiedDocument.objects.create(
+        cls.other_unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        self.other_hub = Hub.objects.create(name="Other Hub")
-        self.other_unified_document.hubs.add(self.other_hub)
+        cls.other_hub = Hub.objects.create(name="Other Hub")
+        cls.other_unified_document.hubs.add(cls.other_hub)
 
         # Create another preregistration post
-        self.other_post = ResearchhubPost.objects.create(
+        cls.other_post = ResearchhubPost.objects.create(
             title="Other Preregistration",
-            created_by=self.other_user,
+            created_by=cls.other_user,
             document_type=PREREGISTRATION,
             renderable_text="This is another test preregistration post",
             slug="other-preregistration",
-            unified_document=self.other_unified_document,
+            unified_document=cls.other_unified_document,
             created_date=timezone.now(),
         )
 
         # Create a grant for testing applications
-        self.grant = Grant.objects.create(
-            created_by=self.user,
-            unified_document=self.unified_document,
+        cls.grant = Grant.objects.create(
+            created_by=cls.user,
+            unified_document=cls.unified_document,
             amount=1000,
             currency=USD,
             organization="Test Organization",
@@ -97,35 +94,35 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         )
 
         # Create a non-preregistration post (should not appear in feed)
-        self.non_preregistration_document = ResearchhubUnifiedDocument.objects.create(
+        cls.non_preregistration_document = ResearchhubUnifiedDocument.objects.create(
             document_type="DISCUSSION"
         )
-        self.non_preregistration_post = ResearchhubPost.objects.create(
+        cls.non_preregistration_post = ResearchhubPost.objects.create(
             title="Discussion Post",
-            created_by=self.user,
+            created_by=cls.user,
             document_type="DISCUSSION",
             renderable_text="This is a discussion post, not a preregistration",
             slug="discussion-post",
-            unified_document=self.non_preregistration_document,
+            unified_document=cls.non_preregistration_document,
             created_date=timezone.now(),
         )
 
         # Create a removed document (should not appear in feed)
-        self.removed_document = ResearchhubUnifiedDocument.objects.create(
+        cls.removed_document = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION, is_removed=True
         )
-        self.removed_post = ResearchhubPost.objects.create(
+        cls.removed_post = ResearchhubPost.objects.create(
             title="Removed Preregistration",
-            created_by=self.user,
+            created_by=cls.user,
             document_type=PREREGISTRATION,
             renderable_text="This is a removed preregistration post",
             slug="removed-preregistration",
-            unified_document=self.removed_document,
+            unified_document=cls.removed_document,
             created_date=timezone.now(),
         )
 
         # Create an exchange rate for converting currency
-        self.exchange_rate = RscExchangeRate.objects.create(
+        cls.exchange_rate = RscExchangeRate.objects.create(
             price_source=COIN_GECKO,
             rate=3.0,
             real_rate=3.0,
@@ -134,37 +131,41 @@ class FundingFeedViewSetTests(AWSMockTestCase):
 
         # Create fundraises for testing the fundraise_status filter
         # Create an open fundraise for the first post
-        self.escrow1 = Escrow.objects.create(
+        cls.escrow1 = Escrow.objects.create(
             amount_holding=0,
             hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
+            created_by=cls.user,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=self.unified_document.id,
+            object_id=cls.unified_document.id,
         )
-        self.open_fundraise = Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=self.unified_document,
-            escrow=self.escrow1,
+        cls.open_fundraise = Fundraise.objects.create(
+            created_by=cls.user,
+            unified_document=cls.unified_document,
+            escrow=cls.escrow1,
             status=Fundraise.OPEN,
             goal_amount=100,
         )
 
         # Create a completed fundraise for the second post
-        self.escrow2 = Escrow.objects.create(
+        cls.escrow2 = Escrow.objects.create(
             amount_holding=0,
             hold_type=Escrow.FUNDRAISE,
-            created_by=self.other_user,
+            created_by=cls.other_user,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=self.other_unified_document.id,
+            object_id=cls.other_unified_document.id,
         )
-        self.closed_fundraise = Fundraise.objects.create(
-            created_by=self.other_user,
-            unified_document=self.other_unified_document,
-            escrow=self.escrow2,
+        cls.closed_fundraise = Fundraise.objects.create(
+            created_by=cls.other_user,
+            unified_document=cls.other_unified_document,
+            escrow=cls.escrow2,
             status=Fundraise.COMPLETED,
             goal_amount=100,
         )
 
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
         cache.clear()
 
     def test_delete_is_not_allowed_for_anonymous_users(self) -> None:

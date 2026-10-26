@@ -81,12 +81,21 @@ LOGGING = {
             "exc_info_as_array": True,
             "stack_info_as_array": True,
         },
+        "json_access": {
+            "()": "utils.log_formatters.UvicornAccessJsonFormatter",
+            "fmt": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
     },
     "handlers": {
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
             "formatter": "json" if ELASTIC_BEANSTALK else "verbose",
+        },
+        "access": {
+            "class": "logging.StreamHandler",
+            "formatter": "json_access",
+            "stream": "ext://sys.stdout",
         },
     },
     "root": {
@@ -101,6 +110,13 @@ LOGGING = {
         },
     },
 }
+
+if ELASTIC_BEANSTALK:
+    LOGGING["loggers"] |= {
+        # Uvicorn loggers
+        "uvicorn": {"propagate": True},
+        "uvicorn.access": {"handlers": ["access"], "propagate": False},
+    }
 
 # Django Debug Toolbar
 USE_DEBUG_TOOLBAR = os.environ.get("USE_DEBUG_TOOLBAR", "False") == "True"
@@ -562,11 +578,6 @@ RESEARCH_AI_REFUSAL_FALLBACK_MODEL = os.environ.get(
     "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3"
 )
 
-# Score each chat message for spam and off-purpose use with Jev (record only).
-RESEARCH_AI_MESSAGE_SCREENING = not TESTING and (
-    os.environ.get("RESEARCH_AI_MESSAGE_SCREENING", "true").lower() == "true"
-)
-
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
     "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
     getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
@@ -730,6 +741,13 @@ OPENSEARCH_DSL_PARALLEL = True
 OPENSEARCH_DSL_QUERYSET_PAGINATION = 1024
 OPENSEARCH_DSL_SIGNAL_PROCESSOR = "search.celery.CelerySignalProcessor"
 
+# OpenSearch index settings
+OPENSEARCH_DSL_INDEX_SETTINGS = {
+    "number_of_shards": 1,
+    # One copy per node, up to one per availability zone in a 3-AZ domain
+    "auto_expand_replicas": "0-2",
+}
+
 # Disable OpenSearch auto-sync in test environment
 if TESTING:
     OPENSEARCH_DSL_AUTOSYNC = False
@@ -870,19 +888,6 @@ AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
 
 EXPERT_FINDER_OUTREACH_ENABLED = (
     os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
-)
-
-# Crossref
-CROSSREF_DOI_RSC_FEE = 5
-CROSSREF_DOI_PREFIX = "10.55277/researchhub."
-CROSSREF_DOI_RHJ_PREFIX = "10.55277/rhj."
-CROSSREF_DOI_SUFFIX_LENGTH = 8
-CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", keys.CROSSREF_LOGIN_ID)
-CROSSREF_LOGIN_PASSWORD = os.environ.get(
-    "CROSSREF_LOGIN_PASSWORD", keys.CROSSREF_LOGIN_PASSWORD
-)
-CROSSREF_API_URL = (
-    f"https://{'doi' if PRODUCTION else 'test'}.crossref.org/servlet/deposit"
 )
 
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", keys.WEB3_NETWORK)

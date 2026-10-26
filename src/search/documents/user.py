@@ -52,6 +52,10 @@ class UserDocument(BaseDocument):
 
     class Index:
         name = "user"
+        settings = {
+            "number_of_shards": 1,
+            "auto_expand_replicas": "0-2",
+        }
 
     # Let ES know which fields we want indexed
     class Django:

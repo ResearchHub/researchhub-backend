@@ -1,15 +1,18 @@
-import math
 from datetime import UTC, datetime, timedelta
+from decimal import ROUND_DOWN, Decimal
 
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from reputation.related_models.escrow import Escrow
 from utils.models import DefaultModel
+
+# Matches the decimal_places of Escrow.amount_holding
+REFUND_PRECISION = Decimal("1e-10")
 
 
 def get_default_expiration_date():
@@ -177,37 +180,52 @@ class Bounty(DefaultModel):
         return escrow_paid
 
     def close(self, status):
+        """
+        Refund what is left in escrow to the funders and set the bounty status.
+
+        Returns False, with nothing refunded, if any funder's refund fails.
+        """
         from user.models import User
 
         proportions = self.get_bounty_proportions()
-        escrow_remaining_amount = self.escrow.amount_holding
         escrow_status = None
         if status == self.EXPIRED:
             escrow_status = Escrow.EXPIRED
 
-        for user_id, proportion_data in proportions.items():
-            percentage = proportion_data.get("proportion")
-            bounty_amount = proportion_data.get("bounty_amount")
-            # This ensures that people can't be refunded more than they initially put in
-            # Because our distribution model only uses integers, we need to round
-            # how much a user gets refunded. The following code prevents them
-            # from receiving more than what they initially put in, but it is
-            # possible for them to receive slightly less because of rounding
-            refund_amount = min(
-                math.ceil(escrow_remaining_amount) * percentage, bounty_amount
-            )
-            user = User.objects.get(id=user_id)
-            refunded = self.escrow.refund(user, refund_amount, status=escrow_status)
-            if not refunded:
-                return False
+        with transaction.atomic():
+            self.escrow = Escrow.objects.select_for_update().get(pk=self.escrow_id)
+            escrow_remaining_amount = self.escrow.amount_holding
+            for user_id, proportion_data in proportions.items():
+                percentage = proportion_data.get("proportion")
+                bounty_amount = proportion_data.get("bounty_amount")
+                # Round each share down to the escrow's precision so the shares
+                # never add up to more than the escrow holds, and never refund
+                # anyone more than they put in.
+                refund_amount = min(
+                    (escrow_remaining_amount * percentage).quantize(
+                        REFUND_PRECISION, rounding=ROUND_DOWN
+                    ),
+                    bounty_amount,
+                    self.escrow.amount_holding,
+                )
+                user = User.objects.get(id=user_id)
+                refunded = self.escrow.refund(user, refund_amount, status=escrow_status)
+                if not refunded:
+                    # Undo refunds already made to other funders, so a retry
+                    # does not pay them twice.
+                    transaction.set_rollback(True)
+                    break
+            else:
+                expiration_date = datetime.now()
+                self.children.update(status=status, expiration_date=expiration_date)
+                self.expiration_date = expiration_date
+                status_func = getattr(self, f"set_{status.lower()}_status")
+                # Status func will update the status and call save on the bounty
+                status_func()
+                return True
 
-        expiration_date = datetime.now()
-        self.children.update(status=status, expiration_date=expiration_date)
-        self.expiration_date = expiration_date
-        status_func = getattr(self, f"set_{status.lower()}_status")
-        # Status func will update the status and call save on the bounty
-        status_func()
-        return True
+        self.escrow.refresh_from_db()
+        return False
 
 
 class BountySolution(DefaultModel):

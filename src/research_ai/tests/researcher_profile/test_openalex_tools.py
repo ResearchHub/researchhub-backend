@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+import requests
 from django.test import SimpleTestCase
 
 from research_ai.services.researcher_profile.openalex_tools import (
@@ -80,6 +81,42 @@ class DispatchTests(SimpleTestCase):
         self.assertTrue(result["works"][0]["has_abstract"])
         self.assertEqual(result["next_cursor"], "next-page")
         self.assertTrue(result["has_more"])
+
+    def test_work_cards_name_the_first_authors_their_count_and_the_venue(self):
+        # Arrange
+        entity = create_oa_work("Lead Paper", 2024, "first")
+        entity["authorships"] = [
+            {"author": {"display_name": name}} for name in ("Ada", "Ben", "Cy", "Di")
+        ]
+        entity["primary_location"]["source"] = {"display_name": "Nature"}
+        client = MagicMock()
+        client.get_works.return_value = ([entity], None)
+        toolset = OpenAlexToolset(client=client).as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch("get_author_works", {"openalex_author_id": "A123"})
+
+        # Assert
+        card = result["works"][0]
+        self.assertEqual(card["authors"], ["Ada", "Ben", "Cy"])
+        self.assertEqual(card["author_count"], 4)
+        self.assertEqual(card["venue"], "Nature")
+
+    def test_work_cards_mark_a_capped_author_list_as_a_minimum(self):
+        # Arrange: OpenAlex list responses stop at 100 authorships.
+        entity = create_oa_work("Consortium Paper", 2024, "middle")
+        entity["authorships"] = [
+            {"author": {"display_name": f"Author {i}"}} for i in range(100)
+        ]
+        client = MagicMock()
+        client.get_works.return_value = ([entity], None)
+        toolset = OpenAlexToolset(client=client).as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch("get_author_works", {"openalex_author_id": "A123"})
+
+        # Assert
+        self.assertEqual(result["works"][0]["author_count"], "100+")
 
     def test_get_author_works_passes_cursor_and_keeps_broad_page_size(self):
         # Arrange
@@ -250,16 +287,65 @@ class WorkDetailTests(SimpleTestCase):
         self.assertEqual(result["match_count"], 0)
         self.assertIn("first 120000 characters", result["warning"])
 
-    def test_unknown_source_url_errors(self):
+    def test_abstract_resolves_a_doi_this_toolset_never_listed(self):
+        # Arrange: a fresh toolset, as at the start of a later chat turn.
+        entity = create_oa_work("Found Paper", 2021, None)
+        entity["primary_location"]["source"] = {"display_name": "Cell"}
+        client = MagicMock()
+        client.get_work_by_doi.return_value = entity
+        toolset = OpenAlexToolset(client=client).as_toolset()
+
+        # Act
+        result, _ = toolset.dispatch(
+            "get_work_abstract", {"source_url": "https://doi.org/10.1/found-paper"}
+        )
+
+        # Assert
+        client.get_work_by_doi.assert_called_once_with("10.1/found-paper")
+        self.assertEqual(result["abstract"], "Abstract text")
+        self.assertEqual(result["publication_year"], "2021")
+        self.assertEqual(result["venue"], "Cell")
+
+    def test_fulltext_search_resolves_an_openalex_work_url(self):
         # Arrange
-        _, toolset, _ = self._toolset_with_work(pdf_text_fetcher=lambda u: "")
+        client = MagicMock()
+        client.get_work.return_value = create_oa_work("Found Paper", 2021, None)
+        toolset = OpenAlexToolset(
+            client=client, pdf_text_fetcher=lambda _url: "Methods used microscopy."
+        ).as_toolset()
+
         # Act
         result, _ = toolset.dispatch(
             "search_work_fulltext",
-            {"source_url": "https://doi.org/10.9/nope", "query": "methods"},
+            {"source_url": "https://openalex.org/W123", "query": "microscopy"},
         )
+
         # Assert
-        self.assertIn("error", result)
+        client.get_work.assert_called_once_with("W123")
+        self.assertEqual(result["source_url"], "https://doi.org/10.1/found-paper")
+        self.assertGreater(result["match_count"], 0)
+
+    def test_unresolvable_source_url_errors(self):
+        not_found = requests.HTTPError(response=MagicMock(status_code=404))
+        cases = [
+            ("https://doi.org/10.9/nope", "get_work_by_doi", {"return_value": None}),
+            ("https://openalex.org/W999", "get_work", {"side_effect": not_found}),
+        ]
+        for source_url, method, behavior in cases:
+            with self.subTest(source_url=source_url):
+                # Arrange
+                client = MagicMock()
+                getattr(client, method).configure_mock(**behavior)
+                toolset = OpenAlexToolset(client=client).as_toolset()
+
+                # Act
+                result, _ = toolset.dispatch(
+                    "search_work_fulltext",
+                    {"source_url": source_url, "query": "methods"},
+                )
+
+                # Assert
+                self.assertIn("No OpenAlex work matches", result["error"])
 
     def test_read_budget_is_enforced(self):
         # Arrange: a one-document budget with two returned works.

@@ -34,9 +34,6 @@ APM_URL = os.environ.get("APM_URL", "")
 
 OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "")
 
-CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", "")
-CROSSREF_LOGIN_PASSWORD = os.environ.get("CROSSREF_LOGIN_PASSWORD", "")
-
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "")
 WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", "")
 WEB3_BASE_RSC_ADDRESS = os.environ.get("WEB3_BASE_RSC_ADDRESS", "")
