@@ -109,10 +109,12 @@ class ProfileJudge:
             raw = self._get_llm().invoke(
                 system_prompt=PROFILE_MATCH_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
-                # Haiku 5.5 thinks by default and thinking shares this budget;
-                # too small a budget ends the turn before the answer.
+                # Haiku 5.5's tokenizer counts about 30% more tokens than 4.5's;
+                # the cap leaves room without costing anything unused.
                 max_tokens=4096,
                 temperature=0.0,
+                # A short pick, as on Haiku 4.5, which never thought here.
+                disable_thinking=True,
             )
         except Exception:
             logger.exception(

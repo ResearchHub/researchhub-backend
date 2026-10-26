@@ -195,11 +195,14 @@ _OPENROUTER_MODELS = {
     "qwen/qwen3.8-max-0902": _model(_OPENROUTER_QWEN_MANDATORY_REASONING, 131_072),
 }
 
-# The Converse adapter currently exposes sampling only; Claude-specific effort
-# and adaptive-thinking fields are implemented by Claude Platform.
+# The agent's Converse adapter currently exposes sampling only; Claude-specific
+# effort and adaptive-thinking fields are implemented by Claude Platform. Rows
+# still list the thinking modes a model takes, which single-call Bedrock
+# services read.
 _BEDROCK_MODELS = {
     "claude-haiku-4-5": _model(_TEMPERATURE, 64_000),
-    "claude-haiku-5-5": _model(ModelCapabilities(), 128_000),
+    # Thinks by default; thinking can be turned off at effort high or below.
+    "claude-haiku-5-5": _model(ModelCapabilities(thinking=THINKING_MODES), 128_000),
     "claude-sonnet-4-5": _model(_TEMPERATURE, 64_000),
     # Kept for conversations pinned to it.
     "claude-opus-5": _model(ModelCapabilities(), 128_000),

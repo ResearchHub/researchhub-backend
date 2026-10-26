@@ -19,6 +19,7 @@ class BedrockLLMService:
         *,
         max_tokens: int = 8192,
         temperature: float = 0.0,
+        disable_thinking: bool = False,
     ) -> str:
         """
         Invoke Bedrock Converse API with text-only system and user messages.
@@ -29,6 +30,9 @@ class BedrockLLMService:
             max_tokens: Maximum tokens to generate.
             temperature: Sampling temperature (0 = deterministic). Not sent to
                 models that reject sampling parameters.
+            disable_thinking: Turn thinking off where the model lets it be
+                turned off. Models that never think by default need nothing
+                sent; models that always think keep thinking.
 
         Returns:
             Generated text from the model.
@@ -39,6 +43,14 @@ class BedrockLLMService:
         inference_config: dict[str, int | float] = {"maxTokens": max_tokens}
         if model_capabilities("bedrock", self.model_id).temperature:
             inference_config["temperature"] = temperature
+        extra_fields: dict = {}
+        if (
+            disable_thinking
+            and "disabled" in model_capabilities("bedrock", self.model_id).thinking
+        ):
+            extra_fields["additionalModelRequestFields"] = {
+                "thinking": {"type": "disabled"}
+            }
         try:
             response = self.bedrock_client.converse(
                 modelId=self.model_id,
@@ -50,6 +62,7 @@ class BedrockLLMService:
                     }
                 ],
                 inferenceConfig=inference_config,
+                **extra_fields,
             )
         except Exception as e:
             logger.exception("Bedrock invoke failed")
