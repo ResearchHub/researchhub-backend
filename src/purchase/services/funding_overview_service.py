@@ -56,7 +56,7 @@ class FundingOverviewService(OverviewMixin):
         results = []
         zero = {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0}
         for post in posts:
-            fundraise = post.unified_document.fundraises.first()
+            fundraise = self._first_prefetched(post.unified_document.fundraises)
             entry = self._serialize_proposal(post)
             entry["funded_amount"] = (
                 contributions.get(fundraise.id, zero) if fundraise else zero
@@ -84,7 +84,7 @@ class FundingOverviewService(OverviewMixin):
         results = []
         zero = {"rsc": 0.0, "rsc_usd_snapshot": 0.0, "usd": 0.0}
         for post in posts:
-            grant = post.unified_document.grants.first()
+            grant = self._first_prefetched(post.unified_document.grants)
             pool = None
             if grant is not None:
                 try:
@@ -97,6 +97,11 @@ class FundingOverviewService(OverviewMixin):
             results.append(entry)
 
         return results
+
+    @staticmethod
+    def _first_prefetched(related_manager):
+        """Return the first related object without busting prefetch_related."""
+        return next(iter(related_manager.all()), None)
 
     @staticmethod
     def _supported_nonprofits(funded_fundraise_ids: list[int]) -> list[dict]:
