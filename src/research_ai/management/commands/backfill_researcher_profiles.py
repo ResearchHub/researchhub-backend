@@ -47,7 +47,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        user_ids = self._user_ids(options)
+        user_ids = self._user_ids(options)[: options["limit"]]
         if options["dry_run"]:
             self.stdout.write(f"Would queue {len(user_ids)} researcher profile(s).")
             return
@@ -74,4 +74,4 @@ class Command(BaseCommand):
             .values_list("user_id", flat=True)
             .distinct()
         )
-        return list(user_ids[: options["limit"]])
+        return list(user_ids[: options["limit"]])  # limit in SQL, not in memory

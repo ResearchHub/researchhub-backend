@@ -144,6 +144,20 @@ class BackfillCommandTests(TestCase):
         # Assert
         self.assertEqual([call.args[0] for call in delay.call_args_list], [7, 8])
 
+    def test_limit_also_caps_explicit_user_ids(self):
+        # Act
+        with patch(_DELAY) as delay:
+            call_command(
+                "backfill_researcher_profiles",
+                "--user-ids",
+                "7,8,9",
+                "--limit",
+                "2",
+                stdout=StringIO(),
+            )
+        # Assert
+        self.assertEqual([call.args[0] for call in delay.call_args_list], [7, 8])
+
     def test_bad_user_ids_are_rejected(self):
         # Act & Assert
         with self.assertRaises(CommandError):
