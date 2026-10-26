@@ -79,7 +79,7 @@ class Migration(migrations.Migration):
                     "inputs_hash",
                     models.CharField(
                         blank=True,
-                        db_comment="Hash of the seed the last build ran on; a different seed triggers a rebuild. Blank when unknown (rows copied from Expert.profile).",
+                        db_comment="Hash of the seed the last build ran on; a different seed triggers a rebuild.",
                         max_length=64,
                     ),
                 ),

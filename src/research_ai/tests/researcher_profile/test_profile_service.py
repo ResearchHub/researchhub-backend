@@ -227,7 +227,7 @@ class NeedsBuildTests(TestCase):
         # Act & Assert
         self.assertTrue(self.service.needs_build(self.profile))
 
-    def test_blank_hash_of_a_copied_profile_is_not_a_change(self):
+    def test_blank_hash_is_not_a_seed_change(self):
         # Arrange
         _current(self.profile, inputs_hash="")
         # Act & Assert

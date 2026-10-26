@@ -135,6 +135,8 @@ class ResearcherProfileService:
         seed = seed_for_profile(profile) if seed is None else seed
         if not seed.is_buildable:
             return False
+        # A blank hash means no seed was recorded; never-built rows are
+        # PENDING and caught below.
         if profile.inputs_hash and profile.inputs_hash != seed.inputs_hash():
             return True
         if profile.status == Status.FAILED:

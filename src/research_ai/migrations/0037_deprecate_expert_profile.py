@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("research_ai", "0037_copy_expert_profiles"),
+        ("research_ai", "0036_researcher_profile"),
     ]
 
     operations = [

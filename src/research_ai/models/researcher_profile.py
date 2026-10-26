@@ -72,7 +72,7 @@ class ResearcherProfile(DefaultModel):
         blank=True,
         db_comment=(
             "Hash of the seed the last build ran on; a different seed triggers "
-            "a rebuild. Blank when unknown (rows copied from Expert.profile)."
+            "a rebuild."
         ),
     )
     built_at = models.DateTimeField(null=True, blank=True)
