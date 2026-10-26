@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 
+from research_ai.services.agent.model_capabilities import model_capabilities
 from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
@@ -14,15 +15,14 @@ BEDROCK_MODEL_ID = getattr(
     _DEFAULT_MODEL,
 )
 
-_BEDROCK_OMIT_TEMPERATURE_SUBSTRINGS: tuple[str, ...] = ("opus-4-7", "haiku-5")
-
 
 def _converse_inference_config(
     model_id: str, *, max_tokens: int, temperature: float
 ) -> dict:
     config: dict[str, int | float] = {"maxTokens": max_tokens}
-    lower = model_id.lower()
-    if not any(s in lower for s in _BEDROCK_OMIT_TEMPERATURE_SUBSTRINGS):
+    # Models that reject sampling params (Opus 4.7+, Sonnet 5, Haiku 5.5) 400
+    # on ``temperature``, so it goes only where it is reviewed.
+    if model_capabilities("bedrock", model_id).temperature:
         config["temperature"] = temperature
     return config
 
