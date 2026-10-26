@@ -326,9 +326,11 @@ def _generate_with_llm(
     raw = service.invoke(
         system_prompt=EMAIL_SYSTEM_PROMPT,
         user_prompt=prompt,
-        # Haiku 5.5 thinks by default and thinking shares this budget.
+        # Haiku 5.5's tokenizer counts about 30% more tokens than 4.5's.
         max_tokens=4096,
         temperature=0.3,
+        # Keep Haiku 4.5's behavior: it never thought here.
+        disable_thinking=True,
     )
     sig_source = _build_llm_sender_signature_data(user)
     normalized = _normalize_signature_dict(sig_source)

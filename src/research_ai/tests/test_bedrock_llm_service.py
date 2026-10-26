@@ -42,3 +42,51 @@ class BedrockLLMServiceTests(SimpleTestCase):
         # Assert
         inference_config = client.converse.call_args.kwargs["inferenceConfig"]
         self.assertEqual(inference_config, {"maxTokens": 100, "temperature": 0.0})
+
+    def test_disable_thinking_turns_thinking_off_on_haiku_5_5(self, mock_create_client):
+        # Arrange
+        service, client = self._service(
+            mock_create_client, "us.anthropic.claude-haiku-5-5"
+        )
+
+        # Act
+        service.invoke("sys", "user", max_tokens=100, disable_thinking=True)
+
+        # Assert
+        self.assertEqual(
+            client.converse.call_args.kwargs["additionalModelRequestFields"],
+            {"thinking": {"type": "disabled"}},
+        )
+
+    def test_thinking_is_left_alone_by_default(self, mock_create_client):
+        # Arrange
+        service, client = self._service(
+            mock_create_client, "us.anthropic.claude-haiku-5-5"
+        )
+
+        # Act
+        service.invoke("sys", "user", max_tokens=100)
+
+        # Assert
+        self.assertNotIn(
+            "additionalModelRequestFields", client.converse.call_args.kwargs
+        )
+
+    def test_disable_thinking_sends_nothing_to_models_without_the_mode(
+        self, mock_create_client
+    ):
+        # Arrange: Haiku 4.5 never thinks unless asked; Opus 5.5 always thinks.
+        for model_id in (
+            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "us.anthropic.claude-opus-5-5",
+        ):
+            with self.subTest(model_id=model_id):
+                service, client = self._service(mock_create_client, model_id)
+
+                # Act
+                service.invoke("sys", "user", max_tokens=100, disable_thinking=True)
+
+                # Assert
+                self.assertNotIn(
+                    "additionalModelRequestFields", client.converse.call_args.kwargs
+                )
