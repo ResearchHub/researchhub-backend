@@ -207,10 +207,20 @@ _BEDROCK_MODELS = {
     "claude-opus-5-5": _model(ModelCapabilities(), 128_000),
 }
 
+# Called directly through OpenAI's Responses API, outside the agent adapters.
+# GPT-6 models reason by default and reject sampling params (2026-10-26).
+_OPENAI_MODELS = {
+    "gpt-6-luna": _model(
+        ModelCapabilities(effort=("none", "low", "medium", "high", "xhigh", "max")),
+        128_000,
+    ),
+}
+
 _PROVIDER_MODELS = {
     "claude_platform": _CLAUDE_MODELS,
     "openrouter": _OPENROUTER_MODELS,
     "bedrock": _BEDROCK_MODELS,
+    "openai": _OPENAI_MODELS,
 }
 
 

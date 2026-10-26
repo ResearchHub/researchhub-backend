@@ -1,26 +1,16 @@
 import logging
 
-from django.conf import settings
-
+from research_ai.services.agent.model_capabilities import model_capabilities
+from research_ai.services.llm_models import RESEARCH_AI_BEDROCK
 from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
-
-# Default model; can be overridden via settings
-BEDROCK_MODEL_ID = getattr(
-    settings,
-    "RESEARCH_AI_BEDROCK_MODEL_ID",
-    "us.anthropic.claude-haiku-5-5",
-)
-
-# Haiku 5.5 rejects any non-default temperature with a 400.
-_OMIT_TEMPERATURE_SUBSTRINGS: tuple[str, ...] = ("haiku-5",)
 
 
 class BedrockLLMService:
     def __init__(self):
         self.bedrock_client = create_client("bedrock-runtime")
-        self.model_id = BEDROCK_MODEL_ID
+        self.model_id = RESEARCH_AI_BEDROCK.model_id
 
     def invoke(
         self,
@@ -47,7 +37,7 @@ class BedrockLLMService:
             RuntimeError: If invocation fails.
         """
         inference_config: dict[str, int | float] = {"maxTokens": max_tokens}
-        if not any(s in self.model_id.lower() for s in _OMIT_TEMPERATURE_SUBSTRINGS):
+        if model_capabilities("bedrock", self.model_id).temperature:
             inference_config["temperature"] = temperature
         try:
             response = self.bedrock_client.converse(

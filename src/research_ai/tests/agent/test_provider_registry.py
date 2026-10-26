@@ -2,7 +2,6 @@
 
 from unittest.mock import patch
 
-from django.conf import settings
 from django.test import SimpleTestCase, override_settings
 
 from research_ai.services.agent.errors import ProviderError
@@ -17,6 +16,7 @@ from research_ai.services.agent.providers.registry import (
     split_model_ref,
 )
 from research_ai.services.agent.providers.router import RoutedProvider
+from research_ai.services.llm_models import refusal_fallback_ref
 
 
 class GeneratorModelRefTests(SimpleTestCase):
@@ -206,9 +206,7 @@ class ResolveProviderTests(SimpleTestCase):
 class RefusalFallbackSettingTests(SimpleTestCase):
     def test_default_fallback_is_priced_and_takes_images(self):
         # Arrange
-        provider, model_id = split_model_ref(
-            settings.RESEARCH_AI_REFUSAL_FALLBACK_MODEL
-        )
+        provider, model_id = split_model_ref(refusal_fallback_ref())
 
         # Act
         capabilities = model_capabilities(provider, model_id)

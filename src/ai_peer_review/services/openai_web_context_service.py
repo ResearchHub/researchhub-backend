@@ -6,17 +6,10 @@ from openai import OpenAI
 from ai_peer_review.prompts.proposal_review_prompts import (
     get_openai_web_context_system_prompt,
 )
+from research_ai.services.agent.model_capabilities import model_capabilities
+from research_ai.services.llm_models import PEER_REVIEW_WEB_CONTEXT
 
 logger = logging.getLogger(__name__)
-
-OPENAI_WEB_CONTEXT_MODEL = getattr(
-    settings,
-    "AI_PEER_REVIEW_OPENAI_WEB_CONTEXT_MODEL",
-    "gpt-6-luna",
-)
-
-# GPT-6 models reason by default and reject sampling params with a 400.
-_NO_SAMPLING_PREFIXES: tuple[str, ...] = ("gpt-6",)
 
 
 class OpenAIReviewContextService:
@@ -25,7 +18,7 @@ class OpenAIReviewContextService:
     def __init__(self):
         api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
         self._client = OpenAI(api_key=api_key) if api_key else None
-        self.model_id = OPENAI_WEB_CONTEXT_MODEL
+        self.model_id = PEER_REVIEW_WEB_CONTEXT.model_id
 
     def build_user_prompt(
         self,
@@ -91,9 +84,9 @@ class OpenAIReviewContextService:
                 raise RuntimeError(f"OpenAI web context failed: {e2}") from e2
 
     def _sampling_kwargs(self, temperature: float) -> dict:
-        if self.model_id.startswith(_NO_SAMPLING_PREFIXES):
-            return {}
-        return {"temperature": temperature}
+        if model_capabilities("openai", self.model_id).temperature:
+            return {"temperature": temperature}
+        return {}
 
     def _invoke_with_web_search(
         self,

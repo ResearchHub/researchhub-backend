@@ -551,15 +551,19 @@ RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
     "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
 )
 
-# Model a research_ai conversation moves to once its own model refuses a turn;
-# it needs reviewed pricing. Empty stops new moves, not ones already made.
+# Model overrides. Defaults live in research_ai/services/llm_models.py; an
+# empty value keeps the default. An unset refusal fallback uses the default
+# too, while an empty one stops new moves, not ones already made.
 RESEARCH_AI_REFUSAL_FALLBACK_MODEL = os.environ.get(
-    "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3.1-pro"
+    "RESEARCH_AI_REFUSAL_FALLBACK_MODEL"
 )
-
+RESEARCH_AI_BEDROCK_MODEL_ID = os.environ.get("RESEARCH_AI_BEDROCK_MODEL_ID", "")
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
     "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
     getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
+)
+AI_PEER_REVIEW_OPENAI_WEB_CONTEXT_MODEL = os.environ.get(
+    "AI_PEER_REVIEW_OPENAI_WEB_CONTEXT_MODEL", ""
 )
 
 AI_PEER_REVIEW_EXPERT_EMAIL = os.environ.get(
