@@ -17,18 +17,21 @@ class BedrockLLMServiceTests(SimpleTestCase):
         service.model_id = model_id
         return service, client
 
-    def test_omits_temperature_for_haiku_5_5(self, mock_create_client):
-        # Arrange
-        service, client = self._service(
-            mock_create_client, "us.anthropic.claude-haiku-5-5"
-        )
+    def test_omits_temperature_for_models_that_reject_it(self, mock_create_client):
+        for model_id in (
+            "us.anthropic.claude-haiku-5-5",
+            "us.anthropic.claude-opus-5-5",
+        ):
+            with self.subTest(model_id=model_id):
+                # Arrange
+                service, client = self._service(mock_create_client, model_id)
 
-        # Act
-        service.invoke("sys", "user", max_tokens=100, temperature=0.0)
+                # Act
+                service.invoke("sys", "user", max_tokens=100, temperature=0.0)
 
-        # Assert
-        inference_config = client.converse.call_args.kwargs["inferenceConfig"]
-        self.assertEqual(inference_config, {"maxTokens": 100})
+                # Assert
+                inference_config = client.converse.call_args.kwargs["inferenceConfig"]
+                self.assertEqual(inference_config, {"maxTokens": 100})
 
     def test_sends_temperature_to_models_that_accept_it(self, mock_create_client):
         # Arrange

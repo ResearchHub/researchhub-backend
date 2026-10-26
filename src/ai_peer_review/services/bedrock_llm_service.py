@@ -11,6 +11,8 @@ def _converse_inference_config(
     model_id: str, *, max_tokens: int, temperature: float
 ) -> dict:
     config: dict[str, int | float] = {"maxTokens": max_tokens}
+    # Models that reject sampling params (Opus 4.7+, Sonnet 5, Haiku 5.5) 400
+    # on ``temperature``, so it goes only where it is reviewed.
     if model_capabilities("bedrock", model_id).temperature:
         config["temperature"] = temperature
     return config

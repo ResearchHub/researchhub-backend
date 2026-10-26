@@ -41,6 +41,8 @@ class BedrockLLMService:
             RuntimeError: If invocation fails.
         """
         inference_config: dict[str, int | float] = {"maxTokens": max_tokens}
+        # Models that reject sampling params (Opus 4.7+, Sonnet 5, Haiku 5.5)
+        # 400 on ``temperature``, so it goes only where it is reviewed.
         if model_capabilities("bedrock", self.model_id).temperature:
             inference_config["temperature"] = temperature
         extra_fields: dict = {}
