@@ -44,6 +44,7 @@ from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
     REGISTERED_REPORT,
+    RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
