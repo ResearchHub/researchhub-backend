@@ -100,7 +100,7 @@ class AvailableModelsTests(SimpleTestCase):
             "openrouter:openai/gpt-6-sol": (),
             "openrouter:openai/gpt-6-luna": (),
             "openrouter:qwen/qwen3.8-max-0902": ("adaptive",),
-            "openrouter:moonshotai/kimi-k3.1-pro": ("adaptive",),
+            "openrouter:moonshotai/kimi-k3.1-pro": ("adaptive", "disabled"),
         }
 
         # Act / Assert
@@ -111,14 +111,25 @@ class AvailableModelsTests(SimpleTestCase):
                 self.assertEqual(capabilities.thinking, thinking)
                 self.assertIsNotNone(capabilities.max_output_tokens)
 
-    def test_mandatory_reasoning_models_on_openrouter_omit_temperature(self):
-        # Arrange / Act / Assert
-        for model_id in ("anthropic/claude-opus-5.5", "moonshotai/kimi-k3.1-pro"):
-            with self.subTest(model_id=model_id):
-                capabilities = model_capabilities("openrouter", model_id)
-                self.assertEqual(capabilities.thinking, ("adaptive",))
-                self.assertFalse(capabilities.temperature)
-                self.assertTrue(capabilities.vision)
+    def test_opus_5_5_on_openrouter_requires_thinking_and_omits_temperature(self):
+        # Act
+        capabilities = model_capabilities("openrouter", "anthropic/claude-opus-5.5")
+
+        # Assert
+        self.assertEqual(capabilities.thinking, ("adaptive",))
+        self.assertFalse(capabilities.temperature)
+        self.assertTrue(capabilities.vision)
+
+    def test_kimi_k3_1_pro_reasoning_toggles_without_temperature(self):
+        # Act
+        capabilities = model_capabilities("openrouter", "moonshotai/kimi-k3.1-pro")
+
+        # Assert: live-checked 2026-10-26 through OpenRouter.
+        self.assertEqual(capabilities.thinking, ("adaptive", "disabled"))
+        self.assertIn("none", capabilities.effort)
+        self.assertIn("medium", capabilities.effort)
+        self.assertFalse(capabilities.temperature)
+        self.assertTrue(capabilities.vision)
 
     def test_gpt6_chat_completions_controls_are_tool_compatible(self):
         # Arrange / Act / Assert

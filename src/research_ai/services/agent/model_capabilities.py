@@ -101,11 +101,6 @@ _OPENROUTER_OPEN_WEIGHT = ModelCapabilities(
     thinking=THINKING_MODES,
     temperature=True,
 )
-_OPENROUTER_KIMI_MANDATORY_REASONING = ModelCapabilities(
-    # Reasoning is always on; the listing (2026-10-26) offers no temperature.
-    effort=("low", "high", "max"),
-    thinking=("adaptive",),
-)
 _OPENROUTER_REASONING_TOGGLE = ModelCapabilities(
     # Reasoning switches on or off; the listing offers no effort levels.
     thinking=THINKING_MODES,
@@ -190,7 +185,9 @@ _OPENROUTER_MODELS = {
         _OPENROUTER_OPEN_WEIGHT, 384_000, vision=False
     ),
     "moonshotai/kimi-k3": _model(_OPENROUTER_OPEN_WEIGHT, 943_718),
-    "moonshotai/kimi-k3.1-pro": _model(_OPENROUTER_KIMI_MANDATORY_REASONING, 943_718),
+    # Live-checked 2026-10-26: every OpenRouter effort is accepted, reasoning
+    # turns off, and no endpoint takes temperature.
+    "moonshotai/kimi-k3.1-pro": _model(_OPENROUTER_REASONING, 943_718),
     "xiaomi/mimo-v2.6-pro": _model(_OPENROUTER_REASONING_TOGGLE, 131_072),
     "qwen/qwen3.8-max-0902": _model(_OPENROUTER_QWEN_MANDATORY_REASONING, 131_072),
 }
