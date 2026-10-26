@@ -8,13 +8,12 @@ class UserVerification(models.Model):
     """
     Model to store the KYC verification status of a user.
     Verification can be done manually or by an external service,
-    currently with [Persona](https://withpersona.com/) or X ID verification.
+    currently with [Persona](https://withpersona.com/).
     """
 
     class Type(models.TextChoices):
         MANUAL = "MANUAL", _("Manual")
         PERSONA = "PERSONA", _("Persona")
-        X = "X", _("X")
 
     class Status(models.TextChoices):
         """

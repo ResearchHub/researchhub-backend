@@ -7,7 +7,7 @@ from django.contrib.sites.models import Site
 from rest_framework.test import APITestCase
 
 from oauth.services.user_signup_service import UserSignupService
-from user.models import User, UserVerification
+from user.models import User
 
 
 @patch.object(UserSignupService, "track_signup")
@@ -48,7 +48,7 @@ class XLoginViewTests(APITestCase):
     ):
         """
         Test that X login exchanges the code, signs the user up with the confirmed
-        email, stores the X profile, and verifies the user's identity through X.
+        email, stores the X profile, and verifies the user through X.
         """
         # Arrange
         mock_exchange.return_value = {"access_token": "x-token"}
@@ -99,7 +99,6 @@ class XLoginViewTests(APITestCase):
         self.assertEqual(
             user.author_profile.profile_image, "https://pbs.twimg.com/xuser.jpg"
         )
-        self.assertEqual(user.userverification.verified_by, UserVerification.Type.X)
         self.assertTrue(user.is_verified)
 
     def test_login_rejects_failed_code_exchange(

@@ -5,7 +5,7 @@ from django.conf import settings
 from mailchimp_marketing import Client
 
 from analytics.amplitude import Amplitude
-from user.models import User, UserVerification
+from user.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -104,8 +104,12 @@ class UserSignupService:
         if not author_profile or author_profile.twitter:
             return
 
-        social_account = self._get_x_account(user)
-        if not social_account:
+        try:
+            social_account = SocialAccount.objects.get(provider="x_oauth2", user=user)
+        except SocialAccount.DoesNotExist:
+            return
+        except SocialAccount.MultipleObjectsReturned:
+            logger.error(f"User {user.id} has multiple X social accounts")
             return
 
         username = social_account.extra_data.get("username")
@@ -114,36 +118,3 @@ class UserSignupService:
 
         author_profile.twitter = f"https://x.com/{username}"
         author_profile.save(update_fields=["twitter"])
-
-    def verify_x_identity(self, user: User) -> None:
-        """Approve the user's verification when X reports their identity as verified."""
-        if user.is_verified:
-            return
-
-        social_account = self._get_x_account(user)
-        if not social_account:
-            return
-
-        if not social_account.extra_data.get("is_identity_verified"):
-            return
-
-        UserVerification.objects.update_or_create(
-            user=user,
-            defaults={
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "status": UserVerification.Status.APPROVED,
-                "verified_by": UserVerification.Type.X,
-                "external_id": social_account.uid,
-            },
-        )
-
-    def _get_x_account(self, user: User) -> SocialAccount | None:
-        """Return the user's X social account, or None if they don't have exactly one."""
-        try:
-            return SocialAccount.objects.get(provider="x_oauth2", user=user)
-        except SocialAccount.DoesNotExist:
-            return None
-        except SocialAccount.MultipleObjectsReturned:
-            logger.error(f"User {user.id} has multiple X social accounts")
-            return None

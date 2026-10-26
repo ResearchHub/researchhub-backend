@@ -497,10 +497,22 @@ class User(SoftDeletableModel, AbstractUser):
     def is_verified(self):
         """
         Check if the user account is verified.
-        Returns `False` if the user was not successfully verified or
-        if no verification record exists.
+        Returns `True` if the user's identity verification was approved
+        or their X account reports a verified identity.
         """
+        return (
+            self.has_approved_identity_verification() or self.has_x_verified_identity()
+        )
+
+    def has_approved_identity_verification(self) -> bool:
+        """Check whether the user's Persona or manual verification was approved."""
         try:
             return self.userverification.is_verified
         except Exception:
             return False
+
+    def has_x_verified_identity(self) -> bool:
+        """Check whether the user's X account reports a verified identity."""
+        return self.socialaccount_set.filter(
+            provider="x_oauth2", extra_data__is_identity_verified=True
+        ).exists()
