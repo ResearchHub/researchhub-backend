@@ -67,6 +67,10 @@ _OPENROUTER_GPT_MANDATORY_REASONING = ModelCapabilities(
     effort=("low", "medium", "high", "xhigh", "max"),
     thinking=("adaptive",),
 )
+_OPENROUTER_CLAUDE_MANDATORY_THINKING = ModelCapabilities(
+    effort=CLAUDE_EFFORT_LEVELS,
+    thinking=("adaptive",),
+)
 _OPENROUTER_MUSE = ModelCapabilities(
     effort=("minimal", "low", "medium", "high", "xhigh", "max"),
     thinking=("adaptive",),
@@ -159,6 +163,7 @@ _CLAUDE_MODELS = {
 # Most are no longer in the picker; retained for conversations pinned to them.
 _OPENROUTER_MODELS = {
     "anthropic/claude-opus-5": _model(_OPENROUTER_REASONING, 128_000),
+    "anthropic/claude-opus-5.5": _model(_OPENROUTER_CLAUDE_MANDATORY_THINKING, 128_000),
     "anthropic/claude-sonnet-5": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-5.6-sol": _model(_OPENROUTER_REASONING, 128_000),
     "openai/gpt-5.6-terra": _model(_OPENROUTER_REASONING, 128_000),
@@ -180,17 +185,26 @@ _OPENROUTER_MODELS = {
         _OPENROUTER_OPEN_WEIGHT, 384_000, vision=False
     ),
     "moonshotai/kimi-k3": _model(_OPENROUTER_OPEN_WEIGHT, 943_718),
+    # Live-checked 2026-10-26: every OpenRouter effort is accepted, reasoning
+    # turns off, and no endpoint takes temperature.
+    "moonshotai/kimi-k3.1-pro": _model(_OPENROUTER_REASONING, 943_718),
     "xiaomi/mimo-v2.6-pro": _model(_OPENROUTER_REASONING_TOGGLE, 131_072),
     "qwen/qwen3.8-max-0902": _model(_OPENROUTER_QWEN_MANDATORY_REASONING, 131_072),
 }
 
-# The Converse adapter currently exposes sampling only; Claude-specific effort
-# and adaptive-thinking fields are implemented by Claude Platform.
+# The agent's Converse adapter currently exposes sampling only; Claude-specific
+# effort and adaptive-thinking fields are implemented by Claude Platform. Rows
+# still list the thinking modes a model takes, which single-call Bedrock
+# services read.
 _BEDROCK_MODELS = {
     "claude-haiku-4-5": _model(_TEMPERATURE, 64_000),
+    # Thinks by default; thinking can be turned off at effort high or below.
+    "claude-haiku-5-5": _model(ModelCapabilities(thinking=THINKING_MODES), 128_000),
     "claude-sonnet-4-5": _model(_TEMPERATURE, 64_000),
-    # The adapter's default; listed so it is sent images.
+    # Kept for conversations pinned to it.
     "claude-opus-5": _model(ModelCapabilities(), 128_000),
+    # The adapter's default; listed so it is sent images.
+    "claude-opus-5-5": _model(ModelCapabilities(), 128_000),
 }
 
 _PROVIDER_MODELS = {

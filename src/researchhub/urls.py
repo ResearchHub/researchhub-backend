@@ -281,6 +281,7 @@ urlpatterns = [
     path(
         "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"
     ),
+    path("api/auth/x/login/", oauth.views.XLogin.as_view(), name="x_login"),
     path(
         "api/auth/register/verify-email/",
         CustomVerifyEmailView.as_view(),

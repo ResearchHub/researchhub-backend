@@ -203,6 +203,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.twitter_oauth2",
     "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
@@ -393,12 +394,32 @@ if STAGING or PRODUCTION:
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
-# Let Google sign-ins attach to an existing account when the email matches.
+# Let trusted social sign-ins attach when the confirmed email matches.
 # See: https://docs.allauth.org/en/dev/socialaccount/configuration.html
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "EMAIL_AUTHENTICATION": True,
+    },
+    # allauth's X provider id. The SocialApp must set provider_id="x_oauth2",
+    # which is what X social accounts are stored under.
+    "twitter_oauth2": {
+        "EMAIL_AUTHENTICATION": True,
+        "SCOPE": ["users.read", "users.email", "tweet.read"],
+        # Sent as user.fields. XOAuth2Adapter requires confirmed_email.
+        # The verification and Premium fields are stored on the X
+        # SocialAccount.extra_data and refreshed on each login.
+        "FIELDS": [
+            "id",
+            "name",
+            "username",
+            "confirmed_email",
+            "profile_image_url",
+            "verified",
+            "verified_type",
+            "subscription_type",
+            "is_identity_verified",
+        ],
     },
 }
 
@@ -554,7 +575,7 @@ RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
 # Model a research_ai conversation moves to once its own model refuses a turn;
 # it needs reviewed pricing. Empty stops new moves, not ones already made.
 RESEARCH_AI_REFUSAL_FALLBACK_MODEL = os.environ.get(
-    "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3"
+    "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3.1-pro"
 )
 
 AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(

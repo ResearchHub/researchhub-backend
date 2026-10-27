@@ -764,9 +764,9 @@ class ErrorTests(SimpleTestCase):
 
 
 class DefaultsTests(SimpleTestCase):
-    def test_model_id_defaults_to_opus_5(self):
+    def test_model_id_defaults_to_opus_5_5(self):
         # Arrange / Act
         provider = _build_provider(model_id=None)
 
         # Assert
-        self.assertEqual(provider.model_id, "anthropic/claude-opus-5")
+        self.assertEqual(provider.model_id, "anthropic/claude-opus-5.5")

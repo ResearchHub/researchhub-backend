@@ -337,6 +337,26 @@ class CompleteAndParseTests(SimpleTestCase):
             bedrock.MAX_OUTPUT_TOKENS,
         )
 
+    def test_omits_temperature_for_the_default_model(self):
+        # Arrange: the new default model rejects sampling params with a 400.
+        response = {
+            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
+            "stopReason": "end_turn",
+        }
+        provider = BedrockProvider(client=FakeConverseClient([response]))
+
+        # Act
+        provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools={"tools": []},
+            max_tokens=100,
+            temperature=0.0,
+        )
+
+        # Assert
+        self.assertNotIn("temperature", provider._client.calls[0]["inferenceConfig"])
+
     def test_complete_parses_text_and_tool_use_and_stop_reason(self):
         # Arrange
         response = {
@@ -378,29 +398,36 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertIn("toolConfig", provider._client.calls[0])
 
     def test_omits_temperature_for_models_that_reject_sampling_params(self):
-        # Arrange: Opus 4.8 rejects `temperature` with a 400.
-        response = {
-            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
-            "stopReason": "end_turn",
-        }
-        provider = BedrockProvider(
-            client=FakeConverseClient([response]),
-            model_id="us.anthropic.claude-opus-4-8",
-        )
+        # Opus 4.8 and Haiku 5.5 reject `temperature` with a 400.
+        for model_id in (
+            "us.anthropic.claude-opus-4-8",
+            "us.anthropic.claude-haiku-5-5",
+        ):
+            with self.subTest(model_id=model_id):
+                # Arrange
+                response = {
+                    "output": {
+                        "message": {"role": "assistant", "content": [{"text": "ok"}]}
+                    },
+                    "stopReason": "end_turn",
+                }
+                provider = BedrockProvider(
+                    client=FakeConverseClient([response]), model_id=model_id
+                )
 
-        # Act
-        provider.complete(
-            system_prompt="sys",
-            messages=[Message(role="user", content=[TextBlock(text="hi")])],
-            rendered_tools={"tools": []},
-            max_tokens=100,
-            temperature=0.0,
-        )
+                # Act
+                provider.complete(
+                    system_prompt="sys",
+                    messages=[Message(role="user", content=[TextBlock(text="hi")])],
+                    rendered_tools={"tools": []},
+                    max_tokens=100,
+                    temperature=0.0,
+                )
 
-        # Assert: temperature is not forwarded; maxTokens still is.
-        inference_config = provider._client.calls[0]["inferenceConfig"]
-        self.assertNotIn("temperature", inference_config)
-        self.assertEqual(inference_config["maxTokens"], 100)
+                # Assert: temperature is not forwarded; maxTokens still is.
+                inference_config = provider._client.calls[0]["inferenceConfig"]
+                self.assertNotIn("temperature", inference_config)
+                self.assertEqual(inference_config["maxTokens"], 100)
 
     def test_includes_temperature_for_models_that_accept_it(self):
         # Arrange: a sampling-friendly model (e.g. Sonnet/Haiku) keeps temperature.

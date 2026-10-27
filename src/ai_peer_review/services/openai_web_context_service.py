@@ -12,8 +12,11 @@ logger = logging.getLogger(__name__)
 OPENAI_WEB_CONTEXT_MODEL = getattr(
     settings,
     "AI_PEER_REVIEW_OPENAI_WEB_CONTEXT_MODEL",
-    "gpt-5.4-mini",
+    "gpt-6-luna",
 )
+
+# GPT-6 models reason by default and reject sampling params with a 400.
+_NO_SAMPLING_PREFIXES: tuple[str, ...] = ("gpt-6",)
 
 
 class OpenAIReviewContextService:
@@ -87,6 +90,11 @@ class OpenAIReviewContextService:
                 logger.exception("OpenAI web context failed")
                 raise RuntimeError(f"OpenAI web context failed: {e2}") from e2
 
+    def _sampling_kwargs(self, temperature: float) -> dict:
+        if self.model_id.startswith(_NO_SAMPLING_PREFIXES):
+            return {}
+        return {"temperature": temperature}
+
     def _invoke_with_web_search(
         self,
         *,
@@ -101,7 +109,7 @@ class OpenAIReviewContextService:
             input=user_prompt,
             tools=[{"type": "web_search"}],
             max_output_tokens=max_tokens,
-            temperature=temperature,
+            **self._sampling_kwargs(temperature),
         )
         return (response.output_text or "").strip()
 
@@ -120,7 +128,7 @@ class OpenAIReviewContextService:
                 {"role": "user", "content": user_prompt},
             ],
             max_completion_tokens=max_tokens,
-            temperature=temperature,
+            **self._sampling_kwargs(temperature),
         )
         choice = completion.choices[0].message
         content = choice.content or ""

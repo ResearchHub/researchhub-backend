@@ -244,6 +244,7 @@ class GenerateExpertEmailTests(TestCase):
         self.assertEqual(subject, "Invitation to collaborate")
         self.assertIn("Dear Dr. Smith", body)
         mock_llm.invoke.assert_called_once()
+        self.assertTrue(mock_llm.invoke.call_args.kwargs["disable_thinking"])
 
     @patch("research_ai.services.outreach.email_generator.BedrockLLMService")
     @patch("research_ai.services.outreach.email_generator.build_email_prompt")
