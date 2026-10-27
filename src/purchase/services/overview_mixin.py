@@ -113,6 +113,65 @@ class OverviewMixin:
             "usd": round(cents / 100, 2),
         }
 
+    def _user_pool_contributions_breakdown(self, user_id: int) -> dict:
+        """RSC totals the user contributed to grant/RFP funding pools."""
+        rsc, snapshot = self._sum_rsc_with_snapshot(
+            Purchase.objects.for_user(user_id).funding_pool_contributions()
+        )
+        return {
+            "rsc": round(rsc, 2),
+            "rsc_usd_snapshot": round(snapshot, 2),
+            "usd": 0.0,
+        }
+
+    @staticmethod
+    def _merge_currency_breakdowns(*breakdowns: dict) -> dict:
+        """Sum RSC / snapshot / USD fields across breakdown dicts."""
+        return {
+            "rsc": round(sum(b["rsc"] for b in breakdowns), 2),
+            "rsc_usd_snapshot": round(
+                sum(b["rsc_usd_snapshot"] for b in breakdowns), 2
+            ),
+            "usd": round(sum(b["usd"] for b in breakdowns), 2),
+        }
+
+    def _per_pool_user_contributions(self, user_id: int) -> dict[int, dict]:
+        """Per-funding-pool {rsc, rsc_usd_snapshot, usd} for user."""
+        rsc_qs = (
+            Purchase.objects.for_user(user_id)
+            .funding_pool_contributions()
+            .annotate(amount_float=Cast("amount", FloatField()))
+            .values("object_id")
+            .annotate(
+                rsc_total=Coalesce(Sum("amount_float"), 0.0),
+                snapshot_with_rate=Coalesce(
+                    Sum(
+                        F("amount_float") * F("rsc_usd_rate"),
+                        filter=Q(rsc_usd_rate__isnull=False),
+                        output_field=FloatField(),
+                    ),
+                    0.0,
+                ),
+                rsc_without_rate=Coalesce(
+                    Sum("amount_float", filter=Q(rsc_usd_rate__isnull=True)),
+                    0.0,
+                ),
+            )
+        )
+
+        result: dict[int, dict] = {}
+        for row in rsc_qs:
+            pool_id = row["object_id"]
+            snapshot = row["snapshot_with_rate"]
+            if row["rsc_without_rate"] > 0:
+                snapshot += RscExchangeRate.rsc_to_usd(row["rsc_without_rate"])
+            result[pool_id] = {
+                "rsc": round(row["rsc_total"], 2),
+                "rsc_usd_snapshot": round(snapshot, 2),
+                "usd": 0.0,
+            }
+        return result
+
     def _matched_contributions_breakdown(
         self, user_id: int, fundraise_ids: list[int]
     ) -> dict:

@@ -2,7 +2,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from discussion.constants.flag_reasons import ABUSIVE_OR_RUDE, SPAM
 from discussion.models import Flag
@@ -676,6 +676,70 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         # Assert
         mock_storage_service.restore_object.assert_called_once_with(
             "uploads/papers/users/spam.pdf"
+        )
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_quarantines_user_uploaded_pdf_url(self, storage_service_mock):
+        """
+        A paper PDF uploaded to our bucket and referenced only by `pdf_url`
+        is quarantined.
+        """
+        # Arrange
+        mock_storage_service = storage_service_mock.return_value
+        self.paper.pdf_url = (
+            "https://storage.test.researchhub.com/uploads/papers/users/1/abc/spam.pdf"
+        )
+        self.paper.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        quarantined = [
+            call.args[0] for call in mock_storage_service.quarantine_object.mock_calls
+        ]
+        self.assertIn("uploads/papers/users/1/abc/spam.pdf", quarantined)
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_ignores_external_pdf_url(self, storage_service_mock):
+        """
+        A `pdf_url` pointing outside our bucket is not quarantined.
+        """
+        # Arrange
+        mock_storage_service = storage_service_mock.return_value
+        self.paper.pdf_url = "https://arxiv.org/pdf/2101.00001"
+        self.paper.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        quarantined = [
+            call.args[0] for call in mock_storage_service.quarantine_object.mock_calls
+        ]
+        self.assertFalse(any("2101.00001" in key for key in quarantined))
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_reinstate_restores_user_uploaded_pdf_url(self, storage_service_mock):
+        """
+        A quarantined paper PDF referenced by `pdf_url` is restored.
+        """
+        # Arrange
+        mock_storage_service = storage_service_mock.return_value
+        self.paper.pdf_url = (
+            "https://storage.test.researchhub.com/uploads/papers/users/1/abc/spam.pdf"
+        )
+        self.paper.save()
+
+        # Act
+        reinstate_user_task(self.user.id)
+
+        # Assert
+        mock_storage_service.restore_object.assert_called_once_with(
+            "uploads/papers/users/1/abc/spam.pdf"
         )
 
 

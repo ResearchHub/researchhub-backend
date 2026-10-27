@@ -2024,3 +2024,35 @@ class PostPeerReviewTests(TestCase):
         data = ResearchhubPostSerializer(post).data
 
         self.assertEqual(data["peer_reviews"], [])
+
+
+class PostListRemovedPostsTests(APITestCase):
+    def setUp(self):
+        self.user = create_random_default_user("removed_posts_user")
+        self.post = create_post(
+            created_by=self.user, document_type=PREREGISTRATION, title="Kept"
+        )
+        self.removed_post = create_post(
+            created_by=self.user, document_type=PREREGISTRATION, title="Removed"
+        )
+        self.removed_post.unified_document.is_removed = True
+        self.removed_post.unified_document.save()
+
+    def test_list_excludes_removed_posts(self):
+        # Act
+        response = self.client.get(
+            f"/api/researchhubpost/?document_type={PREREGISTRATION}"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        ids = [post["id"] for post in response.data["results"]]
+        self.assertEqual(ids, [self.post.id])
+
+    def test_removed_post_is_still_retrievable(self):
+        # Act
+        response = self.client.get(f"/api/researchhubpost/{self.removed_post.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], self.removed_post.id)

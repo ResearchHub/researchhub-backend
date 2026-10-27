@@ -60,13 +60,13 @@ from research_ai.services.agent.types import (
     ToolUseStreamStart,
     TurnUsage,
 )
+from research_ai.services.llm_models import CLAUDE_PLATFORM_AGENT
 
 logger = logging.getLogger(__name__)
 
-# Default generator model. Bare first-party id -- Claude Platform is
-# Anthropic-operated, so it takes no provider prefix and no date suffix.
-# Callers that want a different model pass ``model_id``.
-MODEL_ID = "claude-opus-5-5"
+# Default generator model (see ``llm_models``). Callers that want a different
+# model pass ``model_id``.
+MODEL_ID = CLAUDE_PLATFORM_AGENT.model_id
 
 # How much the model may deliberate and spend per turn: low | medium | high |
 # xhigh | max. ``low`` keeps routine agent workflows economical; higher levels
