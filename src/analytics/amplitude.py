@@ -334,9 +334,9 @@ def _get_object_id_from_response(res):
 
 
 def _get_purchase_id_from_response(res):
-    """Extract purchase ID from fundraise contribution response"""
-    # This might need adjustment based on actual response structure
-    return res.data.get("purchase_id") or res.data.get("id")
+    """Extract purchase ID from contribution response or amplitude_data."""
+    amplitude_data = getattr(res, "amplitude_data", None) or {}
+    return amplitude_data.get("purchase_id") or res.data.get("purchase_id")
 
 
 def _get_amount_from_response(res):
