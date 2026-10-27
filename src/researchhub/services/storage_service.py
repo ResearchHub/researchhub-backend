@@ -142,8 +142,8 @@ class S3StorageService(StorageService):
             cloudfront_client = self._cloudfront_client or aws_utils.create_client(
                 "cloudfront"
             )
-        except BotoCoreError as e:
-            logger.error("Failed to create CloudFront client: %s", e)
+        except BotoCoreError:
+            logger.exception("Failed to create CloudFront client")
             return
 
         for i in range(0, len(paths), CDN_INVALIDATION_BATCH_SIZE):
@@ -156,12 +156,11 @@ class S3StorageService(StorageService):
                         "CallerReference": str(uuid.uuid4()),
                     },
                 )
-            except (BotoCoreError, ClientError) as e:
-                logger.error(
-                    "Failed to invalidate %d CDN paths in distribution %s: %s",
+            except BotoCoreError, ClientError:
+                logger.exception(
+                    "Failed to invalidate %d CDN paths in distribution %s",
                     len(batch),
                     distribution_id,
-                    e,
                 )
 
     def _cdn_invalidation_path(self, key: str) -> str:
