@@ -90,10 +90,22 @@ class StorageServiceTest(TestCase):
         )
         self.assertEqual(
             storage_service.object_key_from_url(
-                "https://storage.test.researchhub.com/uploads/papers/users/1/abc/my%20file.pdf"
+                "https://storage.test.researchhub.com/uploads/papers/my file.pdf"
             ),
-            "uploads/papers/users/1/abc/my file.pdf",
+            "uploads/papers/my file.pdf",
         )
+
+    def test_object_key_from_url_keeps_url_delimiters_in_filename(self):
+        # Object URLs hold the raw key, so `;`, `?` and `#` are part of the filename
+        for filename in ["a;b.pdf", "a?b.pdf", "a#b.pdf", "a%20b.pdf"]:
+            with self.subTest(filename=filename):
+                # Act
+                key = storage_service.object_key_from_url(
+                    f"https://storage.test.researchhub.com/uploads/papers/{filename}"
+                )
+
+                # Assert
+                self.assertEqual(key, f"uploads/papers/{filename}")
 
     def test_object_key_from_url_returns_none_for_other_hosts(self):
         # Act & Assert
