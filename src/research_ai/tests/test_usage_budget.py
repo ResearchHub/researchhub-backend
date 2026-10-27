@@ -38,11 +38,13 @@ from research_ai.services.usage_budget import (
     UsageWorkInProgressError,
     atomic_turn_admission,
     budget_status,
+    check_spend_admission,
     check_turn_admission,
     record,
     resolve_ai_tier,
 )
 from research_ai.services.usage_budget import service as usage_budget_service
+from research_ai.services.usage_budget.config import COVER_IMAGE_FEATURE
 from research_ai.tests.agent.test_loop import FakeProvider, _build_text_turn
 from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
@@ -135,6 +137,49 @@ class UsageBudgetTests(TestCase):
             status.as_dict()["credits"],
             {"daily_limit": "1000", "used": "1.65", "remaining": "998.35"},
         )
+
+    def test_dollar_only_usage_spends_the_budget_without_taking_turns(self):
+        # Act
+        record(
+            self.user,
+            COVER_IMAGE_FEATURE,
+            "openrouter",
+            "openai/gpt-image-2.5-sunburst",
+            TurnUsage(provider_cost_microusd=120_000),
+        )
+        status = budget_status(self.user)
+
+        # Assert
+        self.assertEqual(status.spent_today_microusd, 120_000)
+        self.assertEqual(status.turns_used, 0)
+
+    def test_spend_admission_ignores_the_turn_cap_but_not_the_budget(self):
+        # Arrange
+        capped = BudgetStatus(
+            tier="default",
+            daily_budget_microusd=1_000_000,
+            spent_today_microusd=0,
+            turns_used=10,
+            turn_cap=10,
+            resets_at=timezone.now(),
+        )
+        spent = BudgetStatus(
+            tier="default",
+            daily_budget_microusd=1_000_000,
+            spent_today_microusd=1_000_000,
+            turns_used=0,
+            turn_cap=10,
+            resets_at=timezone.now(),
+        )
+
+        # Act / Assert
+        with patch.object(usage_budget_service, "budget_status", return_value=capped):
+            check_spend_admission(self.user)
+        with (
+            patch.object(usage_budget_service, "budget_status", return_value=spent),
+            self.assertRaises(UsageLimitExceededError),
+        ):
+            check_spend_admission(self.user)
 
     def test_admission_allows_many_cheap_calls_for_each_tier(self):
         # Arrange: exceed even the former privileged-tier cap for little cost.
