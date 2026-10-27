@@ -23,8 +23,29 @@ env:
   CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
 
 jobs:
+  resolve:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    outputs:
+      git_sha: ${{ steps.git_sha.outputs.long }}
+
+    steps:
+      - name: Resolve Git SHA
+        id: git_sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_REF: ${{ inputs.git_ref || github.sha }}
+        run: |
+          GIT_SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GIT_REF" --jq .sha)
+          echo "long=$GIT_SHA" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: resolve
     runs-on: ubuntu-26.04-arm
+    concurrency:
+      group: build-${{ needs.resolve.outputs.git_sha }}
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write # required for requesting JWT token from AWS
@@ -35,7 +56,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.git_ref }}
+          ref: ${{ needs.resolve.outputs.git_sha }}
 
       - name: Get Git SHA
         id: git_sha
