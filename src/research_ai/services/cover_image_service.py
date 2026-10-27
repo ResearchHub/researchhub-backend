@@ -164,9 +164,15 @@ class CoverImageService:
         if jpeg is None:
             self._fail(generation, "Could not re-encode the image")
             return
+        try:
+            key = self._store(generation, jpeg)
+        except Exception:  # noqa: BLE001 - storage errors vary
+            logger.exception("could not store cover image %s", generation.id)
+            self._fail(generation, "Could not store the image")
+            return
         CoverImageGeneration.objects.filter(id=generation.id).update(
             status=CoverImageGeneration.Status.COMPLETED,
-            image_key=self._store(generation, jpeg),
+            image_key=key,
             updated_date=timezone.now(),
         )
 

@@ -141,6 +141,19 @@ class CoverImageServiceTests(TestCase):
         self.assertEqual(generation.image_key, "")
         self.storage.save.assert_not_called()
 
+    def test_run_fails_when_the_banner_cannot_be_stored(self):
+        # Arrange
+        generation = self._generation()
+        self.storage.save.side_effect = OSError("bucket unavailable")
+
+        # Act
+        self.service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.assertEqual(LLMUsageEvent.objects.get().cost_microusd, 40_000)
+
     def test_run_skips_a_request_already_claimed(self):
         # Arrange
         generation = self._generation(status=CoverImageGeneration.Status.PROCESSING)
