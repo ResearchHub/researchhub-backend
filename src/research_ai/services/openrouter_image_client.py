@@ -64,7 +64,8 @@ class OpenRouterImageClient:
             headers={"Authorization": f"Bearer {self.api_key}"},
             json=body,
         )
-        if response.is_error:
+        # A redirect is a failure too; ``is_error`` only covers 4xx and 5xx.
+        if not response.is_success:
             raise OpenRouterImageError(
                 f"OpenRouter image request failed ({response.status_code}): "
                 f"{response.text[:500]}"
