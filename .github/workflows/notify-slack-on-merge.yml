@@ -1,0 +1,23 @@
+name: Notify Slack on Merge
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  notify:
+    if: github.event.pull_request.merged
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Post merge message to Slack
+        uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          errors: true
+          payload: |
+            channel: ${{ vars.SLACK_CHANNEL_ID }}
+            text: ${{ toJSON(format(':merge: Merged <{0}|#{1} {2}> into `main` (by {3})', github.event.pull_request.html_url, github.event.pull_request.number, github.event.pull_request.title, github.event.pull_request.merged_by.login)) }}
