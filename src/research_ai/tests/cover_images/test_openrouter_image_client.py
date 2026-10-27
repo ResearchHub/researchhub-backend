@@ -99,6 +99,17 @@ class OpenRouterImageClientTests(TestCase):
         with self.assertRaises(OpenRouterImageError):
             client.generate(model="m", prompt="p")
 
+    def test_a_redirect_raises(self):
+        # Arrange
+        def handler(request):
+            return httpx.Response(302, headers={"Location": "https://example.com"})
+
+        client = _client(handler)
+
+        # Act / Assert
+        with self.assertRaises(OpenRouterImageError):
+            client.generate(model="m", prompt="p")
+
     def test_a_response_without_an_image_raises(self):
         # Arrange
         def handler(request):
