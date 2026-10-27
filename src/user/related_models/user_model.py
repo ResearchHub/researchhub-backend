@@ -3,11 +3,12 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import UserManager as DjangoUserManager
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import DecimalField, Q, Sum, Value
+from django.db.models import DecimalField, Prefetch, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce, Lower
 from django.utils import timezone
 
@@ -26,6 +27,9 @@ from utils.models import SoftDeletableModel
 FOUNDATION_EMAIL = "main@researchhub.foundation"
 FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
 AI_EXPERT_EMAIL = "ai-review@researchhub.foundation"
+
+_IS_X_VERIFIED_ACCOUNT = Q(provider="x_oauth2", extra_data__is_identity_verified=True)
+_X_VERIFIED_ACCOUNTS_ATTR = "x_verified_accounts"
 
 
 @dataclass(frozen=True)
@@ -513,6 +517,16 @@ class User(SoftDeletableModel, AbstractUser):
 
     def has_x_verified_identity(self) -> bool:
         """Check whether the user's X account reports a verified identity."""
-        return self.socialaccount_set.filter(
-            provider="x_oauth2", extra_data__is_identity_verified=True
-        ).exists()
+        prefetched = getattr(self, _X_VERIFIED_ACCOUNTS_ATTR, None)
+        if prefetched is not None:
+            return bool(prefetched)
+        return self.socialaccount_set.filter(_IS_X_VERIFIED_ACCOUNT).exists()
+
+
+def prefetch_x_verified_accounts(lookup: str) -> Prefetch:
+    """Prefetch the verified X accounts that ``User.is_verified`` reads."""
+    return Prefetch(
+        lookup,
+        queryset=SocialAccount.objects.filter(_IS_X_VERIFIED_ACCOUNT),
+        to_attr=_X_VERIFIED_ACCOUNTS_ATTR,
+    )

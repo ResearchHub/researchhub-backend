@@ -29,6 +29,7 @@ from review.models.review_model import Review
 from review.serializers.review_serializer import ReviewSerializer
 from user.constants.risk_score_constants import DEFAULT_SCORE
 from user.models import Author, User
+from user.related_models.user_model import prefetch_x_verified_accounts
 from user.services.funding_activity_service import FundingActivityService
 
 from .hot_score_utils import calculate_adjusted_score
@@ -225,11 +226,13 @@ class ContentObjectSerializer(serializers.Serializer):
     def get_reviews(self, obj):
         """Return reviews from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            # One query per document, with what the reviewer's author and
-            # `is_verified` read, rather than three more per review.
+            # Two queries per document, with what the reviewer's author and
+            # `is_verified` read, rather than four more per review.
             reviews = list(
                 obj.unified_document.reviews.select_related(
                     "created_by__author_profile", "created_by__userverification"
+                ).prefetch_related(
+                    prefetch_x_verified_accounts("created_by__socialaccount_set")
                 )
             )
             return SimpleReviewSerializer(reviews, many=True).data
@@ -1053,8 +1056,9 @@ def assessed_reviews_queryset():
             content_type=ContentType.objects.get_for_model(RhCommentModel),
         )
         .filter(Exists(active_comment))
-        # `userverification` is read by the reviewer's `is_verified`.
+        # `userverification` and X accounts are read by the reviewer's `is_verified`.
         .select_related("created_by__author_profile", "created_by__userverification")
+        .prefetch_related(prefetch_x_verified_accounts("created_by__socialaccount_set"))
         .order_by("created_date", "id")
     )
 
