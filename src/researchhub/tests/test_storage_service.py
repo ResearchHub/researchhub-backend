@@ -121,6 +121,16 @@ class StorageServiceTest(TestCase):
         # Assert
         self.assertEqual(key, "uploads/papers/file1.pdf")
 
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="")
+    def test_object_key_from_url_returns_none_without_domain_setting(self):
+        # Act & Assert
+        self.assertIsNone(storage_service.object_key_from_url("/uploads/file1.pdf"))
+        self.assertIsNone(
+            storage_service.object_key_from_url(
+                "https://storage.test.researchhub.com/uploads/file1.pdf"
+            )
+        )
+
     @patch("researchhub.services.storage_service.aws_utils.create_client")
     def test_quarantine_object(self, create_client_mock):
         # Arrange
