@@ -658,14 +658,15 @@ class GrantCacheInvalidationTests(APITestCase):
                 {"page": "3", "ordering": "most_applicants"},
             ),
         ]
-        cache_keys = [
-            view.get_cache_key(Request(req), "grants") + ":public" for req in requests
-        ]
-        cache_keys += [
-            view.get_cache_key(Request(req), "grants") + ":admin" for req in requests
-        ]
 
-        for key in cache_keys:
+        def cache_keys():
+            return [
+                view.get_cache_key(Request(req), "grants") + segment
+                for segment in (":public", ":admin")
+                for req in requests
+            ]
+
+        for key in cache_keys():
             cache.set(key, {"test": key})
 
         with (
@@ -674,7 +675,8 @@ class GrantCacheInvalidationTests(APITestCase):
         ):
             GrantCacheMixin.invalidate_grant_feed_cache()
 
-        for key in cache_keys:
+        # Keys built after invalidation miss every entry set before it.
+        for key in cache_keys():
             self.assertIsNone(cache.get(key))
 
     def test_invalidate_does_not_affect_other_caches(self):
