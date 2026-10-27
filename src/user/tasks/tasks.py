@@ -168,11 +168,16 @@ def _user_file_keys(user: User) -> Iterator[str]:
 
 def _quarantine_user_files(user: User) -> None:
     """
-    Move the S3 object of the user's content to quarantine.
+    Move the S3 object of the user's content to quarantine, and evict the
+    moved objects from the CDN's edge caches.
     """
     storage_service = S3StorageService()
-    for key in _user_file_keys(user):
-        storage_service.quarantine_object(key)
+    moved_keys = [
+        key
+        for key in _user_file_keys(user)
+        if storage_service.quarantine_object(key) is not None
+    ]
+    storage_service.invalidate_cdn_cache(moved_keys)
 
 
 def _restore_user_files(user: User) -> None:

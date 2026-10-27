@@ -170,3 +170,98 @@ class StorageServiceTest(TestCase):
         s3_client_mock.delete_object.assert_called_once_with(
             Bucket="test-bucket", Key=f"quarantine/{key}"
         )
+
+    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    @patch("researchhub.services.storage_service.uuid.uuid4")
+    def test_invalidate_cdn_cache(self, uuid_mock, create_client_mock):
+        # Arrange
+        uuid_mock.return_value = "reference1"
+        cloudfront_client_mock = Mock()
+        create_client_mock.return_value = cloudfront_client_mock
+        keys = [
+            "uploads/papers/users/1/paper 1.pdf",
+            "uploads/posts/users/1/post1.txt",
+            "uploads/posts/users/1/post1.txt",
+        ]
+
+        # Act
+        S3StorageService().invalidate_cdn_cache(keys)
+
+        # Assert
+        create_client_mock.assert_called_once_with("cloudfront")
+        cloudfront_client_mock.create_invalidation.assert_called_once_with(
+            DistributionId="distribution1",
+            InvalidationBatch={
+                "Paths": {
+                    "Quantity": 2,
+                    "Items": [
+                        "/uploads/papers/users/1/paper%201.pdf",
+                        "/uploads/posts/users/1/post1.txt",
+                    ],
+                },
+                "CallerReference": "reference1",
+            },
+        )
+
+    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
+    @patch.object(storage_service, "CDN_INVALIDATION_BATCH_SIZE", 2)
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_invalidate_cdn_cache_in_batches(self, create_client_mock):
+        # Arrange
+        cloudfront_client_mock = Mock()
+        create_client_mock.return_value = cloudfront_client_mock
+        keys = ["file1.pdf", "file2.pdf", "file3.pdf"]
+
+        # Act
+        S3StorageService().invalidate_cdn_cache(keys)
+
+        # Assert
+        batches = [
+            call.kwargs["InvalidationBatch"]["Paths"]["Items"]
+            for call in cloudfront_client_mock.create_invalidation.mock_calls
+        ]
+        self.assertEqual(batches, [["/file1.pdf", "/file2.pdf"], ["/file3.pdf"]])
+
+    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
+    @patch.object(storage_service, "CDN_INVALIDATION_BATCH_SIZE", 1)
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_invalidate_cdn_cache_logs_failed_batch(self, create_client_mock):
+        # Arrange
+        cloudfront_client_mock = Mock()
+        cloudfront_client_mock.create_invalidation.side_effect = [
+            ClientError(
+                {"Error": {"Code": "TooManyInvalidationsInProgress"}},
+                "CreateInvalidation",
+            ),
+            {},
+        ]
+        create_client_mock.return_value = cloudfront_client_mock
+
+        # Act
+        with self.assertLogs(storage_service.logger, level="ERROR") as logs:
+            S3StorageService().invalidate_cdn_cache(["file1.pdf", "file2.pdf"])
+
+        # Assert
+        self.assertEqual(cloudfront_client_mock.create_invalidation.call_count, 2)
+        self.assertIn("Failed to invalidate 1 CDN paths", logs.output[0])
+
+    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="")
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_invalidate_cdn_cache_skipped_without_distribution(
+        self, create_client_mock
+    ):
+        # Act
+        S3StorageService().invalidate_cdn_cache(["file1.pdf"])
+
+        # Assert
+        create_client_mock.assert_not_called()
+
+    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_invalidate_cdn_cache_skipped_without_keys(self, create_client_mock):
+        # Act
+        S3StorageService().invalidate_cdn_cache([])
+
+        # Assert
+        create_client_mock.assert_not_called()

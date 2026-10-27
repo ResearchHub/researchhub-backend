@@ -1,8 +1,9 @@
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
+from botocore.exceptions import ClientError
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from discussion.constants.flag_reasons import ABUSIVE_OR_RUDE, SPAM
 from discussion.models import Flag
@@ -659,6 +660,59 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
                 "uploads/comments/users/spam.txt",
             },
         )
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_invalidates_cdn_cache_for_moved_files(self, storage_service_mock):
+        """
+        Quarantined files are evicted from the CDN cache in one call, skipping
+        files that could not be moved.
+        """
+        # Arrange
+        mock_storage_service = storage_service_mock.return_value
+        mock_storage_service.quarantine_object.side_effect = lambda key: (
+            None if key == "uploads/posts/users/missing.txt" else f"quarantine/{key}"
+        )
+        self.paper.file.name = "uploads/papers/users/spam.pdf"
+        self.paper.save()
+        self.post.discussion_src.name = "uploads/posts/users/missing.txt"
+        self.post.save()
+        self.comment.comment_content_src.name = "uploads/comments/users/spam.txt"
+        self.comment.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        mock_storage_service.invalidate_cdn_cache.assert_called_once()
+        (invalidated,) = mock_storage_service.invalidate_cdn_cache.call_args.args
+        self.assertCountEqual(
+            invalidated,
+            ["uploads/papers/users/spam.pdf", "uploads/comments/users/spam.txt"],
+        )
+
+    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_suspend_succeeds_when_cdn_invalidation_fails(self, create_client_mock):
+        """
+        A failed CDN invalidation does not prevent the user from being suspended.
+        """
+        # Arrange
+        aws_client_mock = Mock()
+        aws_client_mock.create_invalidation.side_effect = ClientError(
+            {"Error": {"Code": "AccessDenied"}}, "CreateInvalidation"
+        )
+        create_client_mock.return_value = aws_client_mock
+        self.paper.file.name = "uploads/papers/users/spam.pdf"
+        self.paper.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        aws_client_mock.copy_object.assert_called_once()
+        aws_client_mock.create_invalidation.assert_called_once()
+        self.paper.refresh_from_db()
+        self.assertTrue(self.paper.is_removed)
 
     @patch("user.tasks.tasks.S3StorageService")
     def test_reinstate_restores_user_files(self, mock_storage_service_cls):

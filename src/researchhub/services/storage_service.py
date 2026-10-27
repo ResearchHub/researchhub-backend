@@ -6,6 +6,7 @@ from urllib.parse import quote
 
 from botocore.exceptions import BotoCoreError, ClientError
 from django.conf import settings
+from django.utils.encoding import filepath_to_uri
 
 from utils import aws as aws_utils
 
@@ -23,6 +24,9 @@ SUPPORTED_ENTITIES = ["comment", "note", "paper", "post"]
 
 QUARANTINE_PREFIX = "quarantine/"
 """Prefix within the storage bucket where quarantined objects are moved."""
+
+CDN_INVALIDATION_BATCH_SIZE = 1000
+"""Maximum number of paths sent in a single CloudFront invalidation request."""
 
 
 class StorageService:
@@ -105,6 +109,47 @@ class S3StorageService(StorageService):
         if not key or key.startswith(QUARANTINE_PREFIX):
             return None
         return self._move_object(f"{QUARANTINE_PREFIX}{key}", key)
+
+    def invalidate_cdn_cache(self, keys: list[str]) -> None:
+        """
+        Evict objects from the storage CDN's edge caches, so that moved objects
+        are no longer served at their original key from cache.
+
+        Failures are logged and not raised.
+        """
+        if not keys:
+            return
+
+        distribution_id = settings.AWS_STORAGE_CDN_DISTRIBUTION_ID
+        if not distribution_id:
+            logger.warning(
+                "No storage CDN distribution configured, skipping invalidation "
+                "of %d paths",
+                len(keys),
+            )
+            return
+
+        # Match the URL-encoding used when serving objects through the CDN
+        paths = sorted({f"/{filepath_to_uri(key)}" for key in keys})
+        cloudfront_client = aws_utils.create_client("cloudfront")
+
+        for i in range(0, len(paths), CDN_INVALIDATION_BATCH_SIZE):
+            batch = paths[i : i + CDN_INVALIDATION_BATCH_SIZE]
+            try:
+                cloudfront_client.create_invalidation(
+                    DistributionId=distribution_id,
+                    InvalidationBatch={
+                        "Paths": {"Quantity": len(batch), "Items": batch},
+                        "CallerReference": str(uuid.uuid4()),
+                    },
+                )
+            except (BotoCoreError, ClientError) as e:
+                logger.error(
+                    "Failed to invalidate %d CDN paths in distribution %s: %s",
+                    len(batch),
+                    distribution_id,
+                    e,
+                )
 
     def _move_object(self, source_key: str, dest_key: str) -> str | None:
         """
