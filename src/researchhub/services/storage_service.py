@@ -2,7 +2,7 @@ import logging
 import unicodedata
 import uuid
 from typing import NamedTuple
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import quote, urlparse
 
 from botocore.exceptions import BotoCoreError, ClientError
 from django.conf import settings
@@ -39,11 +39,14 @@ def object_key_from_url(url: str | None) -> str | None:
     # The configured domain may or may not include a scheme.
     bucket_host = urlparse(domain if "://" in domain else f"//{domain}").netloc
 
-    parsed = urlparse(url)
-    if parsed.netloc.lower() != bucket_host.lower():
+    # Object URLs are built from the raw, unencoded key (see `create_presigned_url`),
+    # so the key is everything after the host, including any `;`, `?` or `#`.
+    _, sep, rest = url.partition("://")
+    host, _, key = rest.partition("/")
+    if not sep or host.lower() != bucket_host.lower():
         return None
 
-    return unquote(parsed.path).lstrip("/") or None
+    return key or None
 
 
 class StorageService:
