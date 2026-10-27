@@ -2,7 +2,7 @@ import logging
 import unicodedata
 import uuid
 from typing import NamedTuple
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse
 
 from botocore.exceptions import BotoCoreError, ClientError
 from django.conf import settings
@@ -23,6 +23,27 @@ SUPPORTED_ENTITIES = ["comment", "note", "paper", "post"]
 
 QUARANTINE_PREFIX = "quarantine/"
 """Prefix within the storage bucket where quarantined objects are moved."""
+
+
+def object_key_from_url(url: str | None) -> str | None:
+    """
+    Return the object key of a URL served from the storage bucket's domain
+    (e.g. a `PresignedUrl.object_url`), or None if it points anywhere else.
+    """
+    if not url:
+        return None
+
+    domain = settings.AWS_S3_CUSTOM_DOMAIN
+    if not domain:
+        return None
+    # The configured domain may or may not include a scheme.
+    bucket_host = urlparse(domain if "://" in domain else f"//{domain}").netloc
+
+    parsed = urlparse(url)
+    if parsed.netloc.lower() != bucket_host.lower():
+        return None
+
+    return unquote(parsed.path).lstrip("/") or None
 
 
 class StorageService:
