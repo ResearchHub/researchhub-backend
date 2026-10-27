@@ -74,7 +74,7 @@ class CoverImageGenerationViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["status"], "PENDING")
-        self.assertEqual(response.data["images"], [])
+        self.assertIsNone(response.data["image"])
         generation = CoverImageGeneration.objects.get(id=response.data["id"])
         self.assertEqual(generation.created_by, self.owner)
         self.assertEqual(generation.organization, "Athanatos Foundation")
@@ -124,14 +124,14 @@ class CoverImageGenerationViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 503)
 
-    def test_get_returns_the_generated_images(self):
+    def test_get_returns_the_generated_image(self):
         # Arrange
         generation = CoverImageGeneration.objects.create(
             created_by=self.owner,
             document_type="GRANT",
             title="A study",
             status=CoverImageGeneration.Status.COMPLETED,
-            image_keys=["uploads/posts/users/1/abc/cover.jpg"],
+            image_key="uploads/posts/users/1/abc/cover.jpg",
         )
 
         # Act
@@ -141,9 +141,9 @@ class CoverImageGenerationViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "COMPLETED")
         self.assertEqual(
-            response.data["images"][0]["key"], "uploads/posts/users/1/abc/cover.jpg"
+            response.data["image"]["key"], "uploads/posts/users/1/abc/cover.jpg"
         )
-        self.assertTrue(response.data["images"][0]["url"])
+        self.assertTrue(response.data["image"]["url"])
 
     def test_get_of_another_users_generation_is_not_found(self):
         # Arrange

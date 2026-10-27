@@ -4,11 +4,11 @@ from utils.models import DefaultModel
 
 
 class CoverImageGeneration(DefaultModel):
-    """One request for AI-generated cover image options for a proposal or RFP.
+    """One request for an AI-generated cover image for a proposal or RFP.
 
-    The banners are generated in a worker and stored under ``image_keys``; the
-    user picks one in the publishing form, which then sends its key as the
-    post's ``image`` like an uploaded cover.
+    The banner is generated in a worker and stored under ``image_key``; the
+    publishing form shows it and sends its key as the post's ``image``, like an
+    uploaded cover.
     """
 
     class Status(models.TextChoices):
@@ -36,10 +36,11 @@ class CoverImageGeneration(DefaultModel):
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.PENDING
     )
-    image_keys = models.JSONField(
-        default=list,
+    image_key = models.CharField(
+        max_length=255,
         blank=True,
-        db_comment="Storage keys of the generated banners, in display order.",
+        default="",
+        db_comment="Storage key of the generated banner.",
     )
     error = models.TextField(blank=True, default="")
 

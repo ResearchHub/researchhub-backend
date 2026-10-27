@@ -10,7 +10,6 @@ from django.utils import timezone
 from PIL import Image
 
 from research_ai.models import CoverImageGeneration, LLMUsageEvent
-from research_ai.prompts.cover_image_prompts import CoverImagePrompts
 from research_ai.services.cover_image_service import (
     CoverImageGenerationEnqueueError,
     CoverImageGenerationUnavailableError,
@@ -109,7 +108,7 @@ class CoverImageServiceTests(TestCase):
         call = self.client.generate.call_args_list[0].kwargs
         self.assertIn("Never draw a logo", call["prompt"])
 
-    def test_run_generates_and_stores_one_banner_per_variant(self):
+    def test_run_generates_and_stores_one_banner(self):
         # Arrange
         generation = self._generation()
 
@@ -119,34 +118,14 @@ class CoverImageServiceTests(TestCase):
         # Assert
         generation.refresh_from_db()
         self.assertEqual(generation.status, CoverImageGeneration.Status.COMPLETED)
-        self.assertEqual(len(generation.image_keys), CoverImagePrompts.VARIANT_COUNT)
-        self.assertEqual(
-            self.client.generate.call_count, CoverImagePrompts.VARIANT_COUNT
-        )
-        for key in generation.image_keys:
-            self.assertTrue(key.startswith(f"uploads/posts/users/{self.user.id}/"))
-            self.assertTrue(key.endswith("/cover.jpg"))
+        self.client.generate.assert_called_once()
+        key = generation.image_key
+        self.assertTrue(key.startswith(f"uploads/posts/users/{self.user.id}/"))
+        self.assertTrue(key.endswith("/cover.jpg"))
         stored = self.storage.save.call_args_list[0].args[1]
         with Image.open(stored) as image:
             self.assertEqual(image.format, "JPEG")
             self.assertEqual(image.size, (42, 18))
-
-    def test_run_keeps_the_banners_that_succeeded(self):
-        # Arrange
-        generation = self._generation()
-        self.client.generate.side_effect = [
-            _generated(cost_microusd=40_000),
-            RuntimeError("moderation_blocked"),
-            _generated(cost_microusd=45_000),
-        ]
-
-        # Act
-        self.service.run(generation.id)
-
-        # Assert
-        generation.refresh_from_db()
-        self.assertEqual(generation.status, CoverImageGeneration.Status.COMPLETED)
-        self.assertEqual(len(generation.image_keys), 2)
 
     def test_run_fails_when_no_banner_was_generated(self):
         # Arrange
@@ -159,7 +138,7 @@ class CoverImageServiceTests(TestCase):
         # Assert
         generation.refresh_from_db()
         self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
-        self.assertEqual(generation.image_keys, [])
+        self.assertEqual(generation.image_key, "")
         self.storage.save.assert_not_called()
 
     def test_run_skips_a_request_already_claimed(self):
@@ -184,23 +163,23 @@ class CoverImageServiceTests(TestCase):
         self.assertEqual(event.feature, COVER_IMAGE_FEATURE)
         self.assertEqual(event.provider, "openrouter")
         self.assertEqual(event.model, CoverImageService.MODEL)
-        self.assertEqual(event.cost_microusd, 40_000 * CoverImagePrompts.VARIANT_COUNT)
-        self.assertEqual(event.output_tokens, 4000 * CoverImagePrompts.VARIANT_COUNT)
+        self.assertEqual(event.cost_microusd, 40_000)
+        self.assertEqual(event.output_tokens, 4000)
 
-    def test_run_charges_only_the_images_that_came_back(self):
+    def test_run_charges_an_image_it_cannot_store(self):
         # Arrange
         generation = self._generation()
-        self.client.generate.side_effect = [
-            _generated(cost_microusd=40_000),
-            RuntimeError("upstream failed, not billed"),
-            _generated(cost_microusd=45_000),
-        ]
+        self.client.generate.return_value = GeneratedImage(
+            data=b"not an image", cost_microusd=40_000
+        )
 
         # Act
         self.service.run(generation.id)
 
         # Assert
-        self.assertEqual(LLMUsageEvent.objects.get().cost_microusd, 85_000)
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.assertEqual(LLMUsageEvent.objects.get().cost_microusd, 40_000)
 
     def test_run_charges_nothing_when_no_image_came_back(self):
         # Arrange
@@ -222,9 +201,7 @@ class CoverImageServiceTests(TestCase):
         status = budget_status(self.user)
 
         # Assert
-        self.assertEqual(
-            status.spent_today_microusd, 40_000 * CoverImagePrompts.VARIANT_COUNT
-        )
+        self.assertEqual(status.spent_today_microusd, 40_000)
         self.assertEqual(status.turns_used, 0)
 
     def test_start_is_refused_once_the_daily_budget_is_spent(self):
@@ -273,11 +250,11 @@ class CoverImageServiceTests(TestCase):
         # Assert
         self.assertEqual(found.status, CoverImageGeneration.Status.FAILED)
 
-    def test_public_lists_image_urls(self):
+    def test_public_gives_the_image_url(self):
         # Arrange
         generation = self._generation(
             status=CoverImageGeneration.Status.COMPLETED,
-            image_keys=["uploads/a/cover.jpg"],
+            image_key="uploads/a/cover.jpg",
         )
 
         # Act
@@ -285,12 +262,10 @@ class CoverImageServiceTests(TestCase):
 
         # Assert
         self.assertEqual(
-            data["images"],
-            [
-                {
-                    "key": "uploads/a/cover.jpg",
-                    "url": "https://cdn.test/uploads/a/cover.jpg",
-                }
-            ],
+            data["image"],
+            {
+                "key": "uploads/a/cover.jpg",
+                "url": "https://cdn.test/uploads/a/cover.jpg",
+            },
         )
         self.assertIsNone(data["error"])

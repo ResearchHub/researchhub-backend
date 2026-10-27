@@ -305,9 +305,9 @@ def process_agent_file_task(file_id: int):
     soft_time_limit=CoverImageService.TIME_LIMIT_SECONDS,
     time_limit=CoverImageService.TIME_LIMIT_SECONDS + HARD_TIME_LIMIT_GRACE,
 )
-def generate_cover_images_task(generation_id: int):
+def generate_cover_image_task(generation_id: int):
     """
-    Generate the cover image options of one proposal or RFP request.
+    Generate the cover image of one proposal or RFP request.
     """
     CoverImageService().run(generation_id)
 

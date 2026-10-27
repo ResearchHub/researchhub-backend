@@ -1,17 +1,16 @@
-"""Generate cover banner options for proposals and RFPs through OpenRouter.
+"""Generate a cover banner for a proposal or RFP through OpenRouter.
 
 ``start`` records a request and queues it; a worker calls ``run``, which asks
-OpenRouter for one banner per prompt variant in parallel and stores each, as a
-JPEG, in the default storage under the same key layout as user-uploaded post
-covers. The client polls the request until it completes, shows the banners,
-and sends the key of the one the user picks as the post's ``image``.
+OpenRouter for one banner and stores it, as a JPEG, in the default storage
+under the same key layout as user-uploaded post covers. The client polls the
+request until it completes, shows the banner, and sends its key as the post's
+``image``.
 """
 
 import io
 import logging
 import uuid
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from decimal import Decimal
 
@@ -44,9 +43,9 @@ class CoverImageGenerationEnqueueError(RuntimeError):
 
 def _enqueue_cover_image_generation(generation_id: int) -> None:
     # Import lazily because tasks imports this module.
-    from research_ai.tasks import generate_cover_images_task
+    from research_ai.tasks import generate_cover_image_task
 
-    generate_cover_images_task.delay(generation_id)
+    generate_cover_image_task.delay(generation_id)
 
 
 class CoverImageService:
@@ -65,11 +64,10 @@ class CoverImageService:
     # Generating takes under a minute; a request still active well past that
     # lost its worker, and is reported failed so the client stops waiting.
     STALE_AFTER = timedelta(minutes=10)
-    # The worker's ceiling; the image calls run in parallel, each with its own
-    # client timeout.
+    # The worker's ceiling, above the image call's own client timeout.
     TIME_LIMIT_SECONDS = 6 * 60
 
-    GENERATION_FAILED_MESSAGE = "Could not generate cover images. Please try again."
+    GENERATION_FAILED_MESSAGE = "Could not generate a cover image. Please try again."
 
     def __init__(
         self,
@@ -140,7 +138,7 @@ class CoverImageService:
         return generation
 
     def run(self, generation_id: int) -> None:
-        """Generate and store the banners for a queued request."""
+        """Generate and store the banner for a queued request."""
         claimed = CoverImageGeneration.objects.filter(
             id=generation_id, status=CoverImageGeneration.Status.PENDING
         ).update(status=CoverImageGeneration.Status.PROCESSING)
@@ -148,32 +146,27 @@ class CoverImageService:
             return
         generation = CoverImageGeneration.objects.get(id=generation_id)
 
-        prompts = CoverImagePrompts.build(
+        prompt = CoverImagePrompts.build(
             document_type=generation.document_type,
             title=generation.title,
             subtitle=generation.subtitle,
             organization=generation.organization,
             funding_amount_usd=generation.funding_amount_usd,
         )
-        # The calls only wait on OpenRouter, so they run side by side; storing (and
-        # anything touching the database) stays on this thread.
-        with ThreadPoolExecutor(max_workers=len(prompts)) as pool:
-            generated = [
-                image
-                for image in pool.map(self._generate_or_none, prompts)
-                if image is not None
-            ]
-        # Every image that came back was billed, whether or not it is stored.
-        self._record_usage(generation, generated)
+        image = self._generate_or_none(prompt)
+        if image is None:
+            self._fail(generation, "OpenRouter returned no image")
+            return
+        # The image came back, so it was billed, whether or not it is stored.
+        self._record_usage(generation, image)
 
-        jpegs = [self._jpeg_or_none(image) for image in generated]
-        keys = [self._store(generation, jpeg) for jpeg in jpegs if jpeg is not None]
-        if not keys:
-            self._fail(generation, "OpenRouter returned no images")
+        jpeg = self._jpeg_or_none(image)
+        if jpeg is None:
+            self._fail(generation, "Could not re-encode the image")
             return
         CoverImageGeneration.objects.filter(id=generation.id).update(
             status=CoverImageGeneration.Status.COMPLETED,
-            image_keys=keys,
+            image_key=self._store(generation, jpeg),
             updated_date=timezone.now(),
         )
 
@@ -183,13 +176,11 @@ class CoverImageService:
     def public(self, generation: CoverImageGeneration) -> dict:
         """The API shape of a generation request."""
         failed = generation.status == CoverImageGeneration.Status.FAILED
+        key = generation.image_key
         return {
             "id": generation.id,
             "status": generation.status,
-            "images": [
-                {"key": key, "url": self.image_url(key)}
-                for key in generation.image_keys
-            ],
+            "image": {"key": key, "url": self.image_url(key)} if key else None,
             "error": self.GENERATION_FAILED_MESSAGE if failed else None,
         }
 
@@ -201,18 +192,15 @@ class CoverImageService:
                 aspect_ratio=self.ASPECT_RATIO,
                 quality=self.QUALITY,
             )
-        except Exception:  # noqa: BLE001 - one failed variant must not sink the rest
+        except Exception:  # noqa: BLE001 - provider errors vary
             logger.exception("cover image generation failed")
             return None
 
     def _record_usage(
-        self, generation: CoverImageGeneration, images: list[GeneratedImage]
+        self, generation: CoverImageGeneration, image: GeneratedImage
     ) -> None:
-        """Charge the user's daily budget what OpenRouter billed for ``images``."""
-        if not images:
-            return
-        cost = self._total(image.cost_microusd for image in images)
-        if cost is None:
+        """Charge the user's daily budget what OpenRouter billed for ``image``."""
+        if image.cost_microusd is None:
             logger.warning(
                 "OpenRouter reported no cost for cover image generation %s",
                 generation.id,
@@ -224,19 +212,13 @@ class CoverImageService:
                 "openrouter",
                 self.MODEL,
                 TurnUsage(
-                    input_tokens=self._total(image.input_tokens for image in images),
-                    output_tokens=self._total(image.output_tokens for image in images),
-                    provider_cost_microusd=cost,
+                    input_tokens=image.input_tokens,
+                    output_tokens=image.output_tokens,
+                    provider_cost_microusd=image.cost_microusd,
                 ),
             )
-        except Exception:  # noqa: BLE001 - accounting must not lose the banners
+        except Exception:  # noqa: BLE001 - accounting must not lose the banner
             logger.exception("could not record cover image usage for %s", generation.id)
-
-    @staticmethod
-    def _total(values) -> int | None:
-        """The sum of the reported values; None when none was reported."""
-        reported = [value for value in values if value is not None]
-        return sum(reported) if reported else None
 
     def _jpeg_or_none(self, image: GeneratedImage) -> bytes | None:
         """Re-encode the provider's image (often a large PNG) as a JPEG."""
@@ -247,7 +229,7 @@ class CoverImageService:
                     output, format="JPEG", quality=self.JPEG_QUALITY
                 )
             return output.getvalue()
-        except Exception:  # noqa: BLE001 - one unreadable image must not sink the rest
+        except Exception:  # noqa: BLE001 - image decoding errors vary
             logger.exception("could not re-encode a generated cover image")
             return None
 

@@ -25,7 +25,7 @@ class SharePostGenerateThrottle(CloudflareClientIPMixin, UserRateThrottle):
 
 
 class CoverImageGenerationThrottle(UserRateThrottle):
-    """Each request generates several images, each a paid OpenRouter call."""
+    """Each request is a paid OpenRouter image call."""
 
     scope = "research_ai_cover_image_generation"
     rate = "10/hour"
