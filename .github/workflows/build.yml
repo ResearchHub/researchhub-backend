@@ -31,14 +31,14 @@ jobs:
       git_sha: ${{ steps.git_sha.outputs.long }}
 
     steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.git_ref }}
+
       - name: Resolve Git SHA
         id: git_sha
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GIT_REF: ${{ inputs.git_ref || github.sha }}
-        run: |
-          GIT_SHA=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GIT_REF" --jq .sha)
-          echo "long=$GIT_SHA" >> "$GITHUB_OUTPUT"
+        run: echo "long=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
     needs: resolve
