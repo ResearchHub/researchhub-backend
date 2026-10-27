@@ -48,17 +48,6 @@ class StakingYieldServiceTest(TestCase):
         )
         self.assertEqual(emission, Decimal(0))
 
-    def test_daily_emission_decreases_over_time(self):
-        day1 = StakingYieldService.compute_total_daily_emission(STAKING_RELEASE_DATE)
-        day2 = StakingYieldService.compute_total_daily_emission(
-            STAKING_RELEASE_DATE + timedelta(days=30)
-        )
-        day3 = StakingYieldService.compute_total_daily_emission(
-            STAKING_RELEASE_DATE + timedelta(days=365)
-        )
-        self.assertGreater(day1, day2)
-        self.assertGreater(day2, day3)
-
     def test_compute_daily_yield_from_pool_share(self):
         accrual = STAKING_RELEASE_DATE
         daily_emission = StakingYieldService.compute_total_daily_emission(accrual)

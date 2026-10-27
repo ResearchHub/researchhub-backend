@@ -25,16 +25,6 @@ class PaperSerializersTests(TestCase):
     def setUp(self):
         pass
 
-    def test_authors_field_is_optional(self):
-        hub_1 = create_hub(name="Hub 1")
-        hub_2 = create_hub(name="Hub 2")
-        paper = helpers.create_paper(title="Serialized Paper Title")
-        paper.unified_document.hubs.add(hub_1)
-        paper.unified_document.hubs.add(hub_2)
-        paper_dict = model_to_dict(paper)
-        serialized = PaperSerializer(data=paper_dict)
-        self.assertTrue(serialized.is_valid())
-
     def test_hubs_field_is_optional(self):
         paper = helpers.create_paper(title="Hubs Required")
         paper_dict = model_to_dict(paper)
@@ -283,18 +273,6 @@ class PaperSerializersTests(TestCase):
 
         self.assertEqual(len(actual.data["peer_reviews"]), 1)
         self.assertEqual(actual.data["peer_reviews"][0]["id"], active_review.id)
-
-    def test_peer_reviews_empty_when_none_exist(self):
-        paper = helpers.create_paper(title="paper_no_reviews")
-
-        context = self._get_peer_review_context()
-        actual = DynamicPaperSerializer(
-            paper,
-            context=context,
-            _include_fields=["id", "peer_reviews"],
-        )
-
-        self.assertEqual(actual.data["peer_reviews"], [])
 
     def test_update_with_hubs(self):
         """

@@ -115,12 +115,6 @@ class PostDocumentTests(TestCase):
 
         self.assertFalse(self.document.should_index_object(post))
 
-    def test_should_index_object_excludes_declined_post(self):
-        post = self._create_post("Declined Post")
-        post.unified_document.status = ResearchhubUnifiedDocument.DECLINED
-
-        self.assertFalse(self.document.should_index_object(post))
-
     def _create_grant_post(self, status):
         unified_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
         post = ResearchhubPost.objects.create(

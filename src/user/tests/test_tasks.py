@@ -50,7 +50,7 @@ class UserTasksTests(TestCase):
         self.assertFalse(first_action in latest_actions)
 
 
-class HandleSpamUserTaskTests(TestCase):
+class SpamUserTestCase(TestCase):
     def setUp(self):
         # Create a user
         self.user = create_random_default_user("spam_user")
@@ -93,6 +93,8 @@ class HandleSpamUserTaskTests(TestCase):
             object_id=self.paper.id,
         )
 
+
+class HandleSpamUserTaskTests(SpamUserTestCase):
     def test_handle_spam_user_task_emits_user_suspended_event(self):
         # Arrange
         events = []
@@ -357,7 +359,7 @@ class HandleSpamUserTaskTests(TestCase):
         self.assertFalse(comment2.is_removed)
 
 
-class HandleSpamUserContentTests(HandleSpamUserTaskTests):
+class HandleSpamUserContentTests(SpamUserTestCase):
     def setUp(self):
         super().setUp()
         self.other_user = create_random_default_user("content_other_user")

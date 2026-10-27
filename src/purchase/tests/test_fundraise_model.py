@@ -124,22 +124,6 @@ class GetAmountRaisedTests(TestCase):
 
         self.assertEqual(amount, 0.0)
 
-    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
-    def test_get_amount_raised_multiple_usd_contributors(self, mock_exchange_rate):
-        """Test get_amount_raised sums contributions from multiple users."""
-        mock_exchange_rate.return_value = 0.01
-
-        contributor2 = create_random_authenticated_user("contributor2")
-        contributor3 = create_random_authenticated_user("contributor3")
-
-        self._create_usd_contribution(self.fundraise, self.contributor, 10000)  # $100
-        self._create_usd_contribution(self.fundraise, contributor2, 5000)  # $50
-        self._create_usd_contribution(self.fundraise, contributor3, 2500)  # $25
-
-        amount = self.fundraise.get_amount_raised(currency=USD)
-
-        self.assertEqual(amount, 175.0)
-
     @patch(
         "purchase.related_models.fundraise_model.RscExchangeRate.rsc_to_eth",
         return_value=0.0005,

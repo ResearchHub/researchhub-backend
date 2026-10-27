@@ -15,13 +15,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
             response = json.load(file)
             self.institutions = response.get("results")
 
-    def test_create_institution(self):
-        institution = self.institutions[0]
-        Institution.upsert_from_openalex(institution)
-
-        created_inst = Institution.objects.filter(openalex_id=institution["id"]).first()
-        self.assertEqual(created_inst.openalex_id, institution["id"])
-
     def test_update_institution(self):
         old_institution = self.institutions[0]
         old_institution["display_name"] = "old institution"

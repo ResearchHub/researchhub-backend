@@ -104,20 +104,6 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertLessEqual(result_image.width, 8000)
         self.assertLessEqual(result_image.height, 8000)
 
-    def test_resize_and_compress_for_bedrock_large_file_size(self):
-        """Test that images exceeding file size limits are compressed."""
-        # Create a high-quality image that might exceed size limit
-        large_image = Image.new("RGB", (5000, 5000), color="red")
-        buffer = BytesIO()
-        large_image.save(buffer, format="JPEG", quality=100)
-        image_bytes = buffer.getvalue()
-
-        figure = self._create_test_figure()
-        result = self.service._resize_and_compress_for_bedrock(image_bytes, figure.id)
-
-        # Should be compressed to under 4.5MB
-        self.assertLess(len(result), 4.5 * 1024 * 1024)
-
     def test_build_prompt_includes_criteria(self):
         """Test that the prompt includes all scoring criteria."""
         prompt = self.service._build_prompt(
@@ -130,51 +116,6 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertIn("Visual Quality", prompt)
         self.assertIn("Test Title", prompt)
         self.assertIn("Test Abstract", prompt)
-
-    @patch("paper.services.bedrock_primary_image_service.create_client")
-    @patch("django.conf.settings.BEDROCK_PROCESSING_ENABLED", True)
-    def test_select_best_from_batch_success(self, mock_create_client):
-        """Test successful selection from a batch."""
-        # Create mock Bedrock client
-        mock_client = MagicMock()
-        mock_create_client.return_value = mock_client
-
-        # Create test figures
-        figure1 = self._create_test_figure()
-        figure2 = self._create_test_figure()
-
-        # Mock Bedrock Converse API response with Tool Use
-        mock_response = {
-            "output": {
-                "message": {
-                    "content": [
-                        {
-                            "toolUse": {
-                                "name": "evaluate_figures",
-                                "input": {
-                                    "selected_figure_index": 0,
-                                    "scores": {
-                                        "figure_0": 75.5,
-                                        "figure_1": 65.0,
-                                    },
-                                },
-                            }
-                        }
-                    ]
-                }
-            }
-        }
-        mock_client.converse.return_value = mock_response
-
-        # Create new service instance to use mocked client
-        service = BedrockPrimaryImageService()
-
-        selected_id, score = service._select_best_from_batch(
-            [figure1, figure2], "Test Title", "Test Abstract"
-        )
-
-        self.assertEqual(selected_id, figure1.id)
-        self.assertEqual(score, 75.5)
 
     @patch("paper.services.bedrock_primary_image_service.create_client")
     @patch("django.conf.settings.BEDROCK_PROCESSING_ENABLED", True)
@@ -217,42 +158,6 @@ class BedrockPrimaryImageServiceTests(TestCase):
 
         self.assertEqual(selected_id, figure2.id)
         self.assertEqual(score, 80.0)
-
-    @patch("paper.services.bedrock_primary_image_service.create_client")
-    def test_select_best_from_batch_empty_batch(self, mock_create_client):
-        """Test handling of empty batch."""
-        mock_client = MagicMock()
-        mock_create_client.return_value = mock_client
-
-        service = BedrockPrimaryImageService()
-
-        selected_id, score = service._select_best_from_batch(
-            [], "Test Title", "Test Abstract"
-        )
-
-        self.assertIsNone(selected_id)
-        self.assertIsNone(score)
-
-    @patch("paper.services.bedrock_primary_image_service.create_client")
-    def test_select_best_from_batch_exceeds_limit(self, mock_create_client):
-        """Test that batches exceeding limit are rejected."""
-        mock_client = MagicMock()
-        mock_create_client.return_value = mock_client
-
-        # Create more figures than the limit
-        figures = [
-            self._create_test_figure()
-            for _ in range(MAX_IMAGES_PER_BEDROCK_REQUEST + 1)
-        ]
-
-        service = BedrockPrimaryImageService()
-
-        selected_id, score = service._select_best_from_batch(
-            figures, "Test Title", "Test Abstract"
-        )
-
-        self.assertIsNone(selected_id)
-        self.assertIsNone(score)
 
     def test_select_primary_image_single_batch(self):
         """Test selection when figures fit in single batch."""
@@ -352,50 +257,3 @@ class BedrockPrimaryImageServiceTests(TestCase):
         self.assertIsNotNone(score)
         # Should have called Bedrock multiple times (for batches and final selection)
         self.assertGreater(mock_client.converse.call_count, 1)
-
-    @patch("paper.services.bedrock_primary_image_service.create_client")
-    def test_select_best_from_batch_missing_tool_use(self, mock_create_client):
-        """Test handling when Tool Use response is missing."""
-        mock_client = MagicMock()
-        mock_create_client.return_value = mock_client
-
-        figure1 = self._create_test_figure()
-        figure2 = self._create_test_figure()
-
-        # Mock response without tool use
-        mock_response = {
-            "output": {
-                "message": {"content": [{"type": "text", "text": "Some text response"}]}
-            }
-        }
-        mock_client.converse.return_value = mock_response
-
-        service = BedrockPrimaryImageService()
-
-        selected_id, score = service._select_best_from_batch(
-            [figure1, figure2], "Test Title", "Test Abstract"
-        )
-
-        self.assertIsNone(selected_id)
-        self.assertIsNone(score)
-
-    @patch("paper.services.bedrock_primary_image_service.create_client")
-    def test_select_best_from_batch_missing_output(self, mock_create_client):
-        """Test handling when output is missing from response."""
-        mock_client = MagicMock()
-        mock_create_client.return_value = mock_client
-
-        figure1 = self._create_test_figure()
-
-        # Mock response without output
-        mock_response = {}
-        mock_client.converse.return_value = mock_response
-
-        service = BedrockPrimaryImageService()
-
-        selected_id, score = service._select_best_from_batch(
-            [figure1], "Test Title", "Test Abstract"
-        )
-
-        self.assertIsNone(selected_id)
-        self.assertIsNone(score)

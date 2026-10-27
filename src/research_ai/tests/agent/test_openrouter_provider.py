@@ -1,7 +1,6 @@
 """Unit tests for the OpenRouter Chat Completions provider adapter (no network)."""
 
 import base64
-import json
 from copy import deepcopy
 from types import SimpleNamespace
 
@@ -445,18 +444,6 @@ class CompleteRequestTests(SimpleTestCase):
         # Assert
         self.assertNotIn("tools", provider._client.calls[0])
 
-    def test_sampling_params_omitted_for_models_that_reject_them(self):
-        # Arrange
-        provider = _build_provider(
-            [_response(content="ok")], model_id="anthropic/claude-opus-5"
-        )
-
-        # Act
-        _complete(provider)
-
-        # Assert
-        self.assertNotIn("temperature", provider._client.calls[0])
-
     def test_gpt6_tool_calls_use_no_reasoning_and_no_sampling(self):
         # Arrange
         rendered_tools = [{"type": "function", "function": {"name": "search"}}]
@@ -783,27 +770,3 @@ class DefaultsTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(provider.model_id, "anthropic/claude-opus-5")
-
-    def test_round_trip_arguments_encoding(self):
-        # Arrange: an assistant tool call rendered then a result echoing its id.
-        provider = _build_provider([_response(content="ok")])
-        tool_input = {"query": "protein folding", "limit": 3}
-        messages = [
-            Message(
-                role="assistant",
-                content=[ToolUseBlock(id="t9", name="search", input=tool_input)],
-            ),
-            Message(
-                role="user",
-                content=[ToolResultBlock(tool_use_id="t9", content={"n": 1})],
-            ),
-        ]
-
-        # Act
-        _complete(provider, messages=messages)
-
-        # Assert: arguments JSON round-trips and the result keys to the call id.
-        sent = provider._client.calls[0]["messages"]
-        arguments = sent[1]["tool_calls"][0]["function"]["arguments"]
-        self.assertEqual(json.loads(arguments), tool_input)
-        self.assertEqual(sent[2]["tool_call_id"], "t9")

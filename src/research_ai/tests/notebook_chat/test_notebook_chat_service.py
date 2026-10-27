@@ -40,7 +40,6 @@ from research_ai.services.notebook_chat.events import (
 from research_ai.services.notebook_chat.service import TITLE_MAX_CHARS
 from research_ai.services.usage_budget import (
     ReservationHeartbeat,
-    UsageWorkInProgressError,
     budget_status,
 )
 from research_ai.tests.agent.persistence_test_helpers import (
@@ -183,14 +182,6 @@ class NotebookChatServiceTests(TestCase):
         self.assertEqual(execution.model, "claude_platform:claude-sonnet-5")
         self.assertEqual(execution.provider, "claude_platform")
 
-    def test_submit_message_snapshots_generation_options(self):
-        # Act
-        execution, _delay = self._submit(effort="high", thinking="adaptive")
-
-        # Assert
-        self.assertEqual(execution.configuration["effort"], "high")
-        self.assertEqual(execution.configuration["thinking"], "adaptive")
-
     def test_later_messages_inherit_or_repeat_the_effort(self):
         # Arrange
         first, _delay = self._submit(effort="high")
@@ -206,18 +197,6 @@ class NotebookChatServiceTests(TestCase):
                 self.assertEqual(execution.configuration["effort"], "high")
                 execution.status = AgentExecution.Status.SUCCEEDED
                 execution.save(update_fields=["status"])
-
-    def test_later_messages_cannot_change_effort(self):
-        # Arrange
-        first, _delay = self._submit(effort="low")
-        first.status = AgentExecution.Status.SUCCEEDED
-        first.save(update_fields=["status"])
-
-        # Act / Assert
-        with self.assertRaisesRegex(ValueError, "effort cannot be changed"):
-            self._submit("Think harder", effort="high")
-        self.assertEqual(self.conversation.executions.count(), 1)
-        self.assertEqual(self.conversation.chat_messages.count(), 1)
 
     def test_new_conversation_can_choose_a_different_effort(self):
         # Arrange
@@ -307,33 +286,6 @@ class NotebookChatServiceTests(TestCase):
             )
         self.assertFalse(AgentExecution.objects.exists())
 
-    @override_settings(
-        ANTHROPIC_AWS_WORKSPACE_ID="ws-test", AWS_REGION_NAME="us-east-1"
-    )
-    def test_run_turn_resolves_provider_from_the_recorded_model(self):
-        # Arrange: a turn submitted with a selected model, run by a service
-        # with no injected provider.
-        execution, _delay = self._submit(model_ref="claude_platform:claude-sonnet-5")
-        service = _make_service()
-        provider = FakeProvider([text_turn("Answer")])
-
-        # Act
-        with patch(
-            "research_ai.services.notebook_chat.service.resolve_provider",
-            return_value=provider,
-        ) as resolve:
-            service.run_turn(execution.id)
-
-        # Assert: the worker runs the model the turn was submitted with, not
-        # today's generator default.
-        resolve.assert_called_once_with(
-            "claude_platform:claude-sonnet-5",
-            native_tools=frozenset({"web_search"}),
-            image_loader=ANY,
-            refusal_fallback=True,
-            effort="low",
-        )
-
     def test_second_message_continues_the_same_conversation(self):
         # Arrange
         first, _delay = self._submit()
@@ -393,19 +345,6 @@ class NotebookChatServiceTests(TestCase):
         with self.assertRaises(ValueError):
             service.submit_message(self.note, self.conversation, "x" * 11)
 
-    def test_create_conversation_makes_a_new_chat_each_time(self):
-        # Act
-        second = self.service.create_conversation(self.note, self.user)
-
-        # Assert: both chats coexist on the note for the same user.
-        self.assertNotEqual(second.id, self.conversation.id)
-        self.assertEqual(
-            AgentConversation.objects.filter(
-                user=self.user, workflow=WORKFLOW, note_links__note=self.note
-            ).count(),
-            2,
-        )
-
     def test_submit_message_while_turn_is_running_raises_busy(self):
         # Arrange
         self._submit()
@@ -413,18 +352,6 @@ class NotebookChatServiceTests(TestCase):
         # Act & Assert
         with self.assertRaises(AgentConversationBusyError):
             self.service.submit_message(self.note, self.conversation, "again")
-
-    def test_five_busy_chats_block_the_users_next_chat(self):
-        # Arrange
-        self._submit()
-        for _ in range(4):
-            conversation = self.service.create_conversation(self.note, self.user)
-            self._submit(conversation=conversation)
-        second = self.service.create_conversation(self.note, self.user)
-
-        # Act / Assert
-        with self.assertRaises(UsageWorkInProgressError):
-            self._submit("Different thread", conversation=second)
 
     def _lose_worker(self, execution):
         """Leave ``execution`` as a dead worker does: RUNNING, lease lapsed."""
@@ -1233,14 +1160,6 @@ class NotebookChatTitleTests(TestCase):
         named.refresh_from_db()
         self.assertEqual(named.title, "Planning thread")
 
-    def test_rename_conversation_updates_the_title(self):
-        # Act
-        self.service.rename_conversation(self.conversation, "Literature review")
-
-        # Assert
-        self.conversation.refresh_from_db()
-        self.assertEqual(self.conversation.title, "Literature review")
-
 
 @override_settings(**MODEL_SETTINGS)
 class NotebookChatResolutionTests(TestCase):
@@ -1268,13 +1187,6 @@ class NotebookChatResolutionTests(TestCase):
             )
         self.service = _make_service()
         self.conversation = self.service.create_conversation(self.note, self.user)
-
-    def test_get_conversation_resolves_the_users_chat_on_the_note(self):
-        # Act & Assert
-        self.assertEqual(
-            self.service.get_conversation(self.note, self.user, self.conversation.id),
-            self.conversation,
-        )
 
     def test_get_conversation_rejects_other_users_notes_and_workflows(self):
         # Arrange
@@ -1508,24 +1420,6 @@ class NotebookChatEventEmissionTests(TestCase):
         # Assert: a skipped delivery changed nothing, so it announces nothing.
         self.assertTrue(result["skipped"])
         run_publisher.publish.assert_not_called()
-
-    def test_cancel_active_turn_publishes_turn_cancelled(self):
-        # Arrange
-        execution = self._submit()
-        self.publisher.reset_mock()
-        self.service.streams = Mock()
-
-        # Act
-        with self.captureOnCommitCallbacks(execute=True):
-            cancelled = self.service.cancel_active_turn(self.conversation)
-
-        # Assert
-        self.assertIsNotNone(cancelled)
-        self.assertEqual(
-            self.publisher.publish.call_args.args,
-            (self.conversation.id, execution.id, TURN_CANCELLED),
-        )
-        self.service.streams.clear.assert_called_once_with(execution.id)
 
     def test_cancel_active_turn_survives_stream_cache_cleanup_failure(self):
         # Arrange

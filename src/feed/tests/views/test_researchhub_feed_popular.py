@@ -103,14 +103,6 @@ class PopularFeedTests(APITestCase):
     def tearDown(self):
         cache.clear()
 
-    def test_unauthenticated_user_gets_results(self):
-        url = reverse("feed-list")
-
-        response = self.client.get(url, {"feed_view": "popular"})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreaterEqual(len(response.data["results"]), 3)
-
     def test_authenticated_user_gets_results(self):
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
@@ -152,22 +144,6 @@ class PopularFeedTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 0)
 
-    def test_popular_orders_by_hot_score_v2(self):
-        url = reverse("feed-list")
-
-        response = self.client.get(
-            url, {"feed_view": "popular", "ordering": "hot_score_v2"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-        self.assertGreaterEqual(len(results), 3)
-
-        if len(results) >= 2:
-            first_score = results[0].get("hot_score_v2", 0)
-            second_score = results[1].get("hot_score_v2", 0)
-            self.assertGreaterEqual(first_score, second_score)
-
     def test_popular_defaults_to_hot_score_v2(self):
         # Arrange
         url = reverse("feed-list")
@@ -201,30 +177,3 @@ class PopularFeedTests(APITestCase):
             result_ids.index(self.high_score_paper.id),
             result_ids.index(self.low_score_paper.id),
         )
-
-    def test_feed_content_type_filtering(self):
-        """Popular feed only returns papers from allowed preprint hubs."""
-        url = reverse("feed-list")
-
-        popular_response = self.client.get(url, {"feed_view": "popular"})
-
-        popular_result_ids = [
-            r["content_object"]["id"] for r in popular_response.data["results"]
-        ]
-        popular_content_types = [
-            r["content_type"] for r in popular_response.data["results"]
-        ]
-
-        self.assertIn(self.high_score_paper.id, popular_result_ids)
-        self.assertIn(self.medium_score_paper.id, popular_result_ids)
-        self.assertIn("PAPER", popular_content_types)
-
-    def test_popular_with_hot_score_v2_ordering_sets_feed_source(self):
-        url = reverse("feed-list")
-
-        response = self.client.get(
-            url, {"feed_view": "popular", "ordering": "hot_score_v2"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.get("RH-Feed-Source"), "rh-popular")

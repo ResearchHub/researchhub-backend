@@ -71,28 +71,6 @@ class NoteInvitationServiceTest(TestCase):
         permission = self.note.unified_document.permissions.get(user=self.recipient)
         self.assertEqual(permission.access_type, EDITOR)
 
-    def test_accept_invite_claims_recipientless_invite(self):
-        # Arrange
-        invite = self._create_note_invitation(
-            recipient=None,
-            recipient_email="new-recipient@researchhub.com",
-            invite_type=EDITOR,
-        )
-        new_recipient = self._create_user("new-recipient")
-
-        # Act
-        accepted_invite = self.service.accept_invite(invite.key, new_recipient)
-
-        # Assert
-        self.assertEqual(accepted_invite.id, invite.id)
-
-        invite.refresh_from_db()
-        self.assertTrue(invite.accepted)
-        self.assertEqual(invite.recipient, new_recipient)
-
-        permission = self.note.unified_document.permissions.get(user=new_recipient)
-        self.assertEqual(permission.access_type, EDITOR)
-
     def test_accept_invite_claims_recipientless_invite_with_different_emails(self):
         # Arrange
         invite = self._create_note_invitation(

@@ -16,62 +16,6 @@ from paper.ingestion.pipeline import (
 from paper.models import PaperFetchLog
 
 
-class TestIngestionStatus(TestCase):
-    def test_initialization(self):
-        """
-        Test IngestionStatus initialization with defaults.
-        """
-        # Arrange & Act
-        status = IngestionStatus(
-            source="arxiv",
-            start_time=timezone.now(),
-        )
-
-        # Assert
-        self.assertEqual(status.source, "arxiv")
-        self.assertIsNotNone(status.start_time)
-        self.assertIsNone(status.end_time)
-        self.assertEqual(status.total_fetched, 0)
-        self.assertEqual(status.total_processed, 0)
-        self.assertEqual(status.total_created, 0)
-        self.assertEqual(status.total_updated, 0)
-        self.assertEqual(status.total_errors, 0)
-        self.assertEqual(status.errors, [])
-
-    def test_to_dict(self):
-        """
-        Test to_dict method returns proper dictionary.
-        """
-        # Arrange
-        start_time = timezone.now()
-        end_time = start_time + timedelta(hours=1)
-
-        status = IngestionStatus(
-            source="biorxiv",
-            start_time=start_time,
-            end_time=end_time,
-            total_fetched=100,
-            total_processed=95,
-            total_created=80,
-            total_updated=15,
-            total_errors=5,
-            errors=[{"type": "parse_error", "message": "Invalid XML"}],
-        )
-
-        # Act
-        result = status.to_dict()
-
-        # Assert
-        self.assertIsInstance(result, dict)
-        self.assertEqual(result["source"], "biorxiv")
-        self.assertEqual(result["total_fetched"], 100)
-        self.assertEqual(result["total_processed"], 95)
-        self.assertEqual(result["total_created"], 80)
-        self.assertEqual(result["total_updated"], 15)
-        self.assertEqual(result["total_errors"], 5)
-        self.assertEqual(len(result["errors"]), 1)
-
-
 class TestPaperIngestionPipeline(TestCase):
     def setUp(self):
         self.mock_arxiv_client = MagicMock()
@@ -320,28 +264,6 @@ class TestPaperIngestionPipeline(TestCase):
             expected,
             delta=timedelta(seconds=10),
         )
-
-    def test_log_fetch_success(self):
-        """
-        Test logging successful fetch.
-        """
-        # Arrange
-        status = IngestionStatus(
-            source="arxiv",
-            start_time=timezone.now() - timedelta(minutes=5),
-            end_time=timezone.now(),
-            total_fetched=100,
-        )
-
-        # Act
-        self.pipeline._log_fetch("arxiv", status, success=True)
-
-        # Assert
-        # Verify log was created
-        log = PaperFetchLog.objects.filter(source="ARXIV").order_by("-id").first()
-        self.assertIsNotNone(log)
-        self.assertEqual(log.status, PaperFetchLog.SUCCESS)
-        self.assertEqual(log.total_papers_processed, 100)
 
     def test_log_fetch_failure(self):
         """

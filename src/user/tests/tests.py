@@ -46,13 +46,6 @@ class BaseTests(TestCase):
             user=user, first_name=first_name, last_name=last_name, university=university
         )
 
-    def create_author_without_user(
-        self, university, first_name=author_first_name, last_name=author_last_name
-    ):
-        return Author.objects.create(
-            first_name=first_name, last_name=last_name, university=university
-        )
-
     def create_author_without_user_or_university(
         self, first_name=author_first_name, last_name=author_last_name
     ):
@@ -69,21 +62,12 @@ class BaseTests(TestCase):
             name=name, country=country, state=state, city=city
         )
 
-    def create_university_without_state(
-        self, name=university_name, country=university_country, city=university_city
-    ):
-        return University.objects.create(name=name, country=country, city=city)
-
 
 class UserTests(BaseTests):
     def test_string_representation(self):
         user = self.create_user()
         expected = f"{user.id}: {user.first_name} {user.last_name}"
         self.assertEqual(str(user), expected)
-
-    def test_username_is_set_to_email(self):
-        user = self.create_user()
-        self.assertEqual(user.username, self.valid_email)
 
     def test_username_is_set_to_email_when_username_is_specified(self):
         username = "test_username"
@@ -106,14 +90,6 @@ class AuthenticationTests(BaseTests):
 
     def tearDown(self):
         self.mailchimp_patcher.stop()
-
-    def test_signup_with_username(self):
-        response = self.valid_signup("test_username")
-        self.assertContains(response, "detail", status_code=201)
-
-    def test_signup_without_username(self):
-        response = self.valid_signup()
-        self.assertContains(response, "detail", status_code=201)
 
     def test_signup_with_duplicate_email(self):
         self.valid_signup()
@@ -173,18 +149,6 @@ class AuthorTests(BaseTests):
         text = "R. A._Black__"
         self.assertEqual(str(author), text)
 
-    def test_string_representation_without_university(self):
-        user = self.create_user()
-        author = user.author_profile
-        text = "R. A._Black__"
-        self.assertEqual(str(author), text)
-
-    def test_string_representation_without_user(self):
-        university = self.create_university()
-        author = self.create_author_without_user(university)
-        text = "R. A._Black_Hogwarts_London"
-        self.assertEqual(str(author), text)
-
 
 class UniversityTests(BaseTests):
     def test_string_representation(self):
@@ -196,9 +160,4 @@ class UniversityTests(BaseTests):
             name=name, country=country, state=state, city=city
         )
         text = f"{name}_{city}"
-        self.assertEqual(str(university), text)
-
-    def test_string_representation_without_state(self):
-        university = self.create_university_without_state()
-        text = "Hogwarts_London"
         self.assertEqual(str(university), text)

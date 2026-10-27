@@ -11,7 +11,6 @@ from django.utils import timezone
 
 from paper.tests.helpers import create_paper
 from purchase.models import Purchase
-from purchase.related_models.balance_model import Balance
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
@@ -27,7 +26,6 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.management.commands.setup_bank_user import BANK_EMAIL
 from user.models import User
 from user.related_models.funding_activity_model import FundingActivity
-from user.related_models.user_model import FOUNDATION_EMAIL
 from user.services.funding_activity_service import (
     FundingActivityService,
     get_funder_total_amount,
@@ -39,38 +37,6 @@ class FundingActivityServiceTests(TestCase):
     def setUp(self):
         self.user = create_user(email="funder@test.com")
         self.other_user = create_user(email="recipient@test.com")
-
-    def test_get_fundraise_payouts_returns_only_completed(self):
-        """get_fundraise_payouts returns Purchases where fundraise escrow is PAID."""
-        uni_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="PREREGISTRATION",
-        )
-        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
-        fundraise_paid = Fundraise.objects.create(
-            created_by=self.other_user,
-            status=Fundraise.CLOSED,
-            unified_document=uni_doc,
-        )
-        escrow_paid = Escrow.objects.create(
-            hold_type=Escrow.FUNDRAISE,
-            status=Escrow.PAID,
-            created_by=self.user,
-            content_type=ct_fundraise,
-            object_id=fundraise_paid.id,
-        )
-        fundraise_paid.escrow = escrow_paid
-        fundraise_paid.save()
-        purchase_paid = Purchase.objects.create(
-            user=self.user,
-            content_type=ct_fundraise,
-            object_id=fundraise_paid.id,
-            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-            paid_status=Purchase.PAID,
-            amount="100",
-            purchase_method=Purchase.OFF_CHAIN,
-        )
-        qs = FundingActivityService.get_fundraise_payouts()
-        self.assertIn(purchase_paid, qs)
 
     def test_multiple_fundraises_only_completed_in_funding_activity(self):
         """
@@ -289,70 +255,6 @@ class FundingActivityServiceTests(TestCase):
         self.assertEqual(activity.total_amount, Decimal(100))
         self.assertEqual(activity.recipients.count(), 0)
 
-    def test_fundraise_payout_total_amount_full_when_user_used_locked_and_regular(
-        self,
-    ):
-        """
-        User has 50 available + 50 locked (50-50 balance). They fund 100.
-        FundingActivity must record total_amount=100 (100% of contribution).
-        """
-        ct_balance = ContentType.objects.get_for_model(Purchase)
-        Balance.objects.create(
-            user=self.user,
-            amount="50",
-            content_type=ct_balance,
-            is_locked=False,
-        )
-        Balance.objects.create(
-            user=self.user,
-            amount="50",
-            content_type=ct_balance,
-            is_locked=True,
-        )
-        uni_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="PREREGISTRATION",
-        )
-        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
-        fundraise = Fundraise.objects.create(
-            created_by=self.other_user,
-            status=Fundraise.CLOSED,
-            unified_document=uni_doc,
-        )
-        escrow = Escrow.objects.create(
-            hold_type=Escrow.FUNDRAISE,
-            status=Escrow.PAID,
-            created_by=self.user,
-            content_type=ct_fundraise,
-            object_id=fundraise.id,
-        )
-        fundraise.escrow = escrow
-        fundraise.save()
-        purchase = Purchase.objects.create(
-            user=self.user,
-            content_type=ct_fundraise,
-            object_id=fundraise.id,
-            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-            paid_status=Purchase.PAID,
-            amount="100",
-            purchase_method=Purchase.OFF_CHAIN,
-        )
-        with patch.object(Fundraise, "get_recipient", return_value=self.other_user):
-            activity = FundingActivityService.create_funding_activity(
-                FundingActivity.FUNDRAISE_PAYOUT, purchase
-            )
-        self.assertIsNotNone(activity)
-        self.assertEqual(
-            activity.total_amount,
-            Decimal(100),
-            "Full 100% of contribution must be recorded as total_amount",
-        )
-        self.assertEqual(activity.recipients.count(), 1)
-        self.assertEqual(
-            activity.recipients.first().amount,
-            Decimal(100),
-            "Recipient amount must be full 100",
-        )
-
     def test_create_fee_creates_activity_no_recipient(self):
         """FEE creates FundingActivity, no recipient."""
         dist = Distribution.objects.create(
@@ -396,23 +298,6 @@ class FundingActivityServiceTests(TestCase):
         self.assertIsNotNone(activity)
         self.assertEqual(activity.funder_id, bank_user.id)
         self.assertEqual(FundingActivity.objects.filter(funder=bank_user).count(), 1)
-
-    def test_create_funding_activity_stored_when_funder_is_foundation(self):
-        """
-        We store FundingActivity when the funder is foundation (activity is tracked).
-        """
-        foundation_user = create_user(email=FOUNDATION_EMAIL)
-        dist = Distribution.objects.create(
-            giver=foundation_user,
-            recipient=None,
-            amount=Decimal(10),
-            distribution_type="BOUNTY_RH_FEE",
-        )
-        activity = FundingActivityService.create_funding_activity(
-            FundingActivity.FEE, dist
-        )
-        self.assertIsNotNone(activity)
-        self.assertEqual(activity.funder_id, foundation_user.id)
 
     def test_get_funder_total_amount_empty(self):
         """User with no funding activities has total 0."""

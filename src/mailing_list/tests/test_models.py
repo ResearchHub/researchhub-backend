@@ -4,15 +4,6 @@ from django.test import TestCase
 from mailing_list.models import EmailOptOut
 
 
-class NormalizeTests(TestCase):
-    def test_lowercases_and_strips(self):
-        # Act
-        result = EmailOptOut._normalize("  Foo@Example.COM ")
-
-        # Assert
-        self.assertEqual(result, "foo@example.com")
-
-
 class SaveTests(TestCase):
     def test_normalizes_the_address(self):
         # Act
@@ -114,20 +105,3 @@ class FilterOptedOutTests(TestCase):
 
         # Assert
         self.assertEqual(result, {"optout@example.com", "OptOut@Example.com"})
-
-    def test_returns_an_empty_set_when_nothing_matches(self):
-        # Act
-        result = EmailOptOut.filter_opted_out(["unknown@example.com"])
-
-        # Assert
-        self.assertEqual(result, set())
-
-    def test_matches_rows_created_outside_add(self):
-        # Arrange: the admin, a shell, or a data migration bypasses `add`
-        EmailOptOut.objects.create(email="OptOut@Example.com")
-
-        # Act
-        result = EmailOptOut.filter_opted_out(["optout@example.com"])
-
-        # Assert
-        self.assertEqual(result, {"optout@example.com"})

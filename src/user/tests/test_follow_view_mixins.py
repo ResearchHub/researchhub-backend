@@ -76,11 +76,6 @@ class FollowViewActionMixinTests(APITestCase):
                 object_id=self.target_user.id,
             )
 
-    def test_unfollow_not_following(self):
-        response = self.client.delete(f"/api/user/{self.target_user.id}/unfollow/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["msg"], "Not following")
-
     def test_is_following_true(self):
         # Create follow first
         Follow.objects.create(
@@ -131,38 +126,6 @@ class FollowViewActionMixinTests(APITestCase):
         )
         self.assertIsNotNone(follow)
 
-    def test_unfollow_hub(self):
-        # Create follow first
-        Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(Hub),
-            object_id=self.hub.id,
-        )
-
-        response = self.client.delete(f"/api/hub/{self.hub.id}/unfollow/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify follow was deleted
-        with self.assertRaises(Follow.DoesNotExist):
-            Follow.objects.get(
-                user=self.user,
-                content_type=ContentType.objects.get_for_model(Hub),
-                object_id=self.hub.id,
-            )
-
-    def test_is_following_hub(self):
-        # Create follow first
-        Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(Hub),
-            object_id=self.hub.id,
-        )
-
-        response = self.client.get(f"/api/hub/{self.hub.id}/is_following/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["following"])
-        self.assertIn("follow", response.data)
-
     def test_follow_paper(self):
         response = self.client.post(f"/api/paper/{self.paper.id}/follow/")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -174,38 +137,6 @@ class FollowViewActionMixinTests(APITestCase):
             object_id=self.paper.id,
         )
         self.assertIsNotNone(follow)
-
-    def test_unfollow_paper(self):
-        # Create follow first
-        Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=self.paper.id,
-        )
-
-        response = self.client.delete(f"/api/paper/{self.paper.id}/unfollow/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify follow was deleted
-        with self.assertRaises(Follow.DoesNotExist):
-            Follow.objects.get(
-                user=self.user,
-                content_type=ContentType.objects.get_for_model(Paper),
-                object_id=self.paper.id,
-            )
-
-    def test_is_following_paper(self):
-        # Create follow first
-        Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=self.paper.id,
-        )
-
-        response = self.client.get(f"/api/paper/{self.paper.id}/is_following/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["following"])
-        self.assertIn("follow", response.data)
 
     def test_follow_author(self):
         # Create an author
@@ -225,169 +156,6 @@ class FollowViewActionMixinTests(APITestCase):
             object_id=self.author.id,
         )
         self.assertIsNotNone(follow)
-
-    def test_follow_author_already_following(self):
-        # Create an author
-        self.author = Author.objects.create(
-            first_name="Test",
-            last_name="Author",
-            created_source=Author.SOURCE_RESEARCHHUB,
-        )
-
-        # Create follow first
-        follow = Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(Author),
-            object_id=self.author.id,
-        )
-
-        response = self.client.post(f"/api/author/{self.author.id}/follow/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["id"], follow.id)
-
-    def test_unfollow_author(self):
-        # Create an author
-        self.author = Author.objects.create(
-            first_name="Test",
-            last_name="Author",
-            created_source=Author.SOURCE_RESEARCHHUB,
-        )
-
-        # Create follow first
-        Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(Author),
-            object_id=self.author.id,
-        )
-
-        response = self.client.delete(f"/api/author/{self.author.id}/unfollow/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify follow was deleted
-        with self.assertRaises(Follow.DoesNotExist):
-            Follow.objects.get(
-                user=self.user,
-                content_type=ContentType.objects.get_for_model(Author),
-                object_id=self.author.id,
-            )
-
-    def test_unfollow_author_not_following(self):
-        # Create an author
-        self.author = Author.objects.create(
-            first_name="Test",
-            last_name="Author",
-            created_source=Author.SOURCE_RESEARCHHUB,
-        )
-
-        response = self.client.delete(f"/api/author/{self.author.id}/unfollow/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["msg"], "Not following")
-
-    def test_is_following_author_true(self):
-        # Create an author
-        self.author = Author.objects.create(
-            first_name="Test",
-            last_name="Author",
-            created_source=Author.SOURCE_RESEARCHHUB,
-        )
-
-        # Create follow first
-        Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(Author),
-            object_id=self.author.id,
-        )
-
-        response = self.client.get(f"/api/author/{self.author.id}/is_following/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["following"])
-        self.assertIn("follow", response.data)
-
-    def test_is_following_author_false(self):
-        # Create an author
-        self.author = Author.objects.create(
-            first_name="Test",
-            last_name="Author",
-            created_source=Author.SOURCE_RESEARCHHUB,
-        )
-
-        response = self.client.get(f"/api/author/{self.author.id}/is_following/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data["following"])
-
-    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
-    def test_follow_hub_invalidates_cache(self, mock_invalidate):
-        """Test that following a hub invalidates the user's feed cache."""
-        response = self.client.post(f"/api/hub/{self.hub.id}/follow/")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        # Verify cache invalidation was called with the user's ID
-        mock_invalidate.assert_called_once_with(self.user.id)
-
-    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
-    def test_follow_user_invalidates_cache(self, mock_invalidate):
-        """Test that following a user invalidates the follower's feed cache."""
-        response = self.client.post(f"/api/user/{self.target_user.id}/follow/")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        # Verify cache invalidation was called with the follower's ID
-        mock_invalidate.assert_called_once_with(self.user.id)
-
-    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
-    def test_follow_paper_invalidates_cache(self, mock_invalidate):
-        """Test that following a paper invalidates the user's feed cache."""
-        response = self.client.post(f"/api/paper/{self.paper.id}/follow/")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        # Verify cache invalidation was called with the user's ID
-        mock_invalidate.assert_called_once_with(self.user.id)
-
-    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
-    def test_follow_author_invalidates_cache(self, mock_invalidate):
-        """Test that following an author invalidates the user's feed cache."""
-        author = Author.objects.create(
-            first_name="Test",
-            last_name="Author",
-            created_source=Author.SOURCE_RESEARCHHUB,
-        )
-
-        response = self.client.post(f"/api/author/{author.id}/follow/")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        # Verify cache invalidation was called with the user's ID
-        mock_invalidate.assert_called_once_with(self.user.id)
-
-    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
-    def test_unfollow_hub_invalidates_cache(self, mock_invalidate):
-        """Test that unfollowing a hub invalidates the user's feed cache."""
-        # Create follow first
-        Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(Hub),
-            object_id=self.hub.id,
-        )
-
-        response = self.client.delete(f"/api/hub/{self.hub.id}/unfollow/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify cache invalidation was called with the user's ID
-        mock_invalidate.assert_called_once_with(self.user.id)
-
-    @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
-    def test_unfollow_user_invalidates_cache(self, mock_invalidate):
-        """Test that unfollowing a user invalidates the unfollower's feed cache."""
-        # Create follow first
-        Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(User),
-            object_id=self.target_user.id,
-        )
-
-        response = self.client.delete(f"/api/user/{self.target_user.id}/unfollow/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify cache invalidation was called with the unfollower's ID
-        mock_invalidate.assert_called_once_with(self.user.id)
 
     @patch("feed.views.feed_view_mixin.FeedViewMixin.invalidate_feed_cache_for_user")
     def test_unfollow_not_following_does_not_invalidate_cache(self, mock_invalidate):

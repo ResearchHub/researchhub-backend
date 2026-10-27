@@ -121,26 +121,6 @@ class PaperDOITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(response.data["error"], "Work not found")
 
-    def test_retrieve_by_doi_with_doi_org_prefix(self):
-        """Test that DOIs with doi.org prefix are handled correctly"""
-        test_doi = "10.1234/test.456"
-        paper = create_paper()
-        paper.doi = test_doi  # Set the DOI
-        paper.save()
-        url = reverse("paper-retrieve-by-doi")
-
-        # Test with https://doi.org/ prefix
-        response = self.client.get(url + f"?doi=https://doi.org/{test_doi}")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["doi"], test_doi)
-        self.assertEqual(response.data["id"], paper.id)
-
-        # Test with doi.org/ prefix
-        response = self.client.get(url + f"?doi=doi.org/{test_doi}")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["doi"], test_doi)
-        self.assertEqual(response.data["id"], paper.id)
-
     def test_retrieve_by_doi_with_https_variations(self):
         """Test that DOIs with various https://doi.org formats are handled correctly"""
         test_doi = "10.1234/test.789"

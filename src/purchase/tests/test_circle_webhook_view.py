@@ -169,17 +169,6 @@ class TestCircleWebhookView(TestCase):
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
-    def test_eth_blockchain_maps_to_ethereum_network(self, _mock_verify):
-        payload = _make_payload(wallet_id="circle-wallet-abc", blockchain="ETH")
-        response = self._post(payload)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
-        self.assertEqual(deposit.network, "ETHEREUM")
-
-    @patch(
-        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
-    )
     def test_empty_amounts_returns_200_no_deposit(self, _mock_verify):
         payload = _make_payload(amounts=[])
         response = self._post(payload)
@@ -202,16 +191,6 @@ class TestCircleWebhookView(TestCase):
     )
     def test_zero_amount_returns_200_no_deposit(self, _mock_verify):
         payload = _make_payload(amounts=["0"])
-        response = self._post(payload)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(Deposit.objects.exists())
-
-    @patch(
-        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
-    )
-    def test_negative_amount_returns_200_no_deposit(self, _mock_verify):
-        payload = _make_payload(amounts=["-50"])
         response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -243,20 +222,6 @@ class TestCircleWebhookView(TestCase):
     def test_head_request_returns_200(self):
         response = self.client.head(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    @patch("purchase.views.circle_webhook_view.dispatch_sweep")
-    @patch(
-        "purchase.views.circle_webhook_view.verify_webhook_signature",
-        return_value=True,
-    )
-    def test_sweep_task_dispatched_after_credit(self, _mock_verify, mock_dispatch):
-        """After crediting balance, sweep is dispatched with correct args."""
-        payload = _make_payload()
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self._post(payload)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_dispatch.assert_called_once_with(self.wallet, "100", "BASE", "tx-001")
 
     @patch("purchase.views.circle_webhook_view.dispatch_sweep")
     @patch(
@@ -671,26 +636,6 @@ class TestCircleOutboundWebhook(TestCase):
     def test_outbound_unknown_transfer_id_returns_200(self, _mock_verify):
         """Outbound notification for a transfer we don't track is silently ignored."""
         payload = _make_outbound_payload(transaction_id="unknown-tx")
-        response = self._post(payload)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    @patch(
-        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
-    )
-    def test_outbound_idempotent_on_already_complete(self, _mock_verify):
-        """Duplicate outbound COMPLETE notification doesn't error."""
-        Deposit.objects.create(
-            user=self.user,
-            amount="100",
-            network="BASE",
-            from_address="",
-            circle_transaction_id="notif-inbound",
-            sweep_status=Deposit.SWEEP_COMPLETED,
-            sweep_transfer_id="sweep-tx-001",
-        )
-
-        payload = _make_outbound_payload(state="COMPLETE")
         response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

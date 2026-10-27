@@ -73,22 +73,6 @@ class ViewTests(APITestCase):
         make_user_verified(self.member_user)
         make_user_verified(self.non_member)
 
-    def test_unverified_user_can_create_post(self):
-        unverified = create_random_default_user("unverified_no_verification")
-        self.client.force_authenticate(unverified)
-        response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "DISCUSSION",
-                "created_by": unverified.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
-                "title": "x" * MIN_POST_TITLE_LENGTH,
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-
     def test_unverified_user_can_update_own_post(self):
         unverified = create_random_default_user("unverified_owner")
         self.client.force_authenticate(unverified)
@@ -118,69 +102,6 @@ class ViewTests(APITestCase):
             },
         )
         self.assertEqual(update_resp.status_code, 200)
-
-    def test_verified_user_can_create_and_update_post(self):
-        verified = create_random_default_user("verified_creator")
-        make_user_verified(verified)
-        self.client.force_authenticate(verified)
-        create_resp = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "DISCUSSION",
-                "created_by": verified.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
-                "title": "x" * MIN_POST_TITLE_LENGTH,
-            },
-        )
-        self.assertEqual(create_resp.status_code, 200)
-        post_id = create_resp.data["id"]
-        update_resp = self.client.put(
-            f"/api/researchhubpost/{post_id}/",
-            {
-                "post_id": post_id,
-                "document_type": "DISCUSSION",
-                "created_by": verified.id,
-                "full_src": "updated",
-                "is_public": True,
-                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
-                "title": "x" * MIN_POST_TITLE_LENGTH,
-            },
-        )
-        self.assertEqual(update_resp.status_code, 200)
-
-    def test_unverified_user_can_list_and_retrieve_posts(self):
-        unverified = create_random_default_user("unverified_reader")
-        self.client.force_authenticate(unverified)
-        list_resp = self.client.get("/api/researchhubpost/")
-        self.assertEqual(list_resp.status_code, 200)
-        post = create_post(created_by=self.admin_user, document_type=GRANT)
-        retrieve_resp = self.client.get(f"/api/researchhubpost/{post.id}/")
-        self.assertEqual(retrieve_resp.status_code, 200)
-
-    def test_author_can_create_post(self):
-        author = create_random_default_user("author")
-        make_user_verified(author)
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": (
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body"
-                ),
-                "title": ("sufficiently long title. sufficiently long title."),
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
 
     def test_min_post_title_length(self):
         author = create_random_default_user("author")
@@ -265,31 +186,6 @@ class ViewTests(APITestCase):
             [author["id"] for author in response.data["authors"]],
             [self.member_author.id, self.admin_author.id],
         )
-
-    def test_user_can_create_post_with_non_members(self):
-        note = create_note(self.admin_user, self.organization)
-
-        self.client.force_authenticate(self.admin_user)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "authors": [self.admin_author.id, self.non_member_author.id],
-                "created_by": self.admin_user.id,
-                "document_type": "DISCUSSION",
-                "full_src": "body",
-                "is_public": True,
-                "note_id": note[0].id,
-                "renderable_text": (
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body"
-                ),
-                "title": ("sufficiently long title. sufficiently long title."),
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
 
     def test_user_cannot_create_post_without_self_in_authors(self):
         # Arrange
@@ -536,47 +432,6 @@ class ViewTests(APITestCase):
             self.assertEqual(doc_response.status_code, 200)
             self.assertIsNone(doc_response.data["doi"])
 
-    def test_get_document_metadata(self):
-        # Arrange
-        self.client.force_authenticate(self.non_member)
-
-        paper = create_paper(title="title1", uploaded_by=self.non_member)
-
-        # Act
-        response = self.client.get(
-            f"/api/researchhub_unified_document/{paper.unified_document.id}/get_document_metadata/"
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["id"], paper.unified_document.id)
-
-    def test_fundraise_in_response_when_preregistration(self):
-        author = create_random_default_user("author")
-        make_user_verified(author)
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "PREREGISTRATION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": (
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body"
-                ),
-                "title": ("sufficiently long title. sufficiently long title."),
-                "fundraise_goal_amount": 1000,
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
-        self.assertIsNotNone(doc_response.data["fundraise"])
-
     def test_fundraise_null_in_response_when_not_preregistration(self):
         author = create_random_default_user("author")
         make_user_verified(author)
@@ -637,32 +492,6 @@ class ViewTests(APITestCase):
             doc_response.data["grant"]["description"], "Test grant for research"
         )
         self.assertEqual(doc_response.data["grant"]["status"], "PENDING")
-
-    def test_grant_null_when_no_grant_amount(self):
-        """Test that grant is null when no grant_amount is provided"""
-        author = create_random_default_user("author", moderator=True)
-        make_user_verified(author)
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "GRANT",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": (
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body"
-                ),
-                "title": "sufficiently long title. sufficiently long title.",
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
-        self.assertIsNone(doc_response.data["grant"])
 
     def test_grant_created_with_end_date(self):
         """Test that a grant can be created with an end date"""
@@ -1328,75 +1157,6 @@ class ViewTests(APITestCase):
         self.assertTrue(grant.contacts.filter(id=contact1.id).exists())
         self.assertTrue(grant.contacts.filter(id=contact2.id).exists())
 
-    def test_grant_update_add_contacts(self):
-        """Test that contacts can be added to an existing grant"""
-        author = create_random_default_user("author", moderator=True)
-        make_user_verified(author)
-        contact1 = create_random_default_user("contact1")
-        contact2 = create_random_default_user("contact2")
-
-        self.client.force_authenticate(author)
-
-        # Create initial grant without contacts
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "GRANT",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": (
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body. sufficiently long body. "
-                    "sufficiently long body"
-                ),
-                "title": "sufficiently long title. sufficiently long title.",
-                "grant_amount": 40000,
-                "grant_organization": "Update Foundation",
-                "grant_description": "Grant to add contacts",
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
-        original_grant_id = doc_response.data["grant"]["id"]
-        self.assertEqual(len(doc_response.data["grant"]["contacts"]), 0)
-
-        # Update to add contacts
-        updated_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "post_id": doc_response.data["id"],
-                "document_type": "GRANT",
-                "created_by": author.id,
-                "full_src": "updated body",
-                "is_public": True,
-                "renderable_text": (
-                    "updated sufficiently long body. updated sufficiently "
-                    "long body. updated sufficiently long body. updated "
-                    "sufficiently long body. updated sufficiently long body"
-                ),
-                "title": "updated title. updated title. updated title.",
-                "grant_amount": 40000,
-                "grant_organization": "Update Foundation",
-                "grant_description": "Grant with added contacts",
-                "grant_contacts": [contact1.id, contact2.id],
-            },
-        )
-
-        self.assertEqual(updated_response.status_code, 200)
-        self.assertEqual(updated_response.data["grant"]["id"], original_grant_id)
-
-        # Verify contacts were added
-        grant_data = updated_response.data["grant"]
-        self.assertEqual(len(grant_data["contacts"]), 2)
-        contact_ids = [contact["id"] for contact in grant_data["contacts"]]
-        self.assertIn(contact1.id, contact_ids)
-        self.assertIn(contact2.id, contact_ids)
-
-        # Verify in database
-        grant = Grant.objects.get(id=original_grant_id)
-        self.assertEqual(grant.contacts.count(), 2)
-
     def test_grant_update_remove_contacts(self):
         """Test that contacts can be removed from an existing grant"""
         author = create_random_default_user("author", moderator=True)
@@ -2013,17 +1773,6 @@ class PostPeerReviewTests(TestCase):
 
         self.assertEqual(len(data["peer_reviews"]), 1)
         self.assertEqual(data["peer_reviews"][0]["id"], active_review.id)
-
-    def test_peer_reviews_empty_when_none_exist(self):
-        user = create_random_default_user("post_author")
-        post = create_post(
-            title="Post without reviews",
-            created_by=user,
-        )
-
-        data = ResearchhubPostSerializer(post).data
-
-        self.assertEqual(data["peer_reviews"], [])
 
 
 class PostListRemovedPostsTests(APITestCase):

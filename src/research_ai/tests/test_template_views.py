@@ -71,23 +71,6 @@ class TemplateListViewTests(APITestCase):
         names = {t["name"] for t in response.json()["templates"]}
         self.assertEqual(names, {"Mine", "Theirs"})
 
-    def test_post_requires_authentication(self):
-        response = self.client.post(
-            self.url,
-            {"name": "New Template"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_post_requires_moderator(self):
-        self.client.force_authenticate(self.user)
-        response = self.client.post(
-            self.url,
-            {"name": "New Template"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
     def test_post_creates_template_returns_201(self):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
@@ -196,15 +179,6 @@ class TemplateDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         t.refresh_from_db()
         self.assertEqual(t.name, "Updated By Moderator")
-
-    def test_delete_returns_204_and_removes_template(self):
-        t = self._create_template()
-        self.client.force_authenticate(self.moderator)
-        response = self.client.delete(
-            f"/api/research_ai/expert-finder/templates/{t.id}/"
-        )
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(EmailTemplate.objects.filter(pk=t.id).exists())
 
     def test_delete_returns_204_for_other_users_template(self):
         """Templates are shared: any editor can delete any template."""

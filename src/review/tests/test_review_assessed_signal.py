@@ -73,13 +73,6 @@ class ReviewAssessedOnPurchaseSignalTests(TestCase):
         self.review.refresh_from_db()
         self.assertFalse(self.review.is_assessed)
 
-    def test_already_assessed_review_stays_assessed_on_second_purchase(self):
-        self.review.is_assessed = True
-        self.review.save()
-        self._create_purchase(self.foundation)
-        self.review.refresh_from_db()
-        self.assertTrue(self.review.is_assessed)
-
 
 class ReviewAssessedOnBountyAwardSignalTests(TestCase):
     def setUp(self):

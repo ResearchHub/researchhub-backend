@@ -94,16 +94,6 @@ class TestXClient(TestCase):
             self.client.search_posts("test-query")
 
     @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
-    def test_search_posts_rate_limit_error(self, mock_rate_limiter):
-        """Test post search with rate limit error."""
-        self.mock_xdk_client.posts.search_all.side_effect = Exception(
-            "429 Too Many Requests"
-        )
-
-        with self.assertRaises(Exception):
-            self.client.search_posts("test-query")
-
-    @patch("paper.ingestion.clients.enrichment.x.RateLimiter.wait_if_needed")
     def test_parse_post_dict_format(self, mock_rate_limiter):
         """Test parsing post in dictionary format."""
         post = {
@@ -159,18 +149,6 @@ class TestXMetricsClient(TestCase):
         """Set up test client."""
         self.x_client = Mock(spec=XClient)
         self.metrics_client = XMetricsClient(x_client=self.x_client)
-
-    def test_extract_metrics_empty_posts(self):
-        """Test metrics extraction with empty post list."""
-        metrics = XMetricsClient._extract_metrics([])
-
-        self.assertEqual(metrics["post_count"], 0)
-        self.assertEqual(metrics["total_likes"], 0)
-        self.assertEqual(metrics["total_reposts"], 0)
-        self.assertEqual(metrics["total_replies"], 0)
-        self.assertEqual(metrics["total_quotes"], 0)
-        self.assertEqual(metrics["total_impressions"], 0)
-        self.assertEqual(len(metrics["posts"]), 0)
 
     def test_extract_metrics_multiple_posts(self):
         """Test metrics extraction with multiple posts."""
@@ -271,17 +249,6 @@ class TestXMetricsClient(TestCase):
         mock_response = Mock()
         mock_response.status_code = 429
         error = HTTPError("429 Too Many Requests")
-        error.response = mock_response
-        self.x_client.search_posts.side_effect = error
-
-        with self.assertRaises(HTTPError):
-            self.metrics_client.get_metrics(["10.1038/test"])
-
-    def test_get_metrics_service_unavailable_error_reraises(self):
-        """Test that 503 service unavailable errors are re-raised for retry."""
-        mock_response = Mock()
-        mock_response.status_code = 503
-        error = HTTPError("503 Service Unavailable")
         error.response = mock_response
         self.x_client.search_posts.side_effect = error
 

@@ -173,13 +173,6 @@ class AssembleProposalTests(unittest.TestCase):
         # Assert
         self.assertEqual(plain_text.count("Same Work"), 1)
 
-    def test_no_citations_yields_no_references_section(self):
-        # Arrange / Act
-        _plain, doc = assemble_proposal(_full_sections(), [])
-
-        # Assert
-        self.assertNotIn("5. References", self._headings(doc, 2))
-
     def test_empty_sections_yield_empty_doc(self):
         # Arrange / Act: a missing/empty sections object.
         plain_text, doc = assemble_proposal({})

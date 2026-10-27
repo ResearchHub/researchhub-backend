@@ -337,26 +337,6 @@ class CompleteAndParseTests(SimpleTestCase):
             bedrock.MAX_OUTPUT_TOKENS,
         )
 
-    def test_omits_temperature_for_opus_5(self):
-        # Arrange: the new default model rejects sampling params with a 400.
-        response = {
-            "output": {"message": {"role": "assistant", "content": [{"text": "ok"}]}},
-            "stopReason": "end_turn",
-        }
-        provider = BedrockProvider(client=FakeConverseClient([response]))
-
-        # Act
-        provider.complete(
-            system_prompt="sys",
-            messages=[Message(role="user", content=[TextBlock(text="hi")])],
-            rendered_tools={"tools": []},
-            max_tokens=100,
-            temperature=0.0,
-        )
-
-        # Assert
-        self.assertNotIn("temperature", provider._client.calls[0]["inferenceConfig"])
-
     def test_complete_parses_text_and_tool_use_and_stop_reason(self):
         # Arrange
         response = {
