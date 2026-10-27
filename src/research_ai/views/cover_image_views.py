@@ -1,7 +1,8 @@
 """API for AI-generated proposal and RFP cover images.
 
-1. ``POST cover-images/`` with the banner's text starts generating
-   (``PENDING``).
+1. ``POST cover-images/`` with the banner's text, and optionally the
+   ``note_id`` of the draft whose cover logo (an image the chat agent recorded
+   from the note's chat) to place in it, starts generating (``PENDING``).
 2. Poll ``GET cover-images/<id>/`` until ``COMPLETED`` (with ``images``, each a
    ``key`` and ``url``) or ``FAILED`` (with ``error``).
 3. Send the chosen image's ``key`` as the post's ``image``, like an uploaded
@@ -21,6 +22,7 @@ from research_ai.serializers import CoverImageGenerationCreateSerializer
 from research_ai.services.cover_image_service import (
     CoverImageGenerationEnqueueError,
     CoverImageGenerationUnavailableError,
+    CoverImageNoteError,
     CoverImageService,
 )
 from research_ai.services.usage_budget import UsageLimitExceededError
@@ -39,6 +41,11 @@ class CoverImageGenerationCreateView(APIView):
         service = CoverImageService()
         try:
             generation = service.start(user=request.user, **serializer.validated_data)
+        except CoverImageNoteError as error:
+            return Response(
+                {"detail": str(error), "code": "note_not_found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         except UsageLimitExceededError as error:
             return Response(
                 {
