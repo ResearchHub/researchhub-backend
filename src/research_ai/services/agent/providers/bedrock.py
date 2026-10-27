@@ -31,14 +31,14 @@ from research_ai.services.agent.types import (
     ToolUseBlock,
     TurnUsage,
 )
+from research_ai.services.llm_models import BEDROCK_AGENT
 from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
 
-# Default generator model. Bedrock requires the cross-region inference profile
-# (the ``us.`` prefix); the bare ``anthropic.claude-opus-5`` is provisioned-
-# throughput only. Callers that want a different model pass ``model_id``.
-MODEL_ID = "us.anthropic.claude-opus-5"
+# Default generator model (see ``llm_models``). Callers that want a different
+# model pass ``model_id``.
+MODEL_ID = BEDROCK_AGENT.model_id
 
 # What ``max_tokens=None`` resolves to. Deliberately below the model's 128K
 # ceiling: ``converse`` is not streamed, so a longer emission would outlive the
@@ -65,23 +65,6 @@ _IMAGE_FORMATS = {
     "image/gif": "gif",
     "image/webp": "webp",
 }
-
-# Opus 4.7+, Sonnet 5, and Fable reject sampling params (temperature/top_p/
-# top_k) with a 400 ("`temperature` is deprecated for this model"). Match by
-# substring so the provider omits them for those models.
-_NO_SAMPLING_PARAMS = (
-    "opus-4-7",
-    "opus-4-8",
-    "opus-5",
-    "sonnet-5",
-    "fable",
-    "mythos",
-)
-
-
-def _accepts_sampling_params(model_id: str) -> bool:
-    mid = model_id.lower()
-    return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
 
 
 # Bedrock Converse ``stopReason`` -> neutral ``StopReason``. Anything absent
@@ -144,7 +127,9 @@ class BedrockProvider(LLMProvider):
         inference_config: dict = {
             "maxTokens": MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens
         }
-        if _accepts_sampling_params(self.model_id):
+        # Models that reject sampling params (Opus 4.7+, Sonnet 5, Haiku 5.5)
+        # 400 on ``temperature``, so it goes only where it is reviewed.
+        if model_capabilities("bedrock", self.model_id).temperature:
             inference_config["temperature"] = temperature
         system: list[dict] = [{"text": system_prompt}]
         if self.prompt_caching:

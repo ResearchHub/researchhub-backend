@@ -6,9 +6,9 @@ from ai_peer_review.services.bedrock_llm_service import (
     BedrockLLMService,
 )
 from ai_peer_review.services.openai_web_context_service import (
-    OPENAI_WEB_CONTEXT_MODEL,
     OpenAIReviewContextService,
 )
+from research_ai.services.llm_models import PEER_REVIEW_WEB_CONTEXT
 
 
 class BedrockLLMServiceTests(SimpleTestCase):
@@ -45,6 +45,19 @@ class BedrockLLMServiceTests(SimpleTestCase):
         }
         svc = BedrockLLMService()
         svc.model_id = "us.anthropic.claude-opus-4-7-20250514-v1:0"
+        svc.invoke("s", "u", max_tokens=50, temperature=0.1)
+        ic = mock_client.converse.call_args.kwargs["inferenceConfig"]
+        self.assertEqual(ic, {"maxTokens": 50})
+
+    @patch("ai_peer_review.services.bedrock_llm_service.bedrock_runtime_client")
+    def test_invoke_omits_temperature_for_haiku_5_5(self, mock_create_client):
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.converse.return_value = {
+            "output": {"message": {"content": [{"text": "x"}]}}
+        }
+        svc = BedrockLLMService()
+        svc.model_id = "us.anthropic.claude-haiku-5-5"
         svc.invoke("s", "u", max_tokens=50, temperature=0.1)
         ic = mock_client.converse.call_args.kwargs["inferenceConfig"]
         self.assertEqual(ic, {"maxTokens": 50})
@@ -92,12 +105,13 @@ class OpenAIReviewContextServiceTests(SimpleTestCase):
         mock_client.responses.create.return_value = resp
 
         svc = OpenAIReviewContextService()
-        self.assertEqual(svc.model_id, OPENAI_WEB_CONTEXT_MODEL)
+        self.assertEqual(svc.model_id, PEER_REVIEW_WEB_CONTEXT.model_id)
         out = svc.invoke("sys", "user", max_tokens=512, temperature=0.0)
         self.assertEqual(out, "- bullet")
         kwargs = mock_client.responses.create.call_args.kwargs
         self.assertEqual(kwargs["tools"], [{"type": "web_search"}])
         self.assertEqual(kwargs["max_output_tokens"], 512)
+        self.assertNotIn("temperature", kwargs)
         mock_client.chat.completions.create.assert_not_called()
 
     @override_settings(OPENAI_API_KEY="sk-test")

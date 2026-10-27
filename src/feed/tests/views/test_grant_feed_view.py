@@ -20,6 +20,11 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.tests.helpers import create_random_authenticated_user
 
 
+def _public_cache_key(params=None):
+    request = Request(APIRequestFactory().get("/api/grant_feed/", params))
+    return GrantFeedViewSet().get_cache_key(request, "grants") + ":public"
+
+
 class GrantFeedViewTests(APITestCase):
     def setUp(self):
         # Clear any existing data to avoid test interference
@@ -744,29 +749,9 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(status_response.status_code, 200)
         self.assertEqual(filtered_response.status_code, 200)
 
-        view = GrantFeedViewSet()
-        factory = APIRequestFactory()
-        unfiltered_key = (
-            view.get_cache_key(Request(factory.get("/api/grant_feed/")), "grants")
-            + ":public"
-        )
-        status_key = (
-            view.get_cache_key(
-                Request(factory.get("/api/grant_feed/", {"status": "OPEN"})),
-                "grants",
-            )
-            + ":public"
-        )
-        filtered_key = (
-            view.get_cache_key(
-                Request(factory.get("/api/grant_feed/", {"created_by": str(user1.id)})),
-                "grants",
-            )
-            + ":public"
-        )
-        self.assertIsNotNone(cache.get(unfiltered_key))
-        self.assertIsNotNone(cache.get(status_key))
-        self.assertIsNotNone(cache.get(filtered_key))
+        self.assertIsNotNone(cache.get(_public_cache_key()))
+        self.assertIsNotNone(cache.get(_public_cache_key({"status": "OPEN"})))
+        self.assertIsNotNone(cache.get(_public_cache_key({"created_by": user1.id})))
 
         # Act
         with (
@@ -775,10 +760,10 @@ class GrantFeedViewTests(APITestCase):
         ):
             GrantCacheMixin.invalidate_grant_feed_cache()
 
-        # Assert - all cache entries should be cleared
-        self.assertIsNone(cache.get(unfiltered_key))
-        self.assertIsNone(cache.get(status_key))
-        self.assertIsNone(cache.get(filtered_key))
+        # Assert - the keys the view builds now miss all cached entries
+        self.assertIsNone(cache.get(_public_cache_key()))
+        self.assertIsNone(cache.get(_public_cache_key({"status": "OPEN"})))
+        self.assertIsNone(cache.get(_public_cache_key({"created_by": user1.id})))
 
     def test_unapproved_proposals_excluded_from_applications(self):
         """Only approved proposals should appear in grant application lists."""
@@ -878,13 +863,7 @@ class GrantFeedViewTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
         self.client.get("/api/grant_feed/")
-        cache_key = (
-            GrantFeedViewSet().get_cache_key(
-                Request(APIRequestFactory().get("/api/grant_feed/")), "grants"
-            )
-            + ":public"
-        )
-        self.assertIsNotNone(cache.get(cache_key))
+        self.assertIsNotNone(cache.get(_public_cache_key()))
 
         # Act + Assert — unrelated doc does not clear cache
         with (
@@ -893,7 +872,7 @@ class GrantFeedViewTests(APITestCase):
             self.captureOnCommitCallbacks(execute=True),
         ):
             GrantCacheMixin.invalidate_if_grant_linked(unrelated.unified_document)
-        self.assertIsNotNone(cache.get(cache_key))
+        self.assertIsNotNone(cache.get(_public_cache_key()))
 
         # Act + Assert — grant-linked doc clears cache
         with (
@@ -902,7 +881,7 @@ class GrantFeedViewTests(APITestCase):
             self.captureOnCommitCallbacks(execute=True),
         ):
             GrantCacheMixin.invalidate_if_grant_linked(proposal.unified_document)
-        self.assertIsNone(cache.get(cache_key))
+        self.assertIsNone(cache.get(_public_cache_key()))
 
     def test_viewer_segment_cache_isolates_private_applications(self):
         """Grant owner populates :viewer-{id} cache; anonymous :public has no leak."""

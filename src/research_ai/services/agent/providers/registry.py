@@ -10,12 +10,13 @@ existing per-environment rosters while prefixed refs are unambiguous.
 Resolution stays string-only until a provider is built, so callers can report
 configuration without constructing clients or requiring credentials.
 
-With ``refusal_fallback``, a conversation its model refuses moves to
-``RESEARCH_AI_REFUSAL_FALLBACK_MODEL`` (see ``router``).
+With ``refusal_fallback``, a conversation its model refuses moves to the
+refusal fallback model in ``llm_models`` (see ``router``).
 """
 
 from django.conf import settings
 
+from research_ai.services import llm_models
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.images import ImageLoader
 from research_ai.services.agent.model_capabilities import model_capabilities
@@ -25,10 +26,8 @@ from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 from research_ai.services.agent.providers.router import RoutedProvider
+from research_ai.services.llm_models import BEDROCK, CLAUDE_PLATFORM, OPENROUTER
 
-BEDROCK = "bedrock"
-CLAUDE_PLATFORM = "claude_platform"
-OPENROUTER = "openrouter"
 DEFAULT_PROVIDER = CLAUDE_PLATFORM
 
 _PROVIDERS = (BEDROCK, CLAUDE_PLATFORM, OPENROUTER)
@@ -97,7 +96,7 @@ def resolve_provider(
     )
     if not refusal_fallback:
         return provider
-    fallback = settings.RESEARCH_AI_REFUSAL_FALLBACK_MODEL
+    fallback = llm_models.REFUSAL_FALLBACK
     return RoutedProvider(
         primary_ref=_canonical_model_ref(model_ref),
         primary=provider,

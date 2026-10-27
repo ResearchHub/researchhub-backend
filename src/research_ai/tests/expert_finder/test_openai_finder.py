@@ -5,9 +5,9 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 
 from research_ai.services.expert_finder.openai_finder import (
-    OPENAI_EXPERT_FINDER_MODEL,
     OpenAIExpertFinderService,
 )
+from research_ai.services.llm_models import EXPERT_FINDER
 
 
 class OpenAIExpertFinderServiceTests(TestCase):
@@ -33,25 +33,24 @@ class OpenAIExpertFinderServiceTests(TestCase):
         mock_client.responses.create.return_value = resp
 
         svc = OpenAIExpertFinderService()
-        self.assertEqual(svc.model_id, OPENAI_EXPERT_FINDER_MODEL)
+        self.assertEqual(svc.model_id, EXPERT_FINDER.model_id)
 
         out = svc.invoke(
             "You are helpful.",
             "Find experts.",
             max_tokens=4096,
-            temperature=0.1,
         )
 
         self.assertEqual(out, "| Name | Email |")
         mock_openai_cls.assert_called_once_with(api_key="sk-test-key")
         mock_client.responses.create.assert_called_once()
         kwargs = mock_client.responses.create.call_args.kwargs
-        self.assertEqual(kwargs["model"], OPENAI_EXPERT_FINDER_MODEL)
+        self.assertEqual(kwargs["model"], EXPERT_FINDER.model_id)
         self.assertEqual(kwargs["instructions"], "You are helpful.")
         self.assertEqual(kwargs["input"], "Find experts.")
         self.assertEqual(kwargs["tools"], [{"type": "web_search"}])
         self.assertEqual(kwargs["max_output_tokens"], 4096)
-        self.assertEqual(kwargs["temperature"], 0.1)
+        self.assertNotIn("temperature", kwargs)
         mock_client.chat.completions.create.assert_not_called()
 
     @override_settings(OPENAI_API_KEY="sk-test")

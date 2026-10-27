@@ -75,8 +75,8 @@ _CATALOG: tuple[ModelOption, ...] = (
         description="Meta's reasoning model for long multi-step work at low cost.",
     ),
     ModelOption(
-        ref=f"{OPENROUTER}:moonshotai/kimi-k3",
-        label="Kimi K3",
+        ref=f"{OPENROUTER}:moonshotai/kimi-k3.1-pro",
+        label="Kimi K3.1 Pro",
         description="Moonshot's frontier open-weight model.",
     ),
     ModelOption(
@@ -94,6 +94,10 @@ _HIDDEN_REFS = frozenset(
         f"{CLAUDE_PLATFORM}:claude-sonnet-5",
         "bedrock:us.anthropic.claude-opus-5",
         f"{OPENROUTER}:anthropic/claude-opus-5",
+        # The Bedrock and OpenRouter adapters' defaults; Opus 5.5 is offered
+        # through Claude Platform.
+        "bedrock:us.anthropic.claude-opus-5-5",
+        f"{OPENROUTER}:anthropic/claude-opus-5.5",
         f"{OPENROUTER}:openai/gpt-6-sol",
         f"{OPENROUTER}:openai/gpt-6-luna",
         f"{OPENROUTER}:openai/gpt-5.6-sol",
@@ -101,6 +105,7 @@ _HIDDEN_REFS = frozenset(
         f"{OPENROUTER}:openai/gpt-5.6-luna",
         f"{OPENROUTER}:google/gemini-3.8-flash",
         f"{OPENROUTER}:x-ai/grok-4.6",
+        f"{OPENROUTER}:moonshotai/kimi-k3",
         f"{OPENROUTER}:z-ai/glm-5.3-flash",
         f"{OPENROUTER}:deepseek/deepseek-v4-flash-0731",
         f"{OPENROUTER}:deepseek/deepseek-v4-pro-0813",

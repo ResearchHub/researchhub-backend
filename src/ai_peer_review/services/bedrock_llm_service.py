@@ -1,28 +1,19 @@
 import logging
 
-from django.conf import settings
-
+from research_ai.services.agent.model_capabilities import model_capabilities
+from research_ai.services.llm_models import PEER_REVIEW
 from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-
-BEDROCK_MODEL_ID = getattr(
-    settings,
-    "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
-    _DEFAULT_MODEL,
-)
-
-_BEDROCK_OMIT_TEMPERATURE_SUBSTRINGS: tuple[str, ...] = ("opus-4-7",)
 
 
 def _converse_inference_config(
     model_id: str, *, max_tokens: int, temperature: float
 ) -> dict:
     config: dict[str, int | float] = {"maxTokens": max_tokens}
-    lower = model_id.lower()
-    if not any(s in lower for s in _BEDROCK_OMIT_TEMPERATURE_SUBSTRINGS):
+    # Models that reject sampling params (Opus 4.7+, Sonnet 5, Haiku 5.5) 400
+    # on ``temperature``, so it goes only where it is reviewed.
+    if model_capabilities("bedrock", model_id).temperature:
         config["temperature"] = temperature
     return config
 
@@ -32,7 +23,7 @@ class BedrockLLMService:
 
     def __init__(self):
         self.bedrock_client = bedrock_runtime_client()
-        self.model_id = BEDROCK_MODEL_ID
+        self.model_id = PEER_REVIEW.model_id
 
     def invoke(
         self,
