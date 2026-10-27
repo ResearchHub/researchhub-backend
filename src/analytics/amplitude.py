@@ -79,12 +79,7 @@ class Amplitude:
         if extra_data := getattr(res, "amplitude_data", None):
             data["event_properties"].update(extra_data)
 
-        hit = {
-            "api_key": self._api_key,
-            "events": [data],
-        }
-        hit = json.dumps(hit, cls=DjangoJSONEncoder)
-        return self.forward_event(hit)
+        self.forward_event([data])
 
     def _track_revenue_event(
         self,
@@ -111,12 +106,7 @@ class Amplitude:
             "revenue": usd_revenue,
             "revenueType": revenue_type,
         }
-        hit = {
-            "api_key": self._api_key,
-            "events": [data],
-        }
-        hit = json.dumps(hit, cls=DjangoJSONEncoder)
-        return self.forward_event(hit)
+        self.forward_event([data])
 
     def _track_user_activity_event(
         self,
@@ -147,22 +137,29 @@ class Amplitude:
                 **additional_properties,
             },
         }
-        hit = {
-            "api_key": self._api_key,
-            "events": [data],
-        }
-        hit = json.dumps(hit, cls=DjangoJSONEncoder)
-        return self.forward_event(hit)
+        self.forward_event([data])
 
-    def forward_event(self, hit):
+    def forward_event(self, events: list[dict]) -> None:
+        """Queue events for delivery so callers never wait on Amplitude."""
         if not self.enabled:
             logger.debug("Amplitude tracking disabled, skipping event")
-            return None
+            return
 
+        # Imported here because analytics.tasks imports this module.
+        from analytics.tasks import send_amplitude_events
+
+        # Round-trip through DjangoJSONEncoder so dates and decimals reach the
+        # task as plain JSON values.
+        payload = json.loads(json.dumps(events, cls=DjangoJSONEncoder))
+        send_amplitude_events.delay(payload)
+
+    def send_events(self, events: list[dict]) -> dict:
+        """Post events to Amplitude's HTTP API and return its response body."""
+        hit = json.dumps({"api_key": self._api_key, "events": events})
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
-        request = requests.post(self._api_url, data=hit, headers=headers, timeout=10)
-        res = request.json()
-        if request.status_code != 200:
+        response = requests.post(self._api_url, data=hit, headers=headers, timeout=10)
+        res = response.json()
+        if response.status_code != 200:
             logger.error("Failed to send event to Amplitude: %s", res)
         return res
 

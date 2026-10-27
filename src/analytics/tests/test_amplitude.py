@@ -1,3 +1,6 @@
+import json
+from datetime import datetime
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
@@ -64,21 +67,72 @@ class AmplitudeTests(TestCase):
         self.assertFalse(user_properties["is_verified"])
 
     @patch("analytics.amplitude.requests.post")
-    def test_forward_event_sends_when_enabled(self, mock_post):
-        """Test that forward_event calls Amplitude when the client is enabled."""
+    @patch("analytics.tasks.send_amplitude_events.delay")
+    def test_forward_event_queues_events_instead_of_posting(
+        self, mock_delay, mock_post
+    ):
+        """Test that forward_event hands events to a task without calling Amplitude."""
+        # Arrange
+        amplitude = Amplitude(enabled=True)
+        events = [
+            {
+                "event_type": "researchhubpost_create",
+                "event_properties": {
+                    "amount": Decimal("1.50"),
+                    "created_date": datetime(2026, 10, 26, 21, 23, 10),
+                },
+            }
+        ]
+
+        # Act
+        amplitude.forward_event(events)
+
+        # Assert
+        mock_post.assert_not_called()
+        mock_delay.assert_called_once_with(
+            [
+                {
+                    "event_type": "researchhubpost_create",
+                    "event_properties": {
+                        "amount": "1.50",
+                        "created_date": "2026-10-26T21:23:10",
+                    },
+                }
+            ]
+        )
+
+    @patch("analytics.tasks.send_amplitude_events.delay")
+    def test_forward_event_queues_nothing_when_disabled(self, mock_delay):
+        """Test that a disabled client does not queue events."""
+        # Arrange
+        amplitude = Amplitude(enabled=False)
+
+        # Act
+        amplitude.forward_event([{"event_type": "researchhubpost_create"}])
+
+        # Assert
+        mock_delay.assert_not_called()
+
+    @patch("analytics.amplitude.requests.post")
+    def test_send_events_posts_events_with_api_key(self, mock_post):
+        """Test that send_events adds the API key and posts the events."""
         # Arrange
         mock_post.return_value = MagicMock(
             status_code=200, json=MagicMock(return_value={"code": 200})
         )
         amplitude = Amplitude(enabled=True)
-        hit = '{"api_key": "key1", "events": []}'
+        amplitude._api_key = "key1"
+        events = [{"event_type": "researchhubpost_create"}]
 
         # Act
-        result = amplitude.forward_event(hit)
+        result = amplitude.send_events(events)
 
         # Assert
         self.assertEqual(result, {"code": 200})
-        mock_post.assert_called_once()
+        self.assertEqual(
+            json.loads(mock_post.call_args.kwargs["data"]),
+            {"api_key": "key1", "events": events},
+        )
 
 
 class TrackEventDecoratorTests(TestCase):

@@ -3,10 +3,27 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
+from analytics.amplitude import Amplitude
 from analytics.models import UserInteractions
-from analytics.tasks import process_amplitude_event
+from analytics.tasks import process_amplitude_event, send_amplitude_events
 from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
+
+
+class SendAmplitudeEventsTaskTestCase(TestCase):
+    """Test cases for the send_amplitude_events Celery task."""
+
+    @patch.object(Amplitude, "send_events")
+    def test_task_sends_events_to_amplitude(self, mock_send_events):
+        """Test that the task delivers the queued events through the client."""
+        # Arrange
+        events = [{"event_type": "researchhubpost_create"}]
+
+        # Act
+        send_amplitude_events(events)
+
+        # Assert
+        mock_send_events.assert_called_once_with(events)
 
 
 class ProcessAmplitudeEventTaskTestCase(TestCase):

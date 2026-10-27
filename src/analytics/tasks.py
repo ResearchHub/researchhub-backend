@@ -10,6 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 @app.task(queue=QUEUE_EXTERNAL_REPORTING)
+def send_amplitude_events(events: list[dict[str, Any]]) -> None:
+    """Deliver tracked events to Amplitude outside the request that made them."""
+    Amplitude().send_events(events)
+
+
+@app.task(queue=QUEUE_EXTERNAL_REPORTING)
 def process_amplitude_event(event: dict[str, Any]) -> None:
     """Process a single Amplitude event asynchronously."""
     from analytics.exceptions import EventProcessingError
