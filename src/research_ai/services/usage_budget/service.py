@@ -33,6 +33,7 @@ from research_ai.services.agent.types import TurnUsage
 from research_ai.services.credit_service import credits_from_microusd
 from research_ai.services.usage_budget.config import (
     BUDGETS_ENFORCED,
+    DOLLAR_ONLY_FEATURES,
     MAX_IN_FLIGHT_JOBS_PER_USER,
     TierPolicy,
     tier_policies,
@@ -84,16 +85,21 @@ class BudgetStatus:
 
     @property
     def exhausted(self) -> bool:
+        cap_hit = self.turn_cap is not None and self.turns_used >= self.turn_cap
+        return self.spend_exhausted or cap_hit
+
+    @property
+    def spend_exhausted(self) -> bool:
+        """The dollar budget, the user's own or the tier's shared one, is spent."""
         budget_hit = (
             self.daily_budget_microusd is not None
             and self.spent_today_microusd >= self.daily_budget_microusd
         )
-        cap_hit = self.turn_cap is not None and self.turns_used >= self.turn_cap
         pool_hit = (
             self.pool_remaining_microusd is not None
             and self.pool_remaining_microusd <= 0
         )
-        return budget_hit or cap_hit or pool_hit
+        return budget_hit or pool_hit
 
     @staticmethod
     def _usd(value: int | None) -> str | None:
@@ -198,7 +204,7 @@ def budget_status(user, *, now: datetime | None = None) -> BudgetStatus:
         user=user, created_date__gte=start, created_date__lt=reset
     ).aggregate(
         spent=Coalesce(Sum("cost_microusd"), 0, output_field=BigIntegerField()),
-        turns=Count("id"),
+        turns=Count("id", filter=~Q(feature__in=DOLLAR_ONLY_FEATURES)),
     )
     return BudgetStatus(
         tier=policy.name,
@@ -299,6 +305,14 @@ def check_budget_admission(user) -> BudgetStatus:
     """Check only the dollar/turn counters for a fixed-model feature."""
     status = budget_status(user)
     if BUDGETS_ENFORCED and status.exhausted:
+        raise UsageLimitExceededError(status)
+    return status
+
+
+def check_spend_admission(user) -> BudgetStatus:
+    """Check only the dollar budgets, for a feature whose usage takes no turns."""
+    status = budget_status(user)
+    if BUDGETS_ENFORCED and status.spend_exhausted:
         raise UsageLimitExceededError(status)
     return status
 
