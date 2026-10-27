@@ -47,7 +47,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Default generator model in OpenRouter's ``vendor/model`` slug format. Callers
 # that want a different route pass ``model_id`` or use a prefixed model ref.
-MODEL_ID = "anthropic/claude-opus-5"
+MODEL_ID = "anthropic/claude-opus-5.5"
 
 # What ``max_tokens=None`` resolves to: a spend budget, not a model limit.
 # Deliberately below every routed model's ceiling because the completion is not
@@ -74,12 +74,13 @@ MAX_REQUEST_IMAGE_BYTES = 10 * 1024 * 1024
 # every result of the turn; a model may not see ids, so it gets the position too.
 _TOOL_IMAGES_NOTE = "[Images returned by tool result {position} above (id {id}).]\n"
 
-# Opus 4.7+, Fable, and OpenAI reasoning models reject sampling params
-# (temperature/top_p) with a 400. OpenRouter forwards params to the upstream
-# provider verbatim, so omit them for those models.
+# Opus 4.7+, Fable, Kimi K3.1, and OpenAI reasoning models reject sampling
+# params (temperature/top_p) with a 400. OpenRouter forwards params to the
+# upstream provider verbatim, so omit them for those models.
 _NO_SAMPLING_PARAMS = (
     "openai/gpt-5",
     "openai/gpt-6",
+    "kimi-k3.1",
     "opus-4-7",
     "opus-4-8",
     "opus-4.7",

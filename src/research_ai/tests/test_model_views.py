@@ -80,7 +80,7 @@ class AvailableModelsViewTests(APITestCase):
                 "openrouter:openai/gpt-6.1-sol",
                 "openrouter:x-ai/grok-4.7",
                 "openrouter:meta/muse-spark-1.3",
-                "openrouter:moonshotai/kimi-k3",
+                "openrouter:moonshotai/kimi-k3.1-pro",
                 "openrouter:xiaomi/mimo-v2.6-pro",
             ],
         )
