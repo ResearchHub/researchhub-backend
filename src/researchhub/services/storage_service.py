@@ -6,7 +6,6 @@ from urllib.parse import quote
 
 from botocore.exceptions import BotoCoreError, ClientError
 from django.conf import settings
-from django.utils.encoding import filepath_to_uri
 
 from utils import aws as aws_utils
 
@@ -28,6 +27,12 @@ QUARANTINE_PREFIX = "quarantine/"
 CDN_INVALIDATION_BATCH_SIZE = 1000
 """Maximum number of paths sent in a single CloudFront invalidation request."""
 
+CDN_PATH_SAFE_CHARS = "/!$&'()*+,;=:@"
+"""
+Characters left unencoded in CDN invalidation paths. CloudFront only matches
+paths where nothing but non-ASCII and RFC 1738 unsafe characters is encoded.
+"""
+
 
 class StorageService:
     def create_presigned_url(
@@ -43,6 +48,9 @@ class S3StorageService(StorageService):
     """
     Service for interacting with S3 storage.
     """
+
+    def __init__(self, cloudfront_client=None):
+        self._cloudfront_client = cloudfront_client
 
     def create_presigned_url(
         self,
@@ -129,9 +137,14 @@ class S3StorageService(StorageService):
             )
             return
 
-        # Match the URL-encoding used when serving objects through the CDN
-        paths = sorted({f"/{filepath_to_uri(key)}" for key in keys})
-        cloudfront_client = aws_utils.create_client("cloudfront")
+        paths = sorted({self._cdn_invalidation_path(key) for key in keys})
+        try:
+            cloudfront_client = self._cloudfront_client or aws_utils.create_client(
+                "cloudfront"
+            )
+        except BotoCoreError as e:
+            logger.error("Failed to create CloudFront client: %s", e)
+            return
 
         for i in range(0, len(paths), CDN_INVALIDATION_BATCH_SIZE):
             batch = paths[i : i + CDN_INVALIDATION_BATCH_SIZE]
@@ -150,6 +163,18 @@ class S3StorageService(StorageService):
                     distribution_id,
                     e,
                 )
+
+    def _cdn_invalidation_path(self, key: str) -> str:
+        """
+        Return the CloudFront invalidation path for an object key.
+
+        CloudFront does not support `~` in invalidation paths, encoded or not,
+        so a key containing it is invalidated by a wildcard on the prefix
+        before the first `~`.
+        """
+        prefix, tilde, _ = key.partition("~")
+        path = "/" + quote(prefix, safe=CDN_PATH_SAFE_CHARS)
+        return f"{path}*" if tilde else path
 
     def _move_object(self, source_key: str, dest_key: str) -> str | None:
         """

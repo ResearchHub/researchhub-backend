@@ -1,7 +1,7 @@
 import uuid
 from unittest.mock import Mock, patch
 
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoRegionError
 from django.conf import settings
 from django.test import TestCase, override_settings
 
@@ -172,31 +172,28 @@ class StorageServiceTest(TestCase):
         )
 
     @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
-    @patch("researchhub.services.storage_service.aws_utils.create_client")
     @patch("researchhub.services.storage_service.uuid.uuid4")
-    def test_invalidate_cdn_cache(self, uuid_mock, create_client_mock):
+    def test_invalidate_cdn_cache(self, uuid_mock):
         # Arrange
         uuid_mock.return_value = "reference1"
         cloudfront_client_mock = Mock()
-        create_client_mock.return_value = cloudfront_client_mock
         keys = [
-            "uploads/papers/users/1/paper 1.pdf",
+            "uploads/papers/users/1/paper1.pdf",
             "uploads/posts/users/1/post1.txt",
             "uploads/posts/users/1/post1.txt",
         ]
 
         # Act
-        S3StorageService().invalidate_cdn_cache(keys)
+        S3StorageService(cloudfront_client_mock).invalidate_cdn_cache(keys)
 
         # Assert
-        create_client_mock.assert_called_once_with("cloudfront")
         cloudfront_client_mock.create_invalidation.assert_called_once_with(
             DistributionId="distribution1",
             InvalidationBatch={
                 "Paths": {
                     "Quantity": 2,
                     "Items": [
-                        "/uploads/papers/users/1/paper%201.pdf",
+                        "/uploads/papers/users/1/paper1.pdf",
                         "/uploads/posts/users/1/post1.txt",
                     ],
                 },
@@ -205,16 +202,40 @@ class StorageServiceTest(TestCase):
         )
 
     @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
-    @patch.object(storage_service, "CDN_INVALIDATION_BATCH_SIZE", 2)
-    @patch("researchhub.services.storage_service.aws_utils.create_client")
-    def test_invalidate_cdn_cache_in_batches(self, create_client_mock):
+    def test_invalidate_cdn_cache_path_encoding(self):
         # Arrange
         cloudfront_client_mock = Mock()
-        create_client_mock.return_value = cloudfront_client_mock
+        keys = [
+            "uploads/a b.pdf",
+            "uploads/a&b=c@d+e.pdf",
+            "uploads/caf\u00e9.pdf",
+            "uploads/1/notes~v2.pdf",
+        ]
+
+        # Act
+        S3StorageService(cloudfront_client_mock).invalidate_cdn_cache(keys)
+
+        # Assert
+        (call,) = cloudfront_client_mock.create_invalidation.mock_calls
+        self.assertEqual(
+            call.kwargs["InvalidationBatch"]["Paths"]["Items"],
+            [
+                "/uploads/1/notes*",
+                "/uploads/a%20b.pdf",
+                "/uploads/a&b=c@d+e.pdf",
+                "/uploads/caf%C3%A9.pdf",
+            ],
+        )
+
+    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
+    @patch.object(storage_service, "CDN_INVALIDATION_BATCH_SIZE", 2)
+    def test_invalidate_cdn_cache_in_batches(self):
+        # Arrange
+        cloudfront_client_mock = Mock()
         keys = ["file1.pdf", "file2.pdf", "file3.pdf"]
 
         # Act
-        S3StorageService().invalidate_cdn_cache(keys)
+        S3StorageService(cloudfront_client_mock).invalidate_cdn_cache(keys)
 
         # Assert
         batches = [
@@ -225,8 +246,7 @@ class StorageServiceTest(TestCase):
 
     @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
     @patch.object(storage_service, "CDN_INVALIDATION_BATCH_SIZE", 1)
-    @patch("researchhub.services.storage_service.aws_utils.create_client")
-    def test_invalidate_cdn_cache_logs_failed_batch(self, create_client_mock):
+    def test_invalidate_cdn_cache_logs_failed_batch(self):
         # Arrange
         cloudfront_client_mock = Mock()
         cloudfront_client_mock.create_invalidation.side_effect = [
@@ -236,32 +256,50 @@ class StorageServiceTest(TestCase):
             ),
             {},
         ]
-        create_client_mock.return_value = cloudfront_client_mock
+        service = S3StorageService(cloudfront_client_mock)
 
         # Act
         with self.assertLogs(storage_service.logger, level="ERROR") as logs:
-            S3StorageService().invalidate_cdn_cache(["file1.pdf", "file2.pdf"])
+            service.invalidate_cdn_cache(["file1.pdf", "file2.pdf"])
 
         # Assert
         self.assertEqual(cloudfront_client_mock.create_invalidation.call_count, 2)
         self.assertIn("Failed to invalidate 1 CDN paths", logs.output[0])
 
-    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="")
-    @patch("researchhub.services.storage_service.aws_utils.create_client")
-    def test_invalidate_cdn_cache_skipped_without_distribution(
-        self, create_client_mock
-    ):
-        # Act
-        S3StorageService().invalidate_cdn_cache(["file1.pdf"])
-
-        # Assert
-        create_client_mock.assert_not_called()
-
     @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
     @patch("researchhub.services.storage_service.aws_utils.create_client")
-    def test_invalidate_cdn_cache_skipped_without_keys(self, create_client_mock):
+    def test_invalidate_cdn_cache_logs_client_creation_failure(
+        self, create_client_mock
+    ):
+        # Arrange
+        create_client_mock.side_effect = NoRegionError()
+
         # Act
-        S3StorageService().invalidate_cdn_cache([])
+        with self.assertLogs(storage_service.logger, level="ERROR") as logs:
+            S3StorageService().invalidate_cdn_cache(["file1.pdf"])
 
         # Assert
-        create_client_mock.assert_not_called()
+        create_client_mock.assert_called_once_with("cloudfront")
+        self.assertIn("Failed to create CloudFront client", logs.output[0])
+
+    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="")
+    def test_invalidate_cdn_cache_skipped_without_distribution(self):
+        # Arrange
+        cloudfront_client_mock = Mock()
+
+        # Act
+        S3StorageService(cloudfront_client_mock).invalidate_cdn_cache(["file1.pdf"])
+
+        # Assert
+        cloudfront_client_mock.create_invalidation.assert_not_called()
+
+    @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
+    def test_invalidate_cdn_cache_skipped_without_keys(self):
+        # Arrange
+        cloudfront_client_mock = Mock()
+
+        # Act
+        S3StorageService(cloudfront_client_mock).invalidate_cdn_cache([])
+
+        # Assert
+        cloudfront_client_mock.create_invalidation.assert_not_called()

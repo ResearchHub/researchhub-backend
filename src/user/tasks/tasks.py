@@ -172,12 +172,14 @@ def _quarantine_user_files(user: User) -> None:
     moved objects from the CDN's edge caches.
     """
     storage_service = S3StorageService()
-    moved_keys = [
-        key
-        for key in _user_file_keys(user)
-        if storage_service.quarantine_object(key) is not None
-    ]
-    storage_service.invalidate_cdn_cache(moved_keys)
+    moved_keys = []
+    try:
+        for key in _user_file_keys(user):
+            if storage_service.quarantine_object(key) is not None:
+                moved_keys.append(key)  # noqa: PERF401
+    finally:
+        # Evict the files already moved, even if a later move raised
+        storage_service.invalidate_cdn_cache(moved_keys)
 
 
 def _restore_user_files(user: User) -> None:

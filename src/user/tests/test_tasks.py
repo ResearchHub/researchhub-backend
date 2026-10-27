@@ -690,6 +690,33 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
             ["uploads/papers/users/spam.pdf", "uploads/comments/users/spam.txt"],
         )
 
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_invalidates_moved_files_when_later_move_fails(
+        self, storage_service_mock
+    ):
+        """
+        Files moved before a failing move are still evicted from the CDN cache.
+        """
+        # Arrange
+        mock_storage_service = storage_service_mock.return_value
+        mock_storage_service.quarantine_object.side_effect = [
+            "quarantine/uploads/papers/users/spam.pdf",
+            ClientError({"Error": {"Code": "AccessDenied"}}, "HeadObject"),
+        ]
+        self.paper.file.name = "uploads/papers/users/spam.pdf"
+        self.paper.save()
+        self.post.discussion_src.name = "uploads/posts/users/spam.txt"
+        self.post.save()
+
+        # Act
+        with self.assertRaises(ClientError):
+            handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        mock_storage_service.invalidate_cdn_cache.assert_called_once_with(
+            ["uploads/papers/users/spam.pdf"]
+        )
+
     @override_settings(AWS_STORAGE_CDN_DISTRIBUTION_ID="distribution1")
     @patch("researchhub.services.storage_service.aws_utils.create_client")
     def test_suspend_succeeds_when_cdn_invalidation_fails(self, create_client_mock):
