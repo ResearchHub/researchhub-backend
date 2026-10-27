@@ -720,6 +720,24 @@ class GrantCacheInvalidationTests(APITestCase):
         for key in self._grant_feed_keys():
             self.assertIsNotNone(cache.get(key))
 
+    def test_invalidate_logs_instead_of_raising_when_queueing_fails(self):
+        # Arrange
+        broker_error = ConnectionError("broker unavailable")
+
+        # Act
+        with (
+            patch(
+                "feed.tasks.invalidate_grant_feed_cache.delay",
+                side_effect=broker_error,
+            ),
+            self.assertLogs("feed.views.grant_cache_mixin", level="ERROR") as logs,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            GrantCacheMixin.invalidate_grant_feed_cache()
+
+        # Assert
+        self.assertIn("Failed to queue grant feed cache invalidation", logs.output[0])
+
 
 class AvailableFundingTests(APITestCase):
     EXCHANGE_RATE = 0.5
