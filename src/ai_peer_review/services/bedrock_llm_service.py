@@ -1,19 +1,10 @@
 import logging
 
-from django.conf import settings
-
 from research_ai.services.agent.model_capabilities import model_capabilities
+from research_ai.services.llm_models import PEER_REVIEW
 from utils.aws import bedrock_runtime_client
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_MODEL = "us.anthropic.claude-haiku-5-5"
-
-BEDROCK_MODEL_ID = getattr(
-    settings,
-    "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
-    _DEFAULT_MODEL,
-)
 
 
 def _converse_inference_config(
@@ -32,7 +23,7 @@ class BedrockLLMService:
 
     def __init__(self):
         self.bedrock_client = bedrock_runtime_client()
-        self.model_id = BEDROCK_MODEL_ID
+        self.model_id = PEER_REVIEW.model_id
 
     def invoke(
         self,

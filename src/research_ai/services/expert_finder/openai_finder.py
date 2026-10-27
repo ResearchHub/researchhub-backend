@@ -3,9 +3,9 @@ import logging
 from django.conf import settings
 from openai import OpenAI
 
-logger = logging.getLogger(__name__)
+from research_ai.services.llm_models import EXPERT_FINDER
 
-OPENAI_EXPERT_FINDER_MODEL = "gpt-6-luna"
+logger = logging.getLogger(__name__)
 
 
 class OpenAIExpertFinderService:
@@ -14,7 +14,7 @@ class OpenAIExpertFinderService:
     def __init__(self):
         api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
         self._client = OpenAI(api_key=api_key) if api_key else None
-        self.model_id = OPENAI_EXPERT_FINDER_MODEL
+        self.model_id = EXPERT_FINDER.model_id
 
     def invoke(
         self,

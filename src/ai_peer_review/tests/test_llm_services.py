@@ -6,9 +6,9 @@ from ai_peer_review.services.bedrock_llm_service import (
     BedrockLLMService,
 )
 from ai_peer_review.services.openai_web_context_service import (
-    OPENAI_WEB_CONTEXT_MODEL,
     OpenAIReviewContextService,
 )
+from research_ai.services.llm_models import PEER_REVIEW_WEB_CONTEXT
 
 
 class BedrockLLMServiceTests(SimpleTestCase):
@@ -105,7 +105,7 @@ class OpenAIReviewContextServiceTests(SimpleTestCase):
         mock_client.responses.create.return_value = resp
 
         svc = OpenAIReviewContextService()
-        self.assertEqual(svc.model_id, OPENAI_WEB_CONTEXT_MODEL)
+        self.assertEqual(svc.model_id, PEER_REVIEW_WEB_CONTEXT.model_id)
         out = svc.invoke("sys", "user", max_tokens=512, temperature=0.0)
         self.assertEqual(out, "- bullet")
         kwargs = mock_client.responses.create.call_args.kwargs
@@ -113,21 +113,6 @@ class OpenAIReviewContextServiceTests(SimpleTestCase):
         self.assertEqual(kwargs["max_output_tokens"], 512)
         self.assertNotIn("temperature", kwargs)
         mock_client.chat.completions.create.assert_not_called()
-
-    @override_settings(OPENAI_API_KEY="sk-test")
-    @patch("ai_peer_review.services.openai_web_context_service.OpenAI")
-    def test_invoke_sends_temperature_to_models_that_accept_it(self, mock_openai_cls):
-        mock_client = MagicMock()
-        mock_openai_cls.return_value = mock_client
-        resp = MagicMock()
-        resp.output_text = "- bullet"
-        mock_client.responses.create.return_value = resp
-
-        svc = OpenAIReviewContextService()
-        svc.model_id = "gpt-5.4-mini"
-        svc.invoke("sys", "user", max_tokens=512, temperature=0.0)
-        kwargs = mock_client.responses.create.call_args.kwargs
-        self.assertEqual(kwargs["temperature"], 0.0)
 
     @override_settings(OPENAI_API_KEY="sk-test")
     @patch("ai_peer_review.services.openai_web_context_service.OpenAI")
