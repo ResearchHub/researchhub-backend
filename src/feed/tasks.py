@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 
 import utils.locking as lock
+from feed.grant_feed_cache import bump_grant_feed_cache_version
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from paper.related_models.paper_model import Paper
@@ -481,6 +482,13 @@ def warm_grant_feed_cache():
         "Warmed grant feed cache pages in %.2fs",
         time.time() - start,
     )
+
+
+@app.task
+def invalidate_grant_feed_cache():
+    """Invalidate every Grant feed cache entry, then refill the homepage keys."""
+    bump_grant_feed_cache_version()
+    warm_grant_feed_cache.delay()
 
 
 @app.task

@@ -6,6 +6,7 @@ from django.core.cache import cache
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, APITestCase
 
+from feed.tasks import invalidate_grant_feed_cache as invalidate_grant_feed_cache_task
 from feed.views.grant_feed_view import GrantFeedViewSet
 from purchase.models import Fundraise, Grant, GrantApplication
 from researchhub_document.helpers import create_post
@@ -746,39 +747,36 @@ class GrantFeedViewTests(APITestCase):
 
         view = GrantFeedViewSet()
         factory = APIRequestFactory()
-        unfiltered_key = (
-            view.get_cache_key(Request(factory.get("/api/grant_feed/")), "grants")
-            + ":public"
-        )
-        status_key = (
-            view.get_cache_key(
-                Request(factory.get("/api/grant_feed/", {"status": "OPEN"})),
-                "grants",
-            )
-            + ":public"
-        )
-        filtered_key = (
-            view.get_cache_key(
-                Request(factory.get("/api/grant_feed/", {"created_by": str(user1.id)})),
-                "grants",
-            )
-            + ":public"
-        )
-        self.assertIsNotNone(cache.get(unfiltered_key))
-        self.assertIsNotNone(cache.get(status_key))
-        self.assertIsNotNone(cache.get(filtered_key))
+        params_by_entry = [{}, {"status": "OPEN"}, {"created_by": str(user1.id)}]
+
+        def cached_entries():
+            return [
+                cache.get(
+                    view.get_cache_key(
+                        Request(factory.get("/api/grant_feed/", params)), "grants"
+                    )
+                    + ":public"
+                )
+                for params in params_by_entry
+            ]
+
+        for entry in cached_entries():
+            self.assertIsNotNone(entry)
 
         # Act
         with (
             patch("feed.tasks.warm_grant_feed_cache.delay"),
+            patch(
+                "feed.tasks.invalidate_grant_feed_cache.delay",
+                side_effect=invalidate_grant_feed_cache_task,
+            ),
             self.captureOnCommitCallbacks(execute=True),
         ):
             GrantCacheMixin.invalidate_grant_feed_cache()
 
         # Assert - all cache entries should be cleared
-        self.assertIsNone(cache.get(unfiltered_key))
-        self.assertIsNone(cache.get(status_key))
-        self.assertIsNone(cache.get(filtered_key))
+        for entry in cached_entries():
+            self.assertIsNone(entry)
 
     def test_unapproved_proposals_excluded_from_applications(self):
         """Only approved proposals should appear in grant application lists."""
@@ -878,31 +876,43 @@ class GrantFeedViewTests(APITestCase):
         )
         self.client.force_authenticate(self.user)
         self.client.get("/api/grant_feed/")
-        cache_key = (
-            GrantFeedViewSet().get_cache_key(
-                Request(APIRequestFactory().get("/api/grant_feed/")), "grants"
+
+        def cached_feed():
+            cache_key = (
+                GrantFeedViewSet().get_cache_key(
+                    Request(APIRequestFactory().get("/api/grant_feed/")), "grants"
+                )
+                + ":public"
             )
-            + ":public"
-        )
-        self.assertIsNotNone(cache.get(cache_key))
+            return cache.get(cache_key)
+
+        self.assertIsNotNone(cached_feed())
 
         # Act + Assert — unrelated doc does not clear cache
         with (
             patch("feed.tasks.warm_grant_feed_cache.delay"),
             patch("feed.tasks.warm_funding_feed_cache.delay"),
+            patch(
+                "feed.tasks.invalidate_grant_feed_cache.delay",
+                side_effect=invalidate_grant_feed_cache_task,
+            ),
             self.captureOnCommitCallbacks(execute=True),
         ):
             GrantCacheMixin.invalidate_if_grant_linked(unrelated.unified_document)
-        self.assertIsNotNone(cache.get(cache_key))
+        self.assertIsNotNone(cached_feed())
 
         # Act + Assert — grant-linked doc clears cache
         with (
             patch("feed.tasks.warm_grant_feed_cache.delay"),
             patch("feed.tasks.warm_funding_feed_cache.delay"),
+            patch(
+                "feed.tasks.invalidate_grant_feed_cache.delay",
+                side_effect=invalidate_grant_feed_cache_task,
+            ),
             self.captureOnCommitCallbacks(execute=True),
         ):
             GrantCacheMixin.invalidate_if_grant_linked(proposal.unified_document)
-        self.assertIsNone(cache.get(cache_key))
+        self.assertIsNone(cached_feed())
 
     def test_viewer_segment_cache_isolates_private_applications(self):
         """Grant owner populates :viewer-{id} cache; anonymous :public has no leak."""

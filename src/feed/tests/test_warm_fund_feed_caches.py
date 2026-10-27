@@ -16,7 +16,11 @@ from feed.funding_feed_cache import (
     should_cache_funding_feed,
 )
 from feed.grant_feed_cache import should_cache_grant_feed
-from feed.tasks import warm_funding_feed_cache, warm_grant_feed_cache
+from feed.tasks import (
+    invalidate_grant_feed_cache,
+    warm_funding_feed_cache,
+    warm_grant_feed_cache,
+)
 from feed.views.funding_feed_view import FundingFeedViewSet
 from feed.views.grant_feed_view import GrantFeedViewSet
 from purchase.models import Grant
@@ -133,6 +137,35 @@ class GrantFundingWarmCacheTests(AWSMockTestCase):
         self.assertIsNotNone(cache.get(base + ":public"))
         self.assertIsNotNone(cache.get(base + ":admin"))
         self.assertIsNone(cache.get(base + f":viewer-{self.owner.id}"))
+
+    def test_invalidate_grant_feed_cache_drops_warm_pages_and_queues_warm(self):
+        # Arrange
+        warm_grant_feed_cache()
+        view = GrantFeedViewSet()
+        req = self._anon_request("/api/grant_feed/", {"page": "1", "page_size": "20"})
+
+        # Act
+        with patch("feed.tasks.warm_grant_feed_cache.delay") as mock_warm:
+            invalidate_grant_feed_cache()
+
+        # Assert
+        base = view.get_cache_key(req, "grants")
+        self.assertIsNone(cache.get(base + ":public"))
+        self.assertIsNone(cache.get(base + ":admin"))
+        mock_warm.assert_called_once_with()
+
+    def test_invalidate_grant_feed_cache_cost_does_not_grow_with_grant_creators(self):
+        # Arrange
+        for i in range(3):
+            creator = create_random_authenticated_user(f"grant_creator_{i}")
+            create_post(created_by=creator, document_type=GRANT, title=f"Grant {i}")
+
+        # Act / Assert
+        with (
+            patch("feed.tasks.warm_grant_feed_cache.delay"),
+            self.assertNumQueries(0),
+        ):
+            invalidate_grant_feed_cache()
 
     def test_warm_funding_feed_cache_sets_public_and_admin_keys(self):
         # Act

@@ -8,6 +8,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from discussion.models import Flag
+from feed.tasks import invalidate_grant_feed_cache as invalidate_grant_feed_cache_task
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from notification.models import Notification
 from purchase.models import Grant, GrantApplication
@@ -642,7 +643,19 @@ class GrantCacheInvalidationTests(APITestCase):
     def tearDown(self):
         cache.clear()
 
-    def test_invalidate_clears_grant_feed_caches(self):
+    def _invalidate(self):
+        """Run the invalidation the way a committed request and a worker would."""
+        with (
+            patch("feed.tasks.warm_grant_feed_cache.delay"),
+            patch(
+                "feed.tasks.invalidate_grant_feed_cache.delay",
+                side_effect=invalidate_grant_feed_cache_task,
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            GrantCacheMixin.invalidate_grant_feed_cache()
+
+    def _grant_feed_keys(self):
         from rest_framework.request import Request
         from rest_framework.test import APIRequestFactory
 
@@ -657,37 +670,55 @@ class GrantCacheInvalidationTests(APITestCase):
                 "/api/grant_feed/",
                 {"page": "3", "ordering": "most_applicants"},
             ),
+            factory.get("/api/grant_feed/", {"created_by": "42", "status": "OPEN"}),
         ]
-        cache_keys = [
-            view.get_cache_key(Request(req), "grants") + ":public" for req in requests
-        ]
-        cache_keys += [
-            view.get_cache_key(Request(req), "grants") + ":admin" for req in requests
+        return [
+            view.get_cache_key(Request(req), "grants") + segment
+            for req in requests
+            for segment in (":public", ":admin", ":viewer-7")
         ]
 
-        for key in cache_keys:
+    def test_invalidate_clears_grant_feed_caches(self):
+        # Arrange
+        for key in self._grant_feed_keys():
             cache.set(key, {"test": key})
 
-        with (
-            patch("feed.tasks.warm_grant_feed_cache.delay"),
-            self.captureOnCommitCallbacks(execute=True),
-        ):
-            GrantCacheMixin.invalidate_grant_feed_cache()
+        # Act
+        self._invalidate()
 
-        for key in cache_keys:
+        # Assert
+        for key in self._grant_feed_keys():
             self.assertIsNone(cache.get(key))
 
     def test_invalidate_does_not_affect_other_caches(self):
+        # Arrange
         other_key = "feed:popular:all:all:none:1-20"
         cache.set(other_key, {"other": "data"})
 
-        with (
-            patch("feed.tasks.warm_grant_feed_cache.delay"),
-            self.captureOnCommitCallbacks(execute=True),
-        ):
-            GrantCacheMixin.invalidate_grant_feed_cache()
+        # Act
+        self._invalidate()
 
+        # Assert
         self.assertIsNotNone(cache.get(other_key))
+
+    def test_invalidate_runs_in_a_task_after_commit(self):
+        # Arrange
+        for key in self._grant_feed_keys():
+            cache.set(key, {"test": key})
+
+        # Act
+        with patch("feed.tasks.invalidate_grant_feed_cache.delay") as mock_delay:
+            with self.captureOnCommitCallbacks(execute=False) as callbacks:
+                GrantCacheMixin.invalidate_grant_feed_cache()
+            queued_before_commit = mock_delay.called
+            for callback in callbacks:
+                callback()
+
+        # Assert
+        self.assertFalse(queued_before_commit)
+        mock_delay.assert_called_once_with()
+        for key in self._grant_feed_keys():
+            self.assertIsNotNone(cache.get(key))
 
 
 class AvailableFundingTests(APITestCase):
