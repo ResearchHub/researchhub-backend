@@ -46,6 +46,7 @@ jobs:
     concurrency:
       group: build-${{ needs.resolve.outputs.git_sha }}
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: read
       id-token: write # required for requesting JWT token from AWS
