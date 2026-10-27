@@ -21,6 +21,7 @@ from researchhub_document.views.researchhub_unified_document_views import (
 )
 from user.models import Author
 from user.permissions import DeleteAuthorPermission, IsVerifiedUser, UpdateAuthor
+from user.related_models.user_model import prefetch_x_verified_accounts
 from user.serializers import (
     AuthorDetailSerializer,
     AuthorEditableSerializer,
@@ -36,7 +37,7 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     queryset = Author.objects.select_related(
         "user",
         "user__userverification",
-    )
+    ).prefetch_related(prefetch_x_verified_accounts("user__socialaccount_set"))
     serializer_class = AuthorSerializer
     filter_backends = (SearchFilter, OrderingFilter)
     search_fields = ("first_name", "last_name")
