@@ -9,9 +9,9 @@ from purchase.models import GrantApplication
 
 logger = logging.getLogger(__name__)
 
-# Part of every grant feed cache key: replacing it invalidates all cached pages in
-# one write, and the orphaned pages expire with FEED_CACHE_TIMEOUT. Values are
-# timestamps, not a counter, so a lost key never brings back an old generation.
+# Part of every grant feed cache key: incrementing it invalidates all cached pages
+# at once, and the orphaned pages expire with FEED_CACHE_TIMEOUT. The counter is
+# seeded with a timestamp, so a lost key never restarts on an old generation.
 GRANT_FEED_GENERATION_KEY = "grants_feed:generation"
 
 
@@ -31,7 +31,8 @@ class GrantCacheMixin:
         """Start a new key generation and enqueue warm after the transaction commits."""
 
         def _invalidate():
-            cache.set(GRANT_FEED_GENERATION_KEY, time.time_ns(), timeout=None)
+            cache.add(GRANT_FEED_GENERATION_KEY, time.time_ns(), timeout=None)
+            cache.incr(GRANT_FEED_GENERATION_KEY)
             try:
                 from feed.tasks import warm_grant_feed_cache
 
