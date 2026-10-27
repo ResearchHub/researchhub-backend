@@ -37,29 +37,40 @@ class ModelRole:
         return override or self.default
 
 
-# What each agent adapter runs when a model ref names no model.
-CLAUDE_PLATFORM_AGENT = ModelRole(CLAUDE_PLATFORM, "claude-opus-5-5")
+# Each model once, in its provider's own id format. Named by family rather
+# than version, so moving every feature on a family to a newer model is one
+# line here.
+CLAUDE_OPUS = "claude-opus-5-5"
 # Bedrock needs the ``us.`` cross-region profile; the bare
 # ``anthropic.claude-opus-5-5`` serves only in-Region from eu-west-2.
-BEDROCK_AGENT = ModelRole(BEDROCK, "us.anthropic.claude-opus-5-5")
-OPENROUTER_AGENT = ModelRole(OPENROUTER, "anthropic/claude-opus-5.5")
+BEDROCK_CLAUDE_OPUS = "us.anthropic.claude-opus-5-5"
+BEDROCK_CLAUDE_HAIKU = "us.anthropic.claude-haiku-5-5"
+OPENROUTER_CLAUDE_OPUS = "anthropic/claude-opus-5.5"
+OPENROUTER_KIMI = "moonshotai/kimi-k3.1-pro"
+# Pinned: social-share posts run with reasoning off under a short timeout, and
+# K3 is cheaper per input token for that short job.
+OPENROUTER_KIMI_K3 = "moonshotai/kimi-k3"
+OPENAI_GPT_LUNA = "gpt-6-luna"
+
+# What each agent adapter runs when a model ref names no model.
+CLAUDE_PLATFORM_AGENT = ModelRole(CLAUDE_PLATFORM, CLAUDE_OPUS)
+BEDROCK_AGENT = ModelRole(BEDROCK, BEDROCK_CLAUDE_OPUS)
+OPENROUTER_AGENT = ModelRole(OPENROUTER, OPENROUTER_CLAUDE_OPUS)
 
 # Single-purpose features.
-PRIMARY_IMAGE = ModelRole(BEDROCK, "us.anthropic.claude-haiku-5-5")
+PRIMARY_IMAGE = ModelRole(BEDROCK, BEDROCK_CLAUDE_HAIKU)
 # Expert profile matching and outreach emails.
 RESEARCH_AI_BEDROCK = ModelRole(
-    BEDROCK, "us.anthropic.claude-haiku-5-5", "RESEARCH_AI_BEDROCK_MODEL_ID"
+    BEDROCK, BEDROCK_CLAUDE_HAIKU, "RESEARCH_AI_BEDROCK_MODEL_ID"
 )
-EXPERT_FINDER = ModelRole(OPENAI, "gpt-6-luna")
+EXPERT_FINDER = ModelRole(OPENAI, OPENAI_GPT_LUNA)
 PEER_REVIEW = ModelRole(
-    BEDROCK, "us.anthropic.claude-haiku-5-5", "AI_PEER_REVIEW_BEDROCK_MODEL_ID"
+    BEDROCK, BEDROCK_CLAUDE_HAIKU, "AI_PEER_REVIEW_BEDROCK_MODEL_ID"
 )
 PEER_REVIEW_WEB_CONTEXT = ModelRole(
-    OPENAI, "gpt-6-luna", "AI_PEER_REVIEW_OPENAI_WEB_CONTEXT_MODEL"
+    OPENAI, OPENAI_GPT_LUNA, "AI_PEER_REVIEW_OPENAI_WEB_CONTEXT_MODEL"
 )
-# Stays on K3: posts run with reasoning off under a short timeout, and K3.1 Pro
-# always reasons.
-SOCIAL_SHARE = ModelRole(OPENROUTER, "moonshotai/kimi-k3")
+SOCIAL_SHARE = ModelRole(OPENROUTER, OPENROUTER_KIMI_K3)
 
 ROLES = (
     CLAUDE_PLATFORM_AGENT,
@@ -75,7 +86,7 @@ ROLES = (
 
 # Where a research_ai conversation moves once its own model refuses a turn. It
 # needs reviewed pricing.
-REFUSAL_FALLBACK = "openrouter:moonshotai/kimi-k3.1-pro"
+REFUSAL_FALLBACK = f"{OPENROUTER}:{OPENROUTER_KIMI}"
 
 
 def refusal_fallback_ref() -> str | None:
