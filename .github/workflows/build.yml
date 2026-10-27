@@ -23,8 +23,30 @@ env:
   CONTAINER_REPOSITORY: ${{ vars.CONTAINER_REPOSITORY }}
 
 jobs:
+  resolve:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    outputs:
+      git_sha: ${{ steps.git_sha.outputs.long }}
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.git_ref }}
+
+      - name: Resolve Git SHA
+        id: git_sha
+        run: echo "long=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: resolve
     runs-on: ubuntu-26.04-arm
+    concurrency:
+      group: build-${{ needs.resolve.outputs.git_sha }}
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: read
       id-token: write # required for requesting JWT token from AWS
@@ -35,7 +57,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.git_ref }}
+          ref: ${{ needs.resolve.outputs.git_sha }}
 
       - name: Get Git SHA
         id: git_sha
