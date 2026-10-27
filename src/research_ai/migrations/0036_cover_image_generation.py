@@ -63,11 +63,12 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "image_keys",
-                    models.JSONField(
+                    "image_key",
+                    models.CharField(
                         blank=True,
-                        db_comment="Storage keys of the generated banners, in display order.",
-                        default=list,
+                        db_comment="Storage key of the generated banner.",
+                        default="",
+                        max_length=255,
                     ),
                 ),
                 ("error", models.TextField(blank=True, default="")),

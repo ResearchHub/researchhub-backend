@@ -2,8 +2,7 @@
 
 The banners copy the layout of RFP covers: a letter-spaced label, a heavy
 title, a bold funding line and a light subtitle on the left, and a mark on the
-right. Colors are left to the model. Each variant changes only the right-hand
-mark so the options differ while the text stays the same.
+right. Colors are left to the model.
 """
 
 from decimal import Decimal
@@ -31,35 +30,18 @@ class CoverImagePrompts:
     # A logo only ever comes from the user's upload, sent along as a reference
     # image. Without one, an organization appears only as its name, so the
     # model never invents a logo or borrows another's.
-    RIGHT_SIDES_WITH_LOGO = (
-        "the provided logo, reproduced exactly, vertically centred, with lots "
-        "of empty space around it.",
-        "the provided logo, reproduced exactly and kept small, above a delicate "
-        "fine-line illustration evoking the research topic, drawn with thin "
-        "single-weight strokes.",
-        "the provided logo, reproduced exactly and kept small, beneath an "
-        "abstract constellation of thin lines and small dots suggesting a "
-        "molecular or network structure.",
+    RIGHT_SIDE_WITH_LOGO = (
+        "the provided logo, reproduced exactly, vertically centred, with lots of "
+        "empty space around it."
     )
-    RIGHT_SIDES_WITH_ORGANIZATION = (
+    RIGHT_SIDE_WITH_ORGANIZATION = (
         'the organization name "{organization}" set on its own in elegant, thin, '
-        "tall capitals, vertically centred, with lots of empty space around it.",
-        "a delicate fine-line illustration evoking the research topic, drawn "
-        "with thin single-weight strokes, with the organization name "
-        '"{organization}" in thin capitals beneath it.',
-        "an abstract constellation of thin lines and small dots suggesting a "
-        "molecular or network structure, with the organization name "
-        '"{organization}" in small thin capitals beneath it.',
+        "tall capitals, vertically centred, with lots of empty space around it."
     )
-    RIGHT_SIDES_PLAIN = (
+    RIGHT_SIDE_PLAIN = (
         "a few large, simple, softly overlapping geometric shapes, vertically "
-        "centred, with lots of empty space around them.",
-        "a delicate fine-line illustration evoking the research topic, drawn "
-        "with thin single-weight strokes, vertically centred.",
-        "an abstract constellation of thin lines and small dots suggesting a "
-        "molecular or network structure, vertically centred.",
+        "centred, with lots of empty space around them."
     )
-    VARIANT_COUNT = len(RIGHT_SIDES_PLAIN)
 
     LOGO_RULE = (
         "- The attached reference image is the organization's logo. Reproduce it "
@@ -96,8 +78,8 @@ class CoverImagePrompts:
         organization: str = "",
         funding_amount_usd: Decimal | None = None,
         has_logo: bool = False,
-    ) -> list[str]:
-        """One image prompt per variant, all sharing the same text."""
+    ) -> str:
+        """The image prompt for one banner."""
         kind, label, funding_template = cls.LABELS[document_type]
 
         text_lines = [
@@ -120,22 +102,17 @@ class CoverImagePrompts:
 
         organization = cls.quoted(organization)
         if has_logo:
-            right_sides = list(cls.RIGHT_SIDES_WITH_LOGO)
+            right_side = cls.RIGHT_SIDE_WITH_LOGO
         elif organization:
-            right_sides = [
-                side.format(organization=organization)
-                for side in cls.RIGHT_SIDES_WITH_ORGANIZATION
-            ]
-        else:
-            right_sides = list(cls.RIGHT_SIDES_PLAIN)
-
-        template = load_template("cover_image.txt")
-        return [
-            template.format(
-                kind=kind,
-                text_lines="\n".join(text_lines),
-                right_side=side,
-                logo_rule=cls.LOGO_RULE if has_logo else cls.NO_LOGO_RULE,
+            right_side = cls.RIGHT_SIDE_WITH_ORGANIZATION.format(
+                organization=organization
             )
-            for side in right_sides
-        ]
+        else:
+            right_side = cls.RIGHT_SIDE_PLAIN
+
+        return load_template("cover_image.txt").format(
+            kind=kind,
+            text_lines="\n".join(text_lines),
+            right_side=right_side,
+            logo_rule=cls.LOGO_RULE if has_logo else cls.NO_LOGO_RULE,
+        )

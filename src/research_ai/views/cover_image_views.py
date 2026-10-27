@@ -3,10 +3,9 @@
 1. ``POST cover-images/`` with the banner's text, and optionally the
    ``note_id`` of the draft whose cover logo (an image the chat agent recorded
    from the note's chat) to place in it, starts generating (``PENDING``).
-2. Poll ``GET cover-images/<id>/`` until ``COMPLETED`` (with ``images``, each a
+2. Poll ``GET cover-images/<id>/`` until ``COMPLETED`` (with ``image``, a
    ``key`` and ``url``) or ``FAILED`` (with ``error``).
-3. Send the chosen image's ``key`` as the post's ``image``, like an uploaded
-   cover.
+3. Send the image's ``key`` as the post's ``image``, like an uploaded cover.
 
 Requests are private to their creator: another user's id is a 404.
 """
@@ -30,7 +29,7 @@ from research_ai.throttles import CoverImageGenerationThrottle
 
 
 class CoverImageGenerationCreateView(APIView):
-    """Start generating cover image options."""
+    """Start generating a cover image."""
 
     permission_classes = [IsAuthenticated, ResearchAIBudgetPermission]
     throttle_classes = [CoverImageGenerationThrottle]
@@ -75,7 +74,7 @@ class CoverImageGenerationCreateView(APIView):
 
 
 class CoverImageGenerationDetailView(APIView):
-    """Read a generation request's state and, once done, its images."""
+    """Read a generation request's state and, once done, its image."""
 
     permission_classes = [IsAuthenticated, ResearchAIBudgetPermission]
 
