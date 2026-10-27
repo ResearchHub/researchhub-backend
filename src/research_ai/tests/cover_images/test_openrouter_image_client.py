@@ -93,15 +93,19 @@ class OpenRouterImageClientTests(TestCase):
         def handler(request):
             return httpx.Response(402, json={"error": {"message": "No credits"}})
 
+        client = _client(handler)
+
         # Act / Assert
         with self.assertRaises(OpenRouterImageError):
-            _client(handler).generate(model="m", prompt="p")
+            client.generate(model="m", prompt="p")
 
     def test_a_response_without_an_image_raises(self):
         # Arrange
         def handler(request):
             return httpx.Response(200, json={"data": []})
 
+        client = _client(handler)
+
         # Act / Assert
         with self.assertRaises(OpenRouterImageError):
-            _client(handler).generate(model="m", prompt="p")
+            client.generate(model="m", prompt="p")
