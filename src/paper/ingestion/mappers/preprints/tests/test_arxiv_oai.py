@@ -418,3 +418,30 @@ class TestArXivOAIMapper(TestCase):
         mock_hub_mapper.map.assert_not_called()
         self.assertEqual(len(hubs), 1)
         self.assertEqual(hubs[0], self.arxiv_hub)
+
+    def test_map_to_authors_returns_empty(self):
+        """Test that map_to_authors returns empty list (no ORCID IDs)."""
+        # Act
+        authors = self.mapper.map_to_authors(self.sample_record)
+
+        # Assert
+        self.assertEqual(authors, [])
+
+    def test_map_to_institutions_returns_empty(self):
+        """Test that map_to_institutions returns empty list (no ROR IDs)."""
+        # Act
+        institutions = self.mapper.map_to_institutions(self.sample_record)
+
+        # Assert
+        self.assertEqual(institutions, [])
+
+    def test_map_to_authorships_returns_empty(self):
+        """Test that map_to_authorships returns empty list (no author IDs)."""
+        # Arrange
+        paper = self.mapper.map_to_paper(self.sample_record)
+
+        # Act
+        authorships = self.mapper.map_to_authorships(paper, self.sample_record)
+
+        # Assert
+        self.assertEqual(authorships, [])
