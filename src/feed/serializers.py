@@ -216,7 +216,9 @@ class ContentObjectSerializer(serializers.Serializer):
             ]
         }
         serializer = DynamicPurchaseSerializer(
-            obj.purchases.all(),
+            obj.purchases.prefetch_related(
+                prefetch_x_verified_accounts("user__socialaccount_set")
+            ),
             many=True,
             context=context,
             _include_fields=["id", "amount", "user"],
@@ -811,7 +813,9 @@ class CommentSerializer(serializers.Serializer):
                 ]
             }
             serializer = DynamicPurchaseSerializer(
-                obj.purchases.all(),
+                obj.purchases.prefetch_related(
+                    prefetch_x_verified_accounts("user__socialaccount_set")
+                ),
                 many=True,
                 context=context,
                 _include_fields=["id", "amount", "user", "purchase_type"],
