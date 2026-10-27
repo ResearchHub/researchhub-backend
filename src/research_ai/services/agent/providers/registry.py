@@ -16,6 +16,7 @@ refusal fallback model in ``llm_models`` (see ``router``).
 
 from django.conf import settings
 
+from research_ai.services import llm_models
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.images import ImageLoader
 from research_ai.services.agent.model_capabilities import model_capabilities
@@ -25,12 +26,7 @@ from research_ai.services.agent.providers.bedrock import BedrockProvider
 from research_ai.services.agent.providers.claude_platform import ClaudePlatformProvider
 from research_ai.services.agent.providers.openrouter import OpenRouterProvider
 from research_ai.services.agent.providers.router import RoutedProvider
-from research_ai.services.llm_models import (
-    BEDROCK,
-    CLAUDE_PLATFORM,
-    OPENROUTER,
-    refusal_fallback_ref,
-)
+from research_ai.services.llm_models import BEDROCK, CLAUDE_PLATFORM, OPENROUTER
 
 DEFAULT_PROVIDER = CLAUDE_PLATFORM
 
@@ -100,7 +96,7 @@ def resolve_provider(
     )
     if not refusal_fallback:
         return provider
-    fallback = refusal_fallback_ref()
+    fallback = llm_models.REFUSAL_FALLBACK
     return RoutedProvider(
         primary_ref=_canonical_model_ref(model_ref),
         primary=provider,

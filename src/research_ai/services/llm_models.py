@@ -6,16 +6,14 @@ its role here, plus a reviewed row in ``agent.model_capabilities`` (and in
 ``agent.model_pricing`` for models the agent bills). What a model accepts,
 such as ``temperature``, is read from those capabilities, never from the id.
 
-A role with a ``setting`` takes a non-empty Django setting of that name as an
-override, for environments that pin a different model.
+Models are set here only, not through settings or the environment: a change
+ships with a deploy, like any other code change.
 
 The agent picker's catalog and tier defaults are product policy and stay in
 ``agent.model_catalog`` and ``usage_budget.config``.
 """
 
 from dataclasses import dataclass
-
-from django.conf import settings
 
 BEDROCK = "bedrock"
 CLAUDE_PLATFORM = "claude_platform"
@@ -25,16 +23,10 @@ OPENROUTER = "openrouter"
 
 @dataclass(frozen=True)
 class ModelRole:
-    """One feature's model: provider, default model id, optional override."""
+    """One feature's model: its provider and model id."""
 
     provider: str
-    default: str
-    setting: str | None = None
-
-    @property
-    def model_id(self) -> str:
-        override = getattr(settings, self.setting, "") if self.setting else ""
-        return override or self.default
+    model_id: str
 
 
 # Each model once, in its provider's own id format. Named by family rather
@@ -60,16 +52,10 @@ OPENROUTER_AGENT = ModelRole(OPENROUTER, OPENROUTER_CLAUDE_OPUS)
 # Single-purpose features.
 PRIMARY_IMAGE = ModelRole(BEDROCK, BEDROCK_CLAUDE_HAIKU)
 # Expert profile matching and outreach emails.
-RESEARCH_AI_BEDROCK = ModelRole(
-    BEDROCK, BEDROCK_CLAUDE_HAIKU, "RESEARCH_AI_BEDROCK_MODEL_ID"
-)
+RESEARCH_AI_BEDROCK = ModelRole(BEDROCK, BEDROCK_CLAUDE_HAIKU)
 EXPERT_FINDER = ModelRole(OPENAI, OPENAI_GPT_LUNA)
-PEER_REVIEW = ModelRole(
-    BEDROCK, BEDROCK_CLAUDE_HAIKU, "AI_PEER_REVIEW_BEDROCK_MODEL_ID"
-)
-PEER_REVIEW_WEB_CONTEXT = ModelRole(
-    OPENAI, OPENAI_GPT_LUNA, "AI_PEER_REVIEW_OPENAI_WEB_CONTEXT_MODEL"
-)
+PEER_REVIEW = ModelRole(BEDROCK, BEDROCK_CLAUDE_HAIKU)
+PEER_REVIEW_WEB_CONTEXT = ModelRole(OPENAI, OPENAI_GPT_LUNA)
 SOCIAL_SHARE = ModelRole(OPENROUTER, OPENROUTER_KIMI_K3)
 
 ROLES = (
@@ -84,18 +70,7 @@ ROLES = (
     SOCIAL_SHARE,
 )
 
-# Where a research_ai conversation moves once its own model refuses a turn. It
-# needs reviewed pricing.
-REFUSAL_FALLBACK = f"{OPENROUTER}:{OPENROUTER_KIMI}"
-
-
-def refusal_fallback_ref() -> str | None:
-    """The refusal fallback ref, or ``None`` when the setting turns moves off.
-
-    An unset ``RESEARCH_AI_REFUSAL_FALLBACK_MODEL`` means the default; an empty
-    one stops new moves, not ones already made.
-    """
-    value = getattr(settings, "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", None)
-    if value is None:
-        return REFUSAL_FALLBACK
-    return value or None
+# Where a research_ai conversation moves once its own model refuses a turn, as
+# a provider-prefixed ref. It needs reviewed pricing. ``None`` stops new moves,
+# not ones already made.
+REFUSAL_FALLBACK: str | None = f"{OPENROUTER}:{OPENROUTER_KIMI}"
