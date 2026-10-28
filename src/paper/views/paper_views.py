@@ -17,7 +17,6 @@ from paper.serializers import (
     PaperSerializer,
 )
 from user.content_moderation_mixin import ContentModerationActionsMixin
-from user.related_models.user_model import prefetch_x_verified_accounts
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.openalex import OpenAlex
@@ -51,7 +50,6 @@ class PaperViewSet(
             "authors",
             "authors__user",
             "authors__user__userverification",
-            prefetch_x_verified_accounts("authors__user__socialaccount_set"),
             "unified_document",
             "unified_document__hubs",
             "votes",
