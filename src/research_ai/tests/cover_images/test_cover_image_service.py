@@ -11,6 +11,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image
 
+from note.models import GrantSettings, PreregistrationSettings
 from note.tests.helpers import create_note
 from research_ai.models import CoverImageGeneration, LLMUsageEvent, NoteCoverLogo
 from research_ai.services.agent_persistence import AgentConversationService
@@ -493,3 +494,100 @@ class CoverImageServiceTests(TestCase):
             },
         )
         self.assertIsNone(data["error"])
+
+    def _grant_note(self):
+        note = self._note()
+        note.document_type = "GRANT"
+        note.title = "  Epothilone B and anesthetic sensitivity "
+        note.save(update_fields=["document_type", "title"])
+        GrantSettings.objects.create(
+            note=note,
+            organization="Athanatos Foundation",
+            description="Funding mouse studies",
+            amount=Decimal(23000),
+            currency="USD",
+        )
+        return note
+
+    def test_generate_for_note_makes_the_banner_the_drafts_cover(self):
+        # Arrange
+        note = self._grant_note()
+
+        # Act
+        generation = self.service.generate_for_note(self.user, note)
+
+        # Assert
+        self.assertEqual(generation.status, CoverImageGeneration.Status.COMPLETED)
+        self.assertEqual(generation.note, note)
+        self.assertEqual(generation.title, "Epothilone B and anesthetic sensitivity")
+        self.assertEqual(generation.subtitle, "Funding mouse studies")
+        self.assertEqual(generation.organization, "Athanatos Foundation")
+        self.assertEqual(generation.funding_amount_usd, Decimal(23000))
+        note.refresh_from_db()
+        self.assertEqual(note.image, generation.image_key)
+        self.assertEqual(note.preview_img, f"https://cdn.test/{generation.image_key}")
+        self.enqueue.assert_not_called()
+
+    def test_generate_for_note_uses_the_notes_cover_logo(self):
+        # Arrange
+        note = self._grant_note()
+        logo = self._chat_logo(note)
+        self.private_storage.read.return_value = _png(64, 64)
+
+        # Act
+        generation = self.service.generate_for_note(self.user, note)
+
+        # Assert
+        self.assertEqual(generation.logo_file, logo)
+        self.assertEqual(
+            len(self.client.generate.call_args.kwargs["reference_images"]), 1
+        )
+
+    def test_generate_for_note_keeps_the_cover_when_generation_fails(self):
+        # Arrange
+        note = self._grant_note()
+        note.image = "uploads/old/cover.jpg"
+        note.save(update_fields=["image"])
+        self.client.generate.side_effect = RuntimeError("unavailable")
+
+        # Act
+        generation = self.service.generate_for_note(self.user, note)
+
+        # Assert
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        note.refresh_from_db()
+        self.assertEqual(note.image, "uploads/old/cover.jpg")
+
+    def test_generate_for_note_is_refused_once_the_daily_budget_is_spent(self):
+        # Arrange
+        note = self._grant_note()
+        LLMUsageEvent.objects.create(
+            user=self.user,
+            feature="notebook_chat",
+            tier="default",
+            provider="openrouter",
+            model="m",
+            cost_microusd=budget_status(self.user).daily_budget_microusd,
+        )
+
+        # Act / Assert
+        with self.assertRaises(UsageLimitExceededError):
+            self.service.generate_for_note(self.user, note)
+        self.client.generate.assert_not_called()
+
+    def test_note_cover_text_shows_only_a_dollar_amount(self):
+        # Arrange
+        note = self._note()
+        note.document_type = "PREREGISTRATION"
+        note.save(update_fields=["document_type"])
+        PreregistrationSettings.objects.create(
+            note=note, goal_amount=Decimal(500), goal_currency="RSC"
+        )
+
+        # Act
+        text = CoverImageService.note_cover_text(note)
+
+        # Assert
+        self.assertEqual(
+            text, {"document_type": "PREREGISTRATION", "title": note.title}
+        )

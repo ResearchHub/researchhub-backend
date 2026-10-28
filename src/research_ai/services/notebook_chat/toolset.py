@@ -99,7 +99,7 @@ def compose_notebook_toolset(
     grant_toolset,
     selected_rfp_toolset=None,
     rfp_details_toolset=None,
-    cover_logo_toolset=None,
+    cover_image_toolset=None,
     openalex_toolset,
     citation_toolset,
     web_search_toolset,
@@ -129,8 +129,8 @@ def compose_notebook_toolset(
         candidates.extend(selected_rfp_toolset.build_tools())
     if rfp_details_toolset is not None:
         candidates.extend(rfp_details_toolset.build_tools())
-    if cover_logo_toolset is not None:
-        candidates.extend(cover_logo_toolset.build_tools())
+    if cover_image_toolset is not None:
+        candidates.extend(cover_image_toolset.build_tools())
     candidates.extend(note_toolset.build_tools())
     if attachment_toolset is not None:
         candidates.extend(attachment_toolset.build_tools())

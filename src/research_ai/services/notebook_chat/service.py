@@ -119,7 +119,7 @@ from research_ai.services.notebook_chat.attachment_tools import (
     attachment_usage,
 )
 from research_ai.services.notebook_chat.config import NotebookChatConfig
-from research_ai.services.notebook_chat.cover_logo_tools import CoverLogoToolset
+from research_ai.services.notebook_chat.cover_image_tools import CoverImageToolset
 from research_ai.services.notebook_chat.events import (
     TURN_CANCELLED,
     TURN_FAILED,
@@ -967,9 +967,9 @@ class NotebookChatService:
                 if note is None or note.document_type == GRANT
                 else None
             ),
-            # Only a proposal or RFP has generated covers to put a logo in.
-            cover_logo_toolset=(
-                CoverLogoToolset(
+            # Only a proposal or RFP has a generated cover.
+            cover_image_toolset=(
+                CoverImageToolset(
                     note=note, conversation=conversation, user=conversation.user
                 )
                 if note is not None and note.document_type in (PREREGISTRATION, GRANT)
