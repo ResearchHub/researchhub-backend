@@ -8,7 +8,6 @@ CELERY_QUEUES := \
 	default \
 	elastic_search \
 	external_reporting \
-	hubs \
 	notifications \
 	paper_metadata \
 	paper_metrics \
