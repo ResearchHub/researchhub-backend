@@ -2,9 +2,9 @@
 
 from unittest.mock import patch
 
-from django.conf import settings
 from django.test import SimpleTestCase, override_settings
 
+from research_ai.services import llm_models
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.model_capabilities import model_capabilities
 from research_ai.services.agent.model_pricing import model_pricing
@@ -169,10 +169,8 @@ class ResolveProviderTests(SimpleTestCase):
         self.assertEqual(provider.model_id, "openai/gpt-5.4")
         bedrock_cls.assert_not_called()
 
-    @override_settings(
-        RESEARCH_AI_REFUSAL_FALLBACK_MODEL="openrouter:moonshotai/kimi-k3"
-    )
-    def test_refusal_fallback_moves_refused_chats_to_the_setting(self, bedrock_cls):
+    @patch.object(llm_models, "REFUSAL_FALLBACK", "openrouter:moonshotai/kimi-k3")
+    def test_refusal_fallback_moves_refused_chats_to_the_fallback(self, bedrock_cls):
         # Arrange
         def loader(ref):
             return b""
@@ -191,9 +189,7 @@ class ResolveProviderTests(SimpleTestCase):
         self.assertEqual(fallback.effort, "low")
         self.assertIs(fallback.image_loader, loader)
 
-    @override_settings(
-        RESEARCH_AI_REFUSAL_FALLBACK_MODEL="claude_platform:claude-sonnet-4-5"
-    )
+    @patch.object(llm_models, "REFUSAL_FALLBACK", "claude_platform:claude-sonnet-4-5")
     def test_unpriced_fallback_is_refused_before_any_spend(self, bedrock_cls):
         # Arrange
         provider = resolve_provider("claude-opus-5-5", refusal_fallback=True)
@@ -203,12 +199,10 @@ class ResolveProviderTests(SimpleTestCase):
             provider._build(provider.fallback_ref)
 
 
-class RefusalFallbackSettingTests(SimpleTestCase):
-    def test_default_fallback_is_priced_and_takes_images(self):
+class RefusalFallbackTests(SimpleTestCase):
+    def test_fallback_is_priced_and_takes_images(self):
         # Arrange
-        provider, model_id = split_model_ref(
-            settings.RESEARCH_AI_REFUSAL_FALLBACK_MODEL
-        )
+        provider, model_id = split_model_ref(llm_models.REFUSAL_FALLBACK)
 
         # Act
         capabilities = model_capabilities(provider, model_id)

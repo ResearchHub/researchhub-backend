@@ -10,6 +10,10 @@ LEGACY_DEFAULT_TIER_MODELS = (
     "openrouter:deepseek/deepseek-v4-flash-0731",
 )
 BUDGETS_ENFORCED = True
+# Usage recorded under these features spends the daily dollar budget but never
+# counts as a turn.
+COVER_IMAGE_FEATURE = "cover_image_generation"
+DOLLAR_ONLY_FEATURES = frozenset({COVER_IMAGE_FEATURE})
 MAX_IN_FLIGHT_JOBS_PER_USER = 5
 DEFAULT_DAILY_BUDGET_MICROUSD = 1_000_000
 # Shared by every default-tier user combined, on top of the per-user budget.

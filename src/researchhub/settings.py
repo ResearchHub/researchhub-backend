@@ -253,8 +253,6 @@ INSTALLED_APPS = [
     "ai_peer_review",
     # Health checks
     "health_check",
-    "health_check.db",
-    "health_check.cache",
 ]
 
 SITE_ID = 1
@@ -262,6 +260,7 @@ SITE_ID = 1
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -570,17 +569,6 @@ EXA_API_KEY = os.environ.get("EXA_API_KEY", getattr(keys, "EXA_API_KEY", ""))
 # names its own model and inference knobs as module constants.
 RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
     "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
-)
-
-# Model a research_ai conversation moves to once its own model refuses a turn;
-# it needs reviewed pricing. Empty stops new moves, not ones already made.
-RESEARCH_AI_REFUSAL_FALLBACK_MODEL = os.environ.get(
-    "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3.1-pro"
-)
-
-AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
-    "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
-    getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
 )
 
 AI_PEER_REVIEW_EXPERT_EMAIL = os.environ.get(

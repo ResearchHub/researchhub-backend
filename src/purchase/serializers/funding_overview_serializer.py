@@ -33,6 +33,12 @@ class SupportedProposalSerializer(serializers.Serializer):
     funded_amount = CurrencyBreakdownSerializer()
 
 
+class SupportedGrantSerializer(SupportedProposalSerializer):
+    """Grant/RFP row for funding overview."""
+
+    organization = serializers.CharField(allow_blank=True)
+
+
 class SupportedNonprofitSerializer(serializers.Serializer):
     """Subset of ``organizations.models.NonprofitOrg`` for funding overview."""
 
@@ -48,4 +54,5 @@ class FundingOverviewSerializer(serializers.Serializer):
     matched_funds = CurrencyBreakdownSerializer()
     distributed_funds = CurrencyBreakdownSerializer()
     supported_proposals = SupportedProposalSerializer(many=True)
+    supported_grants = SupportedGrantSerializer(many=True)
     supported_nonprofits = SupportedNonprofitSerializer(many=True)
