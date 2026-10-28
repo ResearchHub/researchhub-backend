@@ -2,7 +2,10 @@
 
 import unittest
 
-from research_ai.services.proposal_draft.tools.assembly import assemble_proposal
+from research_ai.services.proposal_draft.tools.assembly import (
+    assemble_proposal,
+    valid_chosen_parameters,
+)
 
 
 def _full_sections():
@@ -234,3 +237,32 @@ class AssembleProposalTests(unittest.TestCase):
             ],
             ["Specific Aim 1: Complete"],
         )
+
+
+class ValidChosenParametersTests(unittest.TestCase):
+    def test_keeps_named_values_and_drops_the_rest(self):
+        # Arrange
+        entries = [
+            {"parameter": " Sample size ", "value": "N = 48", "basis": " d = 0.5 "},
+            {"parameter": "TR", "value": "800 ms"},
+            {"parameter": "Threshold", "value": "  "},
+            {"value": "0.5 mm"},
+            "not an entry",
+        ]
+
+        # Act
+        valid = valid_chosen_parameters(entries)
+
+        # Assert
+        self.assertEqual(
+            valid,
+            [
+                {"parameter": "Sample size", "value": "N = 48", "basis": "d = 0.5"},
+                {"parameter": "TR", "value": "800 ms", "basis": ""},
+            ],
+        )
+
+    def test_non_list_is_empty(self):
+        # Act / Assert
+        self.assertEqual(valid_chosen_parameters(None), [])
+        self.assertEqual(valid_chosen_parameters({"parameter": "N"}), [])

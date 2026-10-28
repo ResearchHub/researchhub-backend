@@ -244,6 +244,27 @@ class ProposalDraftDetailViewTests(APITestCase):
         self.assertEqual(data["rounds_used"], 2)
         self.assertEqual(data["error_message"], "gates not cleared within 2 rounds")
         self.assertIsNone(data["note"])
+        self.assertEqual(data["chosen_parameters"], [])
+
+    def test_detail_returns_the_chosen_parameters(self):
+        # Arrange
+        self.draft.last_submission = {
+            "chosen_parameters": [
+                {"parameter": "Sample size", "value": "N = 48", "basis": "d = 0.5"}
+            ]
+        }
+        self.draft.save(update_fields=["last_submission"])
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        response = self.client.get(f"{BASE_URL}{self.draft.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.json()["chosen_parameters"],
+            [{"parameter": "Sample size", "value": "N = 48", "basis": "d = 0.5"}],
+        )
 
     def test_detail_not_found_returns_404(self):
         # Arrange

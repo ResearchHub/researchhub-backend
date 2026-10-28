@@ -58,6 +58,26 @@ def valid_aims(aims: object) -> list[dict]:
     return valid
 
 
+def valid_chosen_parameters(entries: object) -> list[dict]:
+    """The submitted chosen parameters that name both a parameter and a value.
+
+    These are the values the agent picked because nothing it was given settled
+    them. They stay out of the assembled document and are shown to the user
+    beside it, so the user can tell them from what the researcher supplied.
+    """
+    entries = entries if isinstance(entries, list) else []
+    valid: list[dict] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        parameter = str(entry.get("parameter") or "").strip()
+        value = str(entry.get("value") or "").strip()
+        basis = str(entry.get("basis") or "").strip()
+        if parameter and value:
+            valid.append({"parameter": parameter, "value": value, "basis": basis})
+    return valid
+
+
 def _reference_line(citation: object) -> str:
     """One rendered reference: ``Authors (Year). Title. <doi-url>``.
 

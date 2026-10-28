@@ -88,6 +88,7 @@ from research_ai.services.proposal_draft.tools import (
     ProposalFulltextToolset,
     ProposalWebSearchToolset,
     assemble_proposal,
+    valid_chosen_parameters,
 )
 from research_ai.services.proposal_draft.tools.judge_context import build_judge_context
 from research_ai.services.proposal_draft.toolset import (
@@ -478,6 +479,9 @@ class _ProposalDraftRunner:
         normalized = dict(submitted)
         normalized["plain_text"] = plain_text
         normalized["prosemirror"] = prosemirror
+        normalized["chosen_parameters"] = valid_chosen_parameters(
+            submitted.get("chosen_parameters")
+        )
         return normalized
 
     # -- the gate-before-stop handler ------------------------------------

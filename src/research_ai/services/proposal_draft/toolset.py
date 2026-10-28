@@ -66,6 +66,18 @@ SUBMIT_INPUT_SCHEMA = {
                 "required": ["claim_id"],
             },
         },
+        "chosen_parameters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "parameter": {"type": "string"},
+                    "value": {"type": "string"},
+                    "basis": {"type": "string"},
+                },
+                "required": ["parameter", "value"],
+            },
+        },
     },
     "required": ["sections"],
 }
@@ -87,8 +99,11 @@ def build_submit_tool(handler) -> Tool:
             "`sections` (title, background, preliminary_data, aims as a list of "
             "{title, body}, limitations, why_this_team, budget, timeline) and "
             "`citations` "
-            "(each from a tool result); the server assembles the final numbered "
-            "document from your sections. If the gate rejects the draft it "
+            "(each from a tool result), plus `chosen_parameters` listing each "
+            "value you chose because nothing you were given settled it; the "
+            "server assembles the final numbered document from your sections "
+            "and shows the chosen parameters to the user beside it. If the "
+            "gate rejects the draft it "
             "returns concrete gaps -- revise and submit again."
         ),
         input_schema=SUBMIT_INPUT_SCHEMA,

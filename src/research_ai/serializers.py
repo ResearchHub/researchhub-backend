@@ -35,6 +35,9 @@ from research_ai.services.outreach.outreach_history import (
 from research_ai.services.outreach.rfp_email_context import (
     get_expert_for_search_by_email,
 )
+from research_ai.services.proposal_draft.tools.assembly import (
+    valid_chosen_parameters,
+)
 from research_ai.utils import trimmed_str
 from researchhub_document.related_models.constants.document_type import PAPER
 from researchhub_document.serializers import ResearchhubPostSerializer
@@ -1132,7 +1135,12 @@ class ProposalDraftCreateSerializer(GenerationOptionsSerializer):
 class ProposalDraftSerializer(serializers.ModelSerializer):
     """
     Read-only job status/result payload for a `ProposalDraft`.
+
+    ``chosen_parameters`` are the values the agent chose for the shipped
+    draft because nothing it was given settled them, shown beside the note.
     """
+
+    chosen_parameters = serializers.SerializerMethodField()
 
     class Meta:
         model = ProposalDraft
@@ -1147,12 +1155,19 @@ class ProposalDraftSerializer(serializers.ModelSerializer):
             "rounds_used",
             "final_scores",
             "gate_report",
+            "chosen_parameters",
             "error_message",
             "processing_time",
             "created_date",
             "completed_at",
         ]
         read_only_fields = fields
+
+    def get_chosen_parameters(self, obj) -> list[dict]:
+        submission = obj.last_submission
+        if not isinstance(submission, dict):
+            return []
+        return valid_chosen_parameters(submission.get("chosen_parameters"))
 
 
 class CoverImageGenerationCreateSerializer(serializers.Serializer):

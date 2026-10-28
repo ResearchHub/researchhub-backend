@@ -20,6 +20,7 @@ The draft driver wires these together; this package only builds the tools.
 from research_ai.services.proposal_draft.tools.assembly import (
     assemble_proposal,
     valid_aims,
+    valid_chosen_parameters,
 )
 from research_ai.services.proposal_draft.tools.context_tools import (
     ProposalContextToolset,
@@ -39,4 +40,5 @@ __all__ = [
     "assemble_proposal",
     "build_judge_context",
     "valid_aims",
+    "valid_chosen_parameters",
 ]

@@ -647,6 +647,33 @@ class ProposalDraftServiceTests(TestCase):
         self.assertEqual(report["citations"]["summary"]["major"], 1)
         self.assertEqual(Note.objects.count(), 0)
 
+    def test_chosen_parameters_are_kept_with_the_draft_not_the_note(self):
+        # Arrange: a clean submit that lists one value the agent chose.
+        payload = _clean_payload()
+        payload["chosen_parameters"] = [
+            {"parameter": "Sample size", "value": "N = 48", "basis": "d = 0.5"},
+            {"parameter": "", "value": "dropped"},
+        ]
+        provider = _ScriptedProvider([_submit_turn(payload)])
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: stored cleaned on the draft, and absent from the note text.
+        self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
+        draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
+        self.assertEqual(
+            draft.last_submission["chosen_parameters"],
+            [{"parameter": "Sample size", "value": "N = 48", "basis": "d = 0.5"}],
+        )
+        note = Note.objects.get(id=result["note_id"])
+        self.assertNotIn("N = 48", note.latest_version.plain_text)
+
     # -- a below-threshold panel submit is blocked ------------------------
 
     def test_low_panel_score_submit_is_blocked(self):
