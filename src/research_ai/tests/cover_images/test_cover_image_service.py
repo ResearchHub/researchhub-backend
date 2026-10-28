@@ -301,6 +301,21 @@ class CoverImageServiceTests(TestCase):
         # Assert
         self.client.generate.assert_not_called()
 
+    def test_run_fails_a_request_queued_too_long_ago(self):
+        # Arrange
+        generation = self._generation()
+        CoverImageGeneration.objects.filter(id=generation.id).update(
+            created_date=timezone.now() - CoverImageService.STALE_AFTER * 2
+        )
+
+        # Act
+        self.service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.client.generate.assert_not_called()
+
     def test_run_charges_the_users_budget_what_openrouter_billed(self):
         # Arrange
         generation = self._generation()
@@ -453,12 +468,18 @@ class CoverImageServiceTests(TestCase):
         CoverImageGeneration.objects.filter(id=generation.id).update(
             created_date=timezone.now()
             - CoverImageService.STALE_AFTER
-            - timedelta(minutes=1)
+            + timedelta(minutes=1)
         )
 
         polled = []
 
         def poll_then_generate(**_):
+            # Generating takes long enough that it was created over STALE_AFTER ago.
+            CoverImageGeneration.objects.filter(id=generation.id).update(
+                created_date=timezone.now()
+                - CoverImageService.STALE_AFTER
+                - timedelta(minutes=1)
+            )
             polled.append(self.service.get_for_user(self.user, generation.id).status)
             return _generated()
 
