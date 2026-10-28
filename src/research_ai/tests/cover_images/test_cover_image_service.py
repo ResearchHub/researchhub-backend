@@ -1,7 +1,7 @@
 import io
 from datetime import timedelta
 from decimal import Decimal
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -262,6 +262,82 @@ class CoverImageServiceTests(TestCase):
 
         # Assert
         self.assertEqual(found.status, CoverImageGeneration.Status.FAILED)
+
+    def test_get_for_user_times_a_processing_request_from_its_claim(self):
+        # Arrange
+        generation = self._generation()
+        CoverImageGeneration.objects.filter(id=generation.id).update(
+            created_date=timezone.now()
+            - CoverImageService.STALE_AFTER
+            - timedelta(minutes=1)
+        )
+
+        polled = []
+
+        def poll_then_generate(**_):
+            polled.append(self.service.get_for_user(self.user, generation.id).status)
+            return _generated()
+
+        self.client.generate.side_effect = poll_then_generate
+
+        # Act
+        self.service.run(generation.id)
+
+        # Assert
+        self.assertEqual(polled, [CoverImageGeneration.Status.PROCESSING])
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.COMPLETED)
+
+    def test_get_for_user_fails_a_request_whose_worker_was_lost_processing(self):
+        # Arrange
+        generation = self._generation(status=CoverImageGeneration.Status.PROCESSING)
+        CoverImageGeneration.objects.filter(id=generation.id).update(
+            updated_date=timezone.now()
+            - CoverImageService.STALE_AFTER
+            - timedelta(minutes=1)
+        )
+
+        # Act
+        found = self.service.get_for_user(self.user, generation.id)
+
+        # Assert
+        self.assertEqual(found.status, CoverImageGeneration.Status.FAILED)
+
+    def test_run_leaves_a_request_failed_while_it_was_generating_failed(self):
+        # Arrange
+        generation = self._generation()
+
+        def fail_then_generate(**_):
+            self.service._fail(generation, "Cover image generation timed out")
+            return _generated()
+
+        self.client.generate.side_effect = fail_then_generate
+
+        # Act
+        self.service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.assertEqual(generation.image_key, "")
+
+    def test_polling_builds_no_openrouter_client(self):
+        # Arrange
+        generation = self._generation()
+
+        # Act
+        with (
+            override_settings(OPENROUTER_API_KEY="key"),
+            patch(
+                "research_ai.services.cover_image_service.OpenRouterImageClient"
+            ) as client_class,
+        ):
+            service = CoverImageService(storage=self.storage)
+            service.get_for_user(self.user, generation.id)
+
+        # Assert
+        self.assertTrue(service.configured)
+        client_class.assert_not_called()
 
     def test_public_gives_the_image_url(self):
         # Arrange

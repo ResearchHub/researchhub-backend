@@ -61,8 +61,9 @@ class CoverImageService:
         CoverImageGeneration.Status.PENDING,
         CoverImageGeneration.Status.PROCESSING,
     )
-    # Generating takes under a minute; a request still active well past that
-    # lost its worker, and is reported failed so the client stops waiting.
+    # Generating takes under a minute; a request still queued, or still
+    # processing, well past that lost its worker, and is reported failed so the
+    # client stops waiting.
     STALE_AFTER = timedelta(minutes=10)
     # The worker's ceiling, above the image call's own client timeout.
     TIME_LIMIT_SECONDS = 6 * 60
@@ -75,16 +76,23 @@ class CoverImageService:
         storage=None,
         enqueue: Callable[[int], None] | None = None,
     ):
-        self.client = client if client is not None else self._default_client()
+        self._client = client
+        self.api_key = getattr(settings, "OPENROUTER_API_KEY", "") or ""
         self.storage = storage if storage is not None else default_storage
         self.enqueue = (
             enqueue if enqueue is not None else _enqueue_cover_image_generation
         )
 
-    @staticmethod
-    def _default_client() -> OpenRouterImageClient | None:
-        api_key = getattr(settings, "OPENROUTER_API_KEY", "") or ""
-        return OpenRouterImageClient(api_key) if api_key else None
+    @property
+    def configured(self) -> bool:
+        return self._client is not None or bool(self.api_key)
+
+    @property
+    def client(self) -> OpenRouterImageClient:
+        # Built on first use, so polling a request opens no HTTP client.
+        if self._client is None:
+            self._client = OpenRouterImageClient(self.api_key)
+        return self._client
 
     def start(
         self,
@@ -101,7 +109,7 @@ class CoverImageService:
         Raises ``UsageLimitExceededError`` once the user's daily AI budget is
         spent; generating spends it, in dollars only.
         """
-        if self.client is None:
+        if not self.configured:
             raise CoverImageGenerationUnavailableError(
                 "Cover image generation is not configured."
             )
@@ -128,20 +136,28 @@ class CoverImageService:
         generation = CoverImageGeneration.objects.filter(
             id=generation_id, created_by=user
         ).first()
-        if (
-            generation is not None
-            and generation.status in self.ACTIVE_STATUSES
-            and generation.created_date < timezone.now() - self.STALE_AFTER
-        ):
+        if generation is not None and self._is_stale(generation):
             self._fail(generation, "Cover image generation timed out")
             generation.refresh_from_db()
         return generation
+
+    def _is_stale(self, generation: CoverImageGeneration) -> bool:
+        # A queued request is timed from its creation; a processing one from
+        # its claim, which is its last update until it finishes.
+        since = {
+            CoverImageGeneration.Status.PENDING: generation.created_date,
+            CoverImageGeneration.Status.PROCESSING: generation.updated_date,
+        }.get(generation.status)
+        return since is not None and since < timezone.now() - self.STALE_AFTER
 
     def run(self, generation_id: int) -> None:
         """Generate and store the banner for a queued request."""
         claimed = CoverImageGeneration.objects.filter(
             id=generation_id, status=CoverImageGeneration.Status.PENDING
-        ).update(status=CoverImageGeneration.Status.PROCESSING)
+        ).update(
+            status=CoverImageGeneration.Status.PROCESSING,
+            updated_date=timezone.now(),
+        )
         if not claimed:
             return
         generation = CoverImageGeneration.objects.get(id=generation_id)
@@ -170,7 +186,10 @@ class CoverImageService:
             logger.exception("could not store cover image %s", generation.id)
             self._fail(generation, "Could not store the image")
             return
-        CoverImageGeneration.objects.filter(id=generation.id).update(
+        # A request already reported timed out stays failed.
+        CoverImageGeneration.objects.filter(
+            id=generation.id, status=CoverImageGeneration.Status.PROCESSING
+        ).update(
             status=CoverImageGeneration.Status.COMPLETED,
             image_key=key,
             updated_date=timezone.now(),
