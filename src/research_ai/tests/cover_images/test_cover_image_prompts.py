@@ -1,3 +1,4 @@
+import random
 from decimal import Decimal
 from unittest import TestCase
 
@@ -75,15 +76,58 @@ class BuildCoverImagePromptsTests(TestCase):
         self.assertIn("\"The 'best' study {title}\"", prompt)
 
     def test_leaves_the_colors_to_the_model(self):
+        for seed in range(50):
+            with self.subTest(seed=seed):
+                # Act
+                prompt = CoverImagePrompts.build(
+                    document_type="GRANT",
+                    title="A study",
+                    rng=random.Random(seed),
+                )
+
+                # Assert
+                self.assertNotRegex(prompt, r"#[0-9A-Fa-f]{6}")
+                for color in ("gold", "white", "charcoal", "black", "navy"):
+                    self.assertNotIn(color, prompt.lower())
+
+    def test_each_banner_gets_an_art_direction_of_its_own(self):
         # Act
-        prompt = CoverImagePrompts.build(
-            document_type="GRANT", title="A study", organization="A Foundation"
+        prompts = {
+            CoverImagePrompts.build(
+                document_type="GRANT", title="A study", rng=random.Random(seed)
+            )
+            for seed in range(20)
+        }
+
+        # Assert
+        self.assertGreater(len(prompts), 1)
+
+    def test_the_same_pick_gives_the_same_prompt(self):
+        # Act
+        first, second = (
+            CoverImagePrompts.build(
+                document_type="GRANT", title="A study", rng=random.Random(7)
+            )
+            for _ in range(2)
         )
 
         # Assert
-        self.assertNotRegex(prompt, r"#[0-9A-Fa-f]{6}")
-        for color in ("gold", "white", "charcoal", "black", "navy"):
-            self.assertNotIn(color, prompt.lower())
+        self.assertEqual(first, second)
+
+    def test_with_a_logo_the_palette_is_left_to_suit_it(self):
+        for seed in range(20):
+            with self.subTest(seed=seed):
+                # Act
+                prompt = CoverImagePrompts.build(
+                    document_type="GRANT",
+                    title="A study",
+                    has_logo=True,
+                    rng=random.Random(seed),
+                )
+
+                # Assert
+                for palette in CoverImagePrompts.PALETTES:
+                    self.assertNotIn(palette, prompt)
 
     def test_never_asks_for_an_organization_logo(self):
         for organization in ("Athanatos Foundation", ""):

@@ -2,9 +2,13 @@
 
 The banners copy the layout of RFP covers: a letter-spaced label, a heavy
 title, a bold funding line and a light subtitle on the left, and a mark on the
-right. Colors are left to the model.
+right. Colors are left to the model, but each banner is given an art
+direction picked at random (a palette mood, a background, a mark), so
+generating again for the same details gives a different banner rather than
+the same one.
 """
 
+import random
 from decimal import Decimal
 
 from research_ai.prompts._loader import load_template
@@ -39,8 +43,31 @@ class CoverImagePrompts:
         "tall capitals, vertically centred, with lots of empty space around it."
     )
     RIGHT_SIDE_PLAIN = (
-        "a few large, simple, softly overlapping geometric shapes, vertically "
-        "centred, with lots of empty space around them."
+        "{motif}, vertically centred, with lots of empty space all around."
+    )
+
+    # The art directions picked from. None names a color: the model chooses
+    # them to suit the topic, and the logo when there is one.
+    PALETTES = (
+        "dark and deep, with light text",
+        "light and airy, with dark text",
+        "built around one bold, saturated hue",
+        "of warm, earthy tones",
+        "of cool, muted tones",
+        "of two strongly contrasting hues",
+    )
+    BACKGROUNDS = (
+        "A flat, plain background with the faintest subtle grain.",
+        "A background of two flat tones meeting at one clean vertical or "
+        "diagonal edge.",
+        "A background of one very soft, barely visible gradient.",
+        "A flat background with one large, faint shape bleeding off its right edge.",
+    )
+    MOTIFS = (
+        "a few large, simple, softly overlapping geometric shapes",
+        "a single bold abstract form inspired by the research topic",
+        "a fine pattern of lines or dots that suggests the research topic",
+        "a minimal abstract line illustration that suggests the research topic",
     )
 
     LOGO_RULE = (
@@ -78,8 +105,10 @@ class CoverImagePrompts:
         organization: str = "",
         funding_amount_usd: Decimal | None = None,
         has_logo: bool = False,
+        rng: random.Random | None = None,
     ) -> str:
-        """The image prompt for one banner."""
+        """The image prompt for one banner, its art direction picked with ``rng``."""
+        rng = rng or random.Random()
         kind, label, funding_template = cls.LABELS[document_type]
 
         text_lines = [
@@ -108,11 +137,14 @@ class CoverImagePrompts:
                 organization=organization
             )
         else:
-            right_side = cls.RIGHT_SIDE_PLAIN
+            right_side = cls.RIGHT_SIDE_PLAIN.format(motif=rng.choice(cls.MOTIFS))
 
         return load_template("cover_image.txt").format(
             kind=kind,
             text_lines="\n".join(text_lines),
             right_side=right_side,
+            background=rng.choice(cls.BACKGROUNDS),
+            # With a logo, the palette is chosen to suit it instead.
+            palette="" if has_logo else f", {rng.choice(cls.PALETTES)}",
             logo_rule=cls.LOGO_RULE if has_logo else cls.NO_LOGO_RULE,
         )
