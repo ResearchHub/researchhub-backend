@@ -627,6 +627,33 @@ class CoverImageServiceTests(TestCase):
         note.refresh_from_db()
         self.assertEqual(note.image, "uploads/old/cover.jpg")
 
+    def test_generate_for_note_is_refused_while_too_many_are_generating(self):
+        # Arrange
+        note = self._grant_note()
+        for _ in range(CoverImageService.MAX_ACTIVE_PER_USER):
+            self._generation()
+
+        # Act / Assert
+        with self.assertRaises(CoverImageGenerationBusyError):
+            self.service.generate_for_note(self.user, note)
+        self.client.generate.assert_not_called()
+
+    def test_run_fails_a_request_when_the_budget_cannot_be_checked(self):
+        # Arrange
+        generation = self._generation()
+
+        # Act
+        with patch(
+            "research_ai.services.cover_image_service.check_spend_admission",
+            side_effect=RuntimeError("cache down"),
+        ):
+            self.service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.client.generate.assert_not_called()
+
     def test_generate_for_note_is_refused_once_the_daily_budget_is_spent(self):
         # Arrange
         note = self._grant_note()

@@ -13,7 +13,10 @@ from research_ai.models import AgentFile, CoverImageGeneration, NoteCoverLogo
 from research_ai.models.agent_file import IN_CHAT
 from research_ai.services.agent.tools import Tool, Toolset
 from research_ai.services.agent_files.extraction import is_image_type
-from research_ai.services.cover_image_service import CoverImageService
+from research_ai.services.cover_image_service import (
+    CoverImageGenerationBusyError,
+    CoverImageService,
+)
 from research_ai.services.usage_budget import UsageLimitExceededError
 
 logger = logging.getLogger(__name__)
@@ -137,6 +140,8 @@ class CoverImageToolset:
                 generation = self.cover_images.generate_for_note(self._user, note)
             except UsageLimitExceededError:
                 return {"error": "the user's daily AI usage limit is reached"}
+            except CoverImageGenerationBusyError:
+                return {"error": "a cover is already generating; try again soon"}
             if generation.status != CoverImageGeneration.Status.COMPLETED:
                 return {"error": "could not generate a cover image; try again later"}
             return {

@@ -147,23 +147,16 @@ class CoverImageService:
         if note_id is not None and note is None:
             raise CoverImageNoteError("Note not found.")
 
-        with transaction.atomic():
-            # Locking the user makes two requests at once count each other.
-            get_user_model().objects.select_for_update().filter(id=user.id).first()
-            if self._active_count(user) >= self.MAX_ACTIVE_PER_USER:
-                raise CoverImageGenerationBusyError(
-                    "A cover image is already generating."
-                )
-            generation = CoverImageGeneration.objects.create(
-                created_by=user,
-                note=note,
-                document_type=document_type,
-                title=title,
-                subtitle=subtitle,
-                organization=organization,
-                funding_amount_usd=funding_amount_usd,
-                logo_file=self.cover_logo(note) if note is not None else None,
-            )
+        generation = self._admit(
+            user,
+            note=note,
+            document_type=document_type,
+            title=title,
+            subtitle=subtitle,
+            organization=organization,
+            funding_amount_usd=funding_amount_usd,
+            logo_file=self.cover_logo(note) if note is not None else None,
+        )
         try:
             self.enqueue(generation.id)
         except Exception as error:  # noqa: BLE001 - broker clients vary
@@ -177,11 +170,12 @@ class CoverImageService:
 
         Runs in the caller, which must be a worker with the OpenRouter key: the
         note's chat. Replaces any cover the draft had. Raises
-        ``UsageLimitExceededError`` once the user's daily AI budget is spent.
+        ``UsageLimitExceededError`` once the user's daily AI budget is spent,
+        and ``CoverImageGenerationBusyError`` as ``start`` does.
         """
         check_spend_admission(user)
-        generation = CoverImageGeneration.objects.create(
-            created_by=user,
+        generation = self._admit(
+            user,
             note=note,
             logo_file=self.cover_logo(note),
             **self.note_cover_text(note),
@@ -226,6 +220,18 @@ class CoverImageService:
             self._fail(generation, "Cover image generation timed out")
             generation.refresh_from_db()
         return generation
+
+    def _admit(self, user, **fields) -> CoverImageGeneration:
+        """Record a request for the user, unless they already have
+        ``MAX_ACTIVE_PER_USER`` generating, from the dialog or the chat."""
+        with transaction.atomic():
+            # Locking the user makes two requests at once count each other.
+            get_user_model().objects.select_for_update().filter(id=user.id).first()
+            if self._active_count(user) >= self.MAX_ACTIVE_PER_USER:
+                raise CoverImageGenerationBusyError(
+                    "A cover image is already generating."
+                )
+            return CoverImageGeneration.objects.create(created_by=user, **fields)
 
     def _active_count(self, user) -> int:
         """The user's requests still generating, leaving out ones whose worker
@@ -277,6 +283,10 @@ class CoverImageService:
             check_spend_admission(generation.created_by)
         except UsageLimitExceededError:
             self._fail(generation, "The daily AI usage limit is reached")
+            return
+        except Exception:  # noqa: BLE001 - a request is never left processing
+            logger.exception("could not check the budget for cover %s", generation.id)
+            self._fail(generation, "Could not check the daily AI usage limit")
             return
 
         references = []
