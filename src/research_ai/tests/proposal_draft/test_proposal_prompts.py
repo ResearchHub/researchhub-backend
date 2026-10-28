@@ -164,3 +164,23 @@ class BuildProposalSystemPromptTests(unittest.TestCase):
         self.assertIn("resulting boundary", normalized)
         self.assertIn("concrete alternative approach", normalized)
         self.assertIn("`limitations`", normalized)
+
+    def test_prompt_requires_replicable_methods(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt()
+        normalized = " ".join(prompt.split())
+
+        # Assert: open parameters are chosen and justified, never deferred.
+        self.assertIn("## Methods a third party could run", normalized)
+        self.assertIn("power analysis", normalized)
+        self.assertIn("state it as the plan. Never defer it", normalized)
+
+    def test_prompt_keeps_caveats_and_applicant_notes_out_of_the_draft(self):
+        # Arrange / Act
+        prompt = build_proposal_system_prompt()
+        normalized = " ".join(prompt.split())
+
+        # Assert
+        self.assertIn("No caveats about what the proposal is not", normalized)
+        self.assertIn("State a safeguard as the design choice", normalized)
+        self.assertIn("addresses the funder, never the applicant", normalized)

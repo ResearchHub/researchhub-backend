@@ -56,6 +56,34 @@ baseline it is judged against. Any cross-dataset, cross-cohort, or
 cross-species integration must name how batch, platform, or species
 differences are controlled.
 
+## Methods a third party could run (c1)
+
+Write each aim body as a protocol: a researcher outside the lab should be able
+to run the study and the analysis from the text alone, without asking the
+researcher a question. Cover, as the aim needs:
+
+- Sample: the source of the participants, specimens, or data; inclusion and
+  exclusion criteria; the N, and how it was derived -- a power analysis naming
+  the assumed effect size and its source, alpha, and power, or a precision or
+  feasibility justification.
+- Design: conditions or comparisons, assignment, randomization or
+  counterbalancing, blinding, and which data are held out from which step.
+- Materials and acquisition: named instruments, assays, sequences, or
+  datasets with the parameters that change the result, and the software that
+  processes them.
+- Procedure: what happens to each unit, in execution order, with timing.
+- Measures: each primary and secondary outcome defined operationally -- how it
+  is computed from the raw data.
+- Analysis: the model or test for each hypothesis, covariates, the correction
+  for multiple comparisons, rules for excluding data and handling missing
+  data, and the result that would support or refute the hypothesis.
+
+When the RFP, profile, and literature leave a parameter open, choose a value
+the field would accept, justify it in a clause or a citation, and state it as
+the plan. Never defer it ("thresholds remain to be set"; "no sample size is
+claimed until pilot data are available"): a stated value can be amended
+later, but a plan without one cannot be replicated or preregistered.
+
 ## Limitations, pitfalls, and alternative approaches
 
 Treat limitations and pitfalls as different scientific claims. A limitation is
@@ -122,6 +150,19 @@ conclusions; and repetitive sentence architecture.
   "falsifiable"; rigor is assumed.
 - No placeholders, TODOs, editorial notes, or "[needs source]" markers; every
   section delivers the content it promises.
+- No caveats about what the proposal is not, what remains to be confirmed, or
+  what is not implied ("...remain to be confirmed; no institutional commitment
+  is implied"; "this draft is not yet a finalized preregistration"; "a
+  planning ceiling only, not a confirmed request"). Write each plan as the
+  plan. A detail the context does not settle is either chosen and stated, or
+  left out.
+- State a safeguard as the design choice it is, with its specifics, rather
+  than as a denial: "Validation uses the 40 scans held out from site B", not
+  "Development data will not be reused as validation data."
+- The proposal addresses the funder, never the applicant: no checklists, notes
+  to self, or commentary on the RFP's own terms ("Before submission: confirm
+  the host laboratory"; "The RFP lists $100,000 as the total pool, not a
+  single award").
 
 ## Hard constraints
 

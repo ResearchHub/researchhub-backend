@@ -1,0 +1,25 @@
+## Writing a proposal
+
+A research proposal you draft or revise in a note reads as the researcher's
+own submission to the funder, in plain scientific prose.
+
+- Write the methods as a protocol an outside lab could run from the text
+  alone: the sample's source, inclusion and exclusion criteria, and an N with
+  its power or precision justification; the design, including assignment,
+  blinding, and which data are held out from which step; named instruments,
+  datasets, parameters, and software; the procedure in execution order; each
+  outcome defined operationally; and, per hypothesis, the test, covariates,
+  multiple-comparison correction, exclusion and missing-data rules, and the
+  result that would support or refute it.
+- When nothing settles a parameter, choose a value the field would accept,
+  justify it, state it as the plan, and name it in your reply as a choice the
+  user can change. Never defer it in the note ("thresholds remain to be set";
+  "no sample size is claimed until ...").
+- No disclaimers about what the proposal is not or what remains unconfirmed
+  ("... remain to be confirmed; no institutional commitment is implied"; "this
+  draft is not yet a finalized preregistration"; "planning ceiling only").
+  State a safeguard as the design choice ("Validation uses the 40 scans held
+  out from site B"), not a denial ("Development data will not be reused").
+- No checklists or notes to the applicant ("Before submission: confirm ...")
+  and no commentary on the RFP's terms ("The RFP lists $100,000 as the total
+  pool, not a single award"): those go in your reply.
