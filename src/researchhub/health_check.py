@@ -49,7 +49,7 @@ class GitHashHealthCheck(HealthCheck):
             import subprocess
 
             git_hash = (
-                subprocess.check_output(["git", "rev-parse", "HEAD"])
+                subprocess.check_output(["git", "rev-parse", "HEAD"], timeout=5)
                 .decode("utf-8")
                 .strip()
             )
