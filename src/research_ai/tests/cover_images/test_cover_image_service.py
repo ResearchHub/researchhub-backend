@@ -12,7 +12,6 @@ from PIL import Image
 from research_ai.models import CoverImageGeneration, LLMUsageEvent
 from research_ai.services.cover_image_service import (
     CoverImageGenerationEnqueueError,
-    CoverImageGenerationUnavailableError,
     CoverImageService,
 )
 from research_ai.services.openrouter_image_client import GeneratedImage
@@ -76,14 +75,31 @@ class CoverImageServiceTests(TestCase):
         self.enqueue.assert_called_once_with(generation.id)
 
     @override_settings(OPENROUTER_API_KEY="")
-    def test_start_without_an_api_key_is_refused(self):
+    def test_start_queues_the_request_without_an_api_key(self):
         # Arrange
         service = CoverImageService(storage=self.storage, enqueue=self.enqueue)
 
-        # Act / Assert
-        with self.assertRaises(CoverImageGenerationUnavailableError):
-            service.start(user=self.user, document_type="GRANT", title="A study")
-        self.assertFalse(CoverImageGeneration.objects.exists())
+        # Act
+        generation = service.start(
+            user=self.user, document_type="GRANT", title="A study"
+        )
+
+        # Assert
+        self.enqueue.assert_called_once_with(generation.id)
+
+    @override_settings(OPENROUTER_API_KEY="")
+    def test_run_without_an_api_key_fails_the_request(self):
+        # Arrange
+        service = CoverImageService(storage=self.storage, enqueue=self.enqueue)
+        generation = self._generation()
+
+        # Act
+        service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.assertEqual(generation.error, "OpenRouter is not configured")
 
     def test_start_marks_the_request_failed_when_it_cannot_be_queued(self):
         # Arrange

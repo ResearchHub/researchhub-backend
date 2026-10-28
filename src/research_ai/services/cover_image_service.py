@@ -33,10 +33,6 @@ from research_ai.services.usage_budget.config import COVER_IMAGE_FEATURE
 logger = logging.getLogger(__name__)
 
 
-class CoverImageGenerationUnavailableError(RuntimeError):
-    """Image generation is not configured (no OpenRouter API key)."""
-
-
 class CoverImageGenerationEnqueueError(RuntimeError):
     """The request was recorded but could not be queued; it is marked failed."""
 
@@ -101,10 +97,6 @@ class CoverImageService:
         Raises ``UsageLimitExceededError`` once the user's daily AI budget is
         spent; generating spends it, in dollars only.
         """
-        if self.client is None:
-            raise CoverImageGenerationUnavailableError(
-                "Cover image generation is not configured."
-            )
         check_spend_admission(user)
 
         generation = CoverImageGeneration.objects.create(
@@ -145,6 +137,10 @@ class CoverImageService:
         if not claimed:
             return
         generation = CoverImageGeneration.objects.get(id=generation_id)
+        # The key is set on the workers, not the API servers that queue this.
+        if self.client is None:
+            self._fail(generation, "OpenRouter is not configured")
+            return
 
         prompt = CoverImagePrompts.build(
             document_type=generation.document_type,
