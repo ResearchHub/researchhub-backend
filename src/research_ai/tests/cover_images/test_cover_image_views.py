@@ -106,6 +106,18 @@ class CoverImageGenerationViewTests(APITestCase):
         enqueue.assert_not_called()
 
     @patch(ENQUEUE)
+    def test_post_is_not_rate_limited_within_the_budget(self, enqueue):
+        for _ in range(11):
+            # Act
+            response = self.client.post(
+                self.COVER_IMAGES_URL, self._payload(), format="json"
+            )
+
+            # Assert
+            self.assertEqual(response.status_code, 201)
+        self.assertEqual(enqueue.call_count, 11)
+
+    @patch(ENQUEUE)
     def test_post_once_the_daily_budget_is_spent_is_refused(self, enqueue):
         # Arrange
         LLMUsageEvent.objects.create(

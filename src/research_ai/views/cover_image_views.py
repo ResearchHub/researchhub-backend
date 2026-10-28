@@ -24,14 +24,16 @@ from research_ai.services.cover_image_service import (
     CoverImageService,
 )
 from research_ai.services.usage_budget import UsageLimitExceededError
-from research_ai.throttles import CoverImageGenerationThrottle
 
 
 class CoverImageGenerationCreateView(APIView):
-    """Start generating a cover image."""
+    """Start generating a cover image.
+
+    Not rate limited: each banner is charged to the user's daily AI budget,
+    which is what bounds how many they can generate.
+    """
 
     permission_classes = [IsAuthenticated, ResearchAIBudgetPermission]
-    throttle_classes = [CoverImageGenerationThrottle]
 
     def post(self, request):
         serializer = CoverImageGenerationCreateSerializer(data=request.data)
