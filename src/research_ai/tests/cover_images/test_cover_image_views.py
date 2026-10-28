@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from note.tests.helpers import create_note
 from research_ai.models import CoverImageGeneration, LLMUsageEvent
+from research_ai.services.cover_image_service import CoverImageService
 
 
 class CoverImageGenerationViewTests(APITestCase):
@@ -115,7 +116,27 @@ class CoverImageGenerationViewTests(APITestCase):
 
             # Assert
             self.assertEqual(response.status_code, 201)
+            CoverImageGeneration.objects.filter(id=response.data["id"]).update(
+                status=CoverImageGeneration.Status.COMPLETED
+            )
         self.assertEqual(enqueue.call_count, 11)
+
+    @patch(ENQUEUE)
+    def test_post_while_too_many_are_generating_is_refused(self, enqueue):
+        # Arrange
+        for _ in range(CoverImageService.MAX_ACTIVE_PER_USER):
+            self.client.post(self.COVER_IMAGES_URL, self._payload(), format="json")
+        enqueue.reset_mock()
+
+        # Act
+        response = self.client.post(
+            self.COVER_IMAGES_URL, self._payload(), format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.data["code"], "cover_image_generation_busy")
+        enqueue.assert_not_called()
 
     @patch(ENQUEUE)
     def test_post_once_the_daily_budget_is_spent_is_refused(self, enqueue):

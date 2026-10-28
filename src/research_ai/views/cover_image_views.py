@@ -19,6 +19,7 @@ from rest_framework.views import APIView
 from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.serializers import CoverImageGenerationCreateSerializer
 from research_ai.services.cover_image_service import (
+    CoverImageGenerationBusyError,
     CoverImageGenerationEnqueueError,
     CoverImageNoteError,
     CoverImageService,
@@ -29,8 +30,8 @@ from research_ai.services.usage_budget import UsageLimitExceededError
 class CoverImageGenerationCreateView(APIView):
     """Start generating a cover image.
 
-    Not rate limited: each banner is charged to the user's daily AI budget,
-    which is what bounds how many they can generate.
+    Not rate limited by time: each banner is charged to the user's daily AI
+    budget, and a user may have only a few generating at once.
     """
 
     permission_classes = [IsAuthenticated, ResearchAIBudgetPermission]
@@ -52,6 +53,15 @@ class CoverImageGenerationCreateView(APIView):
                     "detail": "Daily AI usage limit reached.",
                     "code": error.code,
                     **error.status.as_dict(),
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        except CoverImageGenerationBusyError:
+            return Response(
+                {
+                    "detail": "A cover image is already generating. Please wait "
+                    "for it to finish.",
+                    "code": "cover_image_generation_busy",
                 },
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )

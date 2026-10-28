@@ -21,8 +21,10 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.utils import timezone
 from PIL import Image
 
@@ -34,7 +36,11 @@ from research_ai.services.openrouter_image_client import (
     GeneratedImage,
     OpenRouterImageClient,
 )
-from research_ai.services.usage_budget import check_spend_admission, record
+from research_ai.services.usage_budget import (
+    UsageLimitExceededError,
+    check_spend_admission,
+    record,
+)
 from research_ai.services.usage_budget.config import COVER_IMAGE_FEATURE
 from researchhub.services.private_storage_service import PrivateStorageService
 
@@ -47,6 +53,10 @@ class CoverImageGenerationEnqueueError(RuntimeError):
 
 class CoverImageNoteError(ValueError):
     """The note does not exist or the user cannot open it."""
+
+
+class CoverImageGenerationBusyError(RuntimeError):
+    """The user already has as many requests generating as they may."""
 
 
 def _enqueue_cover_image_generation(generation_id: int) -> None:
@@ -78,6 +88,9 @@ class CoverImageService:
     STALE_AFTER = timedelta(minutes=10)
     # The worker's ceiling, above the image call's own client timeout.
     TIME_LIMIT_SECONDS = 6 * 60
+    # Spend is recorded only once an image comes back, so the daily budget
+    # cannot see requests still generating; this bounds them instead.
+    MAX_ACTIVE_PER_USER = 2
 
     GENERATION_FAILED_MESSAGE = "Could not generate a cover image. Please try again."
 
@@ -125,23 +138,32 @@ class CoverImageService:
 
         With ``note_id``, the covers use that note's cover logo, if its chat
         recorded one. Raises ``UsageLimitExceededError`` once the user's daily
-        AI budget is spent; generating spends it, in dollars only.
+        AI budget is spent; generating spends it, in dollars only. Raises
+        ``CoverImageGenerationBusyError`` while the user already has
+        ``MAX_ACTIVE_PER_USER`` requests generating.
         """
         check_spend_admission(user)
         note = self._readable_note(user, note_id) if note_id is not None else None
         if note_id is not None and note is None:
             raise CoverImageNoteError("Note not found.")
 
-        generation = CoverImageGeneration.objects.create(
-            created_by=user,
-            note=note,
-            document_type=document_type,
-            title=title,
-            subtitle=subtitle,
-            organization=organization,
-            funding_amount_usd=funding_amount_usd,
-            logo_file=self.cover_logo(note) if note is not None else None,
-        )
+        with transaction.atomic():
+            # Locking the user makes two requests at once count each other.
+            get_user_model().objects.select_for_update().filter(id=user.id).first()
+            if self._active_count(user) >= self.MAX_ACTIVE_PER_USER:
+                raise CoverImageGenerationBusyError(
+                    "A cover image is already generating."
+                )
+            generation = CoverImageGeneration.objects.create(
+                created_by=user,
+                note=note,
+                document_type=document_type,
+                title=title,
+                subtitle=subtitle,
+                organization=organization,
+                funding_amount_usd=funding_amount_usd,
+                logo_file=self.cover_logo(note) if note is not None else None,
+            )
         try:
             self.enqueue(generation.id)
         except Exception as error:  # noqa: BLE001 - broker clients vary
@@ -205,6 +227,15 @@ class CoverImageService:
             generation.refresh_from_db()
         return generation
 
+    def _active_count(self, user) -> int:
+        """The user's requests still generating, leaving out ones whose worker
+        was lost, which are reported failed when next read."""
+        return CoverImageGeneration.objects.filter(
+            created_by=user,
+            status__in=self.ACTIVE_STATUSES,
+            updated_date__gte=timezone.now() - self.STALE_AFTER,
+        ).count()
+
     def _is_stale(self, generation: CoverImageGeneration) -> bool:
         # A queued request is timed from its creation; a processing one from
         # its claim, which is its last update until it finishes.
@@ -228,6 +259,12 @@ class CoverImageService:
         # The key is set on the workers, not the API servers that queue this.
         if not self.configured:
             self._fail(generation, "OpenRouter is not configured")
+            return
+        # The budget may have been spent since the request was queued.
+        try:
+            check_spend_admission(generation.created_by)
+        except UsageLimitExceededError:
+            self._fail(generation, "The daily AI usage limit is reached")
             return
 
         references = []
