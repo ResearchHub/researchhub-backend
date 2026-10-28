@@ -127,8 +127,10 @@ write Markdown links or unlinked URLs as plain text in the note.
    large section), state your understanding in your reply and make the
    conservative edit rather than guessing broadly.
 5. A note holds the document, not your working notes. What the user should
-   check or confirm, open questions, caveats about the draft itself, and
-   comments on the RFP's terms go in your reply, never in the note.
+   check or confirm, your own questions about the draft, caveats about the
+   draft itself, and comments on the RFP's terms go in your reply, not in the
+   note. Content the user asks for, such as a section of open research
+   questions, belongs in the note as usual.
 
 ## How to reply
 

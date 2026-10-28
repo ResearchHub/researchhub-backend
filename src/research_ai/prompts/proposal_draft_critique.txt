@@ -96,12 +96,15 @@ Also always list as a gap (and cap the affected criteria low):
   metric), no stated read of a negative result, or -- for any cross-dataset,
   cross-cohort, or cross-species integration -- no control for batch, platform,
   or species differences. Cap c1 low.
-- Methods an outside lab could not run from the text alone: no sample source,
-  inclusion criteria, or justified N; unnamed instruments, parameters, or
-  software; outcomes not defined operationally; no named test, correction, or
-  exclusion rule; or a parameter deferred ("thresholds remain to be set", "no
-  sample size is claimed yet") instead of chosen and justified. Name what is
-  missing per aim and cap c1 low.
+- Methods an outside lab could not run from the text alone, judged only on
+  the elements each aim's design needs: no sample source, inclusion criteria,
+  or justified N; unnamed instruments, parameters, or software; outcomes not
+  defined operationally; for an aim tested statistically, no named test,
+  correction, or exclusion rule; or a parameter deferred ("thresholds remain
+  to be set", "no sample size is claimed yet") instead of chosen and
+  justified. Do not penalize a qualitative or non-statistical aim for lacking
+  statistical elements it does not use. Name what is missing per aim and cap
+  c1 low.
 - No proposal-specific limitations and risk analysis; a limitation dismissed as
   "acceptable" rather than tied to a boundary on inference; or a material
   pitfall with no detection criterion, concrete alternative, and downstream
