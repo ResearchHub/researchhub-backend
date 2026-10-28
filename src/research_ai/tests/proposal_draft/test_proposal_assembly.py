@@ -260,6 +260,14 @@ class ValidChosenParametersTests(unittest.TestCase):
             [{"parameter": "Sample size", "value": "N = 48", "basis": "d = 0.5"}],
         )
 
+    def test_drops_entries_with_non_string_fields(self):
+        # Arrange
+        entries = [{"parameter": "N", "value": [48, 96], "basis": {"source": "pilot"}}]
+
+        # Act / Assert
+        self.assertEqual(valid_chosen_parameters(entries), [])
+        self.assertIn("entries 1", chosen_parameter_gaps(entries)[0])
+
     def test_non_list_is_empty(self):
         # Act / Assert
         self.assertEqual(valid_chosen_parameters(None), [])

@@ -70,9 +70,12 @@ def valid_chosen_parameters(entries: object) -> list[dict]:
     for entry in entries:
         if not isinstance(entry, dict):
             continue
-        parameter = str(entry.get("parameter") or "").strip()
-        value = str(entry.get("value") or "").strip()
-        basis = str(entry.get("basis") or "").strip()
+        # Strings only: ``str()`` would turn a list or dict into non-empty text
+        # the gate accepts and the user is shown verbatim.
+        parameter, value, basis = (
+            entry.get(key).strip() if isinstance(entry.get(key), str) else ""
+            for key in ("parameter", "value", "basis")
+        )
         if parameter and value and basis:
             valid.append({"parameter": parameter, "value": value, "basis": basis})
     return valid
