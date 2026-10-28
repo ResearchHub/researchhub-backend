@@ -33,8 +33,11 @@ class GitHashTests(UnitTestCase):
         GitHashHealthCheck, "_read_git_hash_from_file", return_value="abc1234def5678"
     )
     def test_reads_hash_from_file(self, _, mock_process):
-        # Act
+        # Arrange
         check = GitHashHealthCheck()
+
+        # Act
+        check.run()
 
         # Assert
         self.assertEqual(check.git_hash, "abc1234")
@@ -45,8 +48,11 @@ class GitHashTests(UnitTestCase):
     )
     @patch.object(GitHashHealthCheck, "_read_git_hash_from_file", return_value=None)
     def test_falls_back_to_git_process(self, *_):
-        # Act
+        # Arrange
         check = GitHashHealthCheck()
+
+        # Act
+        check.run()
 
         # Assert
         self.assertEqual(check.git_hash, "fed4321")
@@ -54,8 +60,11 @@ class GitHashTests(UnitTestCase):
     @patch.object(GitHashHealthCheck, "_read_git_hash_from_process", return_value=None)
     @patch.object(GitHashHealthCheck, "_read_git_hash_from_file", return_value=None)
     def test_unknown_without_hash(self, *_):
-        # Act
+        # Arrange
         check = GitHashHealthCheck()
+
+        # Act
+        check.run()
 
         # Assert
         self.assertEqual(check.git_hash, "unknown")

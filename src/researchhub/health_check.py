@@ -16,15 +16,12 @@ class GitHashHealthCheck(HealthCheck):
     current working directory, or by running `git rev-parse HEAD`.
     """
 
-    git_hash: str = dataclasses.field(init=False)
+    git_hash: str = dataclasses.field(init=False, default="unknown")
 
-    def __post_init__(self):
+    def run(self):
         git_hash = self._get_git_hash()
-        self.git_hash = git_hash[:7] if git_hash else "unknown"
-
-    async def run(self):
-        # no-op: no active checks
-        pass
+        if git_hash:
+            self.git_hash = git_hash[:7]
 
     def _get_git_hash(self):
         long_hash = self._read_git_hash_from_file()
