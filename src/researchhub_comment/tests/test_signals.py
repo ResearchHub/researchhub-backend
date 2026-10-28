@@ -277,6 +277,11 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
             send_email.call_args.kwargs,
             {
                 "link": self.preregistration_unified_doc.frontend_view_link(),
+                "heading": (
+                    f"{self.author.full_name()} "
+                    '<span class="author-badge">Author</span> just shared an update on '
+                    f"{self.preregistration.title}"
+                ),
                 "is_html": True,
             },
         )

@@ -8,6 +8,7 @@ from django.db.models import Q
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.template.loader import render_to_string
+from django.utils.html import format_html
 
 from mailing_list.services import EMAIL_PREVIEW_LENGTH
 from mailing_list.tasks import send_message_email
@@ -121,8 +122,12 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         )
 
     if recipient_emails:
-        subject = (
-            f"{author.full_name()} [Author] just shared an update on {document.title}"
+        shared_update = f"just shared an update on {document.title}"
+        subject = f"{author.full_name()} [Author] {shared_update}"
+        heading = format_html(
+            '{} <span class="author-badge">Author</span> {}',
+            author.full_name(),
+            shared_update,
         )
         message = render_to_string(
             "email_activity_card.html",
@@ -138,7 +143,12 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         link = comment.unified_document.frontend_view_link()
         transaction.on_commit(
             lambda: send_message_email.delay(
-                recipient_emails, subject, message, link=link, is_html=True
+                recipient_emails,
+                subject,
+                message,
+                link=link,
+                heading=heading,
+                is_html=True,
             ),
             robust=True,
         )
