@@ -7,6 +7,9 @@ a note whose chat agent recorded a cover logo (an image the user attached in
 the chat), that image is sent along as a reference to place in the banner. The
 client polls the request until it completes, shows the banner, and sends its
 key as the post's ``image``.
+
+The note's chat calls ``generate_for_note`` instead: it already runs on a
+worker, so it generates in place and saves the banner as the draft's cover.
 """
 
 import base64
@@ -146,6 +149,51 @@ class CoverImageService:
             self._fail(generation, "Could not queue cover image generation")
             raise CoverImageGenerationEnqueueError(str(error)) from error
         return generation
+
+    def generate_for_note(self, user, note: Note) -> CoverImageGeneration:
+        """Generate a cover from a draft's saved details and make it its cover.
+
+        Runs in the caller, which must be a worker with the OpenRouter key: the
+        note's chat. Replaces any cover the draft had. Raises
+        ``UsageLimitExceededError`` once the user's daily AI budget is spent.
+        """
+        check_spend_admission(user)
+        generation = CoverImageGeneration.objects.create(
+            created_by=user,
+            note=note,
+            logo_file=self.cover_logo(note),
+            **self.note_cover_text(note),
+        )
+        self.run(generation.id)
+        generation.refresh_from_db()
+        if generation.status == CoverImageGeneration.Status.COMPLETED:
+            note.image = generation.image_key
+            note.preview_img = self.image_url(generation.image_key)
+            note.save(update_fields=["image", "preview_img", "updated_date"])
+        return generation
+
+    @staticmethod
+    def note_cover_text(note: Note) -> dict:
+        """What a cover for the draft shows, from its saved details, as the
+        publishing form would send it."""
+        text = {"document_type": note.document_type, "title": note.title.strip()}
+        amount, currency = None, ""
+        if note.document_type == CoverImageGeneration.DocumentType.GRANT:
+            details = getattr(note, "grant_settings", None)
+            if details is not None:
+                text["subtitle"] = details.description.strip()
+                text["organization"] = details.organization.strip()[
+                    : CoverImageGeneration._meta.get_field("organization").max_length
+                ]
+                amount, currency = details.amount, details.currency
+        else:
+            details = getattr(note, "preregistration_settings", None)
+            if details is not None:
+                amount, currency = details.goal_amount, details.goal_currency
+        # The banner states the amount in dollars, so only a dollar amount shows.
+        if amount and currency in ("", "USD"):
+            text["funding_amount_usd"] = amount
+        return text
 
     def get_for_user(self, user, generation_id: int) -> CoverImageGeneration | None:
         """The user's request, with one whose worker was lost marked failed."""
