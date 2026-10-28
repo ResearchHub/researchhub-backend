@@ -20,7 +20,6 @@ from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.serializers import CoverImageGenerationCreateSerializer
 from research_ai.services.cover_image_service import (
     CoverImageGenerationEnqueueError,
-    CoverImageGenerationUnavailableError,
     CoverImageNoteError,
     CoverImageService,
 )
@@ -53,14 +52,6 @@ class CoverImageGenerationCreateView(APIView):
                     **error.status.as_dict(),
                 },
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
-        except CoverImageGenerationUnavailableError:
-            return Response(
-                {
-                    "detail": "Cover image generation is not available.",
-                    "code": "cover_image_generation_unavailable",
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except CoverImageGenerationEnqueueError:
             return Response(
