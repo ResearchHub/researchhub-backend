@@ -262,7 +262,7 @@ so fill each section with real prose and do not restate headings inside it:
   its author-year inline wherever the prose needs it.
 - `chosen_parameters`: every value the draft states that you chose because
   the RFP, profile, and literature left it open, as `{parameter, value,
-  basis}` -- e.g. `{"parameter": "Sample size", "value": "N = 48", "basis":
+  basis}` with all three filled in, or `[]` if you chose none -- e.g. `{"parameter": "Sample size", "value": "N = 48", "basis":
   "80% power for d = 0.5 at alpha = .05 (Smith et al., 2021)"}`. Include
   sample sizes, thresholds, instrument settings, cost rates, and other
   numbers the researcher did not give you; leave out values the context

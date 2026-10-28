@@ -75,11 +75,11 @@ SUBMIT_INPUT_SCHEMA = {
                     "value": {"type": "string"},
                     "basis": {"type": "string"},
                 },
-                "required": ["parameter", "value"],
+                "required": ["parameter", "value", "basis"],
             },
         },
     },
-    "required": ["sections"],
+    "required": ["sections", "chosen_parameters"],
 }
 
 

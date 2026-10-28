@@ -232,6 +232,7 @@ def _clean_payload(citations=None):
     return {
         "sections": _clean_sections(),
         "citations": citations or [],
+        "chosen_parameters": [],
     }
 
 
@@ -652,7 +653,6 @@ class ProposalDraftServiceTests(TestCase):
         payload = _clean_payload()
         payload["chosen_parameters"] = [
             {"parameter": "Sample size", "value": "N = 48", "basis": "d = 0.5"},
-            {"parameter": "", "value": "dropped"},
         ]
         provider = _ScriptedProvider([_submit_turn(payload)])
 
@@ -664,7 +664,7 @@ class ProposalDraftServiceTests(TestCase):
             oa_client=_FakeOpenAlex(),
         )
 
-        # Assert: stored cleaned on the draft, and absent from the note text.
+        # Assert: stored on the draft, and absent from the note text.
         self.assertEqual(result["status"], ProposalDraft.Status.COMPLETED)
         draft = ProposalDraft.objects.get(id=result["proposal_draft_id"])
         self.assertEqual(
@@ -673,6 +673,28 @@ class ProposalDraftServiceTests(TestCase):
         )
         note = Note.objects.get(id=result["note_id"])
         self.assertNotIn("N = 48", note.latest_version.plain_text)
+
+    @override_settings(RESEARCH_AI_PROPOSAL_MAX_ROUNDS=1)
+    def test_chosen_parameter_without_a_basis_is_blocked(self):
+        # Arrange: an otherwise clean draft lists a value with no basis.
+        payload = _clean_payload()
+        payload["chosen_parameters"] = [{"parameter": "TR", "value": "800 ms"}]
+        provider = _AlwaysSubmitProvider(payload)
+
+        # Act
+        result = run_proposal_draft(
+            self.search_expert.id,
+            provider=provider,
+            panel=_FakePanel(overall=5),
+            oa_client=_FakeOpenAlex(),
+        )
+
+        # Assert: the gate names the entry and no Note is written.
+        self.assertEqual(result["status"], ProposalDraft.Status.FAILED)
+        report = result["gate_report"]["chosen_parameters"]
+        self.assertFalse(report["ok"])
+        self.assertIn("entries 1", report["gaps"][0])
+        self.assertEqual(Note.objects.count(), 0)
 
     # -- a below-threshold panel submit is blocked ------------------------
 

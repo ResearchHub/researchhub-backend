@@ -59,7 +59,7 @@ def valid_aims(aims: object) -> list[dict]:
 
 
 def valid_chosen_parameters(entries: object) -> list[dict]:
-    """The submitted chosen parameters that name both a parameter and a value.
+    """The submitted chosen parameters that carry a parameter, value, and basis.
 
     These are the values the agent picked because nothing it was given settled
     them. They stay out of the assembled document and are shown to the user
@@ -73,9 +73,34 @@ def valid_chosen_parameters(entries: object) -> list[dict]:
         parameter = str(entry.get("parameter") or "").strip()
         value = str(entry.get("value") or "").strip()
         basis = str(entry.get("basis") or "").strip()
-        if parameter and value:
+        if parameter and value and basis:
             valid.append({"parameter": parameter, "value": value, "basis": basis})
     return valid
+
+
+def chosen_parameter_gaps(entries: object) -> list[str]:
+    """What is wrong with a submitted ``chosen_parameters`` list, if anything.
+
+    Shared with the gate so "which entries are shown" and "which entries the
+    gate accepts" cannot drift apart. An empty list is valid: the agent chose
+    nothing the context left open.
+    """
+    if not isinstance(entries, list):
+        return [
+            "Submit `chosen_parameters`: a list of {parameter, value, basis} "
+            "for every value you chose, or [] if you chose none."
+        ]
+    malformed = [
+        str(i + 1)
+        for i, entry in enumerate(entries)
+        if not valid_chosen_parameters([entry])
+    ]
+    if not malformed:
+        return []
+    return [
+        "Give every `chosen_parameters` entry a non-empty parameter, value, "
+        f"and basis (entries {', '.join(malformed)})."
+    ]
 
 
 def _reference_line(citation: object) -> str:

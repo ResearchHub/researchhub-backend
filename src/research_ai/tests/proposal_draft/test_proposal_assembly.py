@@ -4,6 +4,7 @@ import unittest
 
 from research_ai.services.proposal_draft.tools.assembly import (
     assemble_proposal,
+    chosen_parameter_gaps,
     valid_chosen_parameters,
 )
 
@@ -240,7 +241,7 @@ class AssembleProposalTests(unittest.TestCase):
 
 
 class ValidChosenParametersTests(unittest.TestCase):
-    def test_keeps_named_values_and_drops_the_rest(self):
+    def test_keeps_complete_entries_and_drops_the_rest(self):
         # Arrange
         entries = [
             {"parameter": " Sample size ", "value": "N = 48", "basis": " d = 0.5 "},
@@ -256,13 +257,39 @@ class ValidChosenParametersTests(unittest.TestCase):
         # Assert
         self.assertEqual(
             valid,
-            [
-                {"parameter": "Sample size", "value": "N = 48", "basis": "d = 0.5"},
-                {"parameter": "TR", "value": "800 ms", "basis": ""},
-            ],
+            [{"parameter": "Sample size", "value": "N = 48", "basis": "d = 0.5"}],
         )
 
     def test_non_list_is_empty(self):
         # Act / Assert
         self.assertEqual(valid_chosen_parameters(None), [])
         self.assertEqual(valid_chosen_parameters({"parameter": "N"}), [])
+
+
+class ChosenParameterGapsTests(unittest.TestCase):
+    def test_empty_list_is_valid(self):
+        # Act / Assert
+        self.assertEqual(chosen_parameter_gaps([]), [])
+
+    def test_missing_list_is_a_gap(self):
+        # Act
+        gaps = chosen_parameter_gaps(None)
+
+        # Assert
+        self.assertEqual(len(gaps), 1)
+        self.assertIn("or [] if you chose none", gaps[0])
+
+    def test_names_each_incomplete_entry(self):
+        # Arrange
+        entries = [
+            {"parameter": "N", "value": "48", "basis": "power analysis"},
+            {"parameter": "TR", "value": "800 ms"},
+            "not an entry",
+        ]
+
+        # Act
+        gaps = chosen_parameter_gaps(entries)
+
+        # Assert
+        self.assertEqual(len(gaps), 1)
+        self.assertIn("entries 2, 3", gaps[0])

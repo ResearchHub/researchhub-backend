@@ -19,6 +19,7 @@ The draft driver wires these together; this package only builds the tools.
 
 from research_ai.services.proposal_draft.tools.assembly import (
     assemble_proposal,
+    chosen_parameter_gaps,
     valid_aims,
     valid_chosen_parameters,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "ProposalWebSearchToolset",
     "assemble_proposal",
     "build_judge_context",
+    "chosen_parameter_gaps",
     "valid_aims",
     "valid_chosen_parameters",
 ]
