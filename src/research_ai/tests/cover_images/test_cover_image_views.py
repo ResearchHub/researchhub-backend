@@ -2,14 +2,12 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from note.tests.helpers import create_note
 from research_ai.models import CoverImageGeneration, LLMUsageEvent
 
 
-@override_settings(OPENROUTER_API_KEY="or-test-key")
 class CoverImageGenerationViewTests(APITestCase):
     COVER_IMAGES_URL = "/api/research_ai/cover-images/"
     ENQUEUE = "research_ai.services.cover_image_service._enqueue_cover_image_generation"
@@ -129,16 +127,6 @@ class CoverImageGenerationViewTests(APITestCase):
         self.assertEqual(response.data["code"], "usage_limit_exceeded")
         self.assertEqual(response.data["detail"], "Daily AI usage limit reached.")
         enqueue.assert_not_called()
-
-    @override_settings(OPENROUTER_API_KEY="")
-    def test_post_without_openrouter_configured_is_unavailable(self):
-        # Act
-        response = self.client.post(
-            self.COVER_IMAGES_URL, self._payload(), format="json"
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 503)
 
     def test_get_returns_the_generated_image(self):
         # Arrange

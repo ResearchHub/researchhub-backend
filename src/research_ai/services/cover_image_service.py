@@ -38,10 +38,6 @@ from researchhub.services.private_storage_service import PrivateStorageService
 logger = logging.getLogger(__name__)
 
 
-class CoverImageGenerationUnavailableError(RuntimeError):
-    """Image generation is not configured (no OpenRouter API key)."""
-
-
 class CoverImageGenerationEnqueueError(RuntimeError):
     """The request was recorded but could not be queued; it is marked failed."""
 
@@ -128,10 +124,6 @@ class CoverImageService:
         recorded one. Raises ``UsageLimitExceededError`` once the user's daily
         AI budget is spent; generating spends it, in dollars only.
         """
-        if not self.configured:
-            raise CoverImageGenerationUnavailableError(
-                "Cover image generation is not configured."
-            )
         check_spend_admission(user)
         note = self._readable_note(user, note_id) if note_id is not None else None
         if note_id is not None and note is None:
@@ -185,6 +177,10 @@ class CoverImageService:
         if not claimed:
             return
         generation = CoverImageGeneration.objects.get(id=generation_id)
+        # The key is set on the workers, not the API servers that queue this.
+        if not self.configured:
+            self._fail(generation, "OpenRouter is not configured")
+            return
 
         references = []
         if generation.logo_file_id:
