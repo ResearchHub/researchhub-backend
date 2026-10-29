@@ -6,6 +6,7 @@ from django.test import TestCase
 from note.tests.helpers import create_note
 from research_ai.models import AgentFile, CoverImageGeneration, NoteCoverLogo
 from research_ai.services.agent_persistence import AgentConversationService
+from research_ai.services.cover_image_service import CoverImageGenerationBusyError
 from research_ai.services.notebook_chat.cover_image_tools import CoverImageToolset
 from research_ai.services.usage_budget import UsageLimitExceededError
 from research_ai.tests.agent_files.helpers import make_file
@@ -224,6 +225,20 @@ class GenerateCoverImageToolTests(TestCase):
         # Assert
         self.assertEqual(
             result, {"error": "the user's daily AI usage limit is reached"}
+        )
+
+    def test_reports_a_cover_already_generating(self):
+        # Arrange
+        self.cover_images.generate_for_note.side_effect = CoverImageGenerationBusyError(
+            "busy"
+        )
+
+        # Act
+        result = self._generate()
+
+        # Assert
+        self.assertEqual(
+            result, {"error": "too many covers are already generating; try again soon"}
         )
 
     def test_a_viewer_cannot_generate_a_cover(self):

@@ -21,8 +21,10 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.utils import timezone
 from PIL import Image
 
@@ -34,7 +36,11 @@ from research_ai.services.openrouter_image_client import (
     GeneratedImage,
     OpenRouterImageClient,
 )
-from research_ai.services.usage_budget import check_spend_admission, record
+from research_ai.services.usage_budget import (
+    UsageLimitExceededError,
+    check_spend_admission,
+    record,
+)
 from research_ai.services.usage_budget.config import COVER_IMAGE_FEATURE
 from researchhub.services.private_storage_service import PrivateStorageService
 
@@ -47,6 +53,10 @@ class CoverImageGenerationEnqueueError(RuntimeError):
 
 class CoverImageNoteError(ValueError):
     """The note does not exist or the user cannot open it."""
+
+
+class CoverImageGenerationBusyError(RuntimeError):
+    """The user already has as many requests generating as they may."""
 
 
 def _enqueue_cover_image_generation(generation_id: int) -> None:
@@ -78,6 +88,9 @@ class CoverImageService:
     STALE_AFTER = timedelta(minutes=10)
     # The worker's ceiling, above the image call's own client timeout.
     TIME_LIMIT_SECONDS = 6 * 60
+    # Spend is recorded only once an image comes back, so the daily budget
+    # cannot see requests still generating; this bounds them instead.
+    MAX_ACTIVE_PER_USER = 5
 
     GENERATION_FAILED_MESSAGE = "Could not generate a cover image. Please try again."
 
@@ -125,15 +138,17 @@ class CoverImageService:
 
         With ``note_id``, the covers use that note's cover logo, if its chat
         recorded one. Raises ``UsageLimitExceededError`` once the user's daily
-        AI budget is spent; generating spends it, in dollars only.
+        AI budget is spent; generating spends it, in dollars only. Raises
+        ``CoverImageGenerationBusyError`` while the user already has
+        ``MAX_ACTIVE_PER_USER`` requests generating.
         """
         check_spend_admission(user)
         note = self._readable_note(user, note_id) if note_id is not None else None
         if note_id is not None and note is None:
             raise CoverImageNoteError("Note not found.")
 
-        generation = CoverImageGeneration.objects.create(
-            created_by=user,
+        generation = self._admit(
+            user,
             note=note,
             document_type=document_type,
             title=title,
@@ -155,11 +170,12 @@ class CoverImageService:
 
         Runs in the caller, which must be a worker with the OpenRouter key: the
         note's chat. Replaces any cover the draft had. Raises
-        ``UsageLimitExceededError`` once the user's daily AI budget is spent.
+        ``UsageLimitExceededError`` once the user's daily AI budget is spent,
+        and ``CoverImageGenerationBusyError`` as ``start`` does.
         """
         check_spend_admission(user)
-        generation = CoverImageGeneration.objects.create(
-            created_by=user,
+        generation = self._admit(
+            user,
             note=note,
             logo_file=self.cover_logo(note),
             **self.note_cover_text(note),
@@ -205,6 +221,27 @@ class CoverImageService:
             generation.refresh_from_db()
         return generation
 
+    def _admit(self, user, **fields) -> CoverImageGeneration:
+        """Record a request for the user, unless they already have
+        ``MAX_ACTIVE_PER_USER`` generating, from the dialog or the chat."""
+        with transaction.atomic():
+            # Locking the user makes two requests at once count each other.
+            get_user_model().objects.select_for_update().filter(id=user.id).first()
+            if self._active_count(user) >= self.MAX_ACTIVE_PER_USER:
+                raise CoverImageGenerationBusyError(
+                    "Too many cover images are already generating."
+                )
+            return CoverImageGeneration.objects.create(created_by=user, **fields)
+
+    def _active_count(self, user) -> int:
+        """The user's requests still generating, leaving out ones whose worker
+        was lost, which are reported failed when next read."""
+        return CoverImageGeneration.objects.filter(
+            created_by=user,
+            status__in=self.ACTIVE_STATUSES,
+            updated_date__gte=timezone.now() - self.STALE_AFTER,
+        ).count()
+
     def _is_stale(self, generation: CoverImageGeneration) -> bool:
         # A queued request is timed from its creation; a processing one from
         # its claim, which is its last update until it finishes.
@@ -216,11 +253,25 @@ class CoverImageService:
 
     def run(self, generation_id: int) -> None:
         """Generate and store the banner for a queued request."""
-        claimed = CoverImageGeneration.objects.filter(
+        now = timezone.now()
+        cutoff = now - self.STALE_AFTER
+        pending = CoverImageGeneration.objects.filter(
             id=generation_id, status=CoverImageGeneration.Status.PENDING
-        ).update(
-            status=CoverImageGeneration.Status.PROCESSING,
-            updated_date=timezone.now(),
+        )
+        # A request queued too long ago no longer counts against the user's
+        # limit, so it is failed rather than generated: running it anyway
+        # would let a backed-up queue pay for more than the limit allows.
+        expired = pending.filter(created_date__lt=cutoff).update(
+            status=CoverImageGeneration.Status.FAILED,
+            error="Cover image generation timed out",
+            updated_date=now,
+        )
+        if expired:
+            logger.warning("cover image generation %s timed out", generation_id)
+            return
+        # Only a request still inside the cutoff is claimed.
+        claimed = pending.filter(created_date__gte=cutoff).update(
+            status=CoverImageGeneration.Status.PROCESSING, updated_date=now
         )
         if not claimed:
             return
@@ -228,6 +279,16 @@ class CoverImageService:
         # The key is set on the workers, not the API servers that queue this.
         if not self.configured:
             self._fail(generation, "OpenRouter is not configured")
+            return
+        # The budget may have been spent since the request was queued.
+        try:
+            check_spend_admission(generation.created_by)
+        except UsageLimitExceededError:
+            self._fail(generation, "The daily AI usage limit is reached")
+            return
+        except Exception:  # noqa: BLE001 - a request is never left processing
+            logger.exception("could not check the budget for cover %s", generation.id)
+            self._fail(generation, "Could not check the daily AI usage limit")
             return
 
         references = []

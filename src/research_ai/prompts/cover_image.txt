@@ -1,8 +1,8 @@
 Design a wide web banner for a scientific {kind} on ResearchHub. It must read as a refined, minimal title card, not a photo or a poster. Pages show it cropped to about 3:1, so the top and bottom eighth of the image may be cut off.
 
 Style:
-- A flat, plain background with the faintest subtle grain. No busy textures, vignettes or borders.
-- A restrained palette of your choosing that suits the research topic, with strong contrast between the text and the background.
+- {background} No busy textures, vignettes or borders.
+- A restrained palette of your choosing that suits the research topic{palette}, with strong contrast between the text and the background.
 - Generous empty space around everything. Clean, modern, premium, editorial.
 
 Layout:

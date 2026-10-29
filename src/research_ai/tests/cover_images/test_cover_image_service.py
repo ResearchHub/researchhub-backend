@@ -16,6 +16,7 @@ from note.tests.helpers import create_note
 from research_ai.models import CoverImageGeneration, LLMUsageEvent, NoteCoverLogo
 from research_ai.services.agent_persistence import AgentConversationService
 from research_ai.services.cover_image_service import (
+    CoverImageGenerationBusyError,
     CoverImageGenerationEnqueueError,
     CoverImageNoteError,
     CoverImageService,
@@ -300,6 +301,21 @@ class CoverImageServiceTests(TestCase):
         # Assert
         self.client.generate.assert_not_called()
 
+    def test_run_fails_a_request_queued_too_long_ago(self):
+        # Arrange
+        generation = self._generation()
+        CoverImageGeneration.objects.filter(id=generation.id).update(
+            created_date=timezone.now() - CoverImageService.STALE_AFTER * 2
+        )
+
+        # Act
+        self.service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.client.generate.assert_not_called()
+
     def test_run_charges_the_users_budget_what_openrouter_billed(self):
         # Arrange
         generation = self._generation()
@@ -369,6 +385,53 @@ class CoverImageServiceTests(TestCase):
             self.service.start(user=self.user, document_type="GRANT", title="A study")
         self.assertFalse(CoverImageGeneration.objects.exists())
 
+    def test_start_is_refused_while_too_many_are_generating(self):
+        # Arrange
+        for _ in range(CoverImageService.MAX_ACTIVE_PER_USER):
+            self._generation()
+
+        # Act / Assert
+        with self.assertRaises(CoverImageGenerationBusyError):
+            self.service.start(user=self.user, document_type="GRANT", title="A study")
+        self.enqueue.assert_not_called()
+
+    def test_start_does_not_count_finished_or_lost_requests(self):
+        # Arrange
+        self._generation(status=CoverImageGeneration.Status.COMPLETED)
+        self._generation(status=CoverImageGeneration.Status.FAILED)
+        lost = self._generation()
+        CoverImageGeneration.objects.filter(id=lost.id).update(
+            updated_date=timezone.now() - CoverImageService.STALE_AFTER * 2
+        )
+
+        # Act
+        generation = self.service.start(
+            user=self.user, document_type="GRANT", title="A study"
+        )
+
+        # Assert
+        self.enqueue.assert_called_once_with(generation.id)
+
+    def test_run_fails_a_request_queued_before_the_budget_was_spent(self):
+        # Arrange
+        generation = self._generation()
+        LLMUsageEvent.objects.create(
+            user=self.user,
+            feature="notebook_chat",
+            tier="default",
+            provider="openrouter",
+            model="m",
+            cost_microusd=budget_status(self.user).daily_budget_microusd,
+        )
+
+        # Act
+        self.service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.client.generate.assert_not_called()
+
     def test_get_for_user_hides_other_users_requests(self):
         # Arrange
         generation = self._generation()
@@ -405,12 +468,18 @@ class CoverImageServiceTests(TestCase):
         CoverImageGeneration.objects.filter(id=generation.id).update(
             created_date=timezone.now()
             - CoverImageService.STALE_AFTER
-            - timedelta(minutes=1)
+            + timedelta(minutes=1)
         )
 
         polled = []
 
         def poll_then_generate(**_):
+            # Generating takes long enough that it was created over STALE_AFTER ago.
+            CoverImageGeneration.objects.filter(id=generation.id).update(
+                created_date=timezone.now()
+                - CoverImageService.STALE_AFTER
+                - timedelta(minutes=1)
+            )
             polled.append(self.service.get_for_user(self.user, generation.id).status)
             return _generated()
 
@@ -557,6 +626,33 @@ class CoverImageServiceTests(TestCase):
         self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
         note.refresh_from_db()
         self.assertEqual(note.image, "uploads/old/cover.jpg")
+
+    def test_generate_for_note_is_refused_while_too_many_are_generating(self):
+        # Arrange
+        note = self._grant_note()
+        for _ in range(CoverImageService.MAX_ACTIVE_PER_USER):
+            self._generation()
+
+        # Act / Assert
+        with self.assertRaises(CoverImageGenerationBusyError):
+            self.service.generate_for_note(self.user, note)
+        self.client.generate.assert_not_called()
+
+    def test_run_fails_a_request_when_the_budget_cannot_be_checked(self):
+        # Arrange
+        generation = self._generation()
+
+        # Act
+        with patch(
+            "research_ai.services.cover_image_service.check_spend_admission",
+            side_effect=RuntimeError("cache down"),
+        ):
+            self.service.run(generation.id)
+
+        # Assert
+        generation.refresh_from_db()
+        self.assertEqual(generation.status, CoverImageGeneration.Status.FAILED)
+        self.client.generate.assert_not_called()
 
     def test_generate_for_note_is_refused_once_the_daily_budget_is_spent(self):
         # Arrange
