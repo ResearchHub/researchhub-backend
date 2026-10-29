@@ -3,7 +3,7 @@
 {% block content %}
 <img class="logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" alt="ResearchHub" width="121" height="28" />
 {% if subject %}
-<h1 class="title">{% firstof heading subject %}</h1>
+<h1 class="title">{{ subject }}</h1>
 {% endif %}
 <div class="body"{% if preserve_linebreaks %} style="white-space: pre-line;"{% endif %}>{{ body }}</div>
 {% if cta_url %}
