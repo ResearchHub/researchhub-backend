@@ -243,7 +243,8 @@ class PaperViewSet(
     )
     def retrieve_by_doi(self, request):
         """
-        Get a paper by DOI or create it if it doesn't exist by importing from OpenAlex.
+        Get a paper by DOI. If it doesn't exist, moderators and hub editors
+        import it from OSF or OpenAlex; everyone else gets a 404.
         Query params:
         - doi: string (required) - The DOI to look up
         """
@@ -276,7 +277,15 @@ class PaperViewSet(
                 serializer_data = self._serialize_paper(paper, request)
                 return Response(serializer_data)
 
-            # Paper doesn't exist, try to import it from OpenAlex
+            # Only moderators and hub editors may import papers that don't exist yet
+            user = request.user
+            if not (user.is_authenticated and user.is_moderator_or_editor()):
+                return Response(
+                    {"error": "Paper not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Paper doesn't exist, try to import it from OSF or OpenAlex
             return self._create_by_doi(request, doi=bare_doi)
 
         except Exception as e:

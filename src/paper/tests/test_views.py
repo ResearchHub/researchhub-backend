@@ -12,15 +12,16 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import (
+    create_hub_editor,
     create_random_authenticated_user,
 )
-from utils.test_helpers import create_test_user
 
 
 class PaperDOITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = create_test_user()
+        # Only moderators and hub editors may import papers by DOI
+        self.user = create_random_authenticated_user("doi_moderator", moderator=True)
         self.client.force_authenticate(user=self.user)
 
     def test_retrieve_by_doi_invalid_doi(self):
@@ -173,6 +174,64 @@ class PaperDOITests(TestCase):
         self.assertEqual(response.data["paper_title"], "Outcomes report title")
         mock_fetch.assert_called_once_with("wzubg")
         mock_get_work.assert_not_called()
+
+    @patch("utils.openalex.OpenAlex.get_work_by_doi")
+    @patch(
+        "paper.ingestion.clients.registrations.osf.OSFRegistrationClient.fetch_registration"
+    )
+    def test_retrieve_by_doi_does_not_import_for_other_users(
+        self, mock_fetch, mock_get_work
+    ):
+        """Test that only moderators and hub editors can import missing papers"""
+        # Arrange
+        url = reverse("paper-retrieve-by-doi")
+        regular_user = create_random_authenticated_user("doi_regular_user")
+
+        for user in [None, regular_user]:
+            self.client.force_authenticate(user)
+            for doi in ["10.1234/new.123", "10.17605/OSF.IO/WZUBG"]:
+                # Act
+                response = self.client.get(url + f"?doi={doi}")
+
+                # Assert
+                self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+                self.assertEqual(response.data["error"], "Paper not found")
+
+        mock_fetch.assert_not_called()
+        mock_get_work.assert_not_called()
+        self.assertFalse(Paper.objects.exists())
+
+    @patch("utils.openalex.OpenAlex.get_work_by_doi")
+    def test_retrieve_by_doi_hub_editor_can_import(self, mock_get_work):
+        """Test that hub editors can import missing papers"""
+        # Arrange
+        editor, _ = create_hub_editor("doi_editor", "DOI Hub")
+        self.client.force_authenticate(editor)
+        mock_get_work.return_value = None
+        url = reverse("paper-retrieve-by-doi")
+
+        # Act
+        response = self.client.get(url + "?doi=10.1234/new.123")
+
+        # Assert
+        self.assertEqual(response.data["error"], "Work not found")
+        mock_get_work.assert_called_once_with("10.1234/new.123")
+
+    def test_retrieve_by_doi_existing_paper_for_regular_user(self):
+        """Test that any user can still look up a paper that already exists"""
+        # Arrange
+        paper = create_paper()
+        paper.doi = "10.1234/existing.123"
+        paper.save()
+        self.client.force_authenticate(None)
+        url = reverse("paper-retrieve-by-doi")
+
+        # Act
+        response = self.client.get(url + "?doi=10.1234/existing.123")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], paper.id)
 
     @patch("utils.openalex.OpenAlex.get_work_by_doi")
     def test_retrieve_by_doi_openalex_not_found(self, mock_get_work):
