@@ -260,7 +260,7 @@ class CreateAuthorUpdateNotificationSignalTests(TestCase):
         self.assertCountEqual(recipients, [self.follower1.email, self.follower2.email])
         self.assertEqual(
             subject,
-            f"{self.author.full_name()} [Author] just shared an update on "
+            f"{self.author.full_name()} just shared an update on "
             f"{self.preregistration.title}",
         )
         self.assertIn(f"<b>{self.author.full_name()}</b>", message)

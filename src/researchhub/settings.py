@@ -253,8 +253,6 @@ INSTALLED_APPS = [
     "ai_peer_review",
     # Health checks
     "health_check",
-    "health_check.db",
-    "health_check.cache",
 ]
 
 SITE_ID = 1
@@ -262,6 +260,7 @@ SITE_ID = 1
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
