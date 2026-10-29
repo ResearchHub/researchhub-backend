@@ -1,16 +1,12 @@
 import logging
 
-from django.db.models import Q
-from rest_framework import mixins, status, viewsets
-from rest_framework.decorators import action
+from rest_framework import mixins, viewsets
 from rest_framework.permissions import (
-    AllowAny,
     IsAuthenticatedOrReadOnly,
 )
 from rest_framework.response import Response
 
 from discussion.views import ReactionViewActionMixin
-from paper.ingestion.services.osf_registration_service import OSFRegistrationService
 from paper.models import Paper
 from paper.permissions import UpdatePaper
 from paper.serializers import (
@@ -19,8 +15,6 @@ from paper.serializers import (
 )
 from user.content_moderation_mixin import ContentModerationActionsMixin
 from user.views.follow_view_mixins import FollowViewActionMixin
-from utils.doi import DOI
-from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed
 
 logger = logging.getLogger(__name__)
@@ -184,7 +178,6 @@ class PaperViewSet(
     def _serialize_paper(self, paper, request):
         """
         Common serialization method for papers.
-        Used by both retrieve and retrieve_by_doi endpoints.
         """
         context = self._get_paper_context(request)
         serializer = self.dynamic_serializer_class(
@@ -235,112 +228,3 @@ class PaperViewSet(
         paper = super().get_object()
         serializer_data = self._serialize_paper(paper, request)
         return Response(serializer_data)
-
-    @action(
-        detail=False,
-        methods=["get"],
-        permission_classes=[AllowAny],
-    )
-    def retrieve_by_doi(self, request):
-        """
-        Get a paper by DOI. If it doesn't exist, moderators and hub editors
-        import it from OSF or OpenAlex; everyone else gets a 404.
-        Query params:
-        - doi: string (required) - The DOI to look up
-        """
-        doi = request.query_params.get("doi")
-        if not doi:
-            return Response(
-                {"error": "DOI is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Validate DOI format first
-        if not DOI.is_doi(doi):
-            return Response(
-                {"error": "Invalid DOI format"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            # Get bare DOI for database lookup
-            bare_doi = DOI.get_bare_doi(doi)
-            if not bare_doi:
-                return Response(
-                    {"error": "Invalid DOI format"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Look for existing paper with this DOI
-            paper = Paper.objects.filter(Q(doi=bare_doi)).first()
-            if paper:
-                serializer_data = self._serialize_paper(paper, request)
-                return Response(serializer_data)
-
-            # Only moderators and hub editors may import papers that don't exist yet
-            user = request.user
-            if not (user.is_authenticated and user.is_moderator_or_editor()):
-                return Response(
-                    {"error": "Paper not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            # Paper doesn't exist, try to import it from OSF or OpenAlex
-            return self._create_by_doi(request, doi=bare_doi)
-
-        except Exception as e:
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    def _create_by_doi(self, request, doi):
-        """
-        Create a paper by fetching data from OSF (for OSF registration DOIs)
-        or OpenAlex using a DOI.
-        Args:
-            doi: Bare DOI (without https://doi.org/ prefix)
-        """
-        try:
-            # OpenAlex can merge OSF registrations into other works,
-            # so import them from OSF directly
-            if OSFRegistrationService.get_guid(doi):
-                paper = OSFRegistrationService().import_by_doi(doi)
-                if paper:
-                    serializer_data = self._serialize_paper(paper, request)
-                    return Response(serializer_data, status=status.HTTP_201_CREATED)
-
-            # Fetch work from OpenAlex
-            openalex = OpenAlex()
-            work = openalex.get_work_by_doi(doi)
-            if not work:
-                return Response(
-                    {"error": "Work not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            # OpenAlex can return a work whose primary DOI differs from the
-            # requested one (when the requested DOI is a secondary location),
-            # so match the paper by OpenAlex ID rather than by the requested DOI.
-            openalex_id = work.get("id")
-            paper = Paper.objects.filter(openalex_id=openalex_id).first()
-            if paper:
-                serializer_data = self._serialize_paper(paper, request)
-                return Response(serializer_data)
-
-            # Process the work
-            from paper.openalex_util import process_openalex_works
-
-            process_openalex_works([work])
-
-            # Get the created paper and serialize it
-            paper = Paper.objects.get(openalex_id=openalex_id)
-            serializer_data = self._serialize_paper(paper, request)
-            return Response(serializer_data, status=status.HTTP_201_CREATED)
-
-        except Exception:
-            logger.exception("Error creating paper by DOI", extra={"doi": doi})
-            return Response(
-                {"error": "An error occurred while creating the paper."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
