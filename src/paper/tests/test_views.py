@@ -109,6 +109,71 @@ class PaperDOITests(TestCase):
         # Verify paper was created in database
         self.assertTrue(Paper.objects.filter(doi=test_doi).exists())
 
+    @patch("utils.openalex.OpenAlex.get_authors")
+    @patch("utils.openalex.OpenAlex.get_work_by_doi")
+    def test_retrieve_by_doi_secondary_location_doi(
+        self, mock_get_work, mock_get_authors
+    ):
+        """Test a DOI that OpenAlex files under a work with another primary DOI"""
+        # Arrange
+        requested_doi = "10.5555/secondary.123"
+        primary_doi = "10.5555/primary.123"
+        mock_get_work.return_value = {
+            "id": "https://openalex.org/W123",
+            "doi": f"https://doi.org/{primary_doi}",
+            "title": "Merged Paper",
+            "authorships": [],
+            "publication_year": 2025,
+        }
+        mock_get_authors.return_value = ([], None)
+        url = reverse("paper-retrieve-by-doi")
+
+        # Act
+        first_response = self.client.get(url + f"?doi={requested_doi}")
+        second_response = self.client.get(url + f"?doi={requested_doi}")
+
+        # Assert
+        self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first_response.data["doi"], primary_doi)
+        self.assertEqual(second_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.data["id"], first_response.data["id"])
+        self.assertEqual(
+            Paper.objects.filter(openalex_id="https://openalex.org/W123").count(), 1
+        )
+
+    @patch("utils.openalex.OpenAlex.get_work_by_doi")
+    @patch(
+        "paper.ingestion.clients.registrations.osf.OSFRegistrationClient.fetch_registration"
+    )
+    def test_retrieve_by_doi_osf_registration(self, mock_fetch, mock_get_work):
+        """Test that OSF registration DOIs are imported from OSF, not OpenAlex"""
+        # Arrange
+        mock_fetch.return_value = {
+            "id": "wzubg",
+            "attributes": {
+                "title": "Research plan title",
+                "description": "Research plan abstract",
+                "date_registered": "2026-08-31T21:21:16.905334",
+                "withdrawn": False,
+                "registration_responses": {"340-18": "Outcomes report title"},
+            },
+            "provider": "Lifecycle Journal",
+            "url": "https://osf.io/wzubg/",
+            "contributors": [],
+            "response_labels": {"340-18": "Short Title:"},
+        }
+        url = reverse("paper-retrieve-by-doi")
+
+        # Act
+        response = self.client.get(url + "?doi=10.17605/OSF.IO/WZUBG")
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["doi"], "10.17605/osf.io/wzubg")
+        self.assertEqual(response.data["paper_title"], "Outcomes report title")
+        mock_fetch.assert_called_once_with("wzubg")
+        mock_get_work.assert_not_called()
+
     @patch("utils.openalex.OpenAlex.get_work_by_doi")
     def test_retrieve_by_doi_openalex_not_found(self, mock_get_work):
         """Test handling when paper not found in OpenAlex"""

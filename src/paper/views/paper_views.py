@@ -10,6 +10,7 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from discussion.views import ReactionViewActionMixin
+from paper.ingestion.services.osf_registration_service import OSFRegistrationService
 from paper.models import Paper
 from paper.permissions import UpdatePaper
 from paper.serializers import (
@@ -286,11 +287,20 @@ class PaperViewSet(
 
     def _create_by_doi(self, request, doi):
         """
-        Create a paper by fetching data from OpenAlex using a DOI.
+        Create a paper by fetching data from OSF (for OSF registration DOIs)
+        or OpenAlex using a DOI.
         Args:
             doi: Bare DOI (without https://doi.org/ prefix)
         """
         try:
+            # OpenAlex can merge OSF registrations into other works,
+            # so import them from OSF directly
+            if OSFRegistrationService.get_guid(doi):
+                paper = OSFRegistrationService().import_by_doi(doi)
+                if paper:
+                    serializer_data = self._serialize_paper(paper, request)
+                    return Response(serializer_data, status=status.HTTP_201_CREATED)
+
             # Fetch work from OpenAlex
             openalex = OpenAlex()
             work = openalex.get_work_by_doi(doi)
@@ -300,13 +310,22 @@ class PaperViewSet(
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
+            # OpenAlex can return a work whose primary DOI differs from the
+            # requested one (when the requested DOI is a secondary location),
+            # so match the paper by OpenAlex ID rather than by the requested DOI.
+            openalex_id = work.get("id")
+            paper = Paper.objects.filter(openalex_id=openalex_id).first()
+            if paper:
+                serializer_data = self._serialize_paper(paper, request)
+                return Response(serializer_data)
+
             # Process the work
             from paper.openalex_util import process_openalex_works
 
             process_openalex_works([work])
 
             # Get the created paper and serialize it
-            paper = Paper.objects.get(doi=doi)
+            paper = Paper.objects.get(openalex_id=openalex_id)
             serializer_data = self._serialize_paper(paper, request)
             return Response(serializer_data, status=status.HTTP_201_CREATED)
 
