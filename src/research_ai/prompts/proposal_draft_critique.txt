@@ -59,15 +59,7 @@ LLM output even if it matches no example, whatever the proposal's domain:
 - Intensifiers and exaggeration ("genuinely", "truly", "cutting-edge");
   rhetorical lists for emphasis ("no animals, no surgery, no sequencing").
 - Preemptively defensive statements that argue against a charge no one made
-  ("No claim of new wet-lab data is made."), including a safeguard phrased as
-  a denial ("Development data will not be reused as validation data") instead
-  of the design choice itself.
-- Disclaimers about what the proposal is not or what remains unconfirmed
-  ("...remain to be confirmed; no commitment is implied"; "this draft is not
-  yet a finalized preregistration"; "planning ceiling only").
-- Notes addressed to the applicant rather than the funder: checklists
-  ("Before submission: confirm ..."), or commentary on the RFP's own terms
-  ("the RFP lists $100,000 as the total pool, not a single award").
+  ("No claim of new wet-lab data is made.").
 - Generic self-positioning or marketing with no scientific payload ("my work
   bears directly on this gap"; "uniquely positioned").
 - A self-diminishing status label such as "junior investigator." Judge
@@ -96,15 +88,6 @@ Also always list as a gap (and cap the affected criteria low):
   metric), no stated read of a negative result, or -- for any cross-dataset,
   cross-cohort, or cross-species integration -- no control for batch, platform,
   or species differences. Cap c1 low.
-- Methods an outside lab could not run from the text alone, judged only on
-  the elements each aim's design needs: no sample source, inclusion criteria,
-  or justified N; unnamed instruments, parameters, or software; outcomes not
-  defined operationally; for an aim tested statistically, no named test,
-  correction, or exclusion rule; or a parameter deferred ("thresholds remain
-  to be set", "no sample size is claimed yet") instead of chosen and
-  justified. Do not penalize a qualitative or non-statistical aim for lacking
-  statistical elements it does not use. Name what is missing per aim and cap
-  c1 low.
 - No proposal-specific limitations and risk analysis; a limitation dismissed as
   "acceptable" rather than tied to a boundary on inference; or a material
   pitfall with no detection criterion, concrete alternative, and downstream

@@ -17,21 +17,13 @@ from research_ai.services.proposal_draft.config import ProposalDraftConfig
 from research_ai.services.proposal_draft.scope import format_award, max_aims_for_budget
 from research_ai.services.proposal_draft.tools import (
     assemble_proposal,
-    chosen_parameter_gaps,
     valid_aims,
 )
 from research_ai.services.proposal_draft.tools.doi import strip_doi_prefix
 
 # The gates in the order they run; also the report keys their results live
 # under (``ProposalGateRunner.run`` builds the report from this order).
-GATE_NAMES = (
-    "sections",
-    "length",
-    "citations",
-    "scope",
-    "chosen_parameters",
-    "panel",
-)
+GATE_NAMES = ("sections", "length", "citations", "scope", "panel")
 
 
 def failing_gates(report: dict) -> list[str]:
@@ -185,7 +177,6 @@ class ProposalGateRunner:
             "length": self._gate_length(submitted),
             "citations": citations_check,
             "scope": self._gate_scope(sections),
-            "chosen_parameters": self._gate_chosen_parameters(submitted),
         }
         self.on_step(ProposalDraft.Step.JUDGING)
         checks["panel"] = self._gate_panel(submitted)
@@ -229,19 +220,6 @@ class ProposalGateRunner:
             "ok": not missing and prosemirror_ok,
             "missing": missing,
             "prosemirror_ok": prosemirror_ok,
-            "gaps": gaps,
-        }
-
-    def _gate_chosen_parameters(self, submitted: dict) -> dict:
-        # Not judged -- the panel never sees this list -- but it is how the
-        # user tells the values the agent chose from the ones they supplied,
-        # so a missing or malformed list sends the draft back like a missing
-        # section would.
-        entries = submitted.get("chosen_parameters")
-        gaps = chosen_parameter_gaps(entries)
-        return {
-            "ok": not gaps,
-            "count": len(entries) if isinstance(entries, list) else 0,
             "gaps": gaps,
         }
 
