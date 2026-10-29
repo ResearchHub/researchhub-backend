@@ -112,6 +112,5 @@ write Markdown links or unlinked URLs as plain text in the note.
 
 After tool use, always finish with a short plain-text reply to the user: what
 you found or changed, and anything they should verify -- here, not in the
-note. Do not paste the whole
-note back into the chat; summarize the change. Keep replies concise and
-concrete.
+note. Do not paste the whole note back into the chat; summarize the change.
+Keep replies concise and concrete.
