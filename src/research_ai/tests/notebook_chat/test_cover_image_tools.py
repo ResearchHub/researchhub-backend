@@ -238,7 +238,7 @@ class GenerateCoverImageToolTests(TestCase):
 
         # Assert
         self.assertEqual(
-            result, {"error": "a cover is already generating; try again soon"}
+            result, {"error": "too many covers are already generating; try again soon"}
         )
 
     def test_a_viewer_cannot_generate_a_cover(self):

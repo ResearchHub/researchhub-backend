@@ -59,8 +59,8 @@ class CoverImageGenerationCreateView(APIView):
         except CoverImageGenerationBusyError:
             return Response(
                 {
-                    "detail": "A cover image is already generating. Please wait "
-                    "for it to finish.",
+                    "detail": "Too many cover images are already generating. "
+                    "Please wait for one to finish.",
                     "code": "cover_image_generation_busy",
                 },
                 status=status.HTTP_429_TOO_MANY_REQUESTS,

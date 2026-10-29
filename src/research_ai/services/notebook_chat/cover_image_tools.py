@@ -141,7 +141,9 @@ class CoverImageToolset:
             except UsageLimitExceededError:
                 return {"error": "the user's daily AI usage limit is reached"}
             except CoverImageGenerationBusyError:
-                return {"error": "a cover is already generating; try again soon"}
+                return {
+                    "error": "too many covers are already generating; try again soon"
+                }
             if generation.status != CoverImageGeneration.Status.COMPLETED:
                 return {"error": "could not generate a cover image; try again later"}
             return {

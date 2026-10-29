@@ -90,7 +90,7 @@ class CoverImageService:
     TIME_LIMIT_SECONDS = 6 * 60
     # Spend is recorded only once an image comes back, so the daily budget
     # cannot see requests still generating; this bounds them instead.
-    MAX_ACTIVE_PER_USER = 2
+    MAX_ACTIVE_PER_USER = 5
 
     GENERATION_FAILED_MESSAGE = "Could not generate a cover image. Please try again."
 
@@ -229,7 +229,7 @@ class CoverImageService:
             get_user_model().objects.select_for_update().filter(id=user.id).first()
             if self._active_count(user) >= self.MAX_ACTIVE_PER_USER:
                 raise CoverImageGenerationBusyError(
-                    "A cover image is already generating."
+                    "Too many cover images are already generating."
                 )
             return CoverImageGeneration.objects.create(created_by=user, **fields)
 
