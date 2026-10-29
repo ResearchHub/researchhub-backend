@@ -130,9 +130,8 @@ class EmailService:
             recipients,
             subject,
             {
-                "subject": (
-                    mark_safe(heading) if heading and is_html else heading or subject
-                ),
+                "subject": subject,
+                "heading": mark_safe(heading) if heading and is_html else heading,
                 "body": mark_safe(message) if is_html else message,
                 "cta_url": link,
                 "cta_label": cta_label,
