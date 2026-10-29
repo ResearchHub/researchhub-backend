@@ -1,5 +1,5 @@
 from orcid.clients import OrcidClient
-from orcid.config import EDU_DOMAINS
+from user.constants.academic_email_constants import EDU_DOMAINS
 
 
 class OrcidEmailService:
