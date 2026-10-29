@@ -254,13 +254,14 @@ class CoverImageService:
     def run(self, generation_id: int) -> None:
         """Generate and store the banner for a queued request."""
         now = timezone.now()
+        cutoff = now - self.STALE_AFTER
         pending = CoverImageGeneration.objects.filter(
             id=generation_id, status=CoverImageGeneration.Status.PENDING
         )
         # A request queued too long ago no longer counts against the user's
         # limit, so it is failed rather than generated: running it anyway
         # would let a backed-up queue pay for more than the limit allows.
-        expired = pending.filter(created_date__lt=now - self.STALE_AFTER).update(
+        expired = pending.filter(created_date__lt=cutoff).update(
             status=CoverImageGeneration.Status.FAILED,
             error="Cover image generation timed out",
             updated_date=now,
@@ -268,7 +269,8 @@ class CoverImageService:
         if expired:
             logger.warning("cover image generation %s timed out", generation_id)
             return
-        claimed = pending.update(
+        # Only a request still inside the cutoff is claimed.
+        claimed = pending.filter(created_date__gte=cutoff).update(
             status=CoverImageGeneration.Status.PROCESSING, updated_date=now
         )
         if not claimed:
