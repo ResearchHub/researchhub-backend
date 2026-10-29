@@ -124,13 +124,14 @@ class EmailService:
     ) -> None:
         """Send an opt-out-aware message with an optional action link.
 
-        Set `is_html` only for messages already escaped by the caller.
+        Set `is_html` only for a message and heading already escaped by the caller.
         """
         self.send_email(
             recipients,
             subject,
             {
-                "subject": heading or subject,
+                "subject": subject,
+                "heading": mark_safe(heading) if heading and is_html else heading,
                 "body": mark_safe(message) if is_html else message,
                 "cta_url": link,
                 "cta_label": cta_label,

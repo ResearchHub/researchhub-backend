@@ -247,6 +247,10 @@ body {
   vertical-align: 1px;
 }
 
+.title .author-badge {
+  vertical-align: 4px;
+}
+
 .activity-time {
   font-size: 13px;
   color: #6B7280;
