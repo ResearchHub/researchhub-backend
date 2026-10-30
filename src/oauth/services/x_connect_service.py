@@ -1,4 +1,5 @@
 from allauth.socialaccount.models import SocialAccount
+from django.db import transaction
 from django.http import HttpRequest
 from requests import HTTPError
 from rest_framework import exceptions, serializers, status
@@ -30,16 +31,18 @@ class XConnectService:
             raise serializers.ValidationError("Failed to fetch the X profile.") from exc
         uid = extra_data["id"]
         x_accounts = SocialAccount.objects.filter(provider=adapter.provider_id)
-        if x_accounts.filter(uid=uid).exclude(user=user).exists():
-            raise XAccountConflict("This X account is connected to another user.")
-        if x_accounts.filter(user=user).exclude(uid=uid).exists():
-            raise XAccountConflict("Another X account is already connected to you.")
-        SocialAccount.objects.update_or_create(
-            provider=adapter.provider_id,
-            uid=uid,
-            user=user,
-            defaults={"extra_data": extra_data},
-        )
+        with transaction.atomic():
+            User.objects.select_for_update().get(pk=user.pk)
+            if x_accounts.filter(uid=uid).exclude(user=user).exists():
+                raise XAccountConflict("This X account is connected to another user.")
+            if x_accounts.filter(user=user).exclude(uid=uid).exists():
+                raise XAccountConflict("Another X account is already connected to you.")
+            SocialAccount.objects.update_or_create(
+                provider=adapter.provider_id,
+                uid=uid,
+                user=user,
+                defaults={"extra_data": extra_data},
+            )
         signup_service = UserSignupService()
         signup_service.set_social_profile_image(user)
         signup_service.set_x_profile_link(user)
