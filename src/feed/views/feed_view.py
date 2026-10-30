@@ -10,6 +10,7 @@ from feed.ordering import FeedOrderingBackend
 from feed.serializers import FeedEntrySerializer
 from feed.views.common import FeedPagination as BaseFeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
+from user.related_models.user_model import prefetch_x_verified_accounts
 
 
 class FeedPagination(BaseFeedPagination):
@@ -100,6 +101,6 @@ class FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             "user",
             "user__author_profile",
             "user__userverification",
-        )
+        ).prefetch_related(prefetch_x_verified_accounts("user__socialaccount_set"))
 
         return queryset

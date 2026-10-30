@@ -48,7 +48,7 @@ class XLoginViewTests(APITestCase):
     ):
         """
         Test that X login exchanges the code, signs the user up with the confirmed
-        email, and stores the X profile, including verification and Premium.
+        email, stores the X profile, and verifies the user through X.
         """
         # Arrange
         mock_exchange.return_value = {"access_token": "x-token"}
@@ -99,6 +99,7 @@ class XLoginViewTests(APITestCase):
         self.assertEqual(
             user.author_profile.profile_image, "https://pbs.twimg.com/xuser.jpg"
         )
+        self.assertTrue(user.is_verified)
 
     def test_login_rejects_failed_code_exchange(
         self, mock_exchange, mock_get, mock_track

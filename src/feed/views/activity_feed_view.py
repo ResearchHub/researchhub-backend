@@ -64,7 +64,10 @@ from researchhub_document.related_models.researchhub_post_model import (
 )
 from user.permissions import IsModerator
 from user.related_models.funding_activity_model import FundingActivity
-from user.related_models.user_model import AI_EXPERT_EMAIL
+from user.related_models.user_model import (
+    AI_EXPERT_EMAIL,
+    prefetch_x_verified_accounts,
+)
 
 
 def _match_peer_review_on_entry() -> Exists:
@@ -315,6 +318,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 "user__userverification",
             )
             .prefetch_related(
+                prefetch_x_verified_accounts("user__socialaccount_set"),
                 Prefetch(
                     "unified_document__posts",
                     queryset=ResearchhubPost.objects.defer("renderable_text")
@@ -324,6 +328,10 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                             "author_links",
                             queryset=ResearchhubPostAuthor.objects.select_related(
                                 "author__user__userverification"
+                            ).prefetch_related(
+                                prefetch_x_verified_accounts(
+                                    "author__user__socialaccount_set"
+                                )
                             ),
                         )
                     ),

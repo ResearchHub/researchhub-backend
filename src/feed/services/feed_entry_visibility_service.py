@@ -9,6 +9,7 @@ from feed.serializers import assessed_reviews_prefetch
 from purchase.models import Fundraise, Grant
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import User
+from user.related_models.user_model import prefetch_x_verified_accounts
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ class FeedEntryVisibilityService:
                 "feed_hide__hidden_by",
             )
             .prefetch_related(
+                prefetch_x_verified_accounts("user__socialaccount_set"),
                 Prefetch(
                     "unified_document__posts",
                     queryset=ResearchhubPost.objects.select_related(

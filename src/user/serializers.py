@@ -45,6 +45,7 @@ from user.models import (
 from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.related_models.risk_score_model import RiskScoreEvent
+from user.services.user_verification_service import UserVerificationService
 from utils.turnstile import TurnstileService
 
 logger = logging.getLogger(__name__)
@@ -298,6 +299,22 @@ class AuthorSerializer(ModelSerializer):
         user = author.user
         if user:
             return user.is_hub_editor()
+
+
+class AuthorDetailSerializer(AuthorSerializer):
+    verification_methods = SerializerMethodField()
+
+    class Meta(AuthorSerializer.Meta):
+        fields = AuthorSerializer.Meta.fields + ["verification_methods"]
+        read_only_fields = AuthorSerializer.Meta.read_only_fields + [
+            "verification_methods"
+        ]
+
+    def get_verification_methods(self, author: Author) -> list[str]:
+        """Return every way the author's user has verified themselves."""
+        if author.user is None:
+            return []
+        return UserVerificationService().list_verification_methods(author.user)
 
 
 class MajorSerializer(ModelSerializer):
