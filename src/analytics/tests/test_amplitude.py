@@ -313,6 +313,7 @@ class TrackEventDecoratorTests(TestCase):
         mock_response = Response(
             {"id": 303, "amount": "100.00"}, status=status.HTTP_200_OK
         )
+        mock_response.amplitude_data = {"purchase_id": 909}
 
         mock_build_hit.return_value = None
 
@@ -330,10 +331,55 @@ class TrackEventDecoratorTests(TestCase):
             self.user,
             UserActivityTypes.FUND,
             {
-                "purchase_id": 303,
+                "purchase_id": 909,
                 "amount": "100.00",
                 "content_type": "fundraise",
                 "object_id": 404,
+            },
+        )
+
+    @patch("analytics.amplitude.Amplitude.build_hit")
+    @patch("analytics.amplitude.track_user_activity")
+    def test_track_event_funding_pool_contribution_triggers_user_activity(
+        self, mock_track_activity, mock_build_hit
+    ):
+        """
+        Test that @track_event on funding pool contribution method triggers FUND
+        user activity.
+        """
+        # Arrange
+        mock_view = MagicMock()
+        mock_view.__class__.__name__ = "FundingPoolViewSet"
+        mock_view.basename = "funding_pool"
+        mock_view.action = "create_contribution"
+
+        # Response is the pool shape; real purchase id is on amplitude_data
+        mock_response = Response(
+            {"id": 707, "status": "OPEN"}, status=status.HTTP_200_OK
+        )
+        mock_response.amplitude_data = {"purchase_id": 1011}
+        self.mock_request.data = {"amount": "250.00"}
+
+        mock_build_hit.return_value = None
+
+        @track_event
+        def create_contribution_method(self, request, *args, **kwargs):
+            return mock_response
+
+        # Act
+        result = create_contribution_method(mock_view, self.mock_request, pk=808)
+
+        # Assert
+        self.assertEqual(result, mock_response)
+        mock_build_hit.assert_called_once()
+        mock_track_activity.assert_called_once_with(
+            self.user,
+            UserActivityTypes.FUND,
+            {
+                "purchase_id": 1011,
+                "amount": "250.00",
+                "content_type": "funding_pool",
+                "object_id": 808,
             },
         )
 

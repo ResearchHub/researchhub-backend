@@ -13,7 +13,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from purchase.models import Fundraise
+from purchase.models import Fundraise, Purchase
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.related_models.usd_fundraise_contribution_model import (
@@ -197,7 +197,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         amount = int(amount) if amount_currency == USD else Decimal(amount)
 
         # Create contribution via service
-        _, error = self.fundraise_service.create_contribution(
+        purchase, error = self.fundraise_service.create_contribution(
             user=user,
             fundraise=fundraise,
             amount=amount,
@@ -220,7 +220,10 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         # return updated fundraise object
         context = self.get_serializer_context()
         serializer = self.get_serializer(fundraise, context=context)
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        if isinstance(purchase, Purchase):
+            response.amplitude_data = {"purchase_id": purchase.id}
+        return response
 
     @action(
         methods=["GET"],
