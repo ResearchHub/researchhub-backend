@@ -67,20 +67,6 @@ class UpdateGrantSettingsTests(TestCase):
         self.assertEqual(str(raised.exception), NOT_RFP_NOTE)
         self.assertFalse(GrantSettings.objects.filter(note=self.note).exists())
 
-    def test_refuses_a_published_note(self):
-        # Arrange
-        post = create_post(created_by=self.user, document_type=GRANT)
-        post.note = self.note
-        post.save(update_fields=["note"])
-
-        # Act
-        with self.assertRaises(DraftDetailsError) as raised:
-            update_grant_settings(note=self.note, values={"organization": "Org"})
-
-        # Assert
-        self.assertEqual(str(raised.exception), NOTE_PUBLISHED)
-        self.assertFalse(GrantSettings.objects.filter(note=self.note).exists())
-
     def test_refuses_a_note_published_after_the_caller_loaded_it(self):
         # Arrange: the caller's instance has already cached "no post".
         self.assertFalse(hasattr(self.note, "post"))

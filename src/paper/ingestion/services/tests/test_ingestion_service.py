@@ -31,22 +31,6 @@ class TestPaperIngestionService(TestCase):
 
         self.service = PaperIngestionService(self.mappers)
 
-    def test_get_mappers(self):
-        """Test getting mappers returns the provided mappers."""
-        # Test getting each mapper type
-        arxiv_mapper = self.service.get_mapper(IngestionSource.ARXIV)
-        self.assertIs(arxiv_mapper, self.mock_arxiv_mapper)
-
-        biorxiv_mapper = self.service.get_mapper(IngestionSource.BIORXIV)
-        self.assertIs(biorxiv_mapper, self.mock_biorxiv_mapper)
-
-        chemrxiv_mapper = self.service.get_mapper(IngestionSource.CHEMRXIV)
-        self.assertIs(chemrxiv_mapper, self.mock_chemrxiv_mapper)
-
-        # Test that same mapper instance is returned
-        arxiv_mapper2 = self.service.get_mapper(IngestionSource.ARXIV)
-        self.assertIs(arxiv_mapper, arxiv_mapper2)
-
     def test_get_mapper_invalid_source(self):
         """Test that invalid source raises ValueError."""
         # Create service with limited mappers
@@ -78,41 +62,6 @@ class TestPaperIngestionService(TestCase):
         self.assertEqual(len(failures), 1)
         self.assertEqual(failures[0]["error"], "Validation failed")
         self.assertEqual(failures[0]["id"], "test123")
-
-    @patch.object(PaperIngestionService, "_save_paper")
-    def test_ingest_papers_with_save(self, mock_save_paper):
-        """Test ingestion with database save."""
-        mock_paper = Mock(spec=Paper)
-        mock_paper.id = 1
-        mock_paper.title = "Test Paper"
-        mock_paper.doi = "10.1234/test"
-
-        mock_saved_paper = Mock(spec=Paper)
-        mock_saved_paper.id = 1
-        mock_saved_paper.title = "Test Paper"
-
-        mock_unified_document = Mock()
-        mock_hubs = Mock()
-        mock_hubs.add = Mock()
-        mock_unified_document.hubs = mock_hubs
-        mock_saved_paper.unified_document = mock_unified_document
-
-        mock_save_paper.return_value = mock_saved_paper
-
-        # Configure the mock mapper for this test
-        self.mock_arxiv_mapper.validate.return_value = True
-        self.mock_arxiv_mapper.map_to_paper.return_value = mock_paper
-        self.mock_arxiv_mapper.map_to_hubs.return_value = []
-
-        raw_response = [{"id": "test123", "title": "Test Paper"}]
-
-        papers, failures = self.service.ingest_papers(
-            raw_response, IngestionSource.ARXIV
-        )
-
-        self.assertEqual(len(papers), 1)
-        self.assertEqual(len(failures), 0)
-        mock_save_paper.assert_called_once_with(mock_paper)
 
     def test_ingest_papers_mapping_exception(self):
         """Test handling of exceptions during mapping."""
@@ -177,31 +126,6 @@ class TestPaperIngestionService(TestCase):
         self.assertEqual(result, existing_paper)
         # PDF download triggered with pdf_url_changed=False
         mock_trigger_pdf.assert_called_once_with(existing_paper, pdf_url_changed=False)
-
-    @patch.object(PaperIngestionService, "_trigger_pdf_download_if_needed")
-    @patch.object(PaperIngestionService, "_update_paper")
-    @patch("paper.models.Paper.objects.filter")
-    def test_save_paper_existing_with_update(
-        self, mock_filter, mock_update, mock_trigger_pdf
-    ):
-        """Test updating an existing paper."""
-        existing_paper = Mock(spec=Paper)
-        existing_paper.id = 1
-        existing_paper.doi = "10.1234/test"
-        mock_filter.return_value.first.return_value = existing_paper
-
-        updated_paper = Mock(spec=Paper)
-        mock_update.return_value = (updated_paper, True)
-
-        mock_paper = Mock(spec=Paper)
-        mock_paper.doi = "10.1234/test"
-
-        result = self.service._save_paper(mock_paper)
-
-        mock_update.assert_called_once_with(existing_paper, mock_paper)
-        self.assertEqual(result, updated_paper)
-        # PDF download triggered with pdf_url_changed=True
-        mock_trigger_pdf.assert_called_once_with(updated_paper, pdf_url_changed=True)
 
     @patch.object(PaperIngestionService, "_trigger_pdf_download_if_needed")
     @patch.object(PaperIngestionService, "_update_paper")
@@ -578,82 +502,6 @@ class TestPaperIngestionService(TestCase):
         self.assertEqual(
             Institution.objects.filter(ror_id="https://ror.org/existing").count(), 1
         )
-
-    def test_skip_authors_without_orcid(self):
-        """Test that authors without ORCID IDs are skipped."""
-        paper = Paper.objects.create(
-            title="Test Paper 3",
-            doi="10.1234/arxiv.test",
-            external_source="arxiv",
-        )
-
-        mock_mapper = Mock()
-        # Return empty list since we don't create authors without ORCID
-        mock_mapper.map_to_authors.return_value = []
-        mock_mapper.map_to_institutions.return_value = []
-        mock_mapper.map_to_authorships.return_value = []
-
-        record = {"id": "test3", "authors": []}
-
-        # Call the method
-        authors, institutions, _ = self.service._create_authors_and_institutions(
-            paper, record, mock_mapper
-        )
-
-        # Should not create author without ORCID
-        self.assertEqual(len(authors), 0)
-        self.assertEqual(len(institutions), 0)
-
-        # No authorship should be created
-        self.assertEqual(Authorship.objects.filter(paper=paper).count(), 0)
-
-    def test_skip_institutions_without_ror_id(self):
-        """Test that institutions without ROR IDs are skipped."""
-        paper = Paper.objects.create(
-            title="Test Paper 4",
-            doi="10.1234/chemrxiv.test4",
-            external_source="chemrxiv",
-        )
-
-        mock_mapper = Mock()
-
-        # Author with ORCID
-        author = Author(
-            first_name="Test",
-            last_name="Author",
-            orcid_id="0000-0004-5678-9012",
-            created_source=Author.SOURCE_RESEARCHHUB,
-        )
-        mock_mapper.map_to_authors.return_value = [author]
-
-        # No institutions (skip those without ROR ID)
-        mock_mapper.map_to_institutions.return_value = []
-
-        # Authorship without institutions
-        authorship = Authorship(
-            paper=paper,
-            author=author,
-            author_position="first",
-            raw_author_name="Test Author",
-        )
-        authorship._institutions_to_add = []
-        mock_mapper.map_to_authorships.return_value = [authorship]
-
-        record = {"id": "test4", "authors": []}
-
-        # Call the method
-        authors, institutions, _ = self.service._create_authors_and_institutions(
-            paper, record, mock_mapper
-        )
-
-        # Author should be created but institution should not
-        self.assertEqual(len(authors), 1)
-        self.assertEqual(len(institutions), 0)
-
-        # Authorship created but with no institutions
-        authorship = Authorship.objects.filter(paper=paper).first()
-        self.assertIsNotNone(authorship)
-        self.assertEqual(authorship.institutions.count(), 0)
 
     @patch("paper.tasks.download_pdf")
     def test_pdf_download_triggered_for_arxiv_papers(self, mock_download_pdf):

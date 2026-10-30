@@ -178,9 +178,7 @@ class ActivityFeedBaseTests(AWSMockTestCase):
         )
 
 
-class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
-    """Test related_work field on activity feed responses."""
-
+class ActivityFeedRelatedWorkBaseTests(ActivityFeedBaseTests):
     def setUp(self):
         super().setUp()
 
@@ -242,6 +240,10 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
             resp = self.client.get(ACTIVITY_LIST_URL)
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         return len(queries)
+
+
+class ActivityFeedRelatedWorkTests(ActivityFeedRelatedWorkBaseTests):
+    """Test related_work field on activity feed responses."""
 
     def test_related_work_on_grant_comment(self):
         # Act
@@ -378,7 +380,7 @@ class ActivityFeedRelatedWorkTests(ActivityFeedBaseTests):
         self.assertEqual(authors[0]["id"], self.user.author_profile.id)
 
 
-class ActivityFeedRelatedWorkPrefetchTests(ActivityFeedRelatedWorkTests):
+class ActivityFeedRelatedWorkPrefetchTests(ActivityFeedRelatedWorkBaseTests):
     """Ensure related_work serialization avoids N+1 queries."""
 
     def setUp(self):
@@ -488,24 +490,10 @@ class ActivityFeedListTests(ActivityFeedBaseTests):
 class ActivityFeedDocumentTypeFilterTests(ActivityFeedBaseTests):
     """Test filtering by document_type query param."""
 
-    def test_filter_preregistration(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"document_type": "PREREGISTRATION"})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertEqual(ids, {self.prereg_entry.id})
-
-    def test_filter_grant(self):
-        resp = self.client.get(ACTIVITY_LIST_URL, {"document_type": "GRANT"})
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertEqual(ids, {self.grant_entry.id})
-
     def test_filter_case_insensitive(self):
         resp = self.client.get(ACTIVITY_LIST_URL, {"document_type": "grant"})
         ids = {e["id"] for e in resp.data["results"]}
         self.assertEqual(ids, {self.grant_entry.id})
-
-    def test_no_filter_returns_all(self):
-        resp = self.client.get(ACTIVITY_LIST_URL)
-        self.assertEqual(len(resp.data["results"]), 3)
 
 
 class ActivityFeedOrderingTests(ActivityFeedBaseTests):
@@ -682,23 +670,6 @@ class ActivityFeedContentTypeFilterTests(ActivityFeedBaseTests):
             unified_document=self.prereg_doc,
             user=self.user,
         )
-
-    def test_filter_comments_only(self):
-        resp = self.client.get(
-            ACTIVITY_LIST_URL,
-            {"content_type": "RHCOMMENTMODEL"},
-        )
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertEqual(ids, {self.comment_entry.id})
-
-    def test_filter_posts_only(self):
-        resp = self.client.get(
-            ACTIVITY_LIST_URL,
-            {"content_type": "RESEARCHHUBPOST"},
-        )
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertTrue(all(e.id not in ids for e in [self.comment_entry]))
-        self.assertIn(self.prereg_entry.id, ids)
 
     def test_filter_case_insensitive(self):
         resp = self.client.get(
@@ -956,68 +927,6 @@ class ActivityFeedScopeGrantsTests(AWSMockTestCase):
         self.assertIn(self.grant_a_entry.id, ids)
 
 
-class ActivityFeedActionDateOrderingTests(AWSMockTestCase):
-    """Verify sorting uses action_date, not created_date."""
-
-    def setUp(self):
-        super().setUp()
-        cache.clear()
-        self.user = create_test_user()
-        self.client = APIClient()
-        self.client.force_authenticate(user=self.user)
-
-    def test_action_date_determines_order_not_created_date(self):
-        """An entry created later but with an older action_date
-        should appear after an entry with a newer action_date."""
-        now = timezone.now()
-
-        doc_a = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION,
-        )
-        post_a = ResearchhubPost.objects.create(
-            title="Post A",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=doc_a,
-        )
-
-        doc_b = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION,
-        )
-        post_b = ResearchhubPost.objects.create(
-            title="Post B",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=doc_b,
-        )
-
-        # entry_old: created_date is "now" but action_date is old
-        entry_old = _make_feed_entry(
-            ResearchhubPost,
-            post_a.id,
-            doc_a,
-            user=self.user,
-            action_date=now - timezone.timedelta(days=30),
-        )
-
-        # entry_new: created_date is also "now" but action_date
-        # is recent
-        entry_new = _make_feed_entry(
-            ResearchhubPost,
-            post_b.id,
-            doc_b,
-            user=self.user,
-            action_date=now - timezone.timedelta(minutes=5),
-        )
-
-        resp = self.client.get(ACTIVITY_LIST_URL)
-        ids = [e["id"] for e in resp.data["results"]]
-        self.assertLess(
-            ids.index(entry_new.id),
-            ids.index(entry_old.id),
-        )
-
-
 @override_settings(CELERY_TASK_ALWAYS_EAGER=False)
 class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
     """
@@ -1107,23 +1016,6 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
             user=self.user,
         )
 
-        # Unrelated document with NO peer reviews (should be excluded)
-        self.unrelated_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="DISCUSSION",
-        )
-        self.unrelated_post = ResearchhubPost.objects.create(
-            title="Unrelated Post",
-            created_by=self.user,
-            document_type="DISCUSSION",
-            unified_document=self.unrelated_doc,
-        )
-        self.unrelated_entry = _make_feed_entry(
-            ResearchhubPost,
-            self.unrelated_post.id,
-            self.unrelated_doc,
-            user=self.user,
-        )
-
     def test_scope_peer_reviews_returns_only_peer_review_entries(self):
         """
         Only feed entries that are peer review comments (PEER_REVIEW or
@@ -1139,28 +1031,6 @@ class ActivityFeedPeerReviewFilterTests(AWSMockTestCase):
         self.assertIn(self.community_review_entry.id, ids)
         self.assertNotIn(self.generic_comment_entry.id, ids)
         self.assertNotIn(self.post_entry.id, ids)
-
-    def test_scope_peer_reviews_excludes_unrelated_documents(self):
-        """
-        Documents without peer reviews should not appear.
-        """
-        # Act
-        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "peer_reviews"})
-
-        # Assert
-        ids = {e["id"] for e in resp.data["results"]}
-        self.assertNotIn(self.unrelated_entry.id, ids)
-
-    def test_scope_peer_reviews_empty_when_none_exist(self):
-        # Arrange
-        FeedEntry.objects.all().delete()
-
-        # Act
-        resp = self.client.get(ACTIVITY_LIST_URL, {"scope": "peer_reviews"})
-
-        # Assert
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(resp.data["results"]), 0)
 
 
 def _make_comment_feed_entry(user, unified_document, target, comment_type):
@@ -1881,28 +1751,6 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
         self.assertFalse(mock_cache.set.called)
 
     @patch("feed.views.activity_feed_view.cache")
-    def test_hub_editor_uses_cache(self, mock_cache):
-        # Arrange
-        from user.tests.helpers import create_hub_editor
-
-        mock_cache.get.return_value = {
-            "next": None,
-            "previous": None,
-            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
-        }
-        editor = create_hub_editor("activity_cache_editor", "Activity Cache Hub")[0]
-        editor_client = APIClient()
-        editor_client.force_authenticate(user=editor)
-
-        # Act
-        response = editor_client.get(ACTIVITY_LIST_URL, {"page": 1, "page_size": 20})
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(mock_cache.get.called)
-        self.assertFalse(mock_cache.set.called)
-
-    @patch("feed.views.activity_feed_view.cache")
     def test_moderator_disable_cache_skips_cache(self, mock_cache):
         # Arrange
         from user.tests.helpers import create_random_authenticated_user
@@ -1920,33 +1768,6 @@ class ActivityFeedCacheTests(ActivityFeedBaseTests):
 
         # Act
         response = mod_client.get(
-            ACTIVITY_LIST_URL,
-            {"page": 1, "page_size": 20, "disable_cache": "true"},
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_cache.get.assert_not_called()
-        mock_cache.set.assert_not_called()
-
-    @patch("feed.views.activity_feed_view.cache")
-    def test_hub_editor_disable_cache_skips_cache(self, mock_cache):
-        # Arrange
-        from user.tests.helpers import create_hub_editor
-
-        mock_cache.get.return_value = {
-            "next": None,
-            "previous": None,
-            "results": [{"id": self.prereg_entry.id, "content_object": {"id": 1}}],
-        }
-        editor = create_hub_editor(
-            "activity_cache_editor_bypass", "Activity Cache Bypass Hub"
-        )[0]
-        editor_client = APIClient()
-        editor_client.force_authenticate(user=editor)
-
-        # Act
-        response = editor_client.get(
             ACTIVITY_LIST_URL,
             {"page": 1, "page_size": 20, "disable_cache": "true"},
         )

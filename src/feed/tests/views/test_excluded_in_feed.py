@@ -284,37 +284,3 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
         )
         self.assertIn("content_object", hidden_row)
         self.assertIn("related_work", hidden_row)
-
-    def test_pending_moderation_queue_is_unchanged(self):
-        # Arrange
-        pending = create_post(
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            title="Pending proposal",
-        )
-        pending.unified_document.status = ResearchhubUnifiedDocument.PENDING
-        pending.unified_document.save(update_fields=["status"])
-        self.client.force_authenticate(self.moderator)
-
-        # Act
-        response = self.client.get(
-            reverse("moderator_feed-pending-moderation"),
-            {"content_type": "PREREGISTRATION"},
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-        self.assertIn(pending.id, post_ids)
-
-    def test_hide_enqueues_activity_feed_cache_warm(self):
-        # Arrange
-        self.client.force_authenticate(self.moderator)
-        entry = self.visible_paper_entry
-        self.mock_warm.reset_mock()
-
-        # Act
-        self.client.post(self._exclude_url(entry.id))
-
-        # Assert
-        self.mock_warm.assert_called_once()

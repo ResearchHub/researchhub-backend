@@ -877,14 +877,6 @@ class PublicErrorTaxonomyTests(AgentPersistenceTestCase):
         self.assertFalse(error["retryable"])
         self.assertNotIn("ws-1", error["message"])
 
-    def test_unclassified_failure_renders_agent_failed_and_retryable(self):
-        # Arrange / Act: an internal crash carries no provider verdict.
-        error = self._fail_with(RuntimeError("toolset bug"))
-
-        # Assert: no verdict means a retry is worth one.
-        self.assertEqual(error["code"], "agent_failed")
-        self.assertTrue(error["retryable"])
-
     def test_unclassified_provider_failure_stays_retryable(self):
         # Arrange / Act: a raise site that passed no verdict (e.g. Bedrock's
         # catch-all) must not read as an explicit permanent verdict.

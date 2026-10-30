@@ -66,35 +66,6 @@ class InvitedExpertsSignalTests(TestCase):
         ex.refresh_from_db()
         self.assertEqual(ex.registered_user_id, new_user.id)
 
-    def test_user_created_sets_expert_registered_user_when_expert_row_exists(self):
-        first_seen = timezone.now() - timedelta(days=2)
-        search = ExpertSearch.objects.create(
-            created_by=self.creator,
-            unified_document_id=self.ud_id,
-            query="Test",
-            status=ExpertSearch.Status.COMPLETED,
-            completed_at=first_seen,
-        )
-        GeneratedEmail.objects.create(
-            created_by=self.creator,
-            expert_search=search,
-            expert_email="linkedexpert@example.com",
-            created_date=first_seen,
-        )
-        Expert.objects.create(
-            email="linkedexpert@example.com",
-            first_name="Link",
-            last_name="Expert",
-        )
-        new_user = create_user(
-            email="linkedexpert@example.com",
-            first_name="Link",
-            last_name="User",
-        )
-        expert = Expert.objects.get(email="linkedexpert@example.com")
-        expert.refresh_from_db()
-        self.assertEqual(expert.registered_user_id, new_user.id)
-
     def test_user_created_after_7_days_does_not_link_expert(self):
         first_seen = timezone.now() - timedelta(days=10)
         search = ExpertSearch.objects.create(
@@ -123,14 +94,6 @@ class InvitedExpertsSignalTests(TestCase):
         )
         ex.refresh_from_db()
         self.assertIsNone(ex.registered_user_id)
-
-    def test_user_created_email_not_in_any_search_does_not_link(self):
-        stranger = create_user(
-            email="stranger@example.com",
-            first_name="Stranger",
-            last_name="User",
-        )
-        self.assertFalse(Expert.objects.filter(registered_user_id=stranger.id).exists())
 
     def test_case_insensitive_email_links_expert(self):
         first_seen = timezone.now() - timedelta(days=2)

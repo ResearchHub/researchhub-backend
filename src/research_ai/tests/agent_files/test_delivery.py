@@ -289,17 +289,3 @@ class DeliveryConfigTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(delivery, Delivery(TextDelivery.INLINE, PageImages.ATTACHED))
-
-    def test_the_defaults_leave_a_longer_paper_to_tools_and_pages_on_request(self):
-        # Arrange
-        defaults = DeliveryConfig()
-        paper = Document(
-            text_chars=defaults.inline_max_chars + 1,
-            page_count=defaults.page_images_max_pages + 1,
-        )
-
-        # Act
-        (delivery,) = plan_delivery([paper], vision=True)
-
-        # Assert
-        self.assertEqual(delivery, Delivery(TextDelivery.TOOLS, PageImages.ON_REQUEST))

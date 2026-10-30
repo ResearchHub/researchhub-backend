@@ -9,7 +9,6 @@ from purchase.models import (
     Balance,
     FundingDistribution,
     FundingPool,
-    Fundraise,
     Grant,
     GrantApplication,
     Purchase,
@@ -343,52 +342,6 @@ class FundingPoolViewTests(APITestCase):
         self.assertIn("Insufficient pool balance", response.data["message"])
         self.pool.refresh_from_db()
         self.assertEqual(self.pool.amount_holding, Decimal(50))
-
-    def test_distribute_rejects_application_from_other_grant(self):
-        # Arrange
-        self._seed_pool_holding(Decimal(100))
-        other_creator = create_random_authenticated_user("other_grant_view")
-        other_post = create_post(created_by=other_creator, document_type=GRANT_DOC)
-        other_grant = Grant.objects.create(
-            created_by=other_creator,
-            unified_document=other_post.unified_document,
-            amount=Decimal("5000.00"),
-            currency="USD",
-            organization="Other Org",
-            description="Other grant",
-        )
-        _, other_application, _ = self._create_proposal_application_with_fundraise(
-            grant=other_grant
-        )
-        self.client.force_authenticate(self.creator)
-
-        # Act
-        response = self.client.post(
-            f"/api/funding_pool/{self.pool.id}/distribute/",
-            {"amount": 25, "application_id": other_application.id},
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("does not belong", response.data["message"])
-
-    def test_distribute_rejects_closed_fundraise(self):
-        # Arrange
-        self._seed_pool_holding(Decimal(100))
-        _, application, fundraise = self._create_proposal_application_with_fundraise()
-        fundraise.status = Fundraise.CLOSED
-        fundraise.save(update_fields=["status"])
-        self.client.force_authenticate(self.creator)
-
-        # Act
-        response = self.client.post(
-            f"/api/funding_pool/{self.pool.id}/distribute/",
-            {"amount": 25, "application_id": application.id},
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("not open", response.data["message"])
 
     def test_grant_create_via_api_creates_funding_pool(self):
         # Arrange

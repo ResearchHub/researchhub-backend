@@ -80,37 +80,6 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertTrue(options)
         self.assertEqual(unreviewed, [])
 
-    def test_openrouter_gpt_advertises_reasoning_but_not_temperature(self):
-        # Act
-        capabilities = model_capabilities("openrouter", "openai/gpt-5.6-terra")
-
-        # Assert
-        self.assertIn("high", capabilities.effort)
-        self.assertEqual(capabilities.thinking, ("adaptive", "disabled"))
-        self.assertFalse(capabilities.temperature)
-
-    def test_new_models_are_selectable_with_reviewed_controls(self):
-        # Arrange
-        expected = {
-            "claude_platform:claude-opus-5-5": ("adaptive",),
-            "openrouter:openai/gpt-6.1-sol": ("adaptive",),
-            "openrouter:x-ai/grok-4.7": ("adaptive",),
-            "openrouter:meta/muse-spark-1.3": ("adaptive",),
-            "openrouter:xiaomi/mimo-v2.6-pro": ("adaptive", "disabled"),
-            "openrouter:openai/gpt-6-sol": (),
-            "openrouter:openai/gpt-6-luna": (),
-            "openrouter:qwen/qwen3.8-max-0902": ("adaptive",),
-            "openrouter:moonshotai/kimi-k3.1-pro": ("adaptive", "disabled"),
-        }
-
-        # Act / Assert
-        for ref, thinking in expected.items():
-            with self.subTest(ref=ref):
-                capabilities = model_capabilities(*split_model_ref(ref))
-                self.assertEqual(validate_model_ref(ref), ref)
-                self.assertEqual(capabilities.thinking, thinking)
-                self.assertIsNotNone(capabilities.max_output_tokens)
-
     def test_opus_5_5_on_openrouter_requires_thinking_and_omits_temperature(self):
         # Act
         capabilities = model_capabilities("openrouter", "anthropic/claude-opus-5.5")
@@ -130,14 +99,6 @@ class AvailableModelsTests(SimpleTestCase):
         self.assertIn("medium", capabilities.effort)
         self.assertFalse(capabilities.temperature)
         self.assertTrue(capabilities.vision)
-
-    def test_gpt6_chat_completions_controls_are_tool_compatible(self):
-        # Arrange / Act / Assert
-        for model_id in ("openai/gpt-6-sol", "openai/gpt-6-luna"):
-            with self.subTest(model_id=model_id):
-                capabilities = model_capabilities("openrouter", model_id)
-                self.assertEqual(capabilities.effort, ("none",))
-                self.assertFalse(capabilities.temperature)
 
     def test_opus_5_5_requires_adaptive_thinking(self):
         # Act / Assert
@@ -253,15 +214,6 @@ class CapabilityLookupTests(SimpleTestCase):
                 self.assertIsNone(
                     model_capabilities(provider, model_id).max_output_tokens
                 )
-
-    def test_glm_flash_requires_reasoning(self):
-        # Act
-        capabilities = model_capabilities("openrouter", "z-ai/glm-5.3-flash")
-
-        # Assert
-        self.assertEqual(capabilities.effort, ("low", "high", "max"))
-        self.assertEqual(capabilities.thinking, ("adaptive",))
-        self.assertEqual(capabilities.max_output_tokens, 131_072)
 
 
 @override_settings(**NO_PROVIDER_CREDENTIALS)

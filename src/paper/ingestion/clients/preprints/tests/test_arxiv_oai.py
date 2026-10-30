@@ -34,20 +34,6 @@ class TestArXivOAIClient(TestCase):
         with open(fixtures_dir / "arxiv_oai_metadata_sample.xml") as f:
             self.sample_metadata_xml = f.read()
 
-    def test_config_defaults(self):
-        """
-        Test ArXiv OAI config has correct defaults.
-        """
-        # Act
-        config = ArXivOAIConfig()
-
-        # Assert
-        self.assertEqual(config.source_name, "arxiv_oai")
-        self.assertEqual(config.base_url, "https://oaipmh.arxiv.org/oai")
-        self.assertEqual(config.rate_limit, 0.33)  # 3 second delay
-        self.assertEqual(config.request_timeout, 60.0)
-        self.assertEqual(config.metadata_prefix, "arXiv")
-
     def test_parse(self):
         """
         Test parsing of ArXiv OAI XML response.

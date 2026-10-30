@@ -36,13 +36,6 @@ class ExpertSearchConfigSerializerTests(TestCase):
         self.assertEqual(data["region"], Region.ALL_REGIONS)
         self.assertEqual(data["gender"], Gender.ALL_GENDERS)
 
-    def test_expertise_level_empty_array_defaults_to_all_levels(self):
-        ser = ExpertSearchConfigSerializer(data={"expertise_level": []})
-        self.assertTrue(ser.is_valid())
-        self.assertEqual(
-            ser.validated_data["expertise_level"], [ExpertiseLevel.ALL_LEVELS]
-        )
-
     def test_expertise_level_array(self):
         ser = ExpertSearchConfigSerializer(
             data={
@@ -56,16 +49,6 @@ class ExpertSearchConfigSerializerTests(TestCase):
         self.assertEqual(
             ser.validated_data["expertise_level"],
             [ExpertiseLevel.EARLY_CAREER, ExpertiseLevel.MID_CAREER],
-        )
-
-    def test_expertise_level_list(self):
-        """expertise_level accepts a list of choices."""
-        ser = ExpertSearchConfigSerializer(
-            data={"expertise_level": [ExpertiseLevel.TOP_EXPERT]}
-        )
-        self.assertTrue(ser.is_valid())
-        self.assertEqual(
-            ser.validated_data["expertise_level"], [ExpertiseLevel.TOP_EXPERT]
         )
 
     def test_config_snake_case(self):

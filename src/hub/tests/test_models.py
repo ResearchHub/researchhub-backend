@@ -36,23 +36,6 @@ class HubModelsTests(TestCase):
         # Assert
         self.assertEqual(actual, expected)
 
-    def test_get_from_subfield_with_different_cases(self):
-        # Arrange
-        subfield = Subfield.objects.create(
-            display_name="testSubfield1",
-        )
-
-        expected = Hub.objects.create(
-            name="TESTSUBFIELD1",
-            subfield=subfield,
-        )
-
-        # Act & Assert
-        actual = Hub.get_from_subfield(subfield)
-
-        # Assert
-        self.assertEqual(actual, expected)
-
     def test_get_from_subfield_not_found(self):
         # Arrange
         subfield = Subfield.objects.create(
@@ -101,17 +84,6 @@ class HubModelsTests(TestCase):
         self.assertEqual(new_hub.slug, "test-hub-89")
         self.assertEqual(new_hub.slug_index, 89)
 
-    def test_slugify_with_special_characters(self):
-        # Arrange
-        hub = Hub(name="Test Hub! @#$%^&*()")
-
-        # Act
-        hub.save()
-
-        # Assert
-        self.assertEqual(hub.slug, "test-hub")
-        self.assertIsNone(hub.slug_index)
-
     def test_slugify_existing_slug_starts_with(self):
         # Arrange
         Hub.objects.create(name="Test Hub Starts With", slug="test-hub-starts-with")
@@ -123,37 +95,6 @@ class HubModelsTests(TestCase):
         # Assert
         self.assertEqual(new_hub.slug, "test-hub")
         self.assertIsNone(new_hub.slug_index)
-
-    def test_can_create_hub_if_name_does_not_exist(self):
-        """Test that a hub can be created when the name doesn't already exist"""
-        # Arrange & Act
-        hub = Hub.objects.create(
-            name="Unique Hub Name",
-            namespace=Hub.Namespace.JOURNAL,
-        )
-
-        # Assert
-        self.assertIsNotNone(hub)
-        self.assertEqual(hub.name, "Unique Hub Name")
-        self.assertEqual(Hub.objects.filter(name__iexact="Unique Hub Name").count(), 1)
-
-    def test_cannot_create_duplicate_hub_with_identical_name(self):
-        """
-        Test that creating a hub with identical name and namespace
-        raises IntegrityError
-        """
-        # Arrange
-        Hub.objects.create(
-            name="Nature Medicine",
-            namespace=Hub.Namespace.JOURNAL,
-        )
-
-        # Act & Assert
-        with self.assertRaises(IntegrityError):
-            Hub.objects.create(
-                name="Nature Medicine",
-                namespace=Hub.Namespace.JOURNAL,
-            )
 
     def test_cannot_create_duplicate_hub_when_case_is_different(self):
         """

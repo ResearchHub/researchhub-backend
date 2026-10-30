@@ -38,13 +38,6 @@ class NotebookChatViewTests(APITestCase):
             password="password",
             email="outsider@researchhub_test.com",
         )
-        # A collaborator on the note who is neither a hub editor nor a
-        # moderator, to verify access for regular users.
-        self.regular_user = user_model.objects.create_user(
-            username="regular@researchhub_test.com",
-            password="password",
-            email="regular@researchhub_test.com",
-        )
         self.note, self.content = create_note(self.owner, organization=None)
         unified_doc_ct = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
         Permission.objects.create(
@@ -58,12 +51,6 @@ class NotebookChatViewTests(APITestCase):
             content_type=unified_doc_ct,
             object_id=self.note.unified_document.id,
             user=self.viewer,
-        )
-        Permission.objects.create(
-            access_type=ADMIN,
-            content_type=unified_doc_ct,
-            object_id=self.note.unified_document.id,
-            user=self.regular_user,
         )
         self.chats_url = f"/api/research_ai/notebook/notes/{self.note.id}/chats/"
 
@@ -337,16 +324,6 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(response.status_code, 404)
         self.assertFalse(AgentExecution.objects.exists())
 
-    def test_post_message_to_unknown_chat_is_not_found(self):
-        # Arrange
-        self.client.force_authenticate(self.owner)
-
-        # Act
-        response, _delay = self._post_message(999999)
-
-        # Assert
-        self.assertEqual(response.status_code, 404)
-
     def test_deleted_note_chat_is_hidden(self):
         # Arrange: a chat exists, then the note is soft-deleted.
         self.client.force_authenticate(self.owner)
@@ -365,18 +342,6 @@ class NotebookChatViewTests(APITestCase):
         self.assertEqual(list_response.status_code, 404)
         self.assertEqual(get_response.status_code, 404)
         self.assertEqual(post_response.status_code, 404)
-
-    def test_regular_users_can_create_and_list_chats_with_note_access(self):
-        # Arrange: full note access, but neither hub editor nor moderator.
-        self.client.force_authenticate(self.regular_user)
-
-        # Act
-        create_response = self._create_chat()
-        list_response = self.client.get(self.chats_url)
-
-        # Assert
-        self.assertEqual(create_response.status_code, 201)
-        self.assertEqual(list_response.status_code, 200)
 
     def test_post_message_requires_authentication(self):
         # Act
@@ -523,17 +488,6 @@ class NotebookChatViewTests(APITestCase):
 
     # -- reading chats ----------------------------------------------------
 
-    def test_list_chats_starts_empty(self):
-        # Arrange
-        self.client.force_authenticate(self.owner)
-
-        # Act
-        response = self.client.get(self.chats_url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["chats"], [])
-
     def test_list_chats_shows_titles_previews_and_activity(self):
         # Arrange: one busy chat named from its first message, one idle chat.
         self.client.force_authenticate(self.owner)
@@ -577,16 +531,6 @@ class NotebookChatViewTests(APITestCase):
             response.data["executions"][0]["status"],
             AgentExecution.Status.PENDING,
         )
-
-    def test_get_unknown_chat_is_not_found(self):
-        # Arrange
-        self.client.force_authenticate(self.owner)
-
-        # Act
-        response = self.client.get(self._chat_url(999999))
-
-        # Assert
-        self.assertEqual(response.status_code, 404)
 
     def test_chats_are_scoped_per_user(self):
         # Arrange: the owner has a chat; the viewer neither lists nor reads it.

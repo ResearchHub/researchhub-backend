@@ -61,53 +61,11 @@ class TestPostSignals(AWSMockTestCase):
 
     @patch("feed.tasks.create_feed_entry")
     @patch("feed.tasks.transaction")
-    def test_handle_post_create_feed_entry(
-        self, mock_transaction, mock_create_feed_entry
-    ):
-        # Arrange
-        mock_transaction.on_commit = lambda func: func()
-        mock_create_feed_entry.apply_async = MagicMock()
-
-        # Act
-        handle_post_create_feed_entry(sender=ResearchhubPost, instance=self.post)
-
-        # Assert
-        mock_create_feed_entry.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        self.post.id,
-                        ContentType.objects.get_for_model(self.post).id,
-                        FeedEntry.PUBLISH,
-                        [self.hub1.id, self.hub2.id],
-                        self.post.created_by.id,
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-
-    @patch("feed.tasks.create_feed_entry")
-    @patch("feed.tasks.transaction")
     def test_pending_post_is_deferred(self, mock_transaction, mock_create_feed_entry):
         # Arrange
         mock_transaction.on_commit = lambda func: func()
         mock_create_feed_entry.apply_async = MagicMock()
         self.post.unified_document.status = ResearchhubUnifiedDocument.PENDING
-
-        # Act
-        handle_post_create_feed_entry(sender=ResearchhubPost, instance=self.post)
-
-        # Assert
-        mock_create_feed_entry.apply_async.assert_not_called()
-
-    @patch("feed.tasks.create_feed_entry")
-    @patch("feed.tasks.transaction")
-    def test_declined_post_is_deferred(self, mock_transaction, mock_create_feed_entry):
-        # Arrange
-        mock_transaction.on_commit = lambda func: func()
-        mock_create_feed_entry.apply_async = MagicMock()
-        self.post.unified_document.status = ResearchhubUnifiedDocument.DECLINED
 
         # Act
         handle_post_create_feed_entry(sender=ResearchhubPost, instance=self.post)

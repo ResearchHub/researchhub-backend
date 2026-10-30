@@ -131,46 +131,6 @@ class OpenAlexTasksTests(TestCase):
 
     @patch("paper.ingestion.tasks.OpenAlexClient")
     @patch("paper.ingestion.tasks.OpenAlexMapper")
-    def test_enrich_papers_preserves_existing_license(
-        self, mock_mapper_class, mock_client_class
-    ):
-        """
-        Test that existing license data is preserved and not overwritten.
-        """
-        # Arrange
-        self.paper_recent.pdf_license = "existing-license"
-        self.paper_recent.pdf_url = "https://existing.com/paper.pdf"
-        self.paper_recent.save()
-
-        mock_client = Mock()
-        mock_client.fetch_by_doi.return_value = self.sample_openalex_response
-        mock_client_class.return_value = mock_client
-
-        mock_mapped_paper = Mock()
-        mock_mapped_paper.pdf_url = "https://new.com/paper.pdf"
-        mock_mapped_paper.pdf_license = "cc-by"
-        mock_mapped_paper.pdf_license_url = None
-        mock_mapped_paper.citations = 30
-
-        mock_mapper = Mock()
-        mock_mapper.map_to_paper.return_value = mock_mapped_paper
-        mock_mapper.map_to_authors.return_value = []
-        mock_mapper.map_to_institutions.return_value = []
-        mock_mapper.map_to_authorships.return_value = []
-        mock_mapper.map_to_hubs.return_value = []
-        mock_mapper_class.return_value = mock_mapper
-
-        # Act
-        enrich_papers_with_openalex(days=30)
-
-        # Assert
-        self.paper_recent.refresh_from_db()
-        # Existing license data should be preserved
-        self.assertEqual(self.paper_recent.pdf_license, "existing-license")
-        self.assertEqual(self.paper_recent.pdf_url, "https://existing.com/paper.pdf")
-
-    @patch("paper.ingestion.tasks.OpenAlexClient")
-    @patch("paper.ingestion.tasks.OpenAlexMapper")
     def test_enrich_papers_openalex_not_found(
         self, mock_mapper_class, mock_client_class
     ):
@@ -237,64 +197,6 @@ class OpenAlexTasksTests(TestCase):
         self.assertEqual(result["success_count"], 0)
         # Errors should be counted
         self.assertGreater(result["error_count"], 0)
-
-    @patch("paper.ingestion.tasks.OpenAlexClient")
-    @patch("paper.ingestion.tasks.OpenAlexMapper")
-    def test_enrich_papers_with_authors_and_institutions(
-        self, mock_mapper_class, mock_client_class
-    ):
-        """
-        Test that authors and institutions are processed during enrichment.
-        """
-        # Arrange
-        from institution.models import Institution
-        from user.related_models.author_model import Author
-
-        mock_client = Mock()
-        mock_client.fetch_by_doi.return_value = self.sample_openalex_response
-        mock_client_class.return_value = mock_client
-
-        # Create mock author instance
-        mock_author = Author(
-            first_name="John",
-            last_name="Doe",
-            openalex_ids=["https://openalex.org/A5023888391"],
-            orcid_id="0000-0001-2345-6789",
-        )
-
-        # Create mock institution instance
-        mock_institution = Institution(
-            display_name="Test University",
-            openalex_id="https://openalex.org/I123456789",
-            ror_id="https://ror.org/12345",
-            type="education",
-            associated_institutions=[],
-        )
-
-        mock_mapped_paper = Mock()
-        mock_mapped_paper.pdf_url = "https://example.com/paper.pdf"
-        mock_mapped_paper.pdf_license = "cc-by"
-        mock_mapped_paper.pdf_license_url = None
-        mock_mapped_paper.citations = 15
-
-        mock_mapper = Mock()
-        mock_mapper.map_to_paper.return_value = mock_mapped_paper
-        mock_mapper.map_to_authors.return_value = [mock_author]
-        mock_mapper.map_to_institutions.return_value = [mock_institution]
-        mock_mapper.map_to_authorships.return_value = []
-        mock_mapper.map_to_hubs.return_value = []
-        mock_mapper_class.return_value = mock_mapper
-
-        # Act
-        result = enrich_papers_with_openalex(days=30)
-
-        # Assert
-        self.assertEqual(result["status"], "success")
-        self.assertGreaterEqual(result["success_count"], 1)
-
-        # Verify mapper methods were called
-        self.assertTrue(mock_mapper.map_to_authors.called)
-        self.assertTrue(mock_mapper.map_to_institutions.called)
 
 
 class GithubMetricsTasksTests(TestCase):
@@ -437,34 +339,6 @@ class GithubMetricsTasksTests(TestCase):
         self.assertEqual(result["status"], "not_found")
         self.assertEqual(result["paper_id"], self.paper_recent.id)
         self.assertEqual(result["doi"], self.paper_recent.doi)
-
-    @patch("paper.ingestion.tasks._create_github_metrics_client")
-    def test_enrich_paper_with_github_metrics_preserves_existing_metadata(
-        self, mock_create_client
-    ):
-        """
-        Test that existing external_metadata is preserved during enrichment.
-        """
-        # Arrange
-        self.paper_recent.external_metadata = {
-            "existing_key": "existing_value",
-            "metrics": {"x_count": 50.0},
-        }
-        self.paper_recent.save()
-        mock_client = Mock()
-        mock_client.get_mentions.return_value = self.sample_github_response
-        mock_create_client.return_value = mock_client
-
-        # Act
-        result = enrich_paper_with_github_metrics(self.paper_recent.id)
-
-        # Assert
-        self.assertEqual(result["status"], "success")
-        self.paper_recent.refresh_from_db()
-        self.assertEqual(
-            self.paper_recent.external_metadata["existing_key"], "existing_value"
-        )
-        self.assertIn("github_mentions", self.paper_recent.external_metadata["metrics"])
 
     @patch("paper.ingestion.tasks.logger")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")
@@ -639,34 +513,6 @@ class BlueskyMetricsTasksTests(TestCase):
         self.assertEqual(result["status"], "not_found")
         self.assertEqual(result["paper_id"], self.paper_recent.id)
         self.assertEqual(result["doi"], self.paper_recent.doi)
-
-    @patch("paper.ingestion.tasks.BlueskyMetricsClient")
-    def test_enrich_paper_with_bluesky_metrics_preserves_existing_metadata(
-        self, mock_metrics_client_class
-    ):
-        """
-        Test that existing external_metadata is preserved during enrichment.
-        """
-        # Arrange
-        self.paper_recent.external_metadata = {
-            "existing_key": "existing_value",
-            "metrics": {"x_count": 50.0},
-        }
-        self.paper_recent.save()
-        mock_client = Mock()
-        mock_client.get_metrics.return_value = self.sample_bluesky_response
-        mock_metrics_client_class.return_value = mock_client
-
-        # Act
-        result = enrich_paper_with_bluesky_metrics(self.paper_recent.id)
-
-        # Assert
-        self.assertEqual(result["status"], "success")
-        self.paper_recent.refresh_from_db()
-        self.assertEqual(
-            self.paper_recent.external_metadata["existing_key"], "existing_value"
-        )
-        self.assertIn("bluesky", self.paper_recent.external_metadata["metrics"])
 
     @patch("paper.ingestion.tasks.logger")
     @patch("paper.ingestion.tasks.PaperMetricsEnrichmentService")

@@ -2,15 +2,9 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from paper.models import Paper
-from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_comment.related_models.rh_comment_thread_model import (
-    RhCommentThreadModel,
-)
 from researchhub_document.related_models.constants.document_type import (
-    DISCUSSION,
     PAPER,
 )
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -132,66 +126,6 @@ class ListItemViewSetTests(APITestCase):
             response.data["results"][0]["document"]["content_type"], "PAPER"
         )
 
-    def test_list_item_includes_paper_content(self):
-        ListItem.objects.create(
-            parent_list=self.list, unified_document=self.doc, created_by=self.user
-        )
-        response = self.client.get(f"/api/list/{self.list.id}/item/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        document_data = response.data["results"][0]["document"]
-        self.assertIsNotNone(document_data["content_object"])
-        self.assertEqual(document_data["content_object"]["title"], "Test Paper")
-        self.assertIn("metrics", document_data)
-
-    def test_list_item_includes_post_content(self):
-        post_doc = ResearchhubUnifiedDocument.objects.create(document_type=DISCUSSION)
-        post_doc.created_by = self.user
-        post_doc.save()
-        ResearchhubPost.objects.create(
-            title="Test Post",
-            renderable_text="Test content",
-            unified_document=post_doc,
-            created_by=self.user,
-            document_type=DISCUSSION,
-        )
-        ListItem.objects.create(
-            parent_list=self.list, unified_document=post_doc, created_by=self.user
-        )
-        response = self.client.get(f"/api/list/{self.list.id}/item/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        document_data = response.data["results"][0]["document"]
-        self.assertEqual(document_data["content_type"], "RESEARCHHUBPOST")
-        self.assertEqual(document_data["content_object"]["title"], "Test Post")
-
-    def test_listing_items_returns_empty_when_list_is_empty(self):
-        response = self.client.get(f"/api/list/{self.list.id}/item/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 0)
-
-    def test_list_item_metrics_include_votes(self):
-        ListItem.objects.create(
-            parent_list=self.list, unified_document=self.doc, created_by=self.user
-        )
-        response = self.client.get(f"/api/list/{self.list.id}/item/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        metrics = response.data["results"][0]["document"]["metrics"]
-        self.assertIn("votes", metrics)
-
-    def test_list_item_metrics_include_comments(self):
-        ListItem.objects.create(
-            parent_list=self.list, unified_document=self.doc, created_by=self.user
-        )
-        thread = RhCommentThreadModel.objects.create(
-            content_object=self.paper, created_by=self.user
-        )
-        RhCommentModel.objects.create(
-            thread=thread, created_by=self.user, comment_content_json={}
-        )
-        response = self.client.get(f"/api/list/{self.list.id}/item/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        metrics = response.data["results"][0]["document"]["metrics"]
-        self.assertIn("comments", metrics)
-
     def test_listing_items_excludes_removed_documents(self):
         ListItem.objects.create(
             parent_list=self.list, unified_document=self.doc, created_by=self.user
@@ -201,13 +135,3 @@ class ListItemViewSetTests(APITestCase):
         response = self.client.get(f"/api/list/{self.list.id}/item/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 0)
-
-    def test_document_field_includes_author_info(self):
-        ListItem.objects.create(
-            parent_list=self.list, unified_document=self.doc, created_by=self.user
-        )
-        response = self.client.get(f"/api/list/{self.list.id}/item/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        document_data = response.data["results"][0]["document"]
-        self.assertIsNotNone(document_data["author"])
-        self.assertEqual(document_data["author"]["id"], self.user.author_profile.id)

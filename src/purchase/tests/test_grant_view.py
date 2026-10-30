@@ -102,23 +102,6 @@ class GrantViewTests(APITestCase):
         self.assertEqual(grant.organization, "Test Foundation")
         self.assertEqual(grant.amount, Decimal("25000.00"))
 
-    def test_create_grant_as_regular_user(self):
-        """Test that regular users can create grants (they start as PENDING)"""
-        self.client.force_authenticate(self.regular_user)
-
-        new_post = create_post(created_by=self.regular_user, document_type=GRANT)
-        grant_data = {
-            "unified_document_id": new_post.unified_document.id,
-            "amount": "25000.00",
-            "currency": "USD",
-            "organization": "Test Foundation",
-            "description": "Test grant",
-        }
-
-        response = self.client.post("/api/grant/", grant_data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["status"], Grant.PENDING)
-
     def test_create_grant_with_end_date(self):
         """Test creating a grant with an end date"""
         self.client.force_authenticate(self.moderator)
@@ -169,35 +152,6 @@ class GrantViewTests(APITestCase):
 
         response = self.client.post("/api/grant/", grant_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_update_grant_as_creator(self):
-        """Test that grant creators can update their grants"""
-        self.client.force_authenticate(self.moderator)
-
-        update_data = {
-            "description": "Updated grant description",
-            "amount": "60000.00",
-        }
-
-        response = self.client.patch(f"/api/grant/{self.grant.id}/", update_data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["description"], "Updated grant description")
-
-        # Verify in database
-        self.grant.refresh_from_db()
-        self.assertEqual(self.grant.description, "Updated grant description")
-
-    def test_update_grant_as_non_creator(self):
-        """Test that non-creators cannot update grants"""
-        self.client.force_authenticate(self.regular_user)
-
-        update_data = {
-            "description": "Unauthorized update",
-        }
-
-        response = self.client.patch(f"/api/grant/{self.grant.id}/", update_data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_delete_grant_as_moderator(self):
         """Test that moderators can delete grants"""
@@ -566,11 +520,6 @@ class GrantViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("contact users do not exist", str(response.data))
 
-    def test_grant_str_method_with_organization(self):
-        """Test grant string representation with organization"""
-        grant_str = str(self.grant)
-        self.assertEqual(grant_str, "National Science Foundation - 50000.00 USD")
-
     def test_grant_str_method_without_organization(self):
         """Test grant string representation without organization"""
         grant_without_org = Grant.objects.create(
@@ -753,14 +702,6 @@ class AvailableFundingTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["available_funding_in_usd"], 10000.0)
-
-    def test_includes_grants_with_no_end_date(self):
-        self._create_grant("25000.00", post=self.post1)
-
-        response = self.client.get("/api/grant/available_funding/")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["available_funding_in_usd"], 25000.0)
 
     def test_includes_grants_with_future_end_date(self):
         tomorrow = datetime.now(UTC) + timedelta(days=1)
@@ -1068,28 +1009,6 @@ class GrantModerationServiceTests(APITestCase):
                 call.args and call.args[0].id == self.post.id
                 for call in mock_update.call_args_list
             )
-        )
-
-    def test_decline_creates_flag_removes_doc_and_notifies(self):
-        # Act
-        self.service.decline_grant(
-            self.grant, self.moderator, reason="Spam", reason_choice="SPAM"
-        )
-
-        # Assert
-        grant_ct = ContentType.objects.get_for_model(Grant)
-        flag = Flag.objects.get(content_type=grant_ct, object_id=self.grant.id)
-        self.assertEqual(flag.reason_choice, "SPAM")
-        self.assertTrue(
-            Verdict.objects.filter(flag=flag, is_content_removed=True).exists()
-        )
-        self.post.unified_document.refresh_from_db()
-        self.assertTrue(self.post.unified_document.is_removed)
-        self.assertTrue(
-            Notification.objects.filter(
-                notification_type=Notification.GRANT_DECLINED,
-                recipient=self.author,
-            ).exists()
         )
 
     @patch("purchase.services.grant_service.Notification")

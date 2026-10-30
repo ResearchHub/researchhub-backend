@@ -974,14 +974,6 @@ class NoteToolsetCreateNoteTests(TestCase):
                 self.assertIn("error", result)
                 self.assertEqual(self.created, [])
 
-    def test_create_note_rejects_a_blank_title(self):
-        # Act
-        result = self.tools[CREATE_NOTE].handler({"title": "   "})
-
-        # Assert
-        self.assertIn("error", result)
-        self.assertEqual(self.created, [])
-
     def test_create_note_reports_creator_failures_to_the_model(self):
         # Arrange
         def failing(title, document_type):

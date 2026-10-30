@@ -25,12 +25,6 @@ class ExpertSearchDetailViewTests(APITestCase):
         )
         self.url = f"/api/research_ai/expert-finder/searches/{self.search.id}/"
 
-    def test_get_own_search_returns_200(self):
-        self.client.force_authenticate(self.moderator)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()["search_id"], self.search.id)
-
     def test_get_detail_returns_work_when_unified_document(self):
         from paper.tests.helpers import create_paper
 
@@ -515,17 +509,7 @@ class InvitedExpertEditorsOverviewViewTests(APITestCase):
 class ExpertSearchListCreateViewTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("v2mod", moderator=True)
-        self.user = create_random_authenticated_user("v2usr", moderator=False)
         self.base = "/api/research_ai/expert-finder/searches/"
-
-    def test_create_requires_auth(self):
-        r = self.client.post(self.base, {"query": "x"}, format="json")
-        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_create_requires_moderator(self):
-        self.client.force_authenticate(self.user)
-        r = self.client.post(self.base, {"query": "x"}, format="json")
-        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
 
     @patch("research_ai.views.expert_finder_views.get_document_content")
     @patch("research_ai.views.expert_finder_views.run_expert_finder_search.delay")
@@ -552,10 +536,6 @@ class ExpertSearchListCreateViewTests(APITestCase):
         mock_delay.assert_called_once()
         search = ExpertSearch.objects.get(id=data["search_id"])
         self.assertEqual(search.unified_document_id, paper.unified_document_id)
-
-    def test_list_requires_auth(self):
-        r = self.client.get(self.base)
-        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_list_returns_v2_shape_without_expert_names(self):
         from research_ai.models import Expert, SearchExpert

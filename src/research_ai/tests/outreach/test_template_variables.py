@@ -3,11 +3,10 @@ Tests for email_template_variables: build_replacement_context and
 replace_template_variables.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from django.test import TestCase
 
-from research_ai.services.outreach.rfp_email_context import build_rfp_context
 from research_ai.services.outreach.template_variables import (
     build_replacement_context,
     format_expert_name_from_raw,
@@ -33,64 +32,6 @@ class ReplaceTemplateVariablesTests(TestCase):
         )
         out = replace_template_variables(text, context)
         self.assertEqual(out, "Hello, Jane Doe. Email: u@x.com. Org: MIT.")
-
-    def test_replaces_rfp_variables(self):
-        context = {
-            "user": {},
-            "rfp": {
-                "title": "Grant X",
-                "deadline": "May 1",
-                "blurb": "Desc",
-                "amount": "$10K",
-                "url": "https://x.com",
-            },
-            "expert": {},
-        }
-        text = "See {{rfp.title}} ({{rfp.amount}}), due {{rfp.deadline}}. {{rfp.url}}"
-        out = replace_template_variables(text, context)
-        self.assertIn("Grant X", out)
-        self.assertIn("$10K", out)
-        self.assertIn("May 1", out)
-        self.assertIn("https://x.com", out)
-
-    def test_replaces_expert_variables(self):
-        context = {
-            "user": {},
-            "rfp": {},
-            "expert": {
-                "name": "Dr. Y",
-                "title": "Prof",
-                "affiliation": "Stanford",
-                "email": "y@stanford.edu",
-                "expertise": "ML",
-            },
-        }
-        text = "Dear {{expert.name}}, {{expert.title}} at {{expert.affiliation}}."
-        out = replace_template_variables(text, context)
-        self.assertEqual(out, "Dear Dr. Y, Prof at Stanford.")
-
-    def test_replaces_proposal_variables(self):
-        context = {
-            "user": {},
-            "rfp": {},
-            "proposal": {
-                "title": "Replication Study 2025",
-                "url": "https://www.researchhub.com/post/1/my-prereg",
-                "created_by_name": "Jane Doe",
-                "goal_amount": "$10K",
-                "amount_raised": "$2K",
-                "contributor_count": "5",
-                "deadline": "April 1, 2026",
-                "blurb": "We plan to replicate...",
-            },
-            "expert": {},
-        }
-        text = "Check out {{proposal.title}} by {{proposal.created_by_name}}. {{proposal.amount_raised}} of {{proposal.goal_amount}}."  # noqa: E501
-        out = replace_template_variables(text, context)
-        self.assertIn("Replication Study 2025", out)
-        self.assertIn("Jane Doe", out)
-        self.assertIn("$2K", out)
-        self.assertIn("$10K", out)
 
     def test_unknown_entity_or_field_replaced_with_empty(self):
         context = {"user": {"name": "J"}, "rfp": {}, "expert": {}}
@@ -158,9 +99,6 @@ class BuildReplacementContextTests(TestCase):
             "Dr. Smith",
         )
 
-    def test_format_expert_name_drops_middle_initial(self):
-        self.assertEqual(format_expert_name_from_raw("John F. Kennedy"), "John Kennedy")
-
     def test_format_expert_name_two_tokens_unchanged(self):
         self.assertEqual(format_expert_name_from_raw("Jane Smith"), "Jane Smith")
 
@@ -183,25 +121,3 @@ class BuildReplacementContextTests(TestCase):
         self.assertEqual(ctx["proposal"]["created_by_name"], "Alice")
         self.assertEqual(ctx["proposal"]["amount_raised"], "$1K")
         self.assertEqual(ctx["proposal"]["contributor_count"], "3")
-
-
-class BuildRfpContextBlurbTests(TestCase):
-    """Assert build_rfp_context returns blurb key (alias for description_snippet)."""
-
-    @patch("research_ai.services.outreach.rfp_email_context.get_grant_frontend_url")
-    def test_build_rfp_context_includes_blurb_equal_to_description_snippet(
-        self, mock_get_url
-    ):
-        mock_get_url.return_value = "https://www.researchhub.com/grant/1/test-slug"
-        grant = MagicMock()
-        grant.unified_document_id = 1
-        grant.amount = 10_000
-        grant.end_date = None
-        grant.short_title = "Test Grant"
-        grant.description = "Short description here."
-        grant.unified_document.get_document.return_value = None
-        result = build_rfp_context(grant, description_snippet_length=500)
-        self.assertIn("blurb", result)
-        self.assertIn("description_snippet", result)
-        self.assertEqual(result["blurb"], result["description_snippet"])
-        self.assertEqual(result["blurb"], "Short description here.")

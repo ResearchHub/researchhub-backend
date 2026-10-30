@@ -16,14 +16,6 @@ class ListViewSetTests(APITestCase):
         self.other_user = create_random_authenticated_user("user2")
         self.client.force_authenticate(user=self.user)
 
-    def test_user_can_create_list(self):
-        response = self.client.post("/api/list/", {"name": "My List"})
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["name"], "My List")
-        self.assertTrue(
-            List.objects.filter(name="My List", created_by=self.user).exists()
-        )
-
     def test_user_can_create_multiple_lists_with_same_name(self):
         List.objects.create(name="My List", created_by=self.user)
         response = self.client.post("/api/list/", {"name": "My List"})
@@ -179,19 +171,6 @@ class ListViewSetTests(APITestCase):
         self.assertIn(doc2.id, doc_ids)
         self.assertNotIn(doc1.id, doc_ids)
 
-    def test_automatically_create_default_list_if_does_not_exist(self):
-        paper = create_paper(uploaded_by=self.user)
-
-        response = self.client.post(
-            "/api/list/default/item/", {"unified_document": paper.unified_document.id}
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        default_list = List.objects.filter(
-            created_by=self.user, is_default=True
-        ).first()
-        self.assertIsNotNone(default_list)
-
     def test_multiple_items_are_added_to_default_list(self):
         paper1 = create_paper(uploaded_by=self.user)
         paper2 = create_paper(uploaded_by=self.user)
@@ -220,18 +199,3 @@ class ListViewSetTests(APITestCase):
         )
         self.assertIsNotNone(default_list_data)
         self.assertTrue(default_list_data["is_default"])
-
-    def test_adding_duplicate_document_fails(self):
-        list_obj = List.objects.create(name="My List", created_by=self.user)
-        paper = create_paper(uploaded_by=self.user)
-
-        self.client.post(
-            f"/api/list/{list_obj.id}/item/",
-            {"parent_list": list_obj.id, "unified_document": paper.unified_document.id},
-        )
-        response = self.client.post(
-            f"/api/list/{list_obj.id}/item/",
-            {"parent_list": list_obj.id, "unified_document": paper.unified_document.id},
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

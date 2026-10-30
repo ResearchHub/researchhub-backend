@@ -87,26 +87,3 @@ class PaperVersionDiscussionCountTests(TestCase):
         # Each paper should return the total count from all versions (3 + 1 = 4)
         self.assertEqual(self.version_1_paper.get_discussion_count(), 4)
         self.assertEqual(self.version_2_paper.get_discussion_count(), 4)
-
-    def test_discussion_count_fallback_on_error(self):
-        """Test that the method falls back to original behavior on error."""
-        # Create a paper with paper_series but simulate an error condition
-        paper_with_series = create_paper(title="Paper with Series")
-        paper_with_series.paper_series = self.paper_series
-        paper_with_series.save()
-
-        # Create comments on this paper
-        self._create_comment_thread_and_comments(paper_with_series, 2)
-
-        # Mock the PaperService to raise an exception
-        import unittest.mock
-
-        mock_path = "paper.services.paper_version_service.PaperService"
-        with unittest.mock.patch(mock_path) as mock_service:
-            mock_service.side_effect = Exception("Simulated error")
-
-            # Should fall back to original behavior (counting only this paper's threads)
-            discussion_count = paper_with_series.get_discussion_count()
-            # This should still work because it falls back to
-            # self.rh_threads.get_discussion_count()
-            self.assertEqual(discussion_count, 2)

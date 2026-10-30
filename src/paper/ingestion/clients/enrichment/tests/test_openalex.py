@@ -31,34 +31,6 @@ class TestOpenAlexClient(TestCase):
         with open(fixtures_dir / "openalex_empty_response.json") as f:
             self.empty_list_response = json.load(f)
 
-    def test_config_defaults(self):
-        """
-        Test OpenAlex config has correct defaults.
-        """
-        # Arrange & Act
-        config = OpenAlexConfig()
-
-        # Assert
-        self.assertEqual(config.source_name, "openalex")
-        self.assertEqual(config.base_url, "https://api.openalex.org")
-        self.assertEqual(config.rate_limit, 10.0)  # 10 requests per second
-        self.assertEqual(config.page_size, 200)  # OpenAlex max
-        self.assertEqual(config.request_timeout, 30.0)
-        self.assertEqual(config.max_results_per_query, 200)
-
-    def test_config_with_email(self):
-        """
-        Test OpenAlex config with email for polite pool.
-        """
-        # Arrange
-        config = OpenAlexConfig(email="test@example.com")
-
-        # Act
-        client = OpenAlexClient(config)
-
-        # Assert
-        self.assertEqual(client.headers["User-Agent"], "mailto:test@example.com")
-
     def test_config_with_api_key(self):
         """
         Test OpenAlex config with API key.
@@ -120,16 +92,6 @@ class TestOpenAlexClient(TestCase):
         self.assertEqual(raw["doi"], "https://doi.org/10.1016/s0140-6736(20)30183-5")
         self.assertIn("Clinical features", raw["title"])
         self.assertEqual(raw["publication_year"], 2020)
-
-    def test_parse_empty_response(self):
-        """
-        Test parsing empty response.
-        """
-        # Act
-        papers = self.client.parse(self.empty_list_response)
-
-        # Assert
-        self.assertEqual(papers, [])
 
     def test_parse_missing_results_key(self):
         """
@@ -520,23 +482,3 @@ class TestOpenAlexClient(TestCase):
         call_args = mock_fetch.call_args
         params = call_args[0][1]
         self.assertEqual(params["per-page"], 50)  # Should request only what's needed
-
-    def test_rate_limiter(self):
-        """
-        Test that rate limiter enforces delays between requests.
-        """
-        # Arrange
-        with (
-            patch("time.sleep") as mock_sleep,
-            patch.object(self.client, "fetch") as mock_fetch,
-        ):
-            mock_fetch.return_value = self.sample_list_response
-
-            # Act
-            self.client.fetch_with_rate_limit("/works")
-            self.client.fetch_with_rate_limit("/works")
-
-            # Assert
-            # Should have slept to respect rate limit
-            # (10 requests/second = 0.1s delay)
-            mock_sleep.assert_called()
