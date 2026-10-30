@@ -10,3 +10,4 @@ class IngestionSource(Enum):
     CHEMRXIV = "chemrxiv"
     MEDRXIV = "medrxiv"
     OPENALEX = "openalex"
+    OSF = "osf"

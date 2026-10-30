@@ -40,14 +40,16 @@ from research_ai.services.agent.types import (
     ToolUseBlock,
     TurnUsage,
 )
+from research_ai.services.llm_models import OPENROUTER_AGENT
 
 logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-# Default generator model in OpenRouter's ``vendor/model`` slug format. Callers
-# that want a different route pass ``model_id`` or use a prefixed model ref.
-MODEL_ID = "anthropic/claude-opus-5.5"
+# Default generator model (see ``llm_models``), in OpenRouter's
+# ``vendor/model`` slug format. Callers that want a different route pass
+# ``model_id`` or use a prefixed model ref.
+MODEL_ID = OPENROUTER_AGENT.model_id
 
 # What ``max_tokens=None`` resolves to: a spend budget, not a model limit.
 # Deliberately below every routed model's ceiling because the completion is not
@@ -74,31 +76,9 @@ MAX_REQUEST_IMAGE_BYTES = 10 * 1024 * 1024
 # every result of the turn; a model may not see ids, so it gets the position too.
 _TOOL_IMAGES_NOTE = "[Images returned by tool result {position} above (id {id}).]\n"
 
-# Opus 4.7+, Fable, Kimi K3.1, and OpenAI reasoning models reject sampling
-# params (temperature/top_p) with a 400. OpenRouter forwards params to the
-# upstream provider verbatim, so omit them for those models.
-_NO_SAMPLING_PARAMS = (
-    "openai/gpt-5",
-    "openai/gpt-6",
-    "kimi-k3.1",
-    "opus-4-7",
-    "opus-4-8",
-    "opus-4.7",
-    "opus-4.8",
-    "opus-5",
-    "sonnet-5",
-    "fable",
-    "mythos",
-)
-
 # OpenAI supports function calling for these models via Chat Completions only
 # with reasoning effort set to none. This adapter uses Chat Completions.
 _GPT6_CHAT_TOOLS_MODELS = frozenset({"openai/gpt-6-sol", "openai/gpt-6-luna"})
-
-
-def _accepts_sampling_params(model_id: str) -> bool:
-    mid = model_id.lower()
-    return not any(tag in mid for tag in _NO_SAMPLING_PARAMS)
 
 
 # Statuses worth repeating unchanged: timeouts, races, rate limits, and every
@@ -251,7 +231,9 @@ class OpenRouterProvider(LLMProvider):
             "messages": self._render_messages(system_prompt, messages),
             "max_tokens": min(budget, capabilities.max_output_tokens),
         }
-        if _accepts_sampling_params(self.model_id):
+        # OpenRouter forwards params to the upstream provider verbatim, and
+        # models that reject sampling params 400 on ``temperature``.
+        if capabilities.temperature:
             kwargs["temperature"] = temperature
         if rendered_tools:
             if self.model_id in _GPT6_CHAT_TOOLS_MODELS and self.effort != "none":

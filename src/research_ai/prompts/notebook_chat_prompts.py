@@ -58,6 +58,8 @@ def build_notebook_chat_system_prompt(note) -> str:
     """The system prompt for a conversation attached to ``note``."""
     template = load_template("notebook_chat_system.txt")
     capability = _CAPABILITY_BY_DOCUMENT_TYPE.get(note.document_type, "")
+    if note.document_type == PREREGISTRATION:
+        capability += "\n\n" + load_template("proposal_writing.txt").strip()
     return template.replace("{{NOTE_ID}}", str(note.id)).replace(
         "{{DOCUMENT_TYPE_CAPABILITY}}", capability
     )

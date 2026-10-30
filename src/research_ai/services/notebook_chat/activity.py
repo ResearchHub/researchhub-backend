@@ -47,6 +47,7 @@ from research_ai.services.notebook_chat.code_execution import (
     CODE_EXECUTION_TOOLS,
     public_code_execution,
 )
+from research_ai.services.notebook_chat.cover_image_tools import CoverImageToolset
 from research_ai.services.notebook_chat.grant_tools import (
     GET_GRANT_DETAILS,
     READ_SELECTED_RFP,
@@ -87,6 +88,8 @@ _LABELS = {
     SET_SELECTED_RFP: "Selected an RFP",
     READ_RFP_DETAILS: "Read the RFP details",
     UPDATE_RFP_DETAILS: "Updated the RFP details",
+    CoverImageToolset.SET_COVER_LOGO: "Set the cover logo",
+    CoverImageToolset.GENERATE_COVER_IMAGE: "Generated a cover",
     SEARCH_WORKS: "Searched the literature",
     VERIFY_CITATIONS: "Checked citations",
     SEARCH_INSTITUTIONS: "Searched institutions",
@@ -117,6 +120,8 @@ _ACTIVE_LABELS = {
     SET_SELECTED_RFP: "Selecting an RFP",
     READ_RFP_DETAILS: "Reading the RFP details",
     UPDATE_RFP_DETAILS: "Updating the RFP details",
+    CoverImageToolset.SET_COVER_LOGO: "Setting the cover logo",
+    CoverImageToolset.GENERATE_COVER_IMAGE: "Generating a cover",
     SEARCH_WORKS: "Searching the literature",
     VERIFY_CITATIONS: "Checking citations",
     SEARCH_INSTITUTIONS: "Searching institutions",

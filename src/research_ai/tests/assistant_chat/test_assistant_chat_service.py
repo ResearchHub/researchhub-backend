@@ -93,6 +93,9 @@ class AssistantChatServiceTests(TestCase):
         self.assertEqual(execution.status, AgentExecution.Status.PENDING)
         self.assertNotIn("note_id", execution.configuration)
         self.assertIn("create_note", execution.system_prompt)
+        # Proposal writing rules: replicable methods, no caveats in the note.
+        self.assertIn("## Writing a proposal", execution.system_prompt)
+        self.assertNotIn("{{PROPOSAL_WRITING}}", execution.system_prompt)
         self.conversation.refresh_from_db()
         self.assertEqual(self.conversation.title, "Draft a proposal outline.")
         delay.assert_called_once_with(execution.id)

@@ -6,6 +6,7 @@ from hub.mappers.external_category_mapper import ExternalCategoryMapper
 from paper.ingestion.constants import IngestionSource
 from paper.ingestion.mappers.base import BaseMapper
 from paper.ingestion.mappers.enrichment.openalex import OpenAlexMapper
+from paper.ingestion.mappers.registrations.osf import OSFRegistrationMapper
 
 from .arxiv import ArXivMapper
 from .arxiv_oai import ArXivOAIMapper
@@ -40,4 +41,5 @@ class MapperFactory:
                 hub_mapper=self._hub_mapper,
             ),
             IngestionSource.OPENALEX: OpenAlexMapper(),
+            IngestionSource.OSF: OSFRegistrationMapper(),
         }

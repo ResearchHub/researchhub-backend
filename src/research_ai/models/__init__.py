@@ -7,6 +7,7 @@ from .agent import (
     NoteAgentConversation,
 )
 from .agent_file import AgentFile
+from .cover_image_generation import CoverImageGeneration, NoteCoverLogo
 from .email_template import EmailTemplate
 from .expert import Expert
 from .expert_search import ExpertSearch
@@ -24,12 +25,14 @@ __all__ = [
     "AgentExecutionMessage",
     "AgentFile",
     "AgentMessageScreening",
+    "CoverImageGeneration",
     "EmailTemplate",
     "Expert",
     "ExpertSearch",
     "GeneratedEmail",
     "LLMUsageEvent",
     "NoteAgentConversation",
+    "NoteCoverLogo",
     "ProposalDraft",
     "SearchExpert",
 ]

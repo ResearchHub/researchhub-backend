@@ -133,6 +133,7 @@ class NotebookChatServiceTests(TestCase):
         self.assertIn("get_user_profile", execution.system_prompt)
         self.assertNotIn("read_selected_rfp", execution.system_prompt)
         self.assertNotIn("update_rfp_details", execution.system_prompt)
+        self.assertNotIn("## Writing a proposal", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
@@ -148,6 +149,9 @@ class NotebookChatServiceTests(TestCase):
         # Assert
         self.assertIn("read_selected_rfp", execution.system_prompt)
         self.assertNotIn("update_rfp_details", execution.system_prompt)
+        # Proposal writing rules: replicable methods, no caveats in the note.
+        self.assertIn("## Writing a proposal", execution.system_prompt)
+        self.assertIn("an outside lab could run", execution.system_prompt)
 
     def test_submit_message_mentions_rfp_details_tools_for_an_rfp_note(self):
         # Arrange

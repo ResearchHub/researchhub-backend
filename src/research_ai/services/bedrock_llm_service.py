@@ -1,24 +1,16 @@
 import logging
 
-from django.conf import settings
-
 from research_ai.services.agent.model_capabilities import model_capabilities
+from research_ai.services.llm_models import RESEARCH_AI_BEDROCK
 from utils.aws import create_client
 
 logger = logging.getLogger(__name__)
-
-# Default model; can be overridden via settings
-BEDROCK_MODEL_ID = getattr(
-    settings,
-    "RESEARCH_AI_BEDROCK_MODEL_ID",
-    "us.anthropic.claude-haiku-5-5",
-)
 
 
 class BedrockLLMService:
     def __init__(self):
         self.bedrock_client = create_client("bedrock-runtime")
-        self.model_id = BEDROCK_MODEL_ID
+        self.model_id = RESEARCH_AI_BEDROCK.model_id
 
     def invoke(
         self,
