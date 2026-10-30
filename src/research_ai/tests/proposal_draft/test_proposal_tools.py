@@ -7,7 +7,12 @@ from django.test import TestCase
 from django.utils import timezone
 
 from purchase.models import Grant
-from research_ai.models import Expert, ExpertSearch, SearchExpert
+from research_ai.models import (
+    Expert,
+    ExpertSearch,
+    ResearcherProfile,
+    SearchExpert,
+)
 from research_ai.services.citation_tools import CitationToolset
 from research_ai.services.proposal_draft.tools.context_tools import (
     ProposalContextToolset,
@@ -68,7 +73,11 @@ class ProposalToolsTestCase(TestCase):
             email="jane@example.edu",
             first_name="Jane",
             last_name="Smith",
-            profile={
+        )
+        ResearcherProfile.objects.create(
+            expert=self.expert,
+            status=ResearcherProfile.Status.READY,
+            data={
                 "resolution": {"openalex_author_id": "A1", "confidence": 0.9},
                 "works": [
                     {
@@ -128,6 +137,19 @@ class ProposalToolsTestCase(TestCase):
 
         # Assert
         self.assertIn("error", result)
+
+    def test_get_researcher_profile_sees_a_build_that_lands_after_setup(self):
+        # Arrange: the toolset holds the row before another worker's build.
+        profile = ResearcherProfile.objects.get(expert=self.expert)
+        toolset = ProposalContextToolset(self.search_expert, profile=profile)
+        ResearcherProfile.objects.filter(pk=profile.pk).update(
+            data={"works": [{"title": "New", "source_url": "https://doi.org/10.1/n"}]}
+        )
+        # Act
+        result = toolset.as_toolset().get("get_researcher_profile").handler({})
+        # Assert
+        self.assertEqual(result["works"][0]["title"], "New")
+        self.assertIn("https://doi.org/10.1/n", toolset.provenance)
 
     def test_get_researcher_profile_returns_profile_and_populates_provenance(self):
         # Arrange

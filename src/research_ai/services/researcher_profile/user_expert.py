@@ -1,8 +1,8 @@
 """Resolve which ``Expert`` row is a ResearchHub user.
 
-The notebook chat grounds drafting in the researcher profile the expert
-pipeline keeps on ``Expert.profile``. Resolution is read-only, strongest
-evidence first:
+``ResearcherProfileService`` uses this to find (and adopt) the profile built
+for a user's outreach identity. Resolution is read-only, strongest evidence
+first:
 
 1. ``registered_user`` -- the explicit link the signup matcher records.
 2. The invitation chain -- outreach emails hang a ``NoteInvitation`` off

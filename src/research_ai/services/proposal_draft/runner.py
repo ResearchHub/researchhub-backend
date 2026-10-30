@@ -89,15 +89,13 @@ from research_ai.services.proposal_draft.tools import (
     ProposalWebSearchToolset,
     assemble_proposal,
 )
+from research_ai.services.proposal_draft.tools.context_tools import profile_data
 from research_ai.services.proposal_draft.tools.judge_context import build_judge_context
 from research_ai.services.proposal_draft.toolset import (
     build_submit_tool,
     compose_proposal_toolset,
 )
-from research_ai.services.researcher_profile import build_and_store_expert_profile
-from research_ai.services.researcher_profile.agent import (
-    SCHEMA_VERSION as PROFILE_SCHEMA_VERSION,
-)
+from research_ai.services.researcher_profile import ResearcherProfileService
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
 from research_ai.services.usage_budget import AgentLoopBudgetRecorder
 from utils.openalex import OpenAlex
@@ -127,11 +125,16 @@ class _ProposalDraftRunner:
         execution_service: AgentExecutionService | None = None,
         note_conversation_service: NoteAgentConversationService | None = None,
         heartbeat=None,
+        profile_service: ResearcherProfileService | None = None,
     ):
         self.search_expert = search_expert
         # The task's liveness heartbeat on the draft's budget lease, when run by one.
         self.heartbeat = heartbeat
         self.expert = search_expert.expert
+        self.profile_service = (
+            ResearcherProfileService() if profile_service is None else profile_service
+        )
+        self.profile = self.profile_service.get_or_create_for_expert(self.expert)
         self.provider = provider
         self.model_ref = model_ref
         self.oa_client = oa_client or OpenAlex()
@@ -167,10 +170,12 @@ class _ProposalDraftRunner:
         # Shared across the run: provenance the citation gate grounds against.
         self.provenance: set[str] = set()
         self.context_toolset = ProposalContextToolset(
-            search_expert, provenance=self.provenance
+            search_expert, provenance=self.provenance, profile=self.profile
         )
         self.verification_toolset = CitationToolset(oa_client=self.oa_client)
-        self.fulltext_toolset = ProposalFulltextToolset(search_expert)
+        self.fulltext_toolset = ProposalFulltextToolset(
+            search_expert, profile=self.profile
+        )
         self.openalex_toolset = OpenAlexToolset(client=self.oa_client)
         # Its own provenance -- deliberately NOT self.provenance -- so web results
         # ground the prose but can never satisfy the citation gate.
@@ -250,7 +255,11 @@ class _ProposalDraftRunner:
             min_words=self.config.min_words,
             max_words=self.config.max_words,
         )
-        user_prompt = build_proposal_user_prompt(self.expert, self.rfp_context)
+        user_prompt = build_proposal_user_prompt(
+            self.expert,
+            self.rfp_context,
+            profile=profile_data(self.profile, self.search_expert),
+        )
         agent = self._build_agent(system_prompt)
 
         self._ensure_not_cancelled()
@@ -355,8 +364,8 @@ class _ProposalDraftRunner:
             logger.warning("could not finalize proposal agent trace", exc_info=True)
 
     def _ensure_profile(self) -> None:
-        """Build + persist the researcher profile when it is missing/stale."""
-        if not _needs_profile(self.expert.profile):
+        """Build the researcher profile when it is missing or stale."""
+        if not self.profile_service.needs_build(self.profile):
             return
         self.recorder.set_step(ProposalDraft.Step.BUILDING_PROFILE)
         try:
@@ -372,8 +381,8 @@ class _ProposalDraftRunner:
                 self.model_ref,
                 **provider_options,
             )
-            build_and_store_expert_profile(
-                self.expert,
+            self.profile_service.ensure(
+                self.profile,
                 provider=provider,
                 oa_client=self.oa_client,
                 recorder=self._budget_recorder(
@@ -620,7 +629,7 @@ class _ProposalDraftRunner:
         submitted = submitted or {}
         return build_judge_context(
             rfp_context=self.rfp_context,
-            profile=self.expert.profile,
+            profile=profile_data(self.profile, self.search_expert),
             citations=submitted.get("citations"),
             grounded_urls=self._grounded_urls(),
             max_rfp_chars=self.config.max_judge_rfp_chars,
@@ -676,22 +685,6 @@ def _panel_error(panel: dict) -> str | None:
     """Why the panel reported nothing, joined from its per-judge failures."""
     errors = (panel.get("rollup") or {}).get("judge_errors") or []
     return "; ".join(str(error) for error in errors) or None
-
-
-def _needs_profile(profile) -> bool:
-    """A profile needs (re)building when it is empty, unresolved, or an old schema.
-
-    An older ``schema_version`` predates a field the draft now relies on (e.g. the
-    lab capabilities added in v2), so it is rebuilt to pick that data up.
-    """
-    if not isinstance(profile, dict) or not profile:
-        return True
-    if not isinstance(profile.get("resolution"), dict):
-        return True
-    try:
-        return int(profile.get("schema_version") or 0) < PROFILE_SCHEMA_VERSION
-    except TypeError, ValueError:
-        return True
 
 
 def run_proposal_draft(
