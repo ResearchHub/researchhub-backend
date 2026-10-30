@@ -34,7 +34,7 @@ class XConnectService:
         with transaction.atomic():
             User.objects.select_for_update().get(pk=user.pk)
             if x_accounts.filter(uid=uid).exclude(user=user).exists():
-                raise XAccountConflict()
+                raise XAccountConflict
             if x_accounts.filter(user=user).exclude(uid=uid).exists():
                 raise XAccountConflict("Another X account is already connected to you.")
             try:
@@ -45,7 +45,7 @@ class XConnectService:
                     defaults={"extra_data": extra_data},
                 )
             except IntegrityError as exc:
-                raise XAccountConflict() from exc
+                raise XAccountConflict from exc
         signup_service = UserSignupService()
         signup_service.set_social_profile_image(user)
         signup_service.set_x_profile_link(user)
