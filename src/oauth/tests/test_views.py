@@ -141,11 +141,14 @@ class XLoginViewTests(APITestCase):
         self, mock_exchange, mock_get, mock_track
     ):
         """
-        Test that a signed-in user's X login connects X to them and keeps them
-        signed in, even when another user has the X account's email.
+        Test that a signed-in user's X login connects X to them, replaces their
+        manual X link, and keeps them signed in, even when another user has the
+        X account's email.
         """
         # Arrange
         user = create_random_default_user("x_connect")
+        user.author_profile.twitter = "https://x.com/manual"
+        user.author_profile.save()
         create_user(email="other@example.com")
         mock_exchange.return_value = {"access_token": "x-token"}
         self._mock_profile(mock_get, confirmed_email="other@example.com")

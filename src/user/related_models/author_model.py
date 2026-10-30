@@ -175,6 +175,15 @@ class Author(SoftDeletableModel):
         ).exists()
 
     @property
+    def is_x_connected(self) -> bool:
+        """Check whether the author's user has connected an X account."""
+        if not self.user:
+            return False
+        return SocialAccount.objects.filter(
+            user=self.user, provider="x_oauth2"
+        ).exists()
+
+    @property
     def orcid_verified_edu_email(self):
         if not self.user:
             return None

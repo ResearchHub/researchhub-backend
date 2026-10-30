@@ -43,6 +43,19 @@ class AuthorModelsTests(TestCase):
         # Assert
         self.assertTrue(result)
 
+    def test_is_x_connected_true_when_account_exists(self):
+        """
+        Test that an author is X-connected once their user has an X account.
+        """
+        # Arrange
+        SocialAccount.objects.create(user=self.user, provider="x_oauth2", uid="123")
+
+        # Act
+        result = self.user.author_profile.is_x_connected
+
+        # Assert
+        self.assertTrue(result)
+
     def test_orcid_verified_edu_email_none_when_no_account(self):
         # Act
         result = self.user.author_profile.orcid_verified_edu_email
