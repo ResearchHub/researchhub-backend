@@ -221,6 +221,16 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    def test_create_contribution_non_numeric_id(self):
+        # Arrange
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Act
+        response = self._create_contribution("undefined", user)
+
+        # Assert
+        self.assertEqual(response.status_code, 404)
+
     def test_create_contribution_user_is_owner(self):
         """Self-contribution without a nonprofit should be rejected."""
         fundraise = self._create_fundraise(self.post.id)

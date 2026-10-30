@@ -15,6 +15,8 @@ from dj_rest_auth.views import (
 from django.conf import settings
 from django.urls import include, path, re_path
 from django_ses.views import SESEventWebhookView
+from health_check import Cache, Database
+from health_check.views import HealthCheckView
 from rest_framework import routers
 
 import hub.views
@@ -53,6 +55,7 @@ from purchase.views import (
     EndaomentViewSet,
     stripe_webhook_view,
 )
+from researchhub.health_check import GitHashHealthCheck
 from researchhub.views import AssetUploadView
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_availability_view import ReviewAvailabilityView
@@ -193,7 +196,8 @@ urlpatterns = [
     path(
         r"health/"
         + (settings.HEALTH_CHECK_TOKEN + "/" if settings.HEALTH_CHECK_TOKEN else ""),
-        include("health_check.urls"),
+        HealthCheckView.as_view(checks=[Cache, Database, GitHashHealthCheck]),
+        name="health_check",
     ),
     path(
         "api/researchhubpost/create_registered_report_draft/",
@@ -281,6 +285,7 @@ urlpatterns = [
     path(
         "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"
     ),
+    path("api/auth/x/login/", oauth.views.XLogin.as_view(), name="x_login"),
     path(
         "api/auth/register/verify-email/",
         CustomVerifyEmailView.as_view(),

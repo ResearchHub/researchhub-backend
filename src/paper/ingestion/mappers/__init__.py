@@ -10,6 +10,7 @@ from .preprints.biorxiv import BioRxivMapper
 from .preprints.chemrxiv import ChemRxivMapper
 from .preprints.factory import MapperFactory
 from .preprints.medrxiv import MedRxivMapper
+from .registrations.osf import OSFRegistrationMapper
 
 __all__ = [
     "ArXivMapper",
@@ -19,5 +20,6 @@ __all__ = [
     "ChemRxivMapper",
     "MapperFactory",
     "MedRxivMapper",
+    "OSFRegistrationMapper",
     "OpenAlexMapper",
 ]

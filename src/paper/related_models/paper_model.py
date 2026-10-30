@@ -3,10 +3,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Func, Index, JSONField, Q
+from django.db.models import Exists, Func, Index, JSONField, OuterRef, Q
 
 from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
+from paper.related_models.paper_version import PaperVersion
 from paper.storage.figure_storage import FigureStorage
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.user_model import User
@@ -16,6 +17,46 @@ HOT_SCORE_WEIGHT = 5
 HELP_TEXT_IS_PUBLIC = "Hides the paper from the public."
 HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
+
+# Papers the ResearchHub Journal peer reviewed that have no journal version
+# (mostly Lifecycle Journal articles), kept by id alongside the papers whose
+# version is in the journal.
+JOURNAL_PAPER_IDS = frozenset(
+    {
+        9404372,
+        9405803,
+        9405805,
+        9438585,
+        9554389,
+        9618141,
+        9716737,
+        10596122,
+        10596123,
+        10596124,
+        10596125,
+        10596126,
+        10596127,
+        10596128,
+        10596129,
+        10596130,
+        10597916,
+        10597917,
+        10597918,
+        10597919,
+        10597921,
+        10599718,
+        10599719,
+        10599720,
+        10599721,
+        10607683,
+        11083586,
+        11091641,
+        11110920,
+        11311553,
+        11322872,
+        11322873,
+    }
+)
 
 
 class PaperQuerySet(models.QuerySet):
@@ -39,6 +80,23 @@ class PaperQuerySet(models.QuerySet):
         if user.is_moderator_or_editor():
             return self
         return self.filter(moderation_approved | Q(uploaded_by=user))
+
+    def in_journal(self) -> PaperQuerySet:
+        """Restrict to the ResearchHub Journal's papers, the only ones with pages.
+
+        That includes the original of a journal version chain, which may have
+        no PaperVersion row of its own.
+        """
+        is_journal_original = Exists(
+            PaperVersion.objects.filter(
+                original_paper=OuterRef("pk"), journal=PaperVersion.RESEARCHHUB
+            )
+        )
+        return self.filter(
+            Q(version__journal=PaperVersion.RESEARCHHUB)
+            | Q(id__in=JOURNAL_PAPER_IDS)
+            | is_journal_original
+        )
 
 
 class Paper(AbstractGenericReactionModel):

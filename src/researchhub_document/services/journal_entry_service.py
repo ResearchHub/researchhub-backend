@@ -1,15 +1,11 @@
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
 
-from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Exists, F, OuterRef, QuerySet
-from requests.exceptions import RequestException
 
 from note.models import Note, NoteContent, parse_note_json
-from paper.related_models.paper_version import PaperVersion
 from purchase.models import Fundraise
 from purchase.services.fundraise_eligibility_service import (
     filter_fundraises_with_funding,
@@ -32,7 +28,6 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.services.journey_service import JourneyService
 from user.models import User
-from utils.doi import DOI
 
 
 @dataclass(frozen=True)
@@ -49,21 +44,15 @@ class RegisteredReportDraftValidationError(ValueError):
     """Raised when a proposal is ineligible for a registered report draft."""
 
 
-class RegisteredReportDOIRegistrationError(Exception):
-    """Raised when Crossref cannot register a registered report DOI."""
-
-
 class JournalEntryService:
     """Service for evaluating, drafting, and publishing registered reports."""
 
     def __init__(
         self,
         journey_service: JourneyService | None = None,
-        doi_factory: Callable[..., DOI] | None = None,
     ) -> None:
         """Initialize the service with optional dependencies."""
         self.journey_service = journey_service or JourneyService()
-        self._doi_factory = doi_factory or DOI
 
     @transaction.atomic
     def create_registered_report_draft(
@@ -111,34 +100,6 @@ class JournalEntryService:
         if proposal.created_by is not None:
             return [proposal.created_by.author_profile.id]
         return []
-
-    def register_registered_report_doi(self, report: ResearchhubPost) -> None:
-        """Register and persist the report's journal DOI in production."""
-        if not settings.PRODUCTION:
-            return
-
-        doi = self._doi_factory(
-            journal=PaperVersion.RESEARCHHUB,
-            version=report.version_number,
-        )
-        try:
-            response = doi.register_doi_for_post(
-                report.ordered_authors,
-                report.title,
-                report,
-            )
-        except RequestException as error:
-            raise RegisteredReportDOIRegistrationError(
-                "Crossref did not respond while registering the registered report DOI."
-            ) from error
-
-        if response.status_code != 200:
-            raise RegisteredReportDOIRegistrationError(
-                "Crossref could not register the registered report DOI."
-            )
-
-        report.doi = doi.doi
-        report.save(update_fields=["doi"])
 
     def get_registered_report_note(
         self, creator: User, note_id: int, proposal: ResearchhubPost

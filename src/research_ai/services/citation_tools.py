@@ -1,10 +1,10 @@
-"""Citation grounding against OpenAlex -- the loop's external grounded signal.
+"""Citation grounding against OpenAlex, shared by the proposal drafter and the chats.
 
 Two sides of the same concern, both backed by the same OpenAlex client:
 
-- ``search_works`` *finds* a real record (with its resolved DOI) for a
-  field-level paper the agent knows by title but not by DOI, so the agent
-  retrieves a citable work instead of guessing or hand-deriving a DOI.
+- ``search_works`` *finds* real records (each with its resolved DOI) by title
+  or topic, so the agent retrieves a citable work instead of guessing or
+  hand-deriving a DOI.
 - ``verify_citations`` *checks* a DOI the agent already has.
 
 The draft agent emits citations; ``verify_citations`` resolves each one against
@@ -33,9 +33,12 @@ import logging
 from difflib import SequenceMatcher
 
 from research_ai.services.agent import Tool, Toolset
-from utils.openalex import OpenAlex
+from utils.openalex import OpenAlex, work_author_names, work_venue
 
 logger = logging.getLogger(__name__)
+
+SEARCH_WORKS = "search_works"
+VERIFY_CITATIONS = "verify_citations"
 
 # Normalized-title similarity bands (difflib ratio, 0..1).
 _EXACT_TITLE = 0.92  # at/above: same title
@@ -48,7 +51,7 @@ _SEARCH_WORKS_INPUT_SCHEMA = {
     "properties": {
         "title": {
             "type": "string",
-            "description": "The paper's title (or a descriptive query).",
+            "description": "The paper's title, or a topic query.",
         },
         "author": {
             "type": "string",
@@ -71,7 +74,11 @@ _CITATIONS_INPUT_SCHEMA = {
                         "description": "Caller-assigned id linking the citation "
                         "to the claim it supports.",
                     },
-                    "doi": {"type": "string"},
+                    "doi": {
+                        "type": "string",
+                        "description": "The DOI to resolve; a citation "
+                        "without one is reported dead.",
+                    },
                     "title": {"type": "string"},
                     "authors": {
                         "type": "array",
@@ -126,20 +133,17 @@ def _authors_match(claimed: list, resolved: list) -> bool:
 
 
 def _from_openalex(entity: dict) -> dict:
-    authors = [
-        str((a.get("author") or {}).get("display_name") or "").strip()
-        for a in entity.get("authorships") or []
-    ]
     return {
         "title": str(entity.get("display_name") or "").strip(),
-        "authors": [a for a in authors if a],
+        "authors": work_author_names(entity),
         "year": entity.get("publication_year"),
+        "venue": work_venue(entity),
         "source_url": str(entity.get("doi") or entity.get("id") or "").strip(),
     }
 
 
-class ProposalVerificationToolset:
-    """The deterministic ``verify_citations`` tool.
+class CitationToolset:
+    """The ``search_works`` and ``verify_citations`` tools.
 
     Args:
         oa_client: OpenAlex client (DOI resolution); defaults to a real one.
@@ -154,19 +158,21 @@ class ProposalVerificationToolset:
     def build_tools(self) -> list[Tool]:
         return [
             Tool(
-                name="search_works",
+                name=SEARCH_WORKS,
                 description=(
-                    "Find a published work by title (and optional author) to get "
-                    "its real DOI for a field-level citation. Returns candidate "
-                    "works with the resolved DOI (source_url), authors, and year "
-                    "straight from OpenAlex. Use this to obtain a DOI you can "
-                    "cite -- never invent or hand-derive one from a web result."
+                    "Search OpenAlex for published works by title or topic "
+                    "(and optional author). Returns up to "
+                    f"{_MAX_WORK_RESULTS} relevance-ranked works, each with "
+                    "its resolved DOI (source_url), authors, year, and venue "
+                    "straight from OpenAlex. Use this to find literature and "
+                    "to get a real DOI you can cite -- never invent or "
+                    "hand-derive one from a web result."
                 ),
                 input_schema=_SEARCH_WORKS_INPUT_SCHEMA,
                 handler=self.search_works,
             ),
             Tool(
-                name="verify_citations",
+                name=VERIFY_CITATIONS,
                 description=(
                     "Verify citations against ground truth. For each citation "
                     "(claim_id + doi/title/authors), resolve the DOI and classify "
@@ -192,7 +198,7 @@ class ProposalVerificationToolset:
         query = f"{title} {author}".strip()
         try:
             entities = self._oa.search_works(query, per_page=_MAX_WORK_RESULTS)
-        except Exception as exc:  # noqa: BLE001 - a search miss is not fatal
+        except Exception as exc:  # a search miss is not fatal
             logger.info("OpenAlex works search failed for %r: %s", query, exc)
             return {"results": []}
         results = [
@@ -260,7 +266,7 @@ class ProposalVerificationToolset:
             return None
         try:
             entity = self._oa.get_work_by_doi(doi)
-        except Exception as exc:  # noqa: BLE001 - resolver miss is not fatal
+        except Exception as exc:  # a resolver miss is not fatal
             logger.info("OpenAlex DOI lookup failed for %r: %s", doi, exc)
             return None
         return _from_openalex(entity) if entity else None

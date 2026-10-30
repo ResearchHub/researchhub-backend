@@ -80,6 +80,69 @@ class StorageServiceTest(TestCase):
         self.assertEqual(s._sanitize_filename("f(|@äöü).pdf"), "f(%7C%40aou).pdf")
         self.assertEqual(s._sanitize_filename("Żurowski.pdf"), "Zurowski.pdf")
 
+    def test_object_key_from_url(self):
+        # Act & Assert
+        self.assertEqual(
+            storage_service.object_key_from_url(
+                "https://storage.test.researchhub.com/uploads/papers/users/1/abc/file1.pdf"
+            ),
+            "uploads/papers/users/1/abc/file1.pdf",
+        )
+        self.assertEqual(
+            storage_service.object_key_from_url(
+                "https://storage.test.researchhub.com/uploads/papers/my file.pdf"
+            ),
+            "uploads/papers/my file.pdf",
+        )
+
+    def test_object_key_from_url_keeps_url_delimiters_in_filename(self):
+        # Object URLs hold the raw key, so `;`, `?` and `#` are part of the filename
+        for filename in ["a;b.pdf", "a?b.pdf", "a#b.pdf", "a%20b.pdf"]:
+            with self.subTest(filename=filename):
+                # Act
+                key = storage_service.object_key_from_url(
+                    f"https://storage.test.researchhub.com/uploads/papers/{filename}"
+                )
+
+                # Assert
+                self.assertEqual(key, f"uploads/papers/{filename}")
+
+    def test_object_key_from_url_returns_none_for_other_hosts(self):
+        # Act & Assert
+        self.assertIsNone(
+            storage_service.object_key_from_url("https://arxiv.org/pdf/2101.00001")
+        )
+        self.assertIsNone(
+            storage_service.object_key_from_url(
+                "https://storage.test.researchhub.com.evil.com/uploads/file1.pdf"
+            )
+        )
+        self.assertIsNone(storage_service.object_key_from_url(None))
+        self.assertIsNone(storage_service.object_key_from_url(""))
+        self.assertIsNone(
+            storage_service.object_key_from_url("https://storage.test.researchhub.com/")
+        )
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="https://storage.test.researchhub.com")
+    def test_object_key_from_url_with_scheme_in_domain_setting(self):
+        # Act
+        key = storage_service.object_key_from_url(
+            "https://storage.test.researchhub.com/uploads/papers/file1.pdf"
+        )
+
+        # Assert
+        self.assertEqual(key, "uploads/papers/file1.pdf")
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="")
+    def test_object_key_from_url_returns_none_without_domain_setting(self):
+        # Act & Assert
+        self.assertIsNone(storage_service.object_key_from_url("/uploads/file1.pdf"))
+        self.assertIsNone(
+            storage_service.object_key_from_url(
+                "https://storage.test.researchhub.com/uploads/file1.pdf"
+            )
+        )
+
     @patch("researchhub.services.storage_service.aws_utils.create_client")
     def test_quarantine_object(self, create_client_mock):
         # Arrange

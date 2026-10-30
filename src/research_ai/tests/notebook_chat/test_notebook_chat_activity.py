@@ -320,6 +320,8 @@ class NotebookChatActivityTests(TestCase):
         oa_client.search_authors_via_name.return_value = {"results": [author]}
         oa_client.get_author.return_value = author
         oa_client.get_works.return_value = ([work], None)
+        oa_client.search_works.return_value = [work]
+        oa_client.get_work_by_doi.return_value = work
         execution = self._run_turn(
             [
                 tool_turn("t1", "search_authors", {"name": "Jennifer Doudna"}),
@@ -332,6 +334,12 @@ class NotebookChatActivityTests(TestCase):
                     "get_work_abstract",
                     {"source_url": "https://doi.org/10.1000/crispr"},
                 ),
+                tool_turn("t5", "search_works", {"title": "CRISPR base editing"}),
+                tool_turn(
+                    "t6",
+                    "verify_citations",
+                    {"citations": [{"claim_id": "c1", "doi": "10.1000/crispr"}]},
+                ),
                 text_turn("Done."),
             ],
             oa_client=oa_client,
@@ -341,7 +349,7 @@ class NotebookChatActivityTests(TestCase):
         activity = self._activity(execution)
 
         # Assert: names and citations surface; abstracts and metadata do not.
-        searched, looked_up, works, read_paper = _tool_calls(activity)
+        searched, looked_up, works, read_paper, found, checked = _tool_calls(activity)
         self.assertEqual(searched["label"], "Searched scholarly authors")
         self.assertEqual(searched["detail"], "Jennifer Doudna")
         self.assertNotIn("sources", searched)
@@ -357,6 +365,11 @@ class NotebookChatActivityTests(TestCase):
         self.assertEqual(read_paper["label"], "Read a paper abstract")
         self.assertEqual(read_paper["status"], "succeeded")
         self.assertEqual(read_paper["sources"], [expected_source])
+        self.assertEqual(found["label"], "Searched the literature")
+        self.assertEqual(found["detail"], "CRISPR base editing")
+        self.assertEqual(found["sources"], [expected_source])
+        self.assertEqual(checked["label"], "Checked citations")
+        self.assertEqual(checked["status"], "succeeded")
         for event in _tool_calls(activity):
             self.assertLessEqual(set(event), PUBLIC_EVENT_KEYS)
         self.assertNotIn("abstract the user", json.dumps(activity, default=str))

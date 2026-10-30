@@ -81,12 +81,21 @@ LOGGING = {
             "exc_info_as_array": True,
             "stack_info_as_array": True,
         },
+        "json_access": {
+            "()": "utils.log_formatters.UvicornAccessJsonFormatter",
+            "fmt": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
     },
     "handlers": {
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
             "formatter": "json" if ELASTIC_BEANSTALK else "verbose",
+        },
+        "access": {
+            "class": "logging.StreamHandler",
+            "formatter": "json_access",
+            "stream": "ext://sys.stdout",
         },
     },
     "root": {
@@ -101,6 +110,13 @@ LOGGING = {
         },
     },
 }
+
+if ELASTIC_BEANSTALK:
+    LOGGING["loggers"] |= {
+        # Uvicorn loggers
+        "uvicorn": {"propagate": True},
+        "uvicorn.access": {"handlers": ["access"], "propagate": False},
+    }
 
 # Django Debug Toolbar
 USE_DEBUG_TOOLBAR = os.environ.get("USE_DEBUG_TOOLBAR", "False") == "True"
@@ -187,6 +203,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.twitter_oauth2",
     "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
@@ -236,8 +253,6 @@ INSTALLED_APPS = [
     "ai_peer_review",
     # Health checks
     "health_check",
-    "health_check.db",
-    "health_check.cache",
 ]
 
 SITE_ID = 1
@@ -245,6 +260,7 @@ SITE_ID = 1
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.gzip.GZipMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -377,12 +393,32 @@ if STAGING or PRODUCTION:
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
-# Let Google sign-ins attach to an existing account when the email matches.
+# Let trusted social sign-ins attach when the confirmed email matches.
 # See: https://docs.allauth.org/en/dev/socialaccount/configuration.html
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "EMAIL_AUTHENTICATION": True,
+    },
+    # allauth's X provider id. The SocialApp must set provider_id="x_oauth2",
+    # which is what X social accounts are stored under.
+    "twitter_oauth2": {
+        "EMAIL_AUTHENTICATION": True,
+        "SCOPE": ["users.read", "users.email", "tweet.read"],
+        # Sent as user.fields. XOAuth2Adapter requires confirmed_email.
+        # The verification and Premium fields are stored on the X
+        # SocialAccount.extra_data and refreshed on each login.
+        "FIELDS": [
+            "id",
+            "name",
+            "username",
+            "confirmed_email",
+            "profile_image_url",
+            "verified",
+            "verified_type",
+            "subscription_type",
+            "is_identity_verified",
+        ],
     },
 }
 
@@ -533,22 +569,6 @@ EXA_API_KEY = os.environ.get("EXA_API_KEY", getattr(keys, "EXA_API_KEY", ""))
 # names its own model and inference knobs as module constants.
 RESEARCH_AI_GENERATOR_PROVIDER = os.environ.get(
     "RESEARCH_AI_GENERATOR_PROVIDER", "claude_platform"
-)
-
-# Model a research_ai conversation moves to once its own model refuses a turn;
-# it needs reviewed pricing. Empty stops new moves, not ones already made.
-RESEARCH_AI_REFUSAL_FALLBACK_MODEL = os.environ.get(
-    "RESEARCH_AI_REFUSAL_FALLBACK_MODEL", "openrouter:moonshotai/kimi-k3"
-)
-
-# Score each chat message for spam and off-purpose use with Jev (record only).
-RESEARCH_AI_MESSAGE_SCREENING = not TESTING and (
-    os.environ.get("RESEARCH_AI_MESSAGE_SCREENING", "true").lower() == "true"
-)
-
-AI_PEER_REVIEW_BEDROCK_MODEL_ID = os.environ.get(
-    "AI_PEER_REVIEW_BEDROCK_MODEL_ID",
-    getattr(keys, "AI_PEER_REVIEW_BEDROCK_MODEL_ID", ""),
 )
 
 AI_PEER_REVIEW_EXPERT_EMAIL = os.environ.get(
@@ -709,6 +729,13 @@ OPENSEARCH_DSL_PARALLEL = True
 OPENSEARCH_DSL_QUERYSET_PAGINATION = 1024
 OPENSEARCH_DSL_SIGNAL_PROCESSOR = "search.celery.CelerySignalProcessor"
 
+# OpenSearch index settings
+OPENSEARCH_DSL_INDEX_SETTINGS = {
+    "number_of_shards": 1,
+    # One copy per node, up to one per availability zone in a 3-AZ domain
+    "auto_expand_replicas": "0-2",
+}
+
 # Disable OpenSearch auto-sync in test environment
 if TESTING:
     OPENSEARCH_DSL_AUTOSYNC = False
@@ -849,19 +876,6 @@ AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
 
 EXPERT_FINDER_OUTREACH_ENABLED = (
     os.environ.get("EXPERT_FINDER_OUTREACH_ENABLED", "false").lower() == "true"
-)
-
-# Crossref
-CROSSREF_DOI_RSC_FEE = 5
-CROSSREF_DOI_PREFIX = "10.55277/researchhub."
-CROSSREF_DOI_RHJ_PREFIX = "10.55277/rhj."
-CROSSREF_DOI_SUFFIX_LENGTH = 8
-CROSSREF_LOGIN_ID = os.environ.get("CROSSREF_LOGIN_ID", keys.CROSSREF_LOGIN_ID)
-CROSSREF_LOGIN_PASSWORD = os.environ.get(
-    "CROSSREF_LOGIN_PASSWORD", keys.CROSSREF_LOGIN_PASSWORD
-)
-CROSSREF_API_URL = (
-    f"https://{'doi' if PRODUCTION else 'test'}.crossref.org/servlet/deposit"
 )
 
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", keys.WEB3_NETWORK)

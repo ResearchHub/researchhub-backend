@@ -159,11 +159,39 @@ class MessageScreeningServiceTests(TestCase):
         self.assertEqual(second, first)
         client.decide.assert_called_once()
 
-    @override_settings(RESEARCH_AI_MESSAGE_SCREENING=False, OPENROUTER_API_KEY="k")
-    def test_nothing_is_screened_when_screening_is_off(self):
+    def test_rejects_only_a_flagged_message(self):
+        cases = (
+            ({"promotional": 0.95, "off_purpose": 0.3}, True),
+            ({"promotional": 0.2, "off_purpose": 0.1}, False),
+        )
+        for answers, rejected in cases:
+            with self.subTest(answers=answers):
+                # Arrange
+                AgentMessageScreening.objects.all().delete()
+                service = MessageScreeningService(client=jev_client(**answers))
+
+                # Act & Assert
+                self.assertEqual(service.rejects(self.message), rejected)
+
+    def test_lets_through_a_message_jev_could_not_score(self):
+        # Arrange
+        client = Mock(model=MODEL)
+        client.decide.side_effect = DecisionError("Jev returned no decision: 503")
+
         # Act
-        screening = MessageScreeningService().screen(self.message)
+        rejected = MessageScreeningService(client=client).rejects(self.message)
 
         # Assert
-        self.assertIsNone(screening)
+        self.assertFalse(rejected)
+
+    @override_settings(TESTING=False, OPENROUTER_API_KEY="")
+    def test_nothing_is_screened_or_rejected_without_an_api_key(self):
+        # Arrange
+        service = MessageScreeningService()
+
+        # Act
+        rejected = service.rejects(self.message)
+
+        # Assert
+        self.assertFalse(rejected)
         self.assertFalse(AgentMessageScreening.objects.exists())

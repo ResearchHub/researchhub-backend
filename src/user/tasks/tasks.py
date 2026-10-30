@@ -17,7 +17,7 @@ from purchase.models import Fundraise, Grant
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Bounty
 from researchhub.celery import app
-from researchhub.services.storage_service import S3StorageService
+from researchhub.services.storage_service import S3StorageService, object_key_from_url
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from review.models.review_model import Review
@@ -155,11 +155,13 @@ def _user_file_keys(user: User) -> Iterator[str]:
     for paper in user.papers.iterator():
         if paper.file:
             yield paper.file.name
+        # User-uploaded papers reference their PDF in our bucket via `pdf_url`
+        if pdf_key := object_key_from_url(paper.pdf_url):
+            yield pdf_key
 
     for post in user.created_posts.iterator():
-        for file_field in (post.discussion_src, post.eln_src):
-            if file_field:
-                yield file_field.name
+        if post.discussion_src:
+            yield post.discussion_src.name
 
     comments = RhCommentModel.all_objects.filter(created_by=user)
     for comment in comments.iterator():

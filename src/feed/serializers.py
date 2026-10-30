@@ -1317,6 +1317,7 @@ class RelatedWorkSerializer(serializers.Serializer):
             rsc_goal = None
 
         return {
+            "id": fundraise.id,
             "status": fundraise.status,
             "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
             "amount_raised": {

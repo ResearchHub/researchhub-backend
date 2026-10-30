@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from dataclasses import dataclass
@@ -126,6 +127,18 @@ class CircleWalletClient:
         return response.data.public_key
 
     @staticmethod
+    def _raw_data(response) -> dict:
+        """
+        Decode the raw JSON body of an SDK ``*_with_http_info`` response.
+
+        The SDK's pydantic models pin ``scaCore`` to the versions known when
+        it was generated, so wallets on a newer SCA core (e.g.
+        ``circle_6900_singleowner_v4``) fail strict deserialization. Wallet
+        payloads are read from the raw body instead.
+        """
+        return json.loads(response.raw_data).get("data") or {}
+
+    @staticmethod
     def _blockchain_family(blockchain_value: str) -> str | None:
         """Normalize a Circle blockchain identifier to 'ETH' or 'BASE'."""
         upper = (blockchain_value or "").upper()
@@ -182,8 +195,10 @@ class CircleWalletClient:
             metadata=metadata,
         )
 
-        response = self.wallets_api.create_wallet(request)
-        wallets = response.data.wallets
+        response = self.wallets_api.create_wallet_with_http_info(
+            request, _preload_content=False
+        )
+        wallets = self._raw_data(response).get("wallets")
 
         if not wallets:
             raise CircleWalletCreationError(
@@ -192,16 +207,10 @@ class CircleWalletClient:
 
         # Map each wallet to its chain family (ETH or BASE).
         wallet_ids_by_chain: dict[str, str] = {}
-        for wrapper in wallets:
-            w = wrapper.actual_instance
-            blockchain_str = (
-                w.blockchain.value
-                if hasattr(w.blockchain, "value")
-                else str(w.blockchain)
-            )
-            family = self._blockchain_family(blockchain_str)
+        for w in wallets:
+            family = self._blockchain_family(w.get("blockchain"))
             if family:
-                wallet_ids_by_chain[family] = w.id
+                wallet_ids_by_chain[family] = w["id"]
 
         eth_id = wallet_ids_by_chain.get("ETH")
         base_id = wallet_ids_by_chain.get("BASE")
@@ -224,13 +233,15 @@ class CircleWalletClient:
         Returns:
             CircleWalletResult with wallet details.
         """
-        response = self.wallets_api.get_wallet(wallet_id)
-        wallet = response.data.wallet.actual_instance
+        response = self.wallets_api.get_wallet_with_http_info(
+            wallet_id, _preload_content=False
+        )
+        wallet = self._raw_data(response)["wallet"]
 
         return CircleWalletResult(
-            wallet_id=wallet.id,
-            address=wallet.address,
-            state=wallet.state.value,
+            wallet_id=wallet["id"],
+            address=wallet["address"],
+            state=wallet["state"],
         )
 
     def get_wallet_balance(

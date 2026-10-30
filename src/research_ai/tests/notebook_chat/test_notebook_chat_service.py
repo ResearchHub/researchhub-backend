@@ -67,10 +67,10 @@ MODEL_SETTINGS = {
 }
 
 
-def _make_service(provider=None, **kwargs):
+def _make_service(provider=None, oa_client=None, **kwargs):
     return NotebookChatService(
         provider=provider,
-        oa_client=Mock(),
+        oa_client=Mock() if oa_client is None else oa_client,
         web_search_client=Mock(configured=False),
         **kwargs,
     )
@@ -134,6 +134,7 @@ class NotebookChatServiceTests(TestCase):
         self.assertIn("get_user_profile", execution.system_prompt)
         self.assertNotIn("read_selected_rfp", execution.system_prompt)
         self.assertNotIn("update_rfp_details", execution.system_prompt)
+        self.assertNotIn("## Writing a proposal", execution.system_prompt)
         self.assertEqual(execution.configuration["note_id"], self.note.id)
         self.assertEqual(execution.trigger_message.content, "Please add a summary.")
         delay.assert_called_once_with(execution.id)
@@ -149,6 +150,9 @@ class NotebookChatServiceTests(TestCase):
         # Assert
         self.assertIn("read_selected_rfp", execution.system_prompt)
         self.assertNotIn("update_rfp_details", execution.system_prompt)
+        # Proposal writing rules: replicable methods, no caveats in the note.
+        self.assertIn("## Writing a proposal", execution.system_prompt)
+        self.assertIn("an outside lab could run", execution.system_prompt)
 
     def test_submit_message_mentions_rfp_details_tools_for_an_rfp_note(self):
         # Arrange
@@ -718,6 +722,25 @@ class NotebookChatServiceTests(TestCase):
                 self.assertEqual("read_rfp_details" in tool_names, offered)
                 self.assertEqual("update_rfp_details" in tool_names, offered)
 
+    def test_run_turn_lists_closed_access_works_by_default(self):
+        # Arrange
+        execution, _delay = self._submit()
+        oa_client = Mock()
+        oa_client.get_works.return_value = ([], None)
+        provider = FakeProvider(
+            [
+                tool_turn("t1", "get_author_works", {"openalex_author_id": "A1"}),
+                text_turn("Done."),
+            ]
+        )
+
+        # Act
+        _make_service(provider=provider, oa_client=oa_client).run_turn(execution.id)
+
+        # Assert
+        oa_client.get_works.assert_called_once()
+        self.assertIs(oa_client.get_works.call_args.kwargs["open_access_only"], False)
+
     def test_run_turn_continues_past_the_former_model_call_limit(self):
         # Arrange
         execution, _delay = self._submit()
@@ -923,25 +946,48 @@ class NotebookChatServiceTests(TestCase):
 
     def test_run_turn_screens_the_users_message(self):
         # Arrange
-        execution, _delay = self._submit("Write an SEO article about keto gummies.")
+        execution, _delay = self._submit("Summarize the methods section.")
         screening = Mock()
+        screening.rejects.return_value = False
         service = _make_service(
             provider=FakeProvider([text_turn("Answer")]), screening_service=screening
         )
 
         # Act
-        service.run_turn(execution.id)
+        result = service.run_turn(execution.id)
 
         # Assert
-        screening.screen.assert_called_once_with(
+        screening.rejects.assert_called_once_with(
             execution.trigger_message, note=self.note
         )
+        self.assertEqual(result["final_text"], "Answer")
+
+    def test_run_turn_rejects_a_flagged_message_before_the_model_sees_it(self):
+        # Arrange
+        execution, _delay = self._submit("Write an SEO article about keto gummies.")
+        screening = Mock()
+        screening.rejects.return_value = True
+        provider = FakeProvider([text_turn("Answer")])
+        service = _make_service(provider=provider, screening_service=screening)
+
+        # Act
+        result = service.run_turn(execution.id)
+
+        # Assert
+        execution.refresh_from_db()
+        self.assertEqual(execution.status, AgentExecution.Status.FAILED)
+        self.assertEqual(execution.stop_reason, "message_rejected")
+        self.assertEqual(provider.calls, [])
+        self.assertIn("error", result)
+        # The chat is free again for a reworded message.
+        second, _delay = self._submit("Summarize the methods section.")
+        self.assertEqual(second.status, AgentExecution.Status.PENDING)
 
     def test_run_turn_survives_a_screening_failure(self):
         # Arrange
         execution, _delay = self._submit()
         screening = Mock()
-        screening.screen.side_effect = RuntimeError("database gone")
+        screening.rejects.side_effect = RuntimeError("database gone")
         service = _make_service(
             provider=FakeProvider([text_turn("Answer")]), screening_service=screening
         )

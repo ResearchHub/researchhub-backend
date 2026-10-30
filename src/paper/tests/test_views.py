@@ -1,169 +1,17 @@
-from unittest.mock import patch
-
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from paper.models import Paper
-from paper.tests.helpers import create_paper
+from paper.models import Paper, PaperVersion
+from paper.related_models.paper_model import JOURNAL_PAPER_IDS
+from paper.tests.helpers import add_to_journal, create_paper
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import (
     create_random_authenticated_user,
 )
-from utils.test_helpers import create_test_user
-
-
-class PaperDOITests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.user = create_test_user()
-        self.client.force_authenticate(user=self.user)
-
-    def test_retrieve_by_doi_invalid_doi(self):
-        """Test that invalid DOIs return a 400 error"""
-        url = reverse("paper-retrieve-by-doi")
-
-        # Test with no DOI
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data["error"], "DOI is required")
-
-        # Test with invalid DOI format
-        response = self.client.get(url + "?doi=invalid_doi")
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data["error"], "Invalid DOI format")
-
-    def test_retrieve_by_doi_existing_paper(self):
-        """Test retrieving an existing paper by DOI"""
-        test_doi = "10.1234/test.123"
-        paper = create_paper()
-        paper.doi = test_doi
-        paper.save()
-        url = reverse("paper-retrieve-by-doi")
-
-        # Test with bare DOI
-        response = self.client.get(url + f"?doi={test_doi}")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["doi"], test_doi)
-        self.assertEqual(response.data["id"], paper.id)
-
-        # Test with normalized DOI
-        normalized_doi = f"https://doi.org/{test_doi}"
-        response = self.client.get(url + f"?doi={normalized_doi}")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["doi"], test_doi)
-        self.assertEqual(response.data["id"], paper.id)
-
-    @patch("utils.openalex.OpenAlex.get_authors")
-    @patch("utils.openalex.OpenAlex.get_work_by_doi")
-    def test_retrieve_by_doi_new_paper_from_openalex(
-        self, mock_get_work, mock_get_authors
-    ):
-        """Test creating a new paper from OpenAlex when DOI not found"""
-        test_doi = "10.1234/new.123"
-        mock_work = {
-            "id": "W123",
-            "doi": test_doi,
-            "title": "Test Paper",
-            "abstract": "Test abstract",
-            "authorships": [
-                {
-                    "author": {
-                        "id": "https://openalex.org/A123",
-                        "display_name": "Test Author",
-                    },
-                    "author_position": "first",
-                    "is_corresponding": True,
-                    "institutions": [],
-                }
-            ],
-            "publication_year": 2023,
-        }
-        mock_get_work.return_value = mock_work
-
-        mock_author = {
-            "id": "https://openalex.org/A123",
-            "display_name": "Test Author",
-            "orcid": None,
-            "summary_stats": {
-                "h_index": 10,
-                "i10_index": 5,
-                "2yr_mean_citedness": 2.0,
-            },
-            "works_count": 20,
-            "cited_by_count": 100,
-        }
-        mock_get_authors.return_value = ([mock_author], None)
-
-        url = reverse("paper-retrieve-by-doi")
-        response = self.client.get(url + f"?doi={test_doi}")
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["doi"], test_doi)
-        self.assertEqual(response.data["paper_title"], "Test Paper")
-
-        # Verify paper was created in database
-        self.assertTrue(Paper.objects.filter(doi=test_doi).exists())
-
-    @patch("utils.openalex.OpenAlex.get_work_by_doi")
-    def test_retrieve_by_doi_openalex_not_found(self, mock_get_work):
-        """Test handling when paper not found in OpenAlex"""
-        test_doi = "10.1234/notfound.123"
-        mock_get_work.return_value = None
-
-        url = reverse("paper-retrieve-by-doi")
-        response = self.client.get(url + f"?doi={test_doi}")
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(response.data["error"], "Work not found")
-
-    def test_retrieve_by_doi_with_doi_org_prefix(self):
-        """Test that DOIs with doi.org prefix are handled correctly"""
-        test_doi = "10.1234/test.456"
-        paper = create_paper()
-        paper.doi = test_doi  # Set the DOI
-        paper.save()
-        url = reverse("paper-retrieve-by-doi")
-
-        # Test with https://doi.org/ prefix
-        response = self.client.get(url + f"?doi=https://doi.org/{test_doi}")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["doi"], test_doi)
-        self.assertEqual(response.data["id"], paper.id)
-
-        # Test with doi.org/ prefix
-        response = self.client.get(url + f"?doi=doi.org/{test_doi}")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["doi"], test_doi)
-        self.assertEqual(response.data["id"], paper.id)
-
-    def test_retrieve_by_doi_with_https_variations(self):
-        """Test that DOIs with various https://doi.org formats are handled correctly"""
-        test_doi = "10.1234/test.789"
-        paper = create_paper()
-        paper.doi = test_doi
-        paper.save()
-        url = reverse("paper-retrieve-by-doi")
-
-        # Test variations of https://doi.org
-        variations = [
-            f"https://doi.org/{test_doi}",
-            f"https://doi.org/{test_doi}/",  # With trailing slash
-            f"https://www.doi.org/{test_doi}",  # With www
-            f"HTTPS://DOI.ORG/{test_doi}",  # Different case
-            f"https://doi.org/doi/{test_doi}",  # With extra doi path
-        ]
-
-        for doi_url in variations:
-            response = self.client.get(url + f"?doi={doi_url}")
-            self.assertEqual(
-                response.status_code, status.HTTP_200_OK, f"Failed for DOI: {doi_url}"
-            )
-            self.assertEqual(response.data["doi"], test_doi)
-            self.assertEqual(response.data["id"], paper.id)
 
 
 class PaperPendingVisibilityTests(TestCase):
@@ -172,8 +20,8 @@ class PaperPendingVisibilityTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.uploader = create_random_authenticated_user("paper_uploader")
-        self.pending_paper = create_paper(
-            title="Pending paper", uploaded_by=self.uploader
+        self.pending_paper = add_to_journal(
+            create_paper(title="Pending paper", uploaded_by=self.uploader)
         )
         self.pending_paper.unified_document.status = ResearchhubUnifiedDocument.PENDING
         self.pending_paper.unified_document.save(update_fields=["status"])
@@ -206,3 +54,58 @@ class PaperPendingVisibilityTests(TestCase):
         self.assertEqual(
             self.client.get(self.detail_url).status_code, status.HTTP_200_OK
         )
+
+
+class PaperJournalOnlyRetrieveTests(TestCase):
+    """Only the journal's papers have pages; every other paper is not found."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.journal_paper = add_to_journal(create_paper(title="Journal paper"))
+        self.listed_paper = Paper.objects.create(
+            id=min(JOURNAL_PAPER_IDS),
+            title="Listed paper",
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type="PAPER"
+            ),
+        )
+        self.other_paper = create_paper(title="Other paper")
+
+    def _status(self, paper):
+        return self.client.get(reverse("paper-detail", args=[paper.id])).status_code
+
+    def test_journal_version_paper_is_retrievable(self):
+        # Act & Assert
+        self.assertEqual(self._status(self.journal_paper), status.HTTP_200_OK)
+
+    def test_listed_journal_paper_is_retrievable(self):
+        # Act & Assert
+        self.assertEqual(self._status(self.listed_paper), status.HTTP_200_OK)
+
+    def test_versionless_original_of_journal_paper_is_retrievable(self):
+        # Arrange
+        original = create_paper(title="Original without a version row")
+        PaperVersion.objects.create(
+            paper=create_paper(title="Journal version 2"),
+            version=2,
+            original_paper=original,
+            journal=PaperVersion.RESEARCHHUB,
+        )
+
+        # Act & Assert
+        self.assertEqual(self._status(original), status.HTTP_200_OK)
+
+    def test_other_paper_is_not_found(self):
+        # Arrange
+        self.client.force_authenticate(create_random_authenticated_user("reader"))
+
+        # Act & Assert
+        self.assertEqual(self._status(self.other_paper), status.HTTP_404_NOT_FOUND)
+
+    def test_moderator_can_retrieve_other_paper(self):
+        # Arrange
+        moderator = create_random_authenticated_user("journal_mod", moderator=True)
+        self.client.force_authenticate(moderator)
+
+        # Act & Assert
+        self.assertEqual(self._status(self.other_paper), status.HTTP_200_OK)

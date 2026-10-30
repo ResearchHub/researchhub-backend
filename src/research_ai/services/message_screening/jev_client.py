@@ -40,9 +40,9 @@ class JevClient:
 
     @classmethod
     def from_settings(cls) -> JevClient | None:
-        """The client when screening is on and ``OPENROUTER_API_KEY`` is set."""
+        """The client when ``OPENROUTER_API_KEY`` is set, outside tests."""
         api_key = getattr(settings, "OPENROUTER_API_KEY", "") or ""
-        if not (settings.RESEARCH_AI_MESSAGE_SCREENING and api_key):
+        if settings.TESTING or not api_key:
             return None
         return cls(api_key)
 

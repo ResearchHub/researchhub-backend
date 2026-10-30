@@ -13,6 +13,7 @@ from research_ai.constants import (
     Region,
 )
 from research_ai.models import (
+    CoverImageGeneration,
     EmailTemplate,
     Expert,
     ExpertSearch,
@@ -1152,3 +1153,31 @@ class ProposalDraftSerializer(serializers.ModelSerializer):
             "completed_at",
         ]
         read_only_fields = fields
+
+
+class CoverImageGenerationCreateSerializer(serializers.Serializer):
+    """
+    The text a proposal or RFP cover banner shows, taken from the publishing form.
+    """
+
+    document_type = serializers.ChoiceField(
+        choices=CoverImageGeneration.DocumentType.choices
+    )
+    title = serializers.CharField(max_length=500)
+    subtitle = serializers.CharField(
+        max_length=2000, required=False, allow_blank=True, default=""
+    )
+    organization = serializers.CharField(
+        max_length=200, required=False, allow_blank=True, default=""
+    )
+    funding_amount_usd = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        min_value=0,
+        required=False,
+        allow_null=True,
+        default=None,
+    )
+    note_id = serializers.IntegerField(
+        min_value=1, required=False, allow_null=True, default=None
+    )

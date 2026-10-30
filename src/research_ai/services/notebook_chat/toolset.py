@@ -2,8 +2,8 @@
 
 Assembles the toolset one chat turn runs with: the note read/edit tools
 (scoped to the acting user's permissions), the acting user's public profile,
-ResearchHub grant discovery, the OpenAlex literature tools, web search and
-fetch, and the files the user attached to the conversation. The
+ResearchHub grant discovery, the OpenAlex literature and citation tools, web
+search and fetch, and the files the user attached to the conversation. The
 OpenAlex toolset is reused minus ``submit_profile`` -- a chat turn ends when
 the model answers in plain text, so a terminal submit tool from another flow
 must not ride along.
@@ -99,7 +99,9 @@ def compose_notebook_toolset(
     grant_toolset,
     selected_rfp_toolset=None,
     rfp_details_toolset=None,
+    cover_image_toolset=None,
     openalex_toolset,
+    citation_toolset,
     web_search_toolset,
     web_fetch_toolset=None,
     attachment_toolset=None,
@@ -113,9 +115,10 @@ def compose_notebook_toolset(
     the provider declares its own, and sending both would put two tools with
     one name in the request.
     """
-    candidates = [
+    candidates = list(citation_toolset.build_tools())
+    candidates.extend(
         tool for tool in openalex_toolset.build_tools() if tool.name != SUBMIT_PROFILE
-    ]
+    )
     candidates.extend(web_search_toolset.build_tools())
     if web_fetch_toolset is not None:
         candidates.extend(web_fetch_toolset.build_tools())
@@ -126,6 +129,8 @@ def compose_notebook_toolset(
         candidates.extend(selected_rfp_toolset.build_tools())
     if rfp_details_toolset is not None:
         candidates.extend(rfp_details_toolset.build_tools())
+    if cover_image_toolset is not None:
+        candidates.extend(cover_image_toolset.build_tools())
     candidates.extend(note_toolset.build_tools())
     if attachment_toolset is not None:
         candidates.extend(attachment_toolset.build_tools())

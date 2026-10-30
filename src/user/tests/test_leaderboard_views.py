@@ -27,219 +27,221 @@ from user.tests.helpers import create_user
 
 
 class LeaderboardApiTests(APITestCase):
-    def setUp(self):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
         # Create test users
-        self.reviewer1 = create_user(
+        cls.reviewer1 = create_user(
             email="reviewer1@researchhub.com", first_name="First", last_name="Reviewer"
         )
-        self.reviewer2 = create_user(
+        cls.reviewer2 = create_user(
             email="reviewer2@researchhub.com", first_name="Second", last_name="Reviewer"
         )
 
-        self.funder1 = create_user(
+        cls.funder1 = create_user(
             email="funder1@researchhub.com", first_name="First", last_name="Funder"
         )
 
-        self.funder2 = create_user(
+        cls.funder2 = create_user(
             email="funder2@researchhub.com", first_name="Second", last_name="Funder"
         )
 
-        self.bank = create_user(
+        cls.bank = create_user(
             email="bank@researchhub.com", first_name="Bank", last_name="Bank"
         )
 
         # Create a paper for the review
-        self.paper = Paper.objects.create(title="Test Paper")
+        cls.paper = Paper.objects.create(title="Test Paper")
 
         # Create thread properly linked to the paper
-        self.paper_content_type = ContentType.objects.get_for_model(Paper)
-        self.thread = RhCommentThreadModel.objects.create(
+        cls.paper_content_type = ContentType.objects.get_for_model(Paper)
+        cls.thread = RhCommentThreadModel.objects.create(
             thread_type=PEER_REVIEW,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
-            created_by=self.funder1,
+            content_type=cls.paper_content_type,
+            object_id=cls.paper.id,
+            created_by=cls.funder1,
         )
 
         # Create peer review comment
-        self.review_comment = RhCommentModel.objects.create(
+        cls.review_comment = RhCommentModel.objects.create(
             comment_content_json={"ops": [{"insert": "Test review"}]},
             comment_type=PEER_REVIEW,
-            created_by=self.reviewer1,
-            thread=self.thread,
+            created_by=cls.reviewer1,
+            thread=cls.thread,
         )
 
         # Store content types we'll need
-        self.comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
-        self.purchase_content_type = ContentType.objects.get_for_model(Purchase)
+        cls.comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+        cls.purchase_content_type = ContentType.objects.get_for_model(Purchase)
 
         # Create escrow first, linked to the review comment
-        self.escrow = Escrow.objects.create(
+        cls.escrow = Escrow.objects.create(
             hold_type=Escrow.BOUNTY,
             status=Escrow.PAID,
             amount_holding=100,
-            content_type=self.comment_content_type,
-            object_id=self.review_comment.id,
-            created_by=self.funder1,
+            content_type=cls.comment_content_type,
+            object_id=cls.review_comment.id,
+            created_by=cls.funder1,
         )
 
         # Then create bounty with escrow reference and unified_document
-        self.bounty = Bounty.objects.create(
+        cls.bounty = Bounty.objects.create(
             bounty_type=Bounty.Type.REVIEW,
             amount=100,
-            created_by=self.funder1,
-            item_content_type=self.comment_content_type,
-            item_object_id=self.review_comment.id,
-            escrow=self.escrow,
-            unified_document=self.paper.unified_document,
+            created_by=cls.funder1,
+            item_content_type=cls.comment_content_type,
+            item_object_id=cls.review_comment.id,
+            escrow=cls.escrow,
+            unified_document=cls.paper.unified_document,
         )
 
         # Create escrow recipient for reviewer1
         EscrowRecipients.objects.create(
-            escrow=self.escrow, user=self.reviewer1, amount=100
+            escrow=cls.escrow, user=cls.reviewer1, amount=100
         )
 
         # Create a purchase/tip for reviewer1
-        self.purchase = Purchase.objects.create(
-            user=self.funder1,
+        cls.purchase = Purchase.objects.create(
+            user=cls.funder1,
             amount="50",
             paid_status=Purchase.PAID,
-            content_type=self.comment_content_type,
-            object_id=self.review_comment.id,
+            content_type=cls.comment_content_type,
+            object_id=cls.review_comment.id,
         )
 
         # Create distribution (tip) for reviewer1
         Distribution.objects.create(
-            recipient=self.reviewer1,
-            giver=self.funder1,
+            recipient=cls.reviewer1,
+            giver=cls.funder1,
             amount=50,
             distribution_type="PURCHASE",
-            proof_item_content_type=self.purchase_content_type,
-            proof_item_object_id=self.purchase.id,
+            proof_item_content_type=cls.purchase_content_type,
+            proof_item_object_id=cls.purchase.id,
         )
 
         # Create bounty solution linking the bounty to the review comment
-        self.bounty_solution = BountySolution.objects.create(
-            bounty=self.bounty,
-            created_by=self.reviewer1,
-            content_type=self.comment_content_type,
-            object_id=self.review_comment.id,
+        cls.bounty_solution = BountySolution.objects.create(
+            bounty=cls.bounty,
+            created_by=cls.reviewer1,
+            content_type=cls.comment_content_type,
+            object_id=cls.review_comment.id,
         )
 
         today = timezone.now()
 
         # Create fundraise purchase
         Purchase.objects.create(
-            user=self.funder1,
+            user=cls.funder1,
             amount="200",
             paid_status=Purchase.PAID,
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-            content_type=self.comment_content_type,
-            object_id=self.review_comment.id,
+            content_type=cls.comment_content_type,
+            object_id=cls.review_comment.id,
             created_date=today,
         )
 
         # Create boost purchase
         Purchase.objects.create(
-            user=self.funder1,
+            user=cls.funder1,
             amount="100",
             paid_status=Purchase.PAID,
             purchase_type=Purchase.BOOST,
-            content_type=self.comment_content_type,
-            object_id=self.review_comment.id,
+            content_type=cls.comment_content_type,
+            object_id=cls.review_comment.id,
             created_date=today,
         )
 
         # Create distributions for fees
         for fee_type in ["BOUNTY_DAO_FEE", "BOUNTY_RH_FEE", "SUPPORT_RH_FEE"]:
             Distribution.objects.create(
-                recipient=self.bank,
-                giver=self.funder1,
+                recipient=cls.bank,
+                giver=cls.funder1,
                 amount=50,
                 distribution_type=fee_type,
-                proof_item_content_type=self.purchase_content_type,
-                proof_item_object_id=self.purchase.id,
+                proof_item_content_type=cls.purchase_content_type,
+                proof_item_object_id=cls.purchase.id,
                 created_date=today,
             )
 
-        self.regular_review_thread = RhCommentThreadModel.objects.create(
+        cls.regular_review_thread = RhCommentThreadModel.objects.create(
             thread_type=COMMUNITY_REVIEW,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
-            created_by=self.funder1,
+            content_type=cls.paper_content_type,
+            object_id=cls.paper.id,
+            created_by=cls.funder1,
         )
 
-        self.regular_review_comment = RhCommentModel.objects.create(
+        cls.regular_review_comment = RhCommentModel.objects.create(
             comment_content_json={"ops": [{"insert": "Test regular review"}]},
             comment_type=COMMUNITY_REVIEW,
-            created_by=self.reviewer1,
-            thread=self.regular_review_thread,
+            created_by=cls.reviewer1,
+            thread=cls.regular_review_thread,
         )
 
-        self.answer_comment = RhCommentModel.objects.create(
+        cls.answer_comment = RhCommentModel.objects.create(
             comment_content_json={"ops": [{"insert": "Test answer"}]},
             comment_type=ANSWER,
-            created_by=self.reviewer1,
-            thread=self.regular_review_thread,
+            created_by=cls.reviewer1,
+            thread=cls.regular_review_thread,
         )
 
         # Create escrow for regular review
-        self.regular_review_escrow = Escrow.objects.create(
+        cls.regular_review_escrow = Escrow.objects.create(
             hold_type=Escrow.BOUNTY,
             status=Escrow.PAID,
             amount_holding=75,
-            content_type=self.comment_content_type,
-            object_id=self.regular_review_comment.id,
-            created_by=self.funder1,
+            content_type=cls.comment_content_type,
+            object_id=cls.regular_review_comment.id,
+            created_by=cls.funder1,
         )
 
         # Create bounty for regular review
-        self.regular_review_bounty = Bounty.objects.create(
+        cls.regular_review_bounty = Bounty.objects.create(
             bounty_type=Bounty.Type.REVIEW,
             amount=75,
-            created_by=self.funder1,
-            item_content_type=self.comment_content_type,
-            item_object_id=self.regular_review_comment.id,
-            escrow=self.regular_review_escrow,
-            unified_document=self.paper.unified_document,
+            created_by=cls.funder1,
+            item_content_type=cls.comment_content_type,
+            item_object_id=cls.regular_review_comment.id,
+            escrow=cls.regular_review_escrow,
+            unified_document=cls.paper.unified_document,
         )
 
         # Create escrow recipient for regular review
         EscrowRecipients.objects.create(
-            escrow=self.regular_review_escrow, user=self.reviewer1, amount=75
+            escrow=cls.regular_review_escrow, user=cls.reviewer1, amount=75
         )
 
         # Create bounty solution for regular review
-        self.regular_review_bounty_solution = BountySolution.objects.create(
-            bounty=self.regular_review_bounty,
-            created_by=self.reviewer1,
-            content_type=self.comment_content_type,
-            object_id=self.regular_review_comment.id,
+        cls.regular_review_bounty_solution = BountySolution.objects.create(
+            bounty=cls.regular_review_bounty,
+            created_by=cls.reviewer1,
+            content_type=cls.comment_content_type,
+            object_id=cls.regular_review_comment.id,
         )
 
         # Create a purchase/tip for regular review
-        self.regular_review_purchase = Purchase.objects.create(
-            user=self.funder1,
+        cls.regular_review_purchase = Purchase.objects.create(
+            user=cls.funder1,
             amount="25",
             paid_status=Purchase.PAID,
             purchase_type=Purchase.BOOST,
-            content_type=self.comment_content_type,
-            object_id=self.regular_review_comment.id,
+            content_type=cls.comment_content_type,
+            object_id=cls.regular_review_comment.id,
             created_date=today,
         )
 
         # Create distribution (tip) for regular review
         Distribution.objects.create(
-            recipient=self.reviewer1,
-            giver=self.funder1,
+            recipient=cls.reviewer1,
+            giver=cls.funder1,
             amount=25,
             distribution_type="PURCHASE",
-            proof_item_content_type=self.purchase_content_type,
-            proof_item_object_id=self.regular_review_purchase.id,
+            proof_item_content_type=cls.purchase_content_type,
+            proof_item_object_id=cls.regular_review_purchase.id,
         )
 
-        self.now = timezone.now()
-        ud = self.paper.unified_document
-        ct_user = ContentType.objects.get_for_model(type(self.reviewer1))
+        cls.now = timezone.now()
+        ud = cls.paper.unified_document
+        ct_user = ContentType.objects.get_for_model(type(cls.reviewer1))
         sid = 2000
 
         def make_activity(funder, source_type, total_amount, **kwargs):
@@ -250,7 +252,7 @@ class LeaderboardApiTests(APITestCase):
                 source_type=source_type,
                 total_amount=Decimal(str(total_amount)),
                 unified_document=ud,
-                activity_date=self.now,
+                activity_date=cls.now,
                 source_content_type=ct_user,
                 source_object_id=sid,
                 **kwargs,
@@ -259,20 +261,20 @@ class LeaderboardApiTests(APITestCase):
 
         # Reviewer1 earnings: bounty 100 + 75, tip 50 + 25
         for amount in (100, 75):
-            fa = make_activity(self.funder1, FundingActivity.BOUNTY_PAYOUT, amount)
+            fa = make_activity(cls.funder1, FundingActivity.BOUNTY_PAYOUT, amount)
             FundingActivityRecipient.objects.create(
-                activity=fa, recipient_user=self.reviewer1, amount=Decimal(str(amount))
+                activity=fa, recipient_user=cls.reviewer1, amount=Decimal(str(amount))
             )
         for amount in (50, 25):
-            fa = make_activity(self.funder1, FundingActivity.TIP_REVIEW, amount)
+            fa = make_activity(cls.funder1, FundingActivity.TIP_REVIEW, amount)
             FundingActivityRecipient.objects.create(
-                activity=fa, recipient_user=self.reviewer1, amount=Decimal(str(amount))
+                activity=fa, recipient_user=cls.reviewer1, amount=Decimal(str(amount))
             )
 
         # Funder1: purchase 200 + 100 + 25, fees 50 * 3 (bounty 100+75 already above)
         for amount in (200, 100, 25):
             make_activity(
-                self.funder1,
+                cls.funder1,
                 (
                     FundingActivity.FUNDRAISE_PAYOUT
                     if amount == 200
@@ -281,32 +283,32 @@ class LeaderboardApiTests(APITestCase):
                 amount,
             )
         for _ in range(3):
-            make_activity(self.funder1, FundingActivity.FEE, 50)
+            make_activity(cls.funder1, FundingActivity.FEE, 50)
 
         # Pre-computed leaderboard entries
         Leaderboard.objects.create(
-            user=self.reviewer1,
+            user=cls.reviewer1,
             leaderboard_type=Leaderboard.EARNER,
             period=Leaderboard.ALL_TIME,
             rank=1,
             total_amount=Decimal(250),
         )
         Leaderboard.objects.create(
-            user=self.funder1,
+            user=cls.funder1,
             leaderboard_type=Leaderboard.FUNDER,
             period=Leaderboard.ALL_TIME,
             rank=1,
             total_amount=Decimal(650),
         )
         Leaderboard.objects.create(
-            user=self.reviewer1,
+            user=cls.reviewer1,
             leaderboard_type=Leaderboard.EARNER,
             period=Leaderboard.SEVEN_DAYS,
             rank=1,
             total_amount=Decimal(250),
         )
         Leaderboard.objects.create(
-            user=self.funder1,
+            user=cls.funder1,
             leaderboard_type=Leaderboard.FUNDER,
             period=Leaderboard.THIRTY_DAYS,
             rank=1,

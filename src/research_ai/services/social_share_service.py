@@ -35,6 +35,7 @@ from research_ai.services.agent import (
     TextBlock,
 )
 from research_ai.services.agent.providers.openrouter import OPENROUTER_BASE_URL
+from research_ai.services.llm_models import SOCIAL_SHARE
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
@@ -44,8 +45,6 @@ from researchhub_document.related_models.researchhub_post_model import (
 )
 
 logger = logging.getLogger(__name__)
-
-MODEL_ID = "moonshotai/kimi-k3"
 
 SHAREABLE_DOCUMENT_TYPES = (PREREGISTRATION, GRANT)
 
@@ -116,7 +115,9 @@ def _default_provider() -> LLMProvider:
         max_retries=1,
     )
     # Reasoning off: a short post gains little from it and the user is waiting.
-    return OpenRouterProvider(client=client, model_id=MODEL_ID, thinking="disabled")
+    return OpenRouterProvider(
+        client=client, model_id=SOCIAL_SHARE.model_id, thinking="disabled"
+    )
 
 
 class SocialShareService:

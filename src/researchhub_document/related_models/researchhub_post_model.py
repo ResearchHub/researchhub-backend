@@ -17,7 +17,6 @@ from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     DOCUMENT_TYPES,
     REGISTERED_REPORT,
-    RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from researchhub_document.related_models.constants.editor_type import (
     CK_EDITOR,
@@ -45,6 +44,14 @@ class ResearchhubPostQuerySet(models.QuerySet):
             self.publicly_visible()
             .filter(document_type=CHANGELOG, unified_document__is_removed=False)
             .order_by("-created_date")
+        )
+
+    def public_sitemap_entries(self, document_type: str) -> ResearchhubPostQuerySet:
+        """Posts of one type the public sitemap lists, oldest first."""
+        return (
+            self.publicly_visible()
+            .filter(document_type=document_type, unified_document__is_removed=False)
+            .order_by("id")
         )
 
     def visible_to(
@@ -149,13 +156,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
         default=CK_EDITOR,
         max_length=32,
         help_text="Editor used to compose the post",
-    )
-    eln_src = models.FileField(
-        blank=True,
-        default=None,
-        max_length=512,
-        null=True,
-        upload_to="uploads/post_eln/%Y/%m/%d/",
     )
     image = models.TextField(
         blank=True,
@@ -284,13 +284,18 @@ class ResearchhubPost(AbstractGenericReactionModel):
         return default_storage.url(self.image)
 
     def get_full_markdown(self):
+        src = self.discussion_src
+        # Posts that predate stored bodies have no file to read.
+        if not src:
+            return None
         try:
-            if self.document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                src = self.discussion_src
-            else:
-                src = self.eln_src
             with src.open() as file:
                 return file.read().decode("utf-8")
+        except FileNotFoundError:
+            logger.warning(
+                "Full markdown file %s missing for post %s", src.name, self.id
+            )
+            return None
         except Exception:
             logger.exception("Error getting full markdown for document %s", self.id)
             return None

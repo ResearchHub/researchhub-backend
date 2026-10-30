@@ -154,7 +154,7 @@ class SetGoogleProfileImageTests(TestCase):
         )
 
         # Act
-        self.service.set_google_profile_image(self.user)
+        self.service.set_social_profile_image(self.user)
 
         # Assert
         self.user.author_profile.refresh_from_db()
@@ -177,7 +177,7 @@ class SetGoogleProfileImageTests(TestCase):
         )
 
         # Act
-        self.service.set_google_profile_image(self.user)
+        self.service.set_social_profile_image(self.user)
 
         # Assert
         self.user.author_profile.refresh_from_db()
@@ -188,7 +188,7 @@ class SetGoogleProfileImageTests(TestCase):
         Test that nothing happens when user has no Google social account.
         """
         # Act
-        self.service.set_google_profile_image(self.user)
+        self.service.set_social_profile_image(self.user)
 
         # Assert
         self.user.author_profile.refresh_from_db()
@@ -210,8 +210,48 @@ class SetGoogleProfileImageTests(TestCase):
         with self.assertLogs(
             "oauth.services.user_signup_service", level="ERROR"
         ) as logs:
-            self.service.set_google_profile_image(self.user)
+            self.service.set_social_profile_image(self.user)
 
         # Assert
         # User ID should be in the log message
         self.assertIn(str(self.user.id), logs.output[0])
+
+
+class SetXProfileLinkTests(TestCase):
+    def setUp(self):
+        self.service = UserSignupService(
+            amplitude_client=Mock(),
+            mailchimp_client=Mock(),
+        )
+
+    def test_leaves_x_profile_link_unchanged(self):
+        """
+        Test that the X link is only set when a single X account has a username
+        and the author has no link yet.
+        """
+        cases = [
+            ("existing link", "https://x.com/existing", ["xuser"]),
+            ("no x account", None, []),
+            ("no username", None, [None]),
+            ("multiple x accounts", None, ["first", "second"]),
+        ]
+        for name, existing_link, usernames in cases:
+            with self.subTest(name):
+                # Arrange
+                user = create_random_default_user(f"x_profile_{name}")
+                user.author_profile.twitter = existing_link
+                user.author_profile.save()
+                for i, username in enumerate(usernames):
+                    SocialAccount.objects.create(
+                        user=user,
+                        provider="x_oauth2",
+                        uid=f"{user.id}-{i}",
+                        extra_data={"username": username} if username else {},
+                    )
+
+                # Act
+                self.service.set_x_profile_link(user)
+
+                # Assert
+                user.author_profile.refresh_from_db()
+                self.assertEqual(user.author_profile.twitter, existing_link)

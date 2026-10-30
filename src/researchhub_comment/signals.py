@@ -121,9 +121,7 @@ def _create_author_update_notification(comment: RhCommentModel) -> None:
         )
 
     if recipient_emails:
-        subject = (
-            f"{author.full_name()} [Author] just shared an update on {document.title}"
-        )
+        subject = f"{author.full_name()} just shared an update on {document.title}"
         message = render_to_string(
             "email_activity_card.html",
             {

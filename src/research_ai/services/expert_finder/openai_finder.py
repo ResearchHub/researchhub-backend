@@ -3,9 +3,9 @@ import logging
 from django.conf import settings
 from openai import OpenAI
 
-logger = logging.getLogger(__name__)
+from research_ai.services.llm_models import EXPERT_FINDER
 
-OPENAI_EXPERT_FINDER_MODEL = "gpt-5.4-mini"
+logger = logging.getLogger(__name__)
 
 
 class OpenAIExpertFinderService:
@@ -14,7 +14,7 @@ class OpenAIExpertFinderService:
     def __init__(self):
         api_key = getattr(settings, "OPENAI_API_KEY", "") or ""
         self._client = OpenAI(api_key=api_key) if api_key else None
-        self.model_id = OPENAI_EXPERT_FINDER_MODEL
+        self.model_id = EXPERT_FINDER.model_id
 
     def invoke(
         self,
@@ -22,7 +22,6 @@ class OpenAIExpertFinderService:
         user_prompt: str,
         *,
         max_tokens: int = 16_384,
-        temperature: float = 0.0,
     ) -> str:
         """
         Run expert discovery via the Responses API with web search.
@@ -50,7 +49,6 @@ class OpenAIExpertFinderService:
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 max_tokens=max_tokens,
-                temperature=temperature,
             )
         except Exception as e:
             logger.exception("OpenAI expert finder failed")
@@ -62,15 +60,15 @@ class OpenAIExpertFinderService:
         system_prompt: str,
         user_prompt: str,
         max_tokens: int,
-        temperature: float,
     ) -> str:
+        # No temperature: GPT-6 models reason by default and reject sampling
+        # params with a 400.
         response = self._client.responses.create(
             model=self.model_id,
             instructions=system_prompt,
             input=user_prompt,
             tools=[{"type": "web_search"}],
             max_output_tokens=max_tokens,
-            temperature=temperature,
         )
         text = (response.output_text or "").strip()
         if not text:
