@@ -680,9 +680,14 @@ class FundraiseCompletedContentSerializer(serializers.Serializer):
         return None
 
     def get_amount_raised(self, obj):
+        usd_amount = obj.get_amount_raised(currency=USD)
+        try:
+            rsc_amount = obj.get_amount_raised(currency=RSC)
+        except AttributeError:
+            rsc_amount = None
         return {
-            "usd": obj.get_amount_raised(currency=USD),
-            "rsc": obj.get_amount_raised(currency=RSC),
+            "usd": usd_amount,
+            "rsc": rsc_amount,
         }
 
     def get_goal_amount(self, obj):
