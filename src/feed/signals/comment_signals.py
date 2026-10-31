@@ -52,12 +52,18 @@ def _refresh_comment_feed_entries(comment):
 
     def enqueue_refreshes():
         for comment_id in comment_ids:
-            refresh_feed_entries_for_objects.apply_async(
-                args=(comment_id, content_type_id),
-                priority=1,
-            )
+            try:
+                refresh_feed_entries_for_objects.apply_async(
+                    args=(comment_id, content_type_id),
+                    priority=1,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to enqueue feed refresh for comment %s",
+                    comment_id,
+                )
 
-    transaction.on_commit(enqueue_refreshes)
+    transaction.on_commit(enqueue_refreshes, robust=True)
 
 
 def _update_metrics(comment):
