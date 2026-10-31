@@ -27,6 +27,7 @@ from user.permissions import (
     IsModerator,
     UserIsEditor,
 )
+from user.related_models.user_model import prefetch_x_verified_accounts
 from user.serializers import (
     CheckAccountSerializer,
     MajorSerializer,
@@ -43,6 +44,7 @@ from user.views.follow_view_mixins import FollowViewActionMixin
 class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     queryset = (
         User.objects.select_related("userverification")
+        .prefetch_related(prefetch_x_verified_accounts("socialaccount_set"))
         .annotate(
             is_funder=Exists(
                 Grant.objects.filter(

@@ -21,7 +21,12 @@ from researchhub_document.views.researchhub_unified_document_views import (
 )
 from user.models import Author
 from user.permissions import DeleteAuthorPermission, IsVerifiedUser, UpdateAuthor
-from user.serializers import AuthorEditableSerializer, AuthorSerializer
+from user.related_models.user_model import prefetch_x_verified_accounts
+from user.serializers import (
+    AuthorDetailSerializer,
+    AuthorEditableSerializer,
+    AuthorSerializer,
+)
 from user.services.profile_deletion_service import ProfileDeletionService
 from user.tasks import invalidate_author_profile_caches
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -32,7 +37,7 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     queryset = Author.objects.select_related(
         "user",
         "user__userverification",
-    )
+    ).prefetch_related(prefetch_x_verified_accounts("user__socialaccount_set"))
     serializer_class = AuthorSerializer
     filter_backends = (SearchFilter, OrderingFilter)
     search_fields = ("first_name", "last_name")
@@ -40,6 +45,12 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         (IsAuthenticatedOrReadOnly & UpdateAuthor & CreateOrUpdateIfAllowed)
         | DeleteAuthorPermission
     ]
+
+    def get_serializer_class(self) -> type[AuthorSerializer]:
+        """Use the detail serializer when retrieving a single author."""
+        if self.action == "retrieve":
+            return AuthorDetailSerializer
+        return super().get_serializer_class()
 
     def perform_destroy(self, instance):
         ProfileDeletionService().delete_author(instance)
@@ -166,7 +177,7 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                 )
             }
         }
-        serializer = AuthorSerializer(
+        serializer = AuthorDetailSerializer(
             author,
             context=context,
         )

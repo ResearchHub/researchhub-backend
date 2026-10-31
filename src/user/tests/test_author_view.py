@@ -1,8 +1,10 @@
+from allauth.account.models import EmailAddress
+from allauth.socialaccount.models import SocialAccount
 from rest_framework.test import APITestCase
 
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
-from user.models import Author, User
+from user.models import Author, User, UserVerification
 from user.tests.helpers import create_user
 
 
@@ -39,6 +41,39 @@ class AuthorApiTests(APITestCase):
         self.assertIn("last_name", response.data)
         # Check that the editor_of field is not included
         self.assertNotIn("editor_of", response.data)
+
+    def test_retrieve_lists_every_verification_method(self):
+        """
+        Test that retrieving an author lists each verification their user completed.
+        """
+        # Arrange
+        user = create_user(email="scholar@stanford.edu")
+        UserVerification.objects.create(
+            user=user,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            status=UserVerification.Status.APPROVED,
+            verified_by=UserVerification.Type.PERSONA,
+            external_id="inq_123",
+        )
+        SocialAccount.objects.create(
+            user=user,
+            provider="x_oauth2",
+            uid="x-uid",
+            extra_data={"is_identity_verified": True},
+        )
+        EmailAddress.objects.create(
+            user=user, email=user.email, primary=True, verified=True
+        )
+
+        # Act
+        response = self.client.get(f"/api/author/{user.author_profile.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["verification_methods"], ["PERSONA", "X", "EDU_EMAIL"]
+        )
 
     def test_delete_soft_deletes_author_and_linked_user(self):
         # Arrange
