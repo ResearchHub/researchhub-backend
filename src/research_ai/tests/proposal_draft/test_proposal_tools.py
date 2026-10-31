@@ -439,6 +439,21 @@ class ProposalToolsTestCase(TestCase):
             [r["title"] for r in out["results"]], ["Home waking salivary cortisone"]
         )
 
+    def test_search_works_skips_records_without_id_or_title(self):
+        # Arrange: one record with neither an id nor a DOI, one untitled.
+        query = "perovskite stability"
+        anonymous = {"display_name": "Anonymous record", "publication_year": 2020}
+        untitled = _build_openalex_work("", ["A"], doi="https://doi.org/10.1/u")
+        paper = _build_openalex_work("Perovskite stability", ["B"])
+        oa = _FakeOpenAlex({}, works_by_query={query: [anonymous, untitled, paper]})
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": query})
+
+        # Assert
+        self.assertEqual([r["title"] for r in out["results"]], ["Perovskite stability"])
+
     def test_search_works_propagates_unexpected_client_errors(self):
         # Arrange: a bug in the client, not a failed request.
         oa = Mock()
