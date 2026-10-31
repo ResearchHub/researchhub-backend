@@ -12,9 +12,9 @@ from research_ai.services.proposal_draft.tools.fulltext_tools import (
 _PATCH_BASE = "research_ai.services.proposal_draft.tools.fulltext_tools"
 
 
-def _search_expert(works):
-    """Minimal stand-in: the toolset only reads ``expert.profile``."""
-    return SimpleNamespace(expert=SimpleNamespace(profile={"works": works}))
+def _profile(works):
+    """Minimal stand-in: the toolset only reads ``profile.data``."""
+    return SimpleNamespace(data={"works": works})
 
 
 class DoiFromSourceUrlTests(unittest.TestCase):
@@ -50,7 +50,8 @@ class GetWorkFulltextTests(unittest.TestCase):
 
     def _toolset(self, *, paper_lookup=None, max_fetches=5):
         return ProposalFulltextToolset(
-            _search_expert([self.work]),
+            SimpleNamespace(),
+            profile=_profile([self.work]),
             max_fetches=max_fetches,
             paper_lookup=paper_lookup or (lambda doi: None),
         )
