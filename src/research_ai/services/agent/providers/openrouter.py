@@ -262,6 +262,41 @@ class OpenRouterProvider(LLMProvider):
             raise ProviderError(
                 "OPENROUTER_API_KEY is not configured; cannot call OpenRouter."
             )
+        kwargs = self._request_kwargs(
+            system_prompt=system_prompt,
+            messages=messages,
+            rendered_tools=rendered_tools,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        for attempt in range(1 + _EMPTY_RESPONSE_RETRIES):
+            try:
+                return self._request_turn(kwargs, on_usage)
+            except _EmptyResponseError as e:
+                # The SDK does not retry a 200, so a response that arrived
+                # empty for a transient reason gets its repeat here or not at
+                # all. A permanent one is reported without spending again.
+                if not e.retryable or attempt == _EMPTY_RESPONSE_RETRIES:
+                    raise
+                logger.warning(
+                    "openrouter: retrying after an empty response (model=%s)",
+                    self.model_id,
+                )
+                if before_retry is not None:
+                    before_retry()
+
+    # -- private helpers --------------------------------------------------
+
+    def _request_kwargs(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        rendered_tools: Any,
+        max_tokens: int | None,
+        temperature: float,
+    ) -> dict:
+        """The Chat Completions arguments for one turn."""
         capabilities = model_capabilities("openrouter", self.model_id)
         if capabilities.max_output_tokens is None:
             # No guessed ceiling: too high is a 400, too low truncates a turn
@@ -295,24 +330,7 @@ class OpenRouterProvider(LLMProvider):
             # Chat Completions argument, so the OpenAI client forwards it via
             # ``extra_body``.
             kwargs["extra_body"] = {"reasoning": reasoning}
-
-        for attempt in range(1 + _EMPTY_RESPONSE_RETRIES):
-            try:
-                return self._request_turn(kwargs, on_usage)
-            except _EmptyResponseError as e:
-                # The SDK does not retry a 200, so a response that arrived
-                # empty for a transient reason gets its repeat here or not at
-                # all. A permanent one is reported without spending again.
-                if not e.retryable or attempt == _EMPTY_RESPONSE_RETRIES:
-                    raise
-                logger.warning(
-                    "openrouter: retrying after an empty response (model=%s)",
-                    self.model_id,
-                )
-                if before_retry is not None:
-                    before_retry()
-
-    # -- private helpers --------------------------------------------------
+        return kwargs
 
     def _request_turn(
         self, kwargs: dict, on_usage: Callable[[TurnUsage], None] | None
