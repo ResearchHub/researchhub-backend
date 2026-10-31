@@ -40,3 +40,27 @@ class RhCommentModelPlainTextTest(SimpleTestCase):
         }
         comment = self._make_comment(content_json=tiptap_json, content_type=TIPTAP)
         self.assertEqual(comment.plain_text, "Hello world!")
+
+    def test_plain_text_tiptap_math(self):
+        # Arrange
+        tiptap_json = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": "Energy is "},
+                        {"type": "inlineMath", "attrs": {"latex": "E = mc^2"}},
+                    ],
+                },
+                {"type": "blockMath", "attrs": {"latex": "\\sum_{i=0}^{n} i"}},
+                {"type": "inlineMath"},
+            ],
+        }
+        comment = self._make_comment(content_json=tiptap_json, content_type=TIPTAP)
+
+        # Act
+        text = comment.plain_text
+
+        # Assert
+        self.assertEqual(text, "Energy is E = mc^2\\sum_{i=0}^{n} i")
