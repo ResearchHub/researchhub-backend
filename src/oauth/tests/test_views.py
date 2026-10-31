@@ -1,13 +1,15 @@
 from unittest.mock import patch
 
 import requests
-from allauth.socialaccount.models import SocialApp
+from allauth.socialaccount.models import SocialAccount, SocialApp
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client, OAuth2Error
 from django.contrib.sites.models import Site
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from oauth.services.user_signup_service import UserSignupService
 from user.models import User
+from user.tests.helpers import create_random_default_user, create_user
 
 
 @patch.object(UserSignupService, "track_signup")
@@ -134,3 +136,77 @@ class XLoginViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("confirmed_email", response.data)
         self.assertFalse(User.objects.filter(username="xuser").exists())
+
+    def test_login_connects_x_to_signed_in_user(
+        self, mock_exchange, mock_get, mock_track
+    ):
+        """
+        Test that a signed-in user's X login connects X to them, replaces their
+        manual X link, and keeps them signed in, even when another user has the
+        X account's email.
+        """
+        # Arrange
+        user = create_random_default_user("x_connect")
+        user.author_profile.twitter = "https://x.com/manual"
+        user.author_profile.save()
+        create_user(email="other@example.com")
+        mock_exchange.return_value = {"access_token": "x-token"}
+        self._mock_profile(mock_get, confirmed_email="other@example.com")
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(self.url, self.payload)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["key"], Token.objects.get(user=user).key)
+        self.assertEqual(response.data["access_token"], "x-token")
+        self.assertTrue(
+            SocialAccount.objects.filter(
+                user=user, provider="x_oauth2", uid="123"
+            ).exists()
+        )
+        user.author_profile.refresh_from_db()
+        self.assertEqual(user.author_profile.twitter, "https://x.com/xuser")
+
+    def test_login_rejects_x_connected_to_another_user(
+        self, mock_exchange, mock_get, mock_track
+    ):
+        """
+        Test that a signed-in user cannot connect an X account another user owns.
+        """
+        # Arrange
+        user = create_random_default_user("x_connect")
+        SocialAccount.objects.create(
+            user=create_random_default_user("x_owner"), provider="x_oauth2", uid="123"
+        )
+        mock_exchange.return_value = {"access_token": "x-token"}
+        self._mock_profile(mock_get)
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(self.url, self.payload)
+
+        # Assert
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(SocialAccount.objects.filter(user=user).exists())
+
+    def test_login_rejects_second_x_for_signed_in_user(
+        self, mock_exchange, mock_get, mock_track
+    ):
+        """
+        Test that a signed-in user cannot connect a second X account.
+        """
+        # Arrange
+        user = create_random_default_user("x_connect")
+        SocialAccount.objects.create(user=user, provider="x_oauth2", uid="456")
+        mock_exchange.return_value = {"access_token": "x-token"}
+        self._mock_profile(mock_get)
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(self.url, self.payload)
+
+        # Assert
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(SocialAccount.objects.filter(uid="123").exists())
