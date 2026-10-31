@@ -5,10 +5,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry, refresh_feed_entry_by_id
 from purchase.models import FundingPool, Fundraise
+from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
@@ -89,6 +91,8 @@ def handle_purchase_feed_entry(sender, instance, created, **kwargs):
 
             if created:
                 _create_contribution_feed_entry(instance, unified_document)
+                if instance.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION:
+                    _maybe_create_fully_funded_feed_entry(instance.object_id)
 
             _refresh_document_feed_entries(unified_document)
         else:
@@ -131,12 +135,71 @@ def handle_usd_contribution_feed_entry(sender, instance, created, **kwargs):
             return
 
         _create_contribution_feed_entry(instance, unified_document)
+        _maybe_create_fully_funded_feed_entry(fundraise.id)
         _refresh_document_feed_entries(unified_document)
 
     except Exception:
         logger.exception(
             "Error handling feed entry for USD contribution %s", instance.id
         )
+
+
+def _maybe_create_fully_funded_feed_entry(fundraise_id: int) -> None:
+    """
+    Create a Fundraise feed entry when a contribution pushes raised >= goal.
+    """
+
+    def _create_if_fully_funded():
+        try:
+            fundraise = Fundraise.objects.select_related(
+                "escrow", "unified_document"
+            ).get(id=fundraise_id)
+        except Fundraise.DoesNotExist:
+            logger.warning(
+                "Fundraise %s not found for fully-funded feed entry",
+                fundraise_id,
+            )
+            return
+
+        if fundraise.status != Fundraise.OPEN:
+            return
+
+        amount_raised = fundraise.get_amount_raised(currency=USD)
+        if amount_raised < float(fundraise.goal_amount):
+            return
+
+        unified_document = fundraise.unified_document
+        if not unified_document:
+            logger.warning(
+                "No unified document for fully-funded fundraise %s",
+                fundraise.id,
+            )
+            return
+
+        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+        if FeedEntry.objects.filter(
+            content_type=fundraise_ct,
+            object_id=fundraise.id,
+            action=FeedEntry.PUBLISH,
+        ).exists():
+            return
+
+        # Bump updated_date so create_feed_entry action_date reflects "now".
+        Fundraise.objects.filter(pk=fundraise.id).update(updated_date=timezone.now())
+
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+        create_feed_entry.apply_async(
+            args=(
+                fundraise.id,
+                fundraise_ct.id,
+                FeedEntry.PUBLISH,
+                hub_ids,
+                fundraise.created_by_id,
+            ),
+            priority=1,
+        )
+
+    transaction.on_commit(_create_if_fully_funded)
 
 
 def _create_contribution_feed_entry(instance, unified_document):

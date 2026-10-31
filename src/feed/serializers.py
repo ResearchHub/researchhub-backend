@@ -661,6 +661,59 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
         return None
 
 
+class FundraiseCompletedContentSerializer(serializers.Serializer):
+    """Serializer for a fully funded fundraise feed item (goal met)."""
+
+    id = serializers.IntegerField()
+    status = serializers.CharField()
+    amount_raised = serializers.SerializerMethodField()
+    goal_amount = serializers.SerializerMethodField()
+    post_id = serializers.SerializerMethodField()
+    proposal_title = serializers.SerializerMethodField()
+    proposal_slug = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
+
+    def _get_post(self, obj):
+        ud = obj.unified_document
+        if ud and hasattr(ud, "posts"):
+            return ud.posts.first()
+        return None
+
+    def get_amount_raised(self, obj):
+        usd_amount = obj.get_amount_raised(currency=USD)
+        try:
+            rsc_amount = obj.get_amount_raised(currency=RSC)
+        except AttributeError:
+            rsc_amount = None
+        return {
+            "usd": usd_amount,
+            "rsc": rsc_amount,
+        }
+
+    def get_goal_amount(self, obj):
+        usd_goal = float(obj.goal_amount)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            rsc_goal = None
+        return {"usd": usd_goal, "rsc": rsc_goal}
+
+    def get_post_id(self, obj):
+        post = self._get_post(obj)
+        return post.id if post else None
+
+    def get_proposal_title(self, obj):
+        post = self._get_post(obj)
+        return post.title if post else None
+
+    def get_proposal_slug(self, obj):
+        post = self._get_post(obj)
+        return post.slug if post else None
+
+    def get_unified_document_id(self, obj):
+        return obj.unified_document_id
+
+
 class FundingActivityRecipientSerializer(serializers.Serializer):
     recipient_user = serializers.SerializerMethodField()
     amount = serializers.DecimalField(max_digits=19, decimal_places=8)
@@ -1492,6 +1545,8 @@ def serialize_feed_item(feed_item, item_content_type):
             return FundraiseContributionContentSerializer(feed_item).data
         case "fundingactivity":
             return FundingActivityContentSerializer(feed_item).data
+        case "fundraise":
+            return FundraiseCompletedContentSerializer(feed_item).data
         case _:
             return None
 
