@@ -24,6 +24,9 @@ SOURCE_TO_OPENALEX_ID = {
     "SSRN": "s4210172589",
 }
 
+# OpenAlex caps a ``search.semantic`` query at 2,000 characters.
+_SEMANTIC_QUERY_CHARS = 2000
+
 
 def normalize_openalex_id(value: str | None) -> str:
     """Bare OpenAlex id (e.g. ``A5023888391``) from a full URL or an already-bare id.
@@ -610,23 +613,34 @@ class OpenAlex:
         results = response.get("results", [])
         return results[0] if results else None
 
-    def search_works(self, query, per_page=5):
-        """Relevance-ranked, DOI-bearing works matching a free-text query.
+    def search_works(self, query, per_page=5, *, semantic=False, filters=None):
+        """Relevance-ranked works matching a free-text query.
 
         For citation grounding: a caller that knows a paper's title but not its
-        DOI can retrieve the real record instead of guessing a DOI. Restricted
-        to works that carry a DOI (``has_doi:true``) so every result is citable.
-        Returns raw OpenAlex work entities (possibly empty).
+        DOI can retrieve the real record instead of guessing a DOI. Keyword
+        search is restricted to works that carry a DOI (``has_doi:true``) so
+        every result is citable.
+
+        ``semantic=True`` ranks by embedding similarity over title and abstract
+        instead. OpenAlex accepts only a few filters there (``publication_year``
+        and ``type`` among them) and rejects ``has_doi``, so semantic callers
+        drop DOI-less works themselves. ``filters`` maps extra OpenAlex filter
+        names to values. Returns raw OpenAlex work entities (possibly empty).
         """
         query = str(query or "").strip()
         if not query:
             return []
-        filters = {
-            "search": query,
-            "filter": "has_doi:true",
+        filter_values = {} if semantic else {"has_doi": "true"}
+        filter_values.update(filters or {})
+        params = {
+            "search.semantic" if semantic else "search": (
+                query[:_SEMANTIC_QUERY_CHARS] if semantic else query
+            ),
             "per-page": per_page,
         }
-        response = self._get("works", filters=filters)
+        if filter_values:
+            params["filter"] = ",".join(f"{k}:{v}" for k, v in filter_values.items())
+        response = self._get("works", filters=params)
         return response.get("results", []) or []
 
     @classmethod

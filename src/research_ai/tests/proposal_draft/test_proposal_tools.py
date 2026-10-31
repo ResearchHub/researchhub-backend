@@ -2,7 +2,9 @@
 
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import Mock
 
+import requests
 from django.test import TestCase
 from django.utils import timezone
 
@@ -20,28 +22,55 @@ from user.tests.helpers import create_random_default_user
 class _FakeOpenAlex:
     """Stand-in for ``utils.openalex.OpenAlex`` keyed by DOI."""
 
-    def __init__(self, by_doi, *, works_by_query=None):
+    def __init__(self, by_doi, *, works_by_query=None, semantic_by_query=None, fail=()):
         self._by_doi = by_doi
         self._works_by_query = works_by_query or {}
+        # Semantic rankings default to the keyword ones.
+        self._semantic_by_query = semantic_by_query
+        self._fail = set(fail)  # "keyword" and/or "semantic"
+        self.calls = []
 
     def get_work_by_doi(self, doi):
         return self._by_doi.get(doi)
 
-    def search_works(self, query, per_page=5):
-        return self._works_by_query.get(query, [])[:per_page]
+    def search_works(self, query, per_page=5, *, semantic=False, filters=None):
+        mode = "semantic" if semantic else "keyword"
+        self.calls.append({"query": query, "mode": mode, "filters": filters or {}})
+        if mode in self._fail:
+            raise requests.ConnectionError("OpenAlex unavailable")
+        by_query = self._works_by_query
+        if semantic and self._semantic_by_query is not None:
+            by_query = self._semantic_by_query
+        return by_query.get(query, [])[:per_page]
+
+    def call(self, mode):
+        return next(c for c in self.calls if c["mode"] == mode)
 
 
 def _build_openalex_work(
-    title, authors, *, year=2020, doi="https://doi.org/10.1/x", venue=None
+    title,
+    authors,
+    *,
+    year=2020,
+    doi="https://doi.org/10.1/x",
+    venue=None,
+    work_id=None,
+    abstract=None,
 ):
-    return {
+    work = {
         "display_name": title,
         "publication_year": year,
         "doi": doi,
-        "id": "https://openalex.org/W1",
+        "id": work_id or f"https://openalex.org/W-{title}-{year}-{doi}",
         "authorships": [{"author": {"display_name": name}} for name in authors],
         "primary_location": {"source": {"display_name": venue}},
     }
+    if abstract is not None:
+        inverted = {}
+        for position, word in enumerate(abstract.split()):
+            inverted.setdefault(word, []).append(position)
+        work["abstract_inverted_index"] = inverted
+    return work
 
 
 class ProposalToolsTestCase(TestCase):
@@ -204,6 +233,263 @@ class ProposalToolsTestCase(TestCase):
 
         # Assert
         self.assertEqual(out["results"], [])
+
+    def test_search_works_passes_author_and_years_as_filters(self):
+        # Arrange
+        oa = _FakeOpenAlex({})
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        tool.search_works(
+            {
+                "title": "Reporting of noninferiority trials",
+                "author": "Piaggio, G.",
+                "year_from": 2012,
+                "year_to": "2012",
+            }
+        )
+
+        # Assert: the query is the title alone; author and year become filters
+        # (a year of slack either side, for online-first dating), and the author
+        # filter goes to keyword search only (semantic rejects it).
+        keyword, semantic = oa.call("keyword"), oa.call("semantic")
+        self.assertEqual(keyword["query"], "Reporting of noninferiority trials")
+        self.assertEqual(semantic["query"], "Reporting of noninferiority trials")
+        self.assertEqual(keyword["filters"]["publication_year"], "2011-2013")
+        self.assertEqual(semantic["filters"]["publication_year"], "2011-2013")
+        self.assertEqual(keyword["filters"]["raw_author_name.search"], "Piaggio G.")
+        self.assertNotIn("raw_author_name.search", semantic["filters"])
+
+    def test_search_works_ranks_surname_first_author_up(self):
+        # Arrange: only semantic search returns anything, and it ranks the
+        # requested author's paper second.
+        query = "noninferiority trial reporting"
+        other = _build_openalex_work(
+            "Equivalence trials in practice", ["Ann Lee"], doi="https://doi.org/10.1/o"
+        )
+        piaggio = _build_openalex_work(
+            "Reporting noninferiority trials",
+            ["G. Piaggio"],
+            doi="https://doi.org/10.1/p",
+        )
+        oa = _FakeOpenAlex(
+            {}, works_by_query={}, semantic_by_query={query: [other, piaggio]}
+        )
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": query, "author": "Piaggio, G."})
+
+        # Assert: "Piaggio, G." is read surname-first and matches "G. Piaggio".
+        self.assertEqual(out["results"][0]["title"], "Reporting noninferiority trials")
+
+    def test_search_works_open_ended_year_bounds(self):
+        # Arrange
+        oa = _FakeOpenAlex({})
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        tool.search_works({"title": "CRISPR base editing", "year_from": 2020})
+        tool.search_works({"title": "CRISPR base editing", "year_to": 2015})
+        tool.search_works({"title": "CRISPR base editing", "year_to": "soon"})
+
+        # Assert
+        years = [c["filters"].get("publication_year") for c in oa.calls[::2]]
+        self.assertEqual(years, [">2018", "<2017", None])
+
+    def test_search_works_trims_long_author_lists(self):
+        # Arrange
+        query = "ARRIVE guidelines"
+        authors = [f"Author {n}" for n in range(30)]
+        oa = _FakeOpenAlex(
+            {}, works_by_query={query: [_build_openalex_work(query, authors)]}
+        )
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": query})
+
+        # Assert: names are trimmed and the count is kept.
+        result = out["results"][0]
+        self.assertEqual(result["authors"], authors[:6])
+        self.assertEqual(result["author_count"], 30)
+
+    def test_search_works_fuses_keyword_and_semantic_rankings(self):
+        # Arrange: one work in both rankings, one in each alone.
+        both = _build_openalex_work("Stereotactic robot accuracy", ["Li"])
+        keyword_only = _build_openalex_work(
+            "Robotic neurosurgery review", ["Kim"], doi="https://doi.org/10.1/k"
+        )
+        semantic_only = _build_openalex_work(
+            "Phantom validation of a neurosurgical robot",
+            ["Ng"],
+            doi="https://doi.org/10.1/s",
+        )
+        query = "robotic stereotaxic surgery accuracy brain phantom"
+        oa = _FakeOpenAlex(
+            {},
+            works_by_query={query: [keyword_only, both]},
+            semantic_by_query={query: [semantic_only, both]},
+        )
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": query})
+
+        # Assert: agreement between the two searches ranks first, and works
+        # only semantic search found still come back.
+        titles = [r["title"] for r in out["results"]]
+        self.assertEqual(titles[0], "Stereotactic robot accuracy")
+        self.assertCountEqual(
+            titles,
+            [
+                "Stereotactic robot accuracy",
+                "Robotic neurosurgery review",
+                "Phantom validation of a neurosurgical robot",
+            ],
+        )
+
+    def test_search_works_ranks_exact_title_and_author_first(self):
+        # Arrange: semantic search agrees on a related paper; keyword search
+        # alone has the exact title.
+        title = "Transancestral mapping and genetic load in systemic lupus"
+        related = _build_openalex_work(
+            "Genetics of lupus across ancestries",
+            ["Other"],
+            doi="https://doi.org/10.1/r",
+        )
+        exact = _build_openalex_work(title, ["Langefeld"], year=2017)
+        oa = _FakeOpenAlex(
+            {},
+            works_by_query={title: [related, exact]},
+            semantic_by_query={title: [related]},
+        )
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": title, "author": "Langefeld"})
+
+        # Assert
+        self.assertEqual(out["results"][0]["title"], title)
+
+    def test_search_works_drops_works_without_doi_and_dedupes_reprints(self):
+        # Arrange: the same guideline reprinted in two journals, an older
+        # edition with the same title, and a semantic hit with no DOI.
+        title = "The ARRIVE guidelines 2.0"
+        reprint_a = _build_openalex_work(
+            title, ["Percie du Sert"], doi="https://doi.org/10.1/a"
+        )
+        reprint_b = _build_openalex_work(
+            title, ["Percie du Sert"], doi="https://doi.org/10.1/b"
+        )
+        older = _build_openalex_work(
+            title, ["Kilkenny"], year=2010, doi="https://doi.org/10.1/old"
+        )
+        no_doi = _build_openalex_work("ARRIVE thesis", ["Student"], doi=None)
+        oa = _FakeOpenAlex(
+            {},
+            works_by_query={title: [reprint_a, reprint_b, older]},
+            semantic_by_query={title: [no_doi, reprint_b]},
+        )
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": title})
+
+        # Assert
+        results = [(r["title"], r["year"]) for r in out["results"]]
+        self.assertEqual(results, [(title, 2020), (title, 2010)])
+
+    def test_search_works_ranks_replies_and_meeting_abstracts_last(self):
+        # Arrange
+        query = "new cutoffs adrenal insufficiency ACTH stimulation"
+        letter = _build_openalex_work(
+            "Letter to the Editor: new cutoffs", ["A"], doi="https://doi.org/10.1/l"
+        )
+        meeting = _build_openalex_work(
+            "SUN-477 Cortisol cutoffs", ["B"], doi="https://doi.org/10.1/m"
+        )
+        paper = _build_openalex_work(
+            "Cortisol assay cutoffs after ACTH", ["C"], doi="https://doi.org/10.1/p"
+        )
+        oa = _FakeOpenAlex({}, works_by_query={query: [letter, meeting, paper]})
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": query})
+
+        # Assert
+        self.assertEqual(
+            out["results"][0]["title"], "Cortisol assay cutoffs after ACTH"
+        )
+        self.assertEqual(len(out["results"]), 3)
+
+    def test_search_works_survives_one_search_failing(self):
+        # Arrange
+        query = "waking salivary cortisone"
+        work = _build_openalex_work("Home waking salivary cortisone", ["Debono"])
+        oa = _FakeOpenAlex({}, works_by_query={query: [work]}, fail={"semantic"})
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": query})
+
+        # Assert
+        self.assertEqual(
+            [r["title"] for r in out["results"]], ["Home waking salivary cortisone"]
+        )
+
+    def test_search_works_skips_records_without_id_or_title(self):
+        # Arrange: one record with neither an id nor a DOI, one untitled.
+        query = "perovskite stability"
+        anonymous = {"display_name": "Anonymous record", "publication_year": 2020}
+        untitled = _build_openalex_work("", ["A"], doi="https://doi.org/10.1/u")
+        paper = _build_openalex_work("Perovskite stability", ["B"])
+        oa = _FakeOpenAlex({}, works_by_query={query: [anonymous, untitled, paper]})
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": query})
+
+        # Assert
+        self.assertEqual([r["title"] for r in out["results"]], ["Perovskite stability"])
+
+    def test_search_works_propagates_unexpected_client_errors(self):
+        # Arrange: a bug in the client, not a failed request.
+        oa = Mock()
+        oa.search_works.side_effect = TypeError("bad call signature")
+        tool = CitationToolset(oa_client=oa)
+
+        # Act / Assert: the bug surfaces instead of becoming empty results.
+        with self.assertRaises(TypeError):
+            tool.search_works({"title": "CRISPR base editing"})
+
+    def test_search_works_includes_abstract_excerpt(self):
+        # Arrange
+        query = "myotube atrophy"
+        long_abstract = "word " * 200
+        short = _build_openalex_work(
+            "Short",
+            ["A"],
+            doi="https://doi.org/10.1/s",
+            abstract="Cachexia drives atrophy.",
+        )
+        long = _build_openalex_work(
+            "Long", ["B"], doi="https://doi.org/10.1/l", abstract=long_abstract
+        )
+        bare = _build_openalex_work("Bare", ["C"], doi="https://doi.org/10.1/b")
+        oa = _FakeOpenAlex({}, works_by_query={query: [short, long, bare]})
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": query})
+
+        # Assert
+        by_title = {r["title"]: r["abstract"] for r in out["results"]}
+        self.assertEqual(by_title["Short"], "Cachexia drives atrophy.")
+        self.assertTrue(by_title["Long"].endswith(" ..."))
+        self.assertLessEqual(len(by_title["Long"]), 404)
+        self.assertEqual(by_title["Bare"], "")
 
     def test_verify_citations_exact_on_match(self):
         # Arrange
