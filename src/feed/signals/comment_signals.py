@@ -16,8 +16,8 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 """
 Signal handlers for Comment model.
 
-The signal handlers are responsbile for creating and deleting feed entries
-when comments are created and removed, respectively.
+The signal handlers are responsible for creating, updating, and deleting feed
+entries when comments are created, edited, and removed, respectively.
 """
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 @receiver(post_save, sender=RhCommentModel)
 def handle_comment_created_or_removed(sender, instance, created, **kwargs):
     """
-    When a comment is created or removed, create or delete a feed entry.
+    When a comment is created, edited, or removed, create, refresh, or delete
+    its feed entry.
     """
     comment = instance
 
@@ -35,11 +36,28 @@ def handle_comment_created_or_removed(sender, instance, created, **kwargs):
             _create_comment_feed_entries(comment)
         elif comment.is_removed:
             _delete_comment_feed_entries(comment)
+        else:
+            _refresh_comment_feed_entries(comment)
 
         _update_metrics(comment)
     except Exception as e:
         action = "create" if created else "update"
         logger.error(f"Failed to {action} feed entry for comment {comment.id}: {e}")
+
+
+def _refresh_comment_feed_entries(comment):
+    """Rewrite the comment's feed snapshot and those of replies that quote it."""
+    content_type_id = ContentType.objects.get_for_model(comment).id
+    comment_ids = [comment.id, *comment.children.values_list("id", flat=True)]
+
+    def enqueue_refreshes():
+        for comment_id in comment_ids:
+            refresh_feed_entries_for_objects.apply_async(
+                args=(comment_id, content_type_id),
+                priority=1,
+            )
+
+    transaction.on_commit(enqueue_refreshes)
 
 
 def _update_metrics(comment):

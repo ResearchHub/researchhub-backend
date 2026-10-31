@@ -142,3 +142,74 @@ class CommentSignalsTests(AWSMockTestCase):
                 ),
             ]
         )
+
+    @patch("feed.signals.comment_signals.create_feed_entry")
+    @patch("feed.signals.comment_signals.refresh_feed_entries_for_objects")
+    @patch(
+        "feed.signals.comment_signals.transaction.on_commit",
+        side_effect=lambda fn: fn(),
+    )
+    def test_comment_update_refreshes_comment_and_direct_replies(
+        self,
+        mock_on_commit,
+        mock_refresh_feed_entries_for_objects,
+        mock_create_feed_entry,
+    ):
+        """
+        Editing a comment rewrites its feed snapshot and the snapshots of
+        replies that quote it.
+        """
+        # Arrange
+        mock_create_feed_entry.apply_async = MagicMock()
+        mock_refresh_feed_entries_for_objects.apply_async = MagicMock()
+        reply = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "reply"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            thread=self.thread,
+            parent=self.comment,
+        )
+        nested_reply = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "nested reply"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            thread=self.thread,
+            parent=reply,
+        )
+        mock_refresh_feed_entries_for_objects.apply_async.reset_mock()
+
+        # Act
+        self.comment.comment_content_json = {"ops": [{"insert": "edited"}]}
+        self.comment.save()
+
+        # Assert
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+        paper_content_type = ContentType.objects.get_for_model(self.paper)
+        mock_refresh_feed_entries_for_objects.apply_async.assert_has_calls(
+            [
+                call(
+                    args=(self.comment.id, comment_content_type.id),
+                    priority=1,
+                ),
+                call(
+                    args=(reply.id, comment_content_type.id),
+                    priority=1,
+                ),
+                call(
+                    args=(self.paper.id, paper_content_type.id),
+                    priority=1,
+                ),
+            ],
+            any_order=True,
+        )
+        self.assertEqual(
+            mock_refresh_feed_entries_for_objects.apply_async.call_count,
+            3,
+        )
+        refreshed_ids = [
+            call_args.kwargs["args"][0]
+            for call_args in (
+                mock_refresh_feed_entries_for_objects.apply_async.call_args_list
+            )
+        ]
+        self.assertNotIn(nested_reply.id, refreshed_ids)
