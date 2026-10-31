@@ -101,6 +101,8 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         feed entries, bounty payouts, and review tips.
       - document_type: PREREGISTRATION, GRANT, etc.
       - grant_id: all activity on a grant and its applied preregistrations
+      - unified_document_id: all activity on one document, e.g. a proposal's
+        comments, peer reviews, updates and contributions
       - content_type: RHCOMMENTMODEL, RESEARCHHUBPOST, PAPER, etc.
       - comment_type: AUTHOR_UPDATE, REVIEW, PEER_REVIEW, etc. Repeat the param
         to allow several, e.g. ?comment_type=AUTHOR_UPDATE&comment_type=REVIEW
@@ -375,11 +377,17 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
 
         scope = self.request.query_params.get("scope", "").lower()
         grant_id = self.request.query_params.get("grant_id")
+        unified_document_id = self.request.query_params.get("unified_document_id")
 
-        # Unscoped list is a shared cached public page. Scoped, grant, and
-        # non-list requests are per-requester so grant owners can see
-        # private applications.
-        is_discovery = self.action == "list" and not scope and not grant_id
+        # Unscoped list is a shared cached public page. Scoped, grant,
+        # document, and non-list requests are per-requester so grant owners
+        # can see private applications.
+        is_discovery = (
+            self.action == "list"
+            and not scope
+            and not grant_id
+            and not unified_document_id
+        )
         visible_posts = (
             ResearchhubPost.objects.publicly_visible()
             if is_discovery
@@ -404,6 +412,11 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
 
         if grant_id:
             queryset = self._filter_by_grant(queryset, grant_id)
+
+        if unified_document_id:
+            if not unified_document_id.isdigit():
+                return queryset.none()
+            queryset = queryset.filter(unified_document_id=unified_document_id)
 
         if scope == "grants" and not grant_id:
             queryset = self._filter_all_grants(queryset)
