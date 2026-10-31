@@ -100,19 +100,65 @@ def _is_retryable_error(error: Exception) -> bool:
 # 403 ``error_type``s for a request the model or a content filter declined.
 _REFUSAL_ERROR_TYPES = frozenset({"refusal", "content_policy_violation"})
 
+# How much of an unexplained response body a failure's message carries.
+_MAX_ERROR_SUMMARY_CHARS = 200
+
+# Repeats of a request whose response arrived with no usable choice.
+_EMPTY_RESPONSE_RETRIES = 1
+
+
+class _EmptyResponseError(ProviderError):
+    """A 200 that carried no usable choice.
+
+    Its own type so ``complete`` can repeat the request the SDK will not,
+    while every caller outside this adapter still sees a ``ProviderError``.
+    """
+
+
+def _is_refusal(metadata: Any) -> bool:
+    """Whether an OpenRouter error's ``metadata`` reports a refusal."""
+    if not isinstance(metadata, dict):
+        return False
+    if metadata.get("error_type") in _REFUSAL_ERROR_TYPES:
+        return True
+    # A moderation flag carries the flagged text instead of an error type.
+    return "flagged_input" in metadata
+
 
 def _refusal_error(error: Exception) -> dict | None:
     """The error body when OpenRouter reports a refusal or flagged input."""
     if not isinstance(error, openai.PermissionDeniedError):
         return None
     body = error.body if isinstance(error.body, dict) else {}
-    metadata = body.get("metadata")
-    if not isinstance(metadata, dict):
-        return None
-    if metadata.get("error_type") in _REFUSAL_ERROR_TYPES:
-        return body
-    # A moderation flag carries the flagged text instead of an error type.
-    return body if "flagged_input" in metadata else None
+    return body if _is_refusal(body.get("metadata")) else None
+
+
+def _body_error(body: dict) -> dict:
+    """The ``error`` object a 200 response carries, or ``{}``."""
+    error = body.get("error")
+    return error if isinstance(error, dict) else {}
+
+
+def _body_error_retryable(error: dict) -> bool:
+    """Whether an error OpenRouter put in a 200 body is worth repeating.
+
+    The body mirrors HTTP status codes in ``code``, so the same split applies
+    as for a raised status error. A body that reports no code explained
+    nothing -- the case this classifies most often -- and an identical request
+    has no established reason to fail the same way, so it is worth one.
+    """
+    code = error.get("code")
+    if not isinstance(code, int):
+        return True
+    return code in _RETRYABLE_STATUS_CODES or code >= 500
+
+
+def _body_error_summary(error: dict) -> str:
+    """An unexplained response's own account of itself, for the failure."""
+    if not error:
+        return "no error reported"
+    summary = f"code={error.get('code')} {error.get('message') or 'no message'}"
+    return summary[:_MAX_ERROR_SUMMARY_CHARS]
 
 
 # Chat Completions ``finish_reason`` -> neutral ``StopReason``.
@@ -250,37 +296,51 @@ class OpenRouterProvider(LLMProvider):
             # ``extra_body``.
             kwargs["extra_body"] = {"reasoning": reasoning}
 
-        started = time.perf_counter()
-        try:
-            response = self._client.chat.completions.create(**kwargs)
-        except Exception as e:
-            refusal = _refusal_error(e)
-            if refusal is not None:
-                # The same outcome as a refusal the model writes, so it is
-                # reported the same way.
-                logger.warning(
-                    "openrouter: request refused (model=%s, error=%r)",
-                    self.model_id,
-                    refusal,
-                )
-                return AssistantTurn(
-                    text_blocks=[],
-                    tool_calls=[],
-                    stop_reason=StopReason.CONTENT_FILTERED,
-                    stop_details=refusal,
-                )
-            logger.exception("OpenRouter complete failed")
-            raise ProviderError(
-                f"OpenRouter complete failed: {e}",
-                retryable=_is_retryable_error(e),
-            ) from e
-        latency_ms = int((time.perf_counter() - started) * 1000)
+        for attempt in range(1 + _EMPTY_RESPONSE_RETRIES):
+            started = time.perf_counter()
+            try:
+                response = self._client.chat.completions.create(**kwargs)
+            except Exception as e:
+                refusal = _refusal_error(e)
+                if refusal is not None:
+                    # The same outcome as a refusal the model writes, so it is
+                    # reported the same way.
+                    logger.warning(
+                        "openrouter: request refused (model=%s, error=%r)",
+                        self.model_id,
+                        refusal,
+                    )
+                    return AssistantTurn(
+                        text_blocks=[],
+                        tool_calls=[],
+                        stop_reason=StopReason.CONTENT_FILTERED,
+                        stop_details=refusal,
+                    )
+                logger.exception("OpenRouter complete failed")
+                raise ProviderError(
+                    f"OpenRouter complete failed: {e}",
+                    retryable=_is_retryable_error(e),
+                ) from e
+            latency_ms = int((time.perf_counter() - started) * 1000)
 
-        self._log_usage(response)
-        usage = self._parse_usage(response)
-        if usage is not None and on_usage is not None:
-            on_usage(usage)
-        return self._parse_turn(response, latency_ms=latency_ms)
+            self._log_usage(response)
+            usage = self._parse_usage(response)
+            if usage is not None and on_usage is not None:
+                on_usage(usage)
+            try:
+                return self._parse_turn(response, latency_ms=latency_ms)
+            except _EmptyResponseError as e:
+                # The SDK does not retry a 200, so a response that arrived
+                # empty for a transient reason gets its repeat here or not at
+                # all. A permanent one is reported without spending again.
+                if not e.retryable or attempt == _EMPTY_RESPONSE_RETRIES:
+                    raise
+                logger.warning(
+                    "openrouter: retrying after an empty response (model=%s)",
+                    self.model_id,
+                )
+                if before_retry is not None:
+                    before_retry()
 
     # -- private helpers --------------------------------------------------
 
@@ -415,13 +475,49 @@ class OpenRouterProvider(LLMProvider):
             getattr(usage, "completion_tokens", None),
         )
 
+    def _no_message_turn(self, response: Any) -> AssistantTurn:
+        """Account for a 200 that carries no usable choice.
+
+        OpenRouter passes some upstream failures through as a 200 whose body
+        holds an ``error`` object in place of ``choices``. The SDK raises
+        nothing for one, so that body is the only account of what went wrong
+        and is logged and carried into the failure rather than dropped.
+        """
+        body = _plain_dict(response)
+        error = _body_error(body)
+        if _is_refusal(error.get("metadata")):
+            # A refusal reported in the body rather than as a 403: the same
+            # outcome, so it is reported the same way and the router can send
+            # the turn to the fallback model.
+            logger.warning(
+                "openrouter: request refused in body (model=%s, error=%r)",
+                self.model_id,
+                error,
+            )
+            return AssistantTurn(
+                text_blocks=[],
+                tool_calls=[],
+                stop_reason=StopReason.CONTENT_FILTERED,
+                stop_details=error,
+            )
+        logger.warning(
+            "openrouter: response carried no message (model=%s, body=%.2000r)",
+            self.model_id,
+            body,
+        )
+        raise _EmptyResponseError(
+            "Invalid OpenRouter response: missing message "
+            f"({_body_error_summary(error)})",
+            retryable=_body_error_retryable(error),
+        )
+
     def _parse_turn(
         self, response: Any, *, latency_ms: int | None = None
     ) -> AssistantTurn:
         choices = getattr(response, "choices", None) or []
         message = getattr(choices[0], "message", None) if choices else None
         if message is None:
-            raise ProviderError("Invalid OpenRouter response: missing message")
+            return self._no_message_turn(response)
 
         text_blocks: list[TextBlock] = []
         content = getattr(message, "content", None)

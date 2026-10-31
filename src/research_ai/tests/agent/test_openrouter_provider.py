@@ -52,6 +52,18 @@ def _response(
     return SimpleNamespace(choices=[choice], usage=usage)
 
 
+def _empty_response(error=None):
+    """A 200-shaped response carrying no choices, as an upstream failure does."""
+    body = {"id": "gen-1"}
+    if error is not None:
+        body["error"] = error
+    return SimpleNamespace(
+        choices=[],
+        usage=None,
+        model_dump=lambda mode=None, exclude_none=None: body,
+    )
+
+
 def _tool_call(call_id="call-1", name="search", arguments='{"q": 1}'):
     return SimpleNamespace(
         id=call_id,
@@ -651,8 +663,9 @@ class ParseTurnTests(SimpleTestCase):
         self.assertEqual(assistant["reasoning_details"], [detail])
 
     def test_missing_message_raises_provider_error(self):
-        # Arrange
-        provider = _build_provider([SimpleNamespace(choices=[], usage=None)])
+        # Arrange: a response with no choices, repeated once before it fails.
+        empty = [SimpleNamespace(choices=[], usage=None) for _ in range(2)]
+        provider = _build_provider(empty)
 
         # Act / Assert
         with self.assertRaises(ProviderError):
@@ -747,6 +760,87 @@ class ErrorTests(SimpleTestCase):
 
         # Assert
         self.assertTrue(ctx.exception.retryable)
+
+    def test_empty_response_is_retried_and_can_then_succeed(self):
+        # Arrange: a 200 with no choices, as an upstream failure arrives.
+        provider = _build_provider(
+            [_empty_response(), _response(content="hello", finish_reason="stop")]
+        )
+        charged = []
+
+        # Act
+        turn = provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools=[],
+            max_tokens=100,
+            temperature=0.5,
+            before_retry=lambda: charged.append(1),
+        )
+
+        # Assert
+        self.assertEqual(turn.text, "hello")
+        self.assertEqual(len(provider._client.calls), 2)
+        self.assertEqual(charged, [1])
+
+    def test_empty_responses_fail_as_retryable_after_the_repeat(self):
+        # Arrange
+        provider = _build_provider([_empty_response(), _empty_response()])
+
+        # Act
+        with self.assertRaises(ProviderError) as ctx:
+            _complete(provider)
+
+        # Assert
+        self.assertTrue(ctx.exception.retryable)
+        self.assertEqual(len(provider._client.calls), 2)
+
+    def test_permanent_error_in_body_is_reported_without_a_repeat(self):
+        # Arrange: a request the upstream rejected outright, passed through
+        # as a 200 body.
+        error = {"code": 400, "message": "context length exceeded"}
+        provider = _build_provider([_empty_response(error)])
+
+        # Act
+        with self.assertRaises(ProviderError) as ctx:
+            _complete(provider)
+
+        # Assert
+        self.assertFalse(ctx.exception.retryable)
+        self.assertEqual(len(provider._client.calls), 1)
+
+    def test_empty_response_failure_carries_the_body_error(self):
+        # Arrange
+        error = {"code": 502, "message": "upstream provider is unavailable"}
+        provider = _build_provider([_empty_response(error), _empty_response(error)])
+
+        # Act
+        with self.assertRaises(ProviderError) as ctx:
+            _complete(provider)
+
+        # Assert: the body is the only account of the failure, so it is kept.
+        self.assertIn("502", str(ctx.exception))
+        self.assertIn("upstream provider is unavailable", str(ctx.exception))
+
+    def test_refusals_reported_in_the_body_are_refused_turns(self):
+        # Arrange
+        cases = {
+            "model refusal": {"error_type": "refusal"},
+            "moderation": {"reasons": ["violence"], "flagged_input": "..."},
+        }
+        for case, metadata in cases.items():
+            with self.subTest(case):
+                provider = _build_provider(
+                    [_empty_response({"code": 403, "metadata": metadata})],
+                    model_id="openai/gpt-6.1-sol",
+                )
+
+                # Act
+                turn = _complete(provider)
+
+                # Assert: refused, and not repeated at cost.
+                self.assertEqual(turn.stop_reason, StopReason.CONTENT_FILTERED)
+                self.assertEqual(len(provider._client.calls), 1)
 
     def test_refusals_reported_as_errors_are_refused_turns(self):
         # Arrange
