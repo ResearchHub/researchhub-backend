@@ -116,6 +116,50 @@ class OpenAlexTests(TestCase):
         self.assertIn("open_access.is_oa:true", filter_params)
 
     @patch.object(OpenAlex, "_get")
+    def test_search_works_keyword_requires_doi_and_adds_filters(self, mock_get):
+        # Arrange
+        mock_get.return_value = {"results": [{"id": "W1"}]}
+
+        # Act
+        results = OpenAlex().search_works(
+            "protein folding", per_page=10, filters={"publication_year": "2012"}
+        )
+
+        # Assert
+        _, kwargs = mock_get.call_args
+        params = kwargs["filters"]
+        self.assertEqual(params["search"], "protein folding")
+        self.assertEqual(params["per-page"], 10)
+        self.assertEqual(params["filter"], "has_doi:true,publication_year:2012")
+        self.assertEqual(results, [{"id": "W1"}])
+
+    @patch.object(OpenAlex, "_get")
+    def test_search_works_semantic_omits_unsupported_doi_filter(self, mock_get):
+        # Arrange
+        mock_get.return_value = {"results": []}
+
+        # Act
+        OpenAlex().search_works(
+            "x" * 3000, semantic=True, filters={"type": "article|review"}
+        )
+
+        # Assert: semantic search rejects has_doi and caps the query length.
+        _, kwargs = mock_get.call_args
+        params = kwargs["filters"]
+        self.assertNotIn("search", params)
+        self.assertEqual(len(params["search.semantic"]), 2000)
+        self.assertEqual(params["filter"], "type:article|review")
+
+    @patch.object(OpenAlex, "_get")
+    def test_search_works_skips_blank_query(self, mock_get):
+        # Act
+        results = OpenAlex().search_works("  ", semantic=True)
+
+        # Assert
+        self.assertEqual(results, [])
+        mock_get.assert_not_called()
+
+    @patch.object(OpenAlex, "_get")
     def test_get_author_fetches_author_by_id(self, mock_get):
         # Arrange
         mock_get.return_value = {"id": "https://openalex.org/A123"}

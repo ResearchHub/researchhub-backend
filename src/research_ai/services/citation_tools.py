@@ -4,7 +4,9 @@ Two sides of the same concern, both backed by the same OpenAlex client:
 
 - ``search_works`` *finds* real records (each with its resolved DOI) by title
   or topic, so the agent retrieves a citable work instead of guessing or
-  hand-deriving a DOI.
+  hand-deriving a DOI. It is hybrid: OpenAlex keyword and semantic (embedding)
+  searches run side by side and their rankings are fused, so an exact title
+  lookup and a plain-language topic query both land.
 - ``verify_citations`` *checks* a DOI the agent already has.
 
 The draft agent emits citations; ``verify_citations`` resolves each one against
@@ -30,10 +32,13 @@ grounded signal in the otherwise self-referential draft/critique loop.
 """
 
 import logging
+import re
+from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 
 from research_ai.services.agent import Tool, Toolset
 from utils.openalex import OpenAlex, work_author_names, work_venue
+from utils.parsers import rebuild_sentence_from_inverted_index
 
 logger = logging.getLogger(__name__)
 
@@ -44,18 +49,49 @@ VERIFY_CITATIONS = "verify_citations"
 _EXACT_TITLE = 0.92  # at/above: same title
 _MINOR_TITLE = 0.6  # at/above (but below exact): same paper, drifted metadata
 
-_MAX_WORK_RESULTS = 5  # candidate works surfaced per search_works call
+_MAX_WORK_RESULTS = 8  # candidate works surfaced per search_works call
+_CANDIDATES_PER_SEARCH = 10  # works fetched from each of keyword and semantic
+_RRF_K = 60  # reciprocal rank fusion damping (the standard constant)
+_ABSTRACT_CHARS = 400  # abstract excerpt per result; get_work_abstract has it all
+_RESULT_AUTHORS = 6  # author names listed per result; author_count has the total
+# Years of slack around a requested range: OpenAlex often dates a paper by its
+# online-first year, one off from the print year a citation carries.
+_YEAR_SLACK = 1
+
+# Citable work types; drops letters, errata, paratext, datasets and the like.
+_WORK_TYPES = "article|review|preprint|book|book-chapter|report"
+# Titles of replies and meeting-abstract records ("SUN-477 ...", "AB0403 ...")
+# that survive the type filter; ranked below real papers, never dropped.
+_REPLY_TITLE = re.compile(
+    r"^(letter to the editor|response to|reply to|reply:|correspondence on|"
+    r"comment on|erratum|correction to)",
+    re.IGNORECASE,
+)
+_ABSTRACT_CODE_TITLE = re.compile(r"^[A-Z]{2,5}-?\d{3,5}\s")
 
 _SEARCH_WORKS_INPUT_SCHEMA = {
     "type": "object",
     "properties": {
         "title": {
             "type": "string",
-            "description": "The paper's title, or a topic query.",
+            "description": "The paper's title, or a topic described in plain "
+            "words. Keep author names, years and journal names out of it; use "
+            "the other fields.",
         },
         "author": {
             "type": "string",
-            "description": "Optional author name to disambiguate the search.",
+            "description": "Optional author name (a surname is enough) to "
+            "narrow the search.",
+        },
+        "year_from": {
+            "type": "integer",
+            "description": "Optional earliest publication year, inclusive.",
+        },
+        "year_to": {
+            "type": "integer",
+            "description": "Optional latest publication year, inclusive. Set "
+            "both to the same year for a paper whose year you know; a year "
+            "either side is included, since online and print years differ.",
         },
     },
     "required": ["title"],
@@ -142,6 +178,65 @@ def _from_openalex(entity: dict) -> dict:
     }
 
 
+def _year(value: object) -> int | None:
+    try:
+        year = int(value)
+    except TypeError, ValueError:
+        return None
+    return year if 1000 <= year <= 9999 else None
+
+
+def _year_filter(year_from: int | None, year_to: int | None) -> str | None:
+    """An OpenAlex ``publication_year`` filter value, or None for no bound.
+
+    Each bound is widened by ``_YEAR_SLACK`` years.
+    """
+    if year_from and year_to:
+        lo, hi = sorted((year_from, year_to))
+        return f"{lo - _YEAR_SLACK}-{hi + _YEAR_SLACK}"
+    if year_from:
+        return f">{year_from - _YEAR_SLACK - 1}"
+    if year_to:
+        return f"<{year_to + _YEAR_SLACK + 1}"
+    return None
+
+
+def _abstract_excerpt(entity: dict) -> str:
+    text = rebuild_sentence_from_inverted_index(
+        entity.get("abstract_inverted_index") or {}
+    )
+    text = " ".join(str(text or "").split())
+    if len(text) <= _ABSTRACT_CHARS:
+        return text
+    return text[:_ABSTRACT_CHARS].rsplit(" ", 1)[0] + " ..."
+
+
+def _looks_like_reply(title: str) -> bool:
+    title = title.strip()
+    return bool(_REPLY_TITLE.match(title) or _ABSTRACT_CODE_TITLE.match(title))
+
+
+def _fuse(rankings: list[list[dict]]) -> list[tuple[float, dict]]:
+    """Reciprocal rank fusion of OpenAlex rankings, best first.
+
+    A work's score is the sum of ``1 / (k + rank)`` over the rankings it
+    appears in, so agreement between keyword and semantic search wins.
+    """
+    scores: dict[str, float] = {}
+    works: dict[str, dict] = {}
+    for ranking in rankings:
+        for rank, work in enumerate(ranking, start=1):
+            key = str(work.get("id") or work.get("doi") or "")
+            if not key:
+                continue
+            scores[key] = scores.get(key, 0.0) + 1.0 / (_RRF_K + rank)
+            works.setdefault(key, work)
+    return sorted(
+        ((score, works[key]) for key, score in scores.items()),
+        key=lambda pair: -pair[0],
+    )
+
+
 class CitationToolset:
     """The ``search_works`` and ``verify_citations`` tools.
 
@@ -160,13 +255,16 @@ class CitationToolset:
             Tool(
                 name=SEARCH_WORKS,
                 description=(
-                    "Search OpenAlex for published works by title or topic "
-                    "(and optional author). Returns up to "
-                    f"{_MAX_WORK_RESULTS} relevance-ranked works, each with "
-                    "its resolved DOI (source_url), authors, year, and venue "
-                    "straight from OpenAlex. Use this to find literature and "
-                    "to get a real DOI you can cite -- never invent or "
-                    "hand-derive one from a web result."
+                    "Search OpenAlex for published works by title or by topic "
+                    "described in plain words, optionally narrowed by author "
+                    "and publication years. Keyword and semantic search run "
+                    "together, so both an exact title and a description of "
+                    f"the research work. Returns up to {_MAX_WORK_RESULTS} "
+                    "relevance-ranked works, each with its resolved DOI "
+                    "(source_url), authors, year, venue, and an abstract "
+                    "excerpt straight from OpenAlex. Use this to find "
+                    "literature and to get a real DOI you can cite -- never "
+                    "invent or hand-derive one from a web result."
                 ),
                 input_schema=_SEARCH_WORKS_INPUT_SCHEMA,
                 handler=self.search_works,
@@ -191,23 +289,68 @@ class CitationToolset:
     # -- handlers ---------------------------------------------------------
 
     def search_works(self, args: dict) -> dict:
-        title = str((args or {}).get("title") or "").strip()
+        args = args or {}
+        title = str(args.get("title") or "").strip()
         if not title:
             return {"error": "title is required"}
-        author = str((args or {}).get("author") or "").strip()
-        query = f"{title} {author}".strip()
-        try:
-            entities = self._oa.search_works(query, per_page=_MAX_WORK_RESULTS)
-        except Exception as exc:  # a search miss is not fatal
-            logger.info("OpenAlex works search failed for %r: %s", query, exc)
-            return {"results": []}
-        results = [
-            _from_openalex(entity)
-            for entity in entities or []
-            if isinstance(entity, dict)
-        ]
-        results = [r for r in results if r["source_url"]]
+        # Commas separate OpenAlex filters, so none may reach a filter value.
+        author = " ".join(str(args.get("author") or "").replace(",", " ").split())
+        filters = {"type": _WORK_TYPES}
+        years = _year_filter(_year(args.get("year_from")), _year(args.get("year_to")))
+        if years:
+            filters["publication_year"] = years
+        # Semantic search takes no author filter; its works by the author are
+        # ranked up below instead.
+        keyword_filters = (
+            {**filters, "raw_author_name.search": author} if author else filters
+        )
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            keyword = pool.submit(self._search, title, False, keyword_filters)
+            semantic = pool.submit(self._search, title, True, filters)
+            rankings = [keyword.result(), semantic.result()]
+
+        query_title = _norm(title)
+        candidates = []
+        for score, entity in _fuse(rankings):
+            if not entity.get("doi"):  # semantic search cannot filter on DOI
+                continue
+            result = _from_openalex(entity)
+            if not result["title"]:
+                continue
+            result["abstract"] = _abstract_excerpt(entity)
+            exact = _similarity(query_title, _norm(result["title"])) >= _EXACT_TITLE
+            by_author = bool(author) and _authors_match([author], result["authors"])
+            if len(result["authors"]) > _RESULT_AUTHORS:
+                result["author_count"] = len(result["authors"])
+                result["authors"] = result["authors"][:_RESULT_AUTHORS]
+            reply = _looks_like_reply(result["title"])
+            candidates.append(((reply, not exact, not by_author, -score), result))
+        candidates.sort(key=lambda pair: pair[0])
+
+        # Reprints and duplicate records share title and year; keep the best.
+        results, seen = [], set()
+        for _, result in candidates:
+            key = (_norm(result["title"]), result["year"])
+            if key in seen:
+                continue
+            seen.add(key)
+            results.append(result)
         return {"results": results[:_MAX_WORK_RESULTS]}
+
+    def _search(self, query: str, semantic: bool, filters: dict) -> list[dict]:
+        """One OpenAlex ranking; a failed search is an empty one, not fatal."""
+        try:
+            entities = self._oa.search_works(
+                query,
+                per_page=_CANDIDATES_PER_SEARCH,
+                semantic=semantic,
+                filters=filters,
+            )
+        except Exception as exc:
+            mode = "semantic" if semantic else "keyword"
+            logger.info("OpenAlex %s search failed for %r: %s", mode, query, exc)
+            return []
+        return [entity for entity in entities or [] if isinstance(entity, dict)]
 
     def verify_citations(self, args: dict) -> dict:
         citations = args.get("citations")
