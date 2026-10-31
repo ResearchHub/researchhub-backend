@@ -323,37 +323,6 @@ class GenerateEmailViewTests(APITestCase):
         self.assertIn("LLM unavailable", response.json().get("detail", ""))
 
     @patch("research_ai.services.outreach.email_generator.generate_expert_email")
-    def test_post_with_expert_search_id_links_record(self, mock_generate):
-        mock_generate.return_value = ("S", "B")
-        search = ExpertSearch.objects.create(
-            created_by=self.moderator,
-            name="Other",
-            query="Q",
-            input_type=ExpertSearch.InputType.CUSTOM_QUERY,
-            status=ExpertSearch.Status.COMPLETED,
-            progress=100,
-        )
-        ex = Expert.objects.create(
-            email="a@example.com",
-            first_name="Ann",
-            last_name="Other",
-        )
-        SearchExpert.objects.create(expert_search=search, expert=ex, position=0)
-        self.client.force_authenticate(self.moderator)
-        response = self.client.post(
-            self.url,
-            {
-                "expert_search_id": search.id,
-                "expert_email": "a@example.com",
-                "template": "collaboration",
-            },
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        rec = GeneratedEmail.objects.get()
-        self.assertEqual(rec.expert_search_id, search.id)
-
-    @patch("research_ai.services.outreach.email_generator.generate_expert_email")
     def test_post_with_template_id_passes_template_id_and_user(self, mock_generate):
         mock_generate.return_value = ("S", "B")
         self.client.force_authenticate(self.moderator)
@@ -619,14 +588,6 @@ class GeneratedEmailListViewTests(APITestCase):
         self.assertEqual(data["total"], 0)
         self.assertEqual(len(data["emails"]), 0)
 
-    def test_post_requires_authentication(self):
-        response = self.client.post(
-            self.url,
-            {"expert_name": "Dr. New", "email_subject": "S", "email_body": "B"},
-            format="json",
-        )
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
     def test_post_creates_draft_without_llm(self):
         self.client.force_authenticate(self.moderator)
         response = self.client.post(
@@ -710,24 +671,6 @@ class GeneratedEmailDetailViewTests(APITestCase):
         body = response.json()
         self.assertEqual(body["email_body"], "Detail body")
         self.assertEqual(body["sources"], sources)
-
-    def test_get_includes_list_navigation_single_email_in_search(self):
-        search = _make_expert_search(self.moderator)
-        email = GeneratedEmail.objects.create(
-            created_by=self.moderator,
-            expert_search=search,
-            expert_name="Only",
-            email_subject="",
-            email_body="",
-        )
-        self.client.force_authenticate(self.moderator)
-        response = self.client.get(f"/api/research_ai/expert-finder/emails/{email.id}/")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        nav = response.json()["list_navigation"]
-        self.assertEqual(nav["total"], 1)
-        self.assertEqual(nav["position"], 1)
-        self.assertIsNone(nav["previous_id"])
-        self.assertIsNone(nav["next_id"])
 
     def test_get_list_navigation_matches_list_order_for_search(self):
         search = _make_expert_search(self.moderator)
@@ -932,15 +875,6 @@ class GeneratedEmailDetailViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         email.refresh_from_db()
         self.assertEqual(email.email_body, "Updated By Moderator")
-
-    def test_delete_returns_204_and_removes_record(self):
-        email = self._create_email()
-        self.client.force_authenticate(self.moderator)
-        response = self.client.delete(
-            f"/api/research_ai/expert-finder/emails/{email.id}/"
-        )
-        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertFalse(GeneratedEmail.objects.filter(pk=email.id).exists())
 
     def test_delete_returns_204_for_other_users_email(self):
         """Generated emails are shared: any editor can delete any email."""

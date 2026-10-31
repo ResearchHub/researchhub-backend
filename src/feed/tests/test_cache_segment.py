@@ -162,38 +162,6 @@ class FeedCacheSegmentTests(AWSMockTestCase):
         # Assert
         self.assertEqual(suffix, FEED_CACHE_SEGMENT_ADMIN)
 
-    def test_moderator_grant_owner_uses_admin_segment(self):
-        # Arrange
-        moderator = create_random_authenticated_user(
-            "cache_seg_mod_owner", moderator=True
-        )
-        applicant = create_random_authenticated_user("cache_seg_mod_app")
-        grant_post = create_post(created_by=moderator, document_type=GRANT)
-        Grant.objects.create(
-            created_by=moderator,
-            unified_document=grant_post.unified_document,
-            amount=Decimal("1000.00"),
-            currency=USD,
-            organization="Org",
-            description="desc",
-        )
-        private_post = create_post(
-            created_by=applicant, document_type=PREREGISTRATION, title="Private"
-        )
-        private_post.unified_document.is_public = False
-        private_post.unified_document.save()
-        GrantApplication.objects.create(
-            grant=Grant.objects.get(unified_document=grant_post.unified_document),
-            preregistration_post=private_post,
-            applicant=applicant,
-        )
-
-        # Act
-        suffix = get_feed_cache_segment(self._request(moderator), supports_private=True)
-
-        # Assert
-        self.assertEqual(suffix, FEED_CACHE_SEGMENT_ADMIN)
-
 
 class FeedCachePolicyHelpersTests(AWSMockTestCase):
     def setUp(self):

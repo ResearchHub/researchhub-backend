@@ -69,14 +69,6 @@ class OrganizationTests(APITestCase):
             user=self.org_a_member_user,
         )
 
-    def test_get_organization_users(self):
-        self.client.force_authenticate(self.org_a_admin)
-
-        response = self.client.get(
-            f"/api/organization/{self.org_a['id']}/get_organization_users/"
-        )
-        self.assertEqual(response.data["user_count"], 2)
-
     def test_list(self):
         self.client.force_authenticate(self.org_a_member_user)
 

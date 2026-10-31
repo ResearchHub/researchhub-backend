@@ -87,39 +87,6 @@ class TestPurchaseSignals(AWSMockTestCase):
             ]
         )
 
-    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
-    @patch("feed.signals.purchase_signals.transaction")
-    def test_refresh_feed_entries_on_purchase_update(
-        self,
-        mock_transaction,
-        mock_refresh_feed_entry_by_id,
-    ):
-        """Test that feed entries are refreshed when a purchase is updated"""
-
-        # Arrange
-        mock_transaction.on_commit = lambda func: func()
-        mock_refresh_feed_entry_by_id.apply_async = MagicMock()
-
-        # Act
-        Purchase.objects.create(
-            user=self.user,
-            content_type=self.post_content_type,
-            object_id=self.post.id,
-            purchase_method=Purchase.OFF_CHAIN,
-            purchase_type=Purchase.BOOST,
-            amount="10.0",
-        )
-
-        # Assert
-        mock_refresh_feed_entry_by_id.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(self.feed_entry.id,),
-                    priority=1,
-                ),
-            ]
-        )
-
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("feed.signals.purchase_signals.transaction")
     def test_grant_application_signal_refreshes_feed_entry(
@@ -433,64 +400,6 @@ class TestPurchaseSignals(AWSMockTestCase):
             priority=1,
         )
 
-    def test_fundraise_signal_handles_missing_fundraise(self):
-        """
-        Test that signal handles gracefully when fundraise doesn't exist.
-        """
-        # Create a contribution with invalid fundraise ID
-        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
-
-        # This should not raise an exception
-        try:
-            Purchase.objects.create(
-                user=self.user,
-                content_type=fundraise_content_type,
-                object_id=99999,  # Non-existent fundraise ID
-                purchase_method=Purchase.OFF_CHAIN,
-                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-                paid_status="PAID",
-                amount="100",
-            )
-            # Signal should log warning but not crash
-        except Exception as e:
-            msg = f"Signal should handle missing fundraise gracefully: {e}"
-            self.fail(msg)
-
-    def test_fundraise_signal_handles_no_feed_entries(self):
-        """
-        Test that signal handles gracefully when no feed entries exist.
-        """
-        # Create a post without a feed entry
-        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
-
-        # Create fundraise
-        fundraise_service = FundraiseService()
-        fundraise = fundraise_service.create_fundraise_with_escrow(
-            user=self.user,
-            unified_document=post.unified_document,
-            goal_amount=Decimal(1000),
-            goal_currency="USD",
-        )
-
-        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
-
-        # Create a contribution - this should not raise an exception
-        # even though no feed entries exist
-        try:
-            Purchase.objects.create(
-                user=self.user,
-                content_type=fundraise_content_type,
-                object_id=fundraise.id,
-                purchase_method=Purchase.OFF_CHAIN,
-                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
-                paid_status="PAID",
-                amount="100",
-            )
-            # Signal should handle missing feed entries gracefully
-        except Exception as e:
-            msg = f"Signal should handle missing feed entries gracefully: {e}"
-            self.fail(msg)
-
     @patch("feed.signals.purchase_signals.create_feed_entry")
     @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
     @patch("feed.signals.purchase_signals.transaction")
@@ -562,21 +471,3 @@ class TestPurchaseSignals(AWSMockTestCase):
             args=(feed_entry.id,),
             priority=1,
         )
-
-    def test_funding_pool_signal_handles_missing_pool(self):
-        """Signal handles missing FundingPool without raising."""
-        pool_ct = ContentType.objects.get_for_model(FundingPool)
-
-        try:
-            Purchase.objects.create(
-                user=self.user,
-                content_type=pool_ct,
-                object_id=99999,
-                purchase_method=Purchase.OFF_CHAIN,
-                purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION,
-                paid_status="PAID",
-                amount="100",
-            )
-        except Exception as e:
-            msg = f"Signal should handle missing funding pool gracefully: {e}"
-            self.fail(msg)

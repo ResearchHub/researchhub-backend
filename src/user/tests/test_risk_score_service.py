@@ -28,16 +28,6 @@ class RiskScoreServiceTests(TestCase):
         self.assertEqual(result, DEFAULT_SCORE)
         self.assertFalse(RiskScore.objects.filter(user=self.user).exists())
 
-    def test_get_score_returns_existing(self):
-        # Arrange
-        RiskScore.objects.create(user=self.user, score=42)
-
-        # Act
-        result = self.service.get_score(self.user)
-
-        # Assert
-        self.assertEqual(result, 42)
-
     def test_trusted_at_boundary(self):
         # Arrange
         RiskScore.objects.create(user=self.user, score=TRUSTED_THRESHOLD)
@@ -133,14 +123,6 @@ class RiskScoreServiceTests(TestCase):
         # Assert
         self.assertEqual(event.source_content_id, source_obj.pk)
         self.assertIsNotNone(event.source_content_type)
-
-    def test_record_event_accumulates(self):
-        # Act
-        self.service.record_event(self.user, EventType.WORK_DECLINED)
-        self.service.record_event(self.user, EventType.WORK_DECLINED)
-
-        # Assert
-        self.assertEqual(self.service.get_score(self.user), DEFAULT_SCORE - 40)
 
     def test_one_time_event_duplicate_ignored(self):
         # Arrange

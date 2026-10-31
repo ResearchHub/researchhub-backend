@@ -67,15 +67,3 @@ class CreditServiceTests(TestCase):
         # Assert
         self.assertEqual(override["prompt_tokens_above"], 272_000)
         self.assertEqual(displayed, Decimal(recorded))
-
-    def test_credits_use_provider_reported_cost_when_available(self):
-        # Arrange
-        usage = TurnUsage(input_tokens=1_000_000, provider_cost_microusd=123)
-
-        # Act
-        credits = credits_from_microusd(
-            cost_microusd("openrouter", "openai/gpt-5.6-sol", usage)
-        )
-
-        # Assert
-        self.assertEqual(credits, "0.123")

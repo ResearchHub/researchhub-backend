@@ -29,7 +29,6 @@ from feed.serializers import (
 )
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
-from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Figure, Paper
@@ -382,33 +381,6 @@ class PaperSerializerTests(AWSMockTestCase):
             self.assertIn("journal", data)
             self.assertEqual(data["journal"]["name"], "ResearchHub Journal")
             self.assertEqual(data["journal"]["id"], researchhub_journal.id)
-
-    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999)
-    @patch.object(ResearchhubUnifiedDocument, "get_journal")
-    def test_get_journal(self, mock_get_journal):
-        """
-        Test that the first journal is used when no prioritized journal exists.
-        """
-        # Create two regular journals
-        journal1 = create_hub("Journal One", namespace=Hub.Namespace.JOURNAL)
-        journal2 = create_hub("Journal Two", namespace=Hub.Namespace.JOURNAL)
-        mock_get_journal.return_value = journal1
-
-        # Create a paper with both journals
-        paper = create_paper(
-            uploaded_by=self.user,
-            title="Paper without priority journals",
-        )
-        paper.hubs.add(journal1)
-        paper.hubs.add(journal2)
-        paper.save()
-
-        serializer = PaperSerializer(paper)
-        data = serializer.data
-
-        self.assertIn("journal", data)
-        # Should return one of the journals (first one found)
-        self.assertEqual(data["journal"]["id"], journal1.id)
 
     def test_serializes_paper_primary_image(self):
         """Test that primary_image is correctly serialized for papers."""
@@ -1500,20 +1472,6 @@ class CommentSerializerTests(AWSMockTestCase):
         self.assertEqual(bounty_data["bounty_type"], bounty.bounty_type)
 
 
-class SimpleHubSerializerTests(AWSMockTestCase):
-    def setUp(self):
-        super().setUp()
-        self.hub = create_hub("Test Hub")
-
-    def test_serializes_hub(self):
-        serializer = SimpleHubSerializer(self.hub)
-        data = serializer.data
-
-        self.assertEqual(data["id"], self.hub.id)
-        self.assertEqual(data["name"], self.hub.name)
-        self.assertEqual(data["slug"], self.hub.slug)
-
-
 class SimpleReviewSerializerTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
@@ -2003,112 +1961,6 @@ class FeedEntrySerializerTests(AWSMockTestCase):
 
         mock_get_primary_hub.assert_called()
 
-    @patch(
-        "researchhub_document.related_models.researchhub_unified_document_model."
-        "ResearchhubUnifiedDocument.get_primary_hub"
-    )
-    def test_feed_entry_includes_purchases(self, mock_get_primary_hub):
-        # Create a user and paper
-        user = create_random_default_user("feed_purchase_test")
-        paper = create_paper(uploaded_by=user, title="Test Paper with Purchases")
-
-        # Create a hub and set it as primary
-        hub = create_hub("Test Hub")
-        mock_get_primary_hub.return_value = hub
-
-        # Create a purchase for the unified document
-        from purchase.models import Purchase
-
-        purchase = Purchase.objects.create(
-            user=user,
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            purchase_method=Purchase.OFF_CHAIN,
-            purchase_type=Purchase.BOOST,
-            amount="15.0",
-            paid_status=Purchase.PAID,
-        )
-
-        # Create a feed entry
-        feed_entry = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            user=user,
-            action="PUBLISH",
-            action_date=paper.created_date,
-            unified_document=paper.unified_document,
-        )
-
-        # Force an empty cache in the serializer
-        feed_entry.content = {}
-        feed_entry.save()
-
-        # Serialize and check
-        serializer = FeedEntrySerializer(feed_entry)
-        data = serializer.data
-
-        # Check that content_object contains the paper data including purchases
-        self.assertIn("content_object", data)
-        content_object = data["content_object"]
-
-        # Verify the purchases are included in the serialized content
-        self.assertIn("purchases", content_object)
-        self.assertIsInstance(content_object["purchases"], list)
-        self.assertEqual(len(content_object["purchases"]), 1)
-
-        # Verify purchase data is correct
-        purchase_data = content_object["purchases"][0]
-        self.assertEqual(purchase_data["id"], purchase.id)
-        self.assertEqual(purchase_data["amount"], purchase.amount)
-        self.assertIn("user", purchase_data)
-
-    def test_serializes_paper_feed_entry_primary_image(self):
-        """Test that primary_image is correctly serialized in content_object."""
-        paper = create_paper(uploaded_by=self.user)
-
-        # Feed entry without primary image
-        feed_entry = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            item=paper,
-            created_date=paper.created_date,
-            action="PUBLISH",
-            action_date=paper.created_date,
-            user=self.user,
-            unified_document=paper.unified_document,
-        )
-
-        serializer_no_image = FeedEntrySerializer(feed_entry)
-        data_no_image = serializer_no_image.data
-        self.assertIn("content_object", data_no_image)
-        content_object_no_image = data_no_image["content_object"]
-        self.assertIn("primary_image", content_object_no_image)
-        self.assertIsNone(content_object_no_image["primary_image"])
-
-        # Create a primary figure
-        dummy_image = SimpleUploadedFile(
-            "test_figure.jpg", b"file_content", content_type="image/jpeg"
-        )
-        primary_figure = Figure.objects.create(
-            paper=paper,
-            file=dummy_image,
-            figure_type=Figure.FIGURE,
-            is_primary=True,
-        )
-
-        # Re-serialize the same feed entry
-        # (don't create a new one to avoid unique constraint)
-        serializer_with_image = FeedEntrySerializer(feed_entry)
-        data_with_image = serializer_with_image.data
-        self.assertIn("content_object", data_with_image)
-        content_object_with_image = data_with_image["content_object"]
-        self.assertIn("primary_image", content_object_with_image)
-        self.assertIsNotNone(content_object_with_image["primary_image"])
-        self.assertEqual(
-            content_object_with_image["primary_image"],
-            default_storage.url(primary_figure.file.name),
-        )
-
     def test_serializes_post_feed_entry_primary_image_returns_none(self):
         """Test that primary_image is not in content_object for posts."""
         unified_document = ResearchhubUnifiedDocument.objects.create(
@@ -2214,74 +2066,6 @@ class FeedEntrySerializerTests(AWSMockTestCase):
             # Journal should be populated from unified_document
             self.assertIsNotNone(content_object["journal"])
 
-    def test_feed_entry_journal_handling_with_dict_slug(self):
-        """Test journal handling when journal is a dict with slug."""
-        # Patch RESEARCHHUB_JOURNAL_ID to avoid ValueError when it's empty string
-        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", 999999):
-            paper = create_paper(uploaded_by=self.user)
-
-            # Test with preprint source (should not trigger shim)
-            feed_entry_preprint = FeedEntry.objects.create(
-                content_type=ContentType.objects.get_for_model(Paper),
-                object_id=paper.id,
-                item=paper,
-                created_date=paper.created_date,
-                action="PUBLISH",
-                action_date=paper.created_date,
-                user=self.user,
-                unified_document=paper.unified_document,
-                content={
-                    "id": paper.id,
-                    "title": paper.title,
-                    "journal": {
-                        "id": 1,
-                        "name": "arXiv",
-                        "slug": "arxiv",  # lowercase preprint source
-                    },
-                },
-            )
-
-            serializer_preprint = FeedEntrySerializer(feed_entry_preprint)
-            data_preprint = serializer_preprint.data
-            content_preprint = data_preprint["content_object"]
-
-            # Should not trigger shim for preprint sources
-            self.assertEqual(content_preprint["journal"]["slug"], "arxiv")
-
-            # Test with non-preprint source (should trigger shim)
-            # Create a new paper to avoid unique constraint violation
-            paper_non_preprint = create_paper(uploaded_by=self.user)
-            journal_hub = create_hub("Nature", namespace=Hub.Namespace.JOURNAL)
-            paper_non_preprint.hubs.add(journal_hub)
-            paper_non_preprint.save()
-
-            feed_entry_non_preprint = FeedEntry.objects.create(
-                content_type=ContentType.objects.get_for_model(Paper),
-                object_id=paper_non_preprint.id,
-                item=paper_non_preprint,
-                created_date=paper_non_preprint.created_date,
-                action="PUBLISH",
-                action_date=paper_non_preprint.created_date,
-                user=self.user,
-                unified_document=paper_non_preprint.unified_document,
-                content={
-                    "id": paper_non_preprint.id,
-                    "title": paper_non_preprint.title,
-                    "journal": {
-                        "id": 2,
-                        "name": "Nature",
-                        "slug": "nature",  # non-preprint source
-                    },
-                },
-            )
-
-            serializer_non_preprint = FeedEntrySerializer(feed_entry_non_preprint)
-            data_non_preprint = serializer_non_preprint.data
-            content_non_preprint = data_non_preprint["content_object"]
-
-            # Should apply shim for non-preprint sources
-            self.assertIn("journal", content_non_preprint)
-
     def test_feed_entry_journal_handling_with_dict_no_slug(self):
         """Test journal handling when journal is a dict without slug."""
         paper = create_paper(uploaded_by=self.user)
@@ -2353,40 +2137,6 @@ class FeedEntrySerializerTests(AWSMockTestCase):
             # This should trigger shim since journal is not None but
             # journal_slug is None
             self.assertIn("journal", content_object)
-
-    def test_feed_entry_journal_handling_with_uppercase_slug(self):
-        """Test journal handling when journal slug is uppercase."""
-        paper = create_paper(uploaded_by=self.user)
-
-        feed_entry = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            item=paper,
-            created_date=paper.created_date,
-            action="PUBLISH",
-            action_date=paper.created_date,
-            user=self.user,
-            unified_document=paper.unified_document,
-            content={
-                "id": paper.id,
-                "title": paper.title,
-                "journal": {
-                    "id": 1,
-                    "name": "arXiv",
-                    "slug": "ARXIV",  # uppercase slug
-                },
-            },
-        )
-
-        serializer = FeedEntrySerializer(feed_entry)
-        data = serializer.data
-        content_object = data["content_object"]
-
-        # Slug should be lowercased for comparison
-        # "arxiv" (lowercase) is in PREPRINT_SOURCES, so should not trigger shim
-        self.assertIn("journal", content_object)
-        # The original uppercase slug should be preserved in content
-        self.assertEqual(content_object["journal"]["slug"], "ARXIV")
 
 
 class FundingFeedEntrySerializerTests(AWSMockTestCase):

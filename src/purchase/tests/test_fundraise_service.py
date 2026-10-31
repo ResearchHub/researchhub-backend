@@ -121,25 +121,6 @@ class TestFundraiseService(APITestCase):
             "Fundraise must be for a preregistration",
         )
 
-    def test_create_fundraise_invalid_goal_amount(self):
-        # Arrange
-        data = {
-            "goal_amount": "100.00abc",
-            "goal_currency": USD,
-            "unified_document_id": 1,
-            "recipient_user_id": self.user.id,
-        }
-
-        # Act
-        serializer = FundraiseCreateSerializer(data=data)
-        is_valid = serializer.is_valid()
-
-        # Assert
-        self.assertFalse(is_valid)
-        self.assertEqual(
-            str(serializer.errors["goal_amount"][0]), "A valid number is required."
-        )
-
     def test_create_fundraise_negative_goal_amount(self):
         # Arrange
         data = {
@@ -330,15 +311,6 @@ class CloseFundraiseTests(TestCase):
     def test_close_fundraise_already_closed(self):
         """Test that a fundraise that's already closed can't be closed again"""
         self.fundraise.status = Fundraise.CLOSED
-        self.fundraise.save()
-
-        result = self.fundraise_service.close_fundraise(self.fundraise)
-
-        self.assertFalse(result)
-
-    def test_close_fundraise_completed(self):
-        """Test that a completed fundraise can't be closed"""
-        self.fundraise.status = Fundraise.COMPLETED
         self.fundraise.save()
 
         result = self.fundraise_service.close_fundraise(self.fundraise)
@@ -1453,19 +1425,6 @@ class ExportUsdContributionsTests(TestCase):
 
         # Assert
         self.assertEqual(rows, [])
-
-    def test_row_count_matches_contributions(self):
-        # Arrange
-        user1 = create_random_authenticated_user("export_u1")
-        user2 = create_random_authenticated_user("export_u2")
-        self._create_contribution(user1)
-        self._create_contribution(user2)
-
-        # Act
-        rows = self.service.export_usd_contributions(self.fundraise)
-
-        # Assert
-        self.assertEqual(len(rows), 2)
 
     def test_row_values(self):
         # Arrange

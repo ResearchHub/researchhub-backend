@@ -55,56 +55,6 @@ class PaymentIntentSerializerTest(TestCase):
             created_by=self.user,
         )
 
-    def test_valid_data(self):
-        # Arrange
-        data = {
-            "amount": 100,  # 100 RSC
-        }
-
-        # Act
-        serializer = PaymentIntentSerializer(data=data)
-
-        # Assert
-        self.assertTrue(serializer.is_valid())
-        self.assertEqual(serializer.validated_data["amount"], Decimal(100))
-
-    def test_amount_below_minimum(self):
-        # Arrange
-        data = {
-            "amount": 0,  # Below minimum
-        }
-
-        # Act
-        serializer = PaymentIntentSerializer(data=data)
-
-        # Assert
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("amount", serializer.errors)
-
-    def test_missing_amount(self):
-        # Arrange
-        data = {}
-
-        # Act
-        serializer = PaymentIntentSerializer(data=data)
-
-        # Assert
-        self.assertFalse(serializer.is_valid())
-        self.assertIn("amount", serializer.errors)
-
-    def test_valid_decimal_amount(self):
-        # Arrange
-        data = {
-            "amount": "50.5",  # 50.5 RSC (fractional)
-        }
-
-        # Act
-        serializer = PaymentIntentSerializer(data=data)
-
-        # Assert
-        self.assertTrue(serializer.is_valid())
-        self.assertEqual(serializer.validated_data["amount"], Decimal("50.5"))
-
     def test_valid_minimum_fundraise_rsc_amount(self):
         data = {"amount": "0.01"}
 

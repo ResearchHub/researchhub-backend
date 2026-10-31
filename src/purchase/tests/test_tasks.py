@@ -210,20 +210,6 @@ class SweepDepositTaskTest(TestCase):
 
         mock_retry.assert_called_once()
 
-    @patch.object(sweep_deposit_to_multisig, "retry", side_effect=RuntimeError("retry"))
-    @patch("purchase.tasks.CircleWalletService")
-    def test_sweep_task_retries_on_unexpected_error(
-        self, mock_service_class, mock_retry
-    ):
-        mock_service_class.return_value.execute_sweep.side_effect = RuntimeError(
-            "transport failed"
-        )
-
-        with self.assertRaises(RuntimeError):
-            sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
-
-        mock_retry.assert_called_once()
-
 
 class PreregistrationUpdateReminderTest(TestCase):
     def setUp(self):

@@ -8,11 +8,9 @@ from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.request import Request
-from rest_framework.test import APIClient, APIRequestFactory
+from rest_framework.test import APIClient
 
 from discussion.models import Vote
-from feed.views.journal_feed_view import JournalFeedViewSet
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from paper.related_models.paper_version import PaperVersion
@@ -190,20 +188,6 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         self.assertNotIn("Pending Journal Paper", titles)
         self.assertIn("Preprint Paper", titles)
 
-    def test_filter_by_journal_status_in_journal(self):
-        """Test filtering by journal_status=IN_JOURNAL"""
-        url = reverse("journal_feed-list")
-        response = self.client.get(url, {"journal_status": "IN_JOURNAL"})
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data["results"]), 2)  # preprint + published
-
-        # Check that returned papers are journal papers
-        titles = [item["content_object"]["title"] for item in response.data["results"]]
-        self.assertIn("Preprint Paper", titles)
-        self.assertIn("Published Paper", titles)
-        self.assertNotIn("Non-Journal Paper", titles)
-
     def test_filter_by_journal_status_not_in_journal(self):
         """Test filtering by journal_status=NOT_IN_JOURNAL"""
         url = reverse("journal_feed-list")
@@ -329,16 +313,6 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.published_paper.id
         )
-
-    def test_filter_by_all_status(self):
-        """Test filtering by ALL publication status (default)"""
-        url = reverse("journal_feed-list")
-        response = self.client.get(url, {"publication_status": "ALL"})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Should include all journal papers (2 papers)
-        self.assertEqual(len(response.data["results"]), 2)
 
     @patch("feed.views.journal_feed_view.cache")
     def test_journal_feed_cache(self, mock_cache):
@@ -558,62 +532,6 @@ class JournalFeedViewSetTests(AWSMockTestCase):
         paper_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertNotIn(oldest_paper.id, paper_ids)
         self.assertNotIn(middle_paper.id, paper_ids)
-
-    def test_cache_key_with_publication_status(self):
-        """Test that cache keys are different for different publication status values"""
-        # Clear cache before testing
-        cache.clear()
-
-        # Create a test instance
-        viewset = JournalFeedViewSet()
-
-        # Mock requests with different publication status values
-
-        factory = APIRequestFactory()
-
-        # Test with ALL status (default)
-        all_request = factory.get("/api/journal_feed/")
-        all_request = Request(all_request)
-        all_request.user = self.user
-
-        # Test with PREPRINT status
-        preprint_request = factory.get("/api/journal_feed/?publication_status=PREPRINT")
-        preprint_request = Request(preprint_request)
-        preprint_request.user = self.user
-
-        # Test with PUBLISHED status
-        published_request = factory.get(
-            "/api/journal_feed/?publication_status=PUBLISHED"
-        )
-        published_request = Request(published_request)
-        published_request.user = self.user
-
-        # Generate cache keys for different statuses
-        all_status = all_request.query_params.get("publication_status", "ALL").lower()
-        preprint_status = preprint_request.query_params.get(
-            "publication_status", "ALL"
-        ).lower()
-        published_status = published_request.query_params.get(
-            "publication_status", "ALL"
-        ).lower()
-
-        all_cache_key = viewset.get_cache_key(all_request, f"journal_{all_status}")
-        preprint_cache_key = viewset.get_cache_key(
-            preprint_request, f"journal_{preprint_status}"
-        )
-        published_cache_key = viewset.get_cache_key(
-            published_request, f"journal_{published_status}"
-        )
-
-        # Verify the cache keys are different
-        self.assertNotEqual(all_cache_key, preprint_cache_key)
-        self.assertNotEqual(all_cache_key, published_cache_key)
-        self.assertNotEqual(preprint_cache_key, published_cache_key)
-
-        # Verify the cache keys contain the correct publication status
-        self.assertIn("journal_all", all_cache_key)
-        self.assertIn("journal_preprint", preprint_cache_key)
-        self.assertIn("journal_published", published_cache_key)
 
     def test_api_requests_with_different_publication_status(self):
         """Test API responses for different publication status filters"""

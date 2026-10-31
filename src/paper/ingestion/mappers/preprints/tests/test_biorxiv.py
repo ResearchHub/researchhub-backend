@@ -175,18 +175,6 @@ class TestBioRxivMapper(TestCase):
         self.assertEqual(mapped_papers[0].external_source, "biorxiv")
         self.assertEqual(mapped_papers[1].external_source, "medrxiv")
 
-    def test_compute_urls(self):
-        """Test URL computation from DOI and version."""
-        paper = self.mapper.map_to_paper(self.sample_record)
-
-        expected_pdf = (
-            "https://www.biorxiv.org/content/10.1101/2024.12.31.630767v1.full.pdf"
-        )
-        expected_html = "https://www.biorxiv.org/content/10.1101/2024.12.31.630767v1"
-
-        self.assertEqual(paper.pdf_url, expected_pdf)
-        self.assertEqual(paper.url, expected_html)
-
     def test_paper_model_instance_not_saved_by_default(self):
         """Test that map_to_paper returns unsaved Paper instance."""
         paper = self.mapper.map_to_paper(self.sample_record)

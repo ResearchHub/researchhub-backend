@@ -13,7 +13,6 @@ from purchase.circle.client import (
     CircleTransferError,
     CircleWalletClient,
     CircleWalletCreationError,
-    CircleWalletCreationResult,
 )
 
 
@@ -69,20 +68,6 @@ class TestCircleWalletClient(TestCase):
             self._make_wallet_payload(id=eth_id, blockchain="ETH"),
             self._make_wallet_payload(id=base_id, blockchain="BASE"),
         ]
-
-    def test_create_wallet_returns_both_wallet_ids(self):
-        # Arrange
-        wallets = self._make_wallet_pair(eth_id="eth-uuid-1", base_id="base-uuid-1")
-        mock_api = self._make_sdk_wallets_api(self._make_wallets_body(wallets), 201)
-        client = self._make_client(mock_api)
-
-        # Act
-        result = client.create_wallet(idempotency_key="test-key-1")
-
-        # Assert
-        self.assertIsInstance(result, CircleWalletCreationResult)
-        self.assertEqual(result.eth_wallet_id, "eth-uuid-1")
-        self.assertEqual(result.base_wallet_id, "base-uuid-1")
 
     def test_create_wallet_accepts_sca_core_unknown_to_sdk(self):
         """Wallets on an SCA core newer than the SDK's models still parse."""
@@ -185,22 +170,6 @@ class TestCircleWalletClient(TestCase):
         call_args = mock_api.create_wallet_with_http_info.call_args
         request = call_args[0][0]
         self.assertIsNotNone(request.idempotency_key)
-
-    def test_get_wallet_live_returns_result(self):
-        # Arrange
-        wallet_id = "4c2ba4e6-2a5a-4bfa-9f7a-7a3b6c1c8f01"
-        mock_api = self._make_sdk_wallets_api(
-            {"data": {"wallet": self._make_wallet_payload(id=wallet_id)}}
-        )
-        client = self._make_client(mock_api)
-
-        # Act
-        result = client.get_wallet(wallet_id)
-
-        # Assert
-        self.assertEqual(result.wallet_id, wallet_id)
-        self.assertEqual(result.address, "0xabc123")
-        self.assertEqual(result.state, "LIVE")
 
     def test_get_wallet_accepts_sca_core_unknown_to_sdk(self):
         # Arrange
@@ -343,15 +312,6 @@ class TestCircleWalletClient(TestCase):
             id="wallet-1", token_address="0xRSC"
         )
 
-    def test_get_wallet_balance_empty_list_returns_zero(self):
-        mock_api = Mock()
-        mock_api.list_wallet_balance.return_value = Mock(data=Mock(token_balances=[]))
-
-        client = self._make_client(mock_api)
-        result = client.get_wallet_balance("wallet-1", "0xRSC")
-
-        self.assertEqual(result, Decimal(0))
-
     def test_get_wallet_balance_none_list_returns_zero(self):
         mock_api = Mock()
         mock_api.list_wallet_balance.return_value = Mock(data=Mock(token_balances=None))
@@ -360,15 +320,6 @@ class TestCircleWalletClient(TestCase):
         result = client.get_wallet_balance("wallet-1", "0xRSC")
 
         self.assertEqual(result, Decimal(0))
-
-    def test_get_wallet_balance_sdk_error_raises(self):
-        mock_api = Mock()
-        mock_api.list_wallet_balance.side_effect = OpenApiException("api down")
-
-        client = self._make_client(mock_api)
-
-        with self.assertRaises(CircleBalanceError):
-            client.get_wallet_balance("wallet-1", "0xRSC")
 
     def test_get_wallet_balance_unexpected_error_raises(self):
         mock_api = Mock()

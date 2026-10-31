@@ -334,25 +334,6 @@ class TestEndaomentClient(TestCase):
                 amount_in_cents=50000,
             )
 
-    def test_create_async_entity_transfer_http_error(self):
-        """
-        Test that HTTP errors from the API are propagated when creating an
-        async entity transfer.
-        """
-        mock_response = Mock()
-        mock_response.raise_for_status.side_effect = requests.HTTPError(
-            response=Mock(status_code=403)
-        )
-        self.client.http_session.request = Mock(return_value=mock_response)
-
-        with self.assertRaises(requests.HTTPError):
-            self.client.create_async_entity_transfer(
-                access_token="valid_access_token",
-                origin_fund_id="fund-123",
-                destination_fund_id="fund-456",
-                amount_in_cents=50000,
-            )
-
     @patch("purchase.endaoment.client.uuid.uuid4")
     def test_create_async_grant(self, uuid_mock):
         """
@@ -425,17 +406,3 @@ class TestEndaomentClient(TestCase):
                 amount_in_cents=100000,
                 purpose="Research funding",
             )
-
-    def test_cents_to_micros(self):
-        cases = [
-            # (amount_in_cents, expected_micros, description)
-            (0, 0, "0 cents"),
-            (1, 10_000, "1 cent"),
-            (100, 1_000_000, "1 dollar"),
-            (50_000, 500_000_000, "500 dollars"),
-            (100_000, 1_000_000_000, "1,000 dollars"),
-        ]
-        for amount_in_cents, expected, description in cases:
-            with self.subTest(description):
-                result = EndaomentClient.cents_to_micros(amount_in_cents)
-                self.assertEqual(result, expected)

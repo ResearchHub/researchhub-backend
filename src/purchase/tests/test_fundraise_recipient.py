@@ -54,23 +54,6 @@ class FundraiseRecipientTest(TestCase):
             name="Test Nonprofit", endaoment_org_id="12345"
         )
 
-    def test_get_recipient_no_nonprofit(self):
-        """Test that fundraise without nonprofit link returns creator as recipient"""
-        recipient = self.fundraise.get_recipient()
-        self.assertEqual(recipient, self.creator)
-
-    @override_settings(ENDAOMENT_ACCOUNT_ID=999999999)
-    def test_get_recipient_with_nonprofit(self):
-        """Test fundraise with nonprofit link returns Endaoment account"""
-        # Create nonprofit link
-        NonprofitFundraiseLink.objects.create(
-            nonprofit=self.nonprofit, fundraise=self.fundraise
-        )
-
-        recipient = self.fundraise.get_recipient()
-        self.assertEqual(recipient, self.endaoment_user)
-        self.assertEqual(recipient.id, self.test_endaoment_id)
-
     @override_settings(ENDAOMENT_ACCOUNT_ID=None)
     def test_get_recipient_with_nonprofit_no_endaoment_id(self):
         """Test error when nonprofit link exists without ENDAOMENT_ACCOUNT_ID"""

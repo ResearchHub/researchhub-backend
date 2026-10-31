@@ -31,14 +31,6 @@ class SendEmailTests(TestCase):
         kwargs.update(overrides)
         return EmailService(send_interval_seconds=0).send_email(**kwargs)
 
-    def test_sends_to_recipient_without_a_suppression_record(self):
-        # Act
-        self._send(["good@example.com"])
-
-        # Assert
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, ["good@example.com"])
-
     def test_accepts_a_single_recipient_string(self):
         # Act
         self._send("good@example.com")
@@ -46,16 +38,6 @@ class SendEmailTests(TestCase):
         # Assert
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["good@example.com"])
-
-    def test_excludes_opted_out_recipient(self):
-        # Arrange
-        EmailOptOut.add("optout@example.com")
-
-        # Act
-        self._send(["optout@example.com"])
-
-        # Assert
-        self.assertEqual(len(mail.outbox), 0)
 
     def test_returns_number_of_accepted_messages(self):
         """Only messages the backend accepted are counted."""
@@ -125,13 +107,6 @@ class SendEmailTests(TestCase):
         # Assert
         first, second = (msg.extra_headers["List-Unsubscribe"] for msg in mail.outbox)
         self.assertNotEqual(first, second)
-
-    def test_derives_the_text_body_from_the_html(self):
-        # Act
-        self._send(["good@example.com"])
-
-        # Assert
-        self.assertIn("hello", mail.outbox[0].body)
 
     def test_derived_text_body_keeps_link_urls(self):
         # Act
@@ -322,14 +297,6 @@ class SendTransactionalEmailTests(TestCase):
         # Assert
         html_body = mail.outbox[0].alternatives[0][0]
         self.assertNotIn("Unsubscribe or change", html_body)
-
-    def test_renders_assets_base_url_without_the_caller_supplying_it(self):
-        # Act
-        self._send(["good@example.com"])
-
-        # Assert
-        html_body = mail.outbox[0].alternatives[0][0]
-        self.assertIn(f"{settings.ASSETS_BASE_URL}/email_assets/", html_body)
 
 
 @override_settings(

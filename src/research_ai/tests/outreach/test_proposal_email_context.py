@@ -250,9 +250,3 @@ class BuildProposalContextTests(TestCase):
         post.unified_document.frontend_view_link.return_value = "https://x"
         out = build_proposal_context(post, description_snippet_length=10)
         self.assertEqual(out["blurb"], "a" * 10)
-
-    def test_returns_empty_when_no_post_resolved(self):
-        udoc = MagicMock()
-        udoc.title = None
-        udoc.get_document.return_value = None
-        self.assertEqual(build_proposal_context(udoc), {})

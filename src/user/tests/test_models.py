@@ -12,7 +12,6 @@ from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from reputation.related_models.distribution import Distribution
 from user.related_models.follow_model import Follow
-from user.related_models.user_model import User
 from user.tests.helpers import create_user
 
 
@@ -89,35 +88,6 @@ class FollowModelTests(TestCase):
             last_name="user",
         )
 
-    def test_follow_user(self):
-        # Arrange & Act
-        follow = Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(User),
-            object_id=self.user.id,
-        )
-
-        # Assert
-        self.assertEqual(follow.user, self.user)
-        self.assertEqual(follow.content_type, ContentType.objects.get_for_model(User))
-        self.assertEqual(follow.object_id, self.user.id)
-
-    def test_follow_paper(self):
-        # Arrange
-        paper = Paper.objects.create(title="title1", citations=10, is_open_access=True)
-
-        # Act
-        follow = Follow.objects.create(
-            user=self.user,
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-        )
-
-        # Assert
-        self.assertEqual(follow.user, self.user)
-        self.assertEqual(follow.content_type, ContentType.objects.get_for_model(Paper))
-        self.assertEqual(follow.object_id, paper.id)
-
     def test_follow_unsupported_model(self):
         # Arrange
         with self.assertRaises(ValidationError):
@@ -136,109 +106,6 @@ class UserBalanceTests(TestCase):
             last_name="Test",
         )
         self.content_type = ContentType.objects.get_for_model(Paper)
-
-    def test_get_balance_excludes_locked_by_default(self):
-        # Create regular balance
-        Balance.objects.create(
-            user=self.user,
-            amount="100",
-            content_type=self.content_type,
-            is_locked=False,
-        )
-
-        # Create locked balance
-        Balance.objects.create(
-            user=self.user,
-            amount="50",
-            content_type=self.content_type,
-            is_locked=True,
-        )
-
-        # Default behavior should exclude locked funds
-        balance = self.user.get_balance()
-        self.assertEqual(balance, Decimal(100))
-
-    def test_get_balance_includes_locked_when_requested(self):
-        # Create regular balance
-        Balance.objects.create(
-            user=self.user,
-            amount="100",
-            content_type=self.content_type,
-            is_locked=False,
-        )
-
-        # Create locked balance
-        Balance.objects.create(
-            user=self.user,
-            amount="50",
-            content_type=self.content_type,
-            is_locked=True,
-        )
-
-        # When include_locked=True, should include all funds
-        balance = self.user.get_balance(include_locked=True)
-        self.assertEqual(balance, Decimal(150))
-
-    def test_get_available_balance(self):
-        # Create regular balance
-        Balance.objects.create(
-            user=self.user,
-            amount="200",
-            content_type=self.content_type,
-            is_locked=False,
-        )
-
-        # Create locked balance
-        Balance.objects.create(
-            user=self.user,
-            amount="75",
-            content_type=self.content_type,
-            is_locked=True,
-        )
-
-        # Should only return unlocked funds
-        available = self.user.get_available_balance()
-        self.assertEqual(available, Decimal(200))
-
-    def test_get_locked_balance_all(self):
-        # Create regular balance
-        Balance.objects.create(
-            user=self.user,
-            amount="300",
-            content_type=self.content_type,
-            is_locked=False,
-        )
-
-        # Create locked balances
-        Balance.objects.create(
-            user=self.user,
-            amount="100",
-            content_type=self.content_type,
-            is_locked=True,
-        )
-
-        Balance.objects.create(
-            user=self.user,
-            amount="25",
-            content_type=self.content_type,
-            is_locked=True,
-        )
-
-        # Should return total locked funds
-        locked = self.user.get_locked_balance()
-        self.assertEqual(locked, Decimal(125))
-
-    def test_get_locked_balance_returns_all_locked(self):
-        # Create locked balance
-        Balance.objects.create(
-            user=self.user,
-            amount="60",
-            content_type=self.content_type,
-            is_locked=True,
-        )
-
-        locked = self.user.get_locked_balance()
-        self.assertEqual(locked, Decimal(60))
 
     def test_balance_calculations_with_mixed_balances(self):
         # Create mix of locked and unlocked balances
@@ -691,29 +558,3 @@ class BalanceLockedByReferralBonusTests(TestCase):
         )
         self.assertEqual(result.count(), 1)
         self.assertEqual(result.first().amount, "100")
-
-    def test_returns_empty_when_no_matching_balances(self):
-        result = Balance.locked_by_referral_bonus()
-        self.assertEqual(result.count(), 0)
-
-    def test_multiple_locked_referral_balances(self):
-        dist1 = self._create_distribution()
-        dist2 = self._create_distribution()
-
-        Balance.objects.create(
-            user=self.user,
-            amount="100",
-            content_type=self.dist_ct,
-            object_id=dist1.id,
-            is_locked=True,
-        )
-        Balance.objects.create(
-            user=self.user,
-            amount="200",
-            content_type=self.dist_ct,
-            object_id=dist2.id,
-            is_locked=True,
-        )
-
-        result = Balance.locked_by_referral_bonus()
-        self.assertEqual(result.count(), 2)

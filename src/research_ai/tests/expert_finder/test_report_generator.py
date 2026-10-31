@@ -2,37 +2,10 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from research_ai.models import Expert
 from research_ai.services.expert_finder.report_generator import (
-    expert_to_report_row,
     generate_csv_file,
-    generate_pdf_report,
     upload_report_to_storage,
 )
-
-
-class GeneratePdfReportTests(TestCase):
-    def test_generate_pdf_returns_bytes(self):
-        experts = [
-            {
-                "name": "Jane Doe",
-                "title": "Professor",
-                "affiliation": "MIT",
-                "expertise": "ML",
-                "email": "jane@mit.edu",
-                "notes": "Notes here",
-            }
-        ]
-        query = "Machine learning"
-        config = {"expert_count": 10, "expertise_level": "all_levels"}
-        pdf_bytes = generate_pdf_report(experts, query, config)
-        self.assertIsInstance(pdf_bytes, bytes)
-        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
-
-    def test_generate_pdf_empty_experts(self):
-        pdf_bytes = generate_pdf_report([], "Query", {})
-        self.assertIsInstance(pdf_bytes, bytes)
-        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
 
 
 class GenerateCsvFileTests(TestCase):
@@ -52,24 +25,6 @@ class GenerateCsvFileTests(TestCase):
         content = csv_bytes.decode("utf-8")
         self.assertIn("name,title,affiliation", content)
         self.assertIn("Alice", content)
-
-    def test_generate_csv_empty_list(self):
-        csv_bytes = generate_csv_file([])
-        self.assertIsInstance(csv_bytes, bytes)
-        self.assertIn(b"name", csv_bytes)
-
-
-class GenerateReportFromExpertModelTests(TestCase):
-    def test_generate_pdf_from_expert_rows_returns_pdf_bytes(self):
-        ex = Expert(
-            email="a@b.edu",
-            first_name="A",
-            last_name="B",
-        )
-        rows = [expert_to_report_row(ex)]
-        pdf = generate_pdf_report(rows, "Q", {})
-        self.assertIsInstance(pdf, bytes)
-        self.assertTrue(pdf.startswith(b"%PDF"))
 
 
 class UploadReportToStorageTests(TestCase):

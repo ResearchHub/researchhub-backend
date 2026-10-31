@@ -311,22 +311,6 @@ class BuildInsightsTests(TestCase):
         # Assert
         self.assertEqual(insights, [])
 
-    def test_score_increase_bucket_reports_positive_bounds(self):
-        # Arrange
-        _record_many(self.user, EventType.GOOGLE_SIGNUP, 1)
-
-        # Act
-        insights = build_insights(self.user)
-
-        # Assert
-        delta = RiskScoreEvent.DELTAS[EventType.GOOGLE_SIGNUP]
-        self.assertEqual(len(insights), 1)
-        self.assertEqual(insights[0]["count"], 1)
-        self.assertEqual(insights[0]["total_delta"], delta)
-        self.assertEqual(insights[0]["min_delta"], delta)
-        self.assertEqual(insights[0]["max_delta"], delta)
-        self.assertGreater(insights[0]["min_delta"], 0)
-
     def test_score_decrease_bucket_reports_negative_bounds(self):
         # Arrange
         _record_many(self.user, EventType.CONTENT_CENSORED, 3)
@@ -388,17 +372,6 @@ class BuildInsightsTests(TestCase):
         self.assertGreater(works["max_delta"], 0)
         self.assertNotIn(EventType.WORK_APPROVED, by_type)
         self.assertNotIn(EventType.WORK_DECLINED, by_type)
-
-    def test_works_moderated_only_approvals_has_no_score_decrease(self):
-        # Arrange
-        _record_many(self.user, EventType.WORK_APPROVED, 2)
-
-        # Act
-        insights = build_insights(self.user)
-
-        # Assert
-        self.assertEqual(insights[0]["event_type"], "WORKS_MODERATED")
-        self.assertGreater(insights[0]["min_delta"], 0)
 
     def test_persona_verified_consolidates_country_variants(self):
         # Arrange

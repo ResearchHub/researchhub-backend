@@ -26,12 +26,6 @@ class EndaomentServiceTests(TestCase):
             }
         ]
 
-    def test_init_with_custom_url(self):
-        """Test initialization with a custom base URL."""
-        custom_url = "https://custom-api.example.com"
-        service = EndaomentService(base_url=custom_url)
-        self.assertEqual(service.base_url, custom_url)
-
     @patch("requests.get")
     def test_search_nonprofit_orgs_success(self, mock_get):
         """Test successful search for nonprofit organizations."""

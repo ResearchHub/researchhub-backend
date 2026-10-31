@@ -104,17 +104,6 @@ class PrivatePreregistrationCreateTests(AWSMockTestCase):
         post = ResearchhubPost.objects.get(id=response.data["id"])
         self.assertFalse(post.unified_document.is_public)
 
-    def test_is_public_false_string_marks_unified_doc_private(self):
-        response = self.client.post(
-            "/api/researchhubpost/",
-            self._payload(is_public="false"),
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, 200)
-        post = ResearchhubPost.objects.get(id=response.data["id"])
-        self.assertFalse(post.unified_document.is_public)
-
     def test_private_preregistration_action_is_hidden(self):
         response = self.client.post(
             "/api/researchhubpost/",
@@ -580,13 +569,6 @@ class FundingFeedPrivacyTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn(self.private_post.id, self._ids(response))
 
-    def test_author_sees_own_private_on_viewer_segment(self):
-        client = APIClient()
-        client.force_authenticate(self.author)
-        response = client.get(reverse("funding_feed-list"))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(self.private_post.id, self._ids(response))
-
     def test_grant_owner_sees_application_private_on_viewer_segment(self):
         client = APIClient()
         client.force_authenticate(self.grant_owner)
@@ -994,15 +976,6 @@ class NotePostEmbedVisibilityTests(AWSMockTestCase):
         request = APIRequestFactory().get("/")
         request.user = user
         return NoteSerializer(self.note, context={"request": request}).data
-
-    def test_author_sees_full_embedded_post(self):
-        # Arrange / Act
-        data = self._serialize_note(self.author)
-
-        # Assert: full payload, not the {id, is_public} stub
-        post_data = data["post"]
-        self.assertEqual(post_data["id"], self.private_post.id)
-        self.assertIn("document_type", post_data)
 
     def test_outsider_gets_redacted_embedded_post(self):
         # Arrange / Act

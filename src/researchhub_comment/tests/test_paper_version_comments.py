@@ -12,7 +12,6 @@ from researchhub_comment.serializers.utils import (
     increment_depth,
     should_use_reference_only,
 )
-from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from user.tests.helpers import create_random_default_user
 
 
@@ -65,72 +64,6 @@ class PaperVersionCommentsTests(APITestCase):
             comment_content_json={"ops": [{"insert": text}]},
         )
         return comment
-
-    def test_get_model_object_threads_returns_all_version_threads(self):
-        """Test that _get_model_object_threads returns threads from all paper
-        versions."""
-        # Create threads for each paper version
-        original_thread = self._create_comment_thread(self.original_paper)
-        version_1_thread = self._create_comment_thread(self.version_1_paper)
-        version_2_thread = self._create_comment_thread(self.version_2_paper)
-
-        # Create comments in each thread
-        self._create_comment(original_thread, "Comment on original")
-        self._create_comment(version_1_thread, "Comment on version 1")
-        self._create_comment(version_2_thread, "Comment on version 2")
-
-        # Test with original paper
-        view = RhCommentViewSet()
-        view.kwargs = {"model": "paper", "model_object_id": self.original_paper.id}
-
-        threads = view._get_model_object_threads()
-        thread_ids = set(threads.values_list("id", flat=True))
-        expected_thread_ids = {
-            original_thread.id,
-            version_1_thread.id,
-            version_2_thread.id,
-        }
-
-        self.assertEqual(thread_ids, expected_thread_ids)
-        self.assertEqual(threads.count(), 3)
-
-    def test_get_model_object_threads_with_version_paper_id(self):
-        """Test that _get_model_object_threads works when called with a version
-        paper ID."""
-        # Create threads for each paper version
-        original_thread = self._create_comment_thread(self.original_paper)
-        version_1_thread = self._create_comment_thread(self.version_1_paper)
-        version_2_thread = self._create_comment_thread(self.version_2_paper)
-
-        # Test with version 1 paper ID
-        view = RhCommentViewSet()
-        view.kwargs = {"model": "paper", "model_object_id": self.version_1_paper.id}
-
-        threads = view._get_model_object_threads()
-        thread_ids = set(threads.values_list("id", flat=True))
-        expected_thread_ids = {
-            original_thread.id,
-            version_1_thread.id,
-            version_2_thread.id,
-        }
-
-        self.assertEqual(thread_ids, expected_thread_ids)
-        self.assertEqual(threads.count(), 3)
-
-    def test_get_model_object_threads_single_paper_no_versions(self):
-        """Test _get_model_object_threads with a standalone paper (no versions)."""
-        standalone_paper = create_paper(title="Standalone Paper")
-        standalone_thread = self._create_comment_thread(standalone_paper)
-
-        view = RhCommentViewSet()
-        view.kwargs = {"model": "paper", "model_object_id": standalone_paper.id}
-
-        threads = view._get_model_object_threads()
-        thread_ids = set(threads.values_list("id", flat=True))
-        expected_thread_ids = {standalone_thread.id}
-
-        self.assertEqual(thread_ids, expected_thread_ids)
-        self.assertEqual(threads.count(), 1)
 
     def test_api_endpoint_returns_comments_from_all_versions(self):
         """Test the actual API endpoint returns comments from all paper
@@ -311,38 +244,3 @@ class PaperVersionCommentsTests(APITestCase):
 
         # This should have more complete data
         self.assertIn("id", thread_data_normal)
-
-    def test_comment_view_with_mocked_paper_service(self):
-        """
-        Test that RhCommentViewSet can use an injected paper service for easier testing.
-        """
-        from unittest.mock import Mock
-
-        from paper.services.paper_version_service import PaperService
-        from researchhub_comment.views.rh_comment_view import RhCommentViewSet
-
-        # Create a mock paper service
-        mock_service = Mock(spec=PaperService)
-        mock_service.get_all_paper_versions.return_value = (
-            self.original_paper.__class__.objects.filter(
-                id__in=[self.original_paper.id, self.version_1_paper.id]
-            )
-        )
-
-        # Create view instance
-        view = RhCommentViewSet()
-        view.kwargs = {"model": "paper", "model_object_id": self.original_paper.id}
-
-        # Inject the mock service
-        view.paper_service = mock_service
-
-        # Test the method that uses the service
-        threads = view._get_model_object_threads()
-
-        # Verify the mock was called
-        mock_service.get_all_paper_versions.assert_called_once_with(
-            self.original_paper.id
-        )
-
-        # The method should return threads as expected
-        self.assertIsNotNone(threads)

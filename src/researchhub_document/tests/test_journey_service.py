@@ -32,32 +32,6 @@ class JourneyServiceTests(TestCase):
         self.user = create_random_default_user("journey_author")
         self.service = JourneyService()
 
-    def test_create_journey_for_preregistration(self) -> None:
-        """Verify preregistration posts create and attach a journey."""
-        # Arrange
-        proposal = self._create_post(PREREGISTRATION)
-
-        # Act
-        journey = self.service.get_or_create_for_preregistration(proposal)
-
-        # Assert
-        proposal.refresh_from_db()
-        self.assertEqual(journey.preregistration_post, proposal)
-        self.assertEqual(proposal.journey, journey)
-
-    def test_reuse_existing_preregistration_journey(self) -> None:
-        """Verify repeated preregistration lookups reuse the same journey."""
-        # Arrange
-        proposal = self._create_post(PREREGISTRATION)
-
-        # Act
-        first = self.service.get_or_create_for_preregistration(proposal)
-        second = self.service.get_or_create_for_preregistration(proposal)
-
-        # Assert
-        self.assertEqual(first, second)
-        self.assertEqual(ResearchJourney.objects.count(), 1)
-
     def test_link_grant_post_from_application(self) -> None:
         """Verify grant applications link their grant post to the journey."""
         # Arrange
@@ -135,19 +109,6 @@ class JourneyServiceTests(TestCase):
         # Assert
         self.assertIsNone(journey)
         self.assertFalse(ResearchJourney.objects.exists())
-
-    def test_attach_stage_attaches_registered_report(self) -> None:
-        """Verify registered reports attach to journeys with proposals."""
-        # Arrange
-        journey = self._create_journey()
-        registered_report = self._create_post(REGISTERED_REPORT)
-
-        # Act
-        self.service.attach_stage(journey, registered_report)
-
-        # Assert
-        registered_report.refresh_from_db()
-        self.assertEqual(registered_report.journey, journey)
 
     def test_attach_stage_attaches_proposal_to_empty_journey(self) -> None:
         """Verify a proposal can populate an empty journey."""

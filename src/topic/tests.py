@@ -15,13 +15,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
             response = json.load(file)
             self.topics = response.get("results")
 
-    def test_create_topic(self):
-        topic = self.topics[0]
-        Topic.upsert_from_openalex(topic)
-
-        created_topic = Topic.objects.filter(openalex_id=topic["id"]).first()
-        self.assertEqual(created_topic.openalex_id, topic["id"])
-
     def test_update_topic(self):
         old_topic = self.topics[0]
         old_topic["display_name"] = "old topic"

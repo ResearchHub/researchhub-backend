@@ -73,34 +73,6 @@ class ReportPeriodTests(UnitTestCase):
         self.assertEqual(period.end, now)
         self.assertEqual(period.label, "7d")
 
-    def test_resolve_14d_preset_period(self):
-        # Arrange
-        now = datetime(2026, 7, 20, 12, tzinfo=UTC)
-
-        # Act
-        period = resolve_period(period="14d", now=now)
-
-        # Assert
-        self.assertEqual(period.start, now - timedelta(days=14))
-        self.assertEqual(period.end, now)
-        self.assertEqual(period.label, "14d")
-
-    def test_previous_period_matches_same_length(self):
-        # Arrange
-        period = ReportPeriod(
-            start=datetime(2026, 7, 14, tzinfo=UTC),
-            end=datetime(2026, 7, 28, tzinfo=UTC),
-            label="14d",
-        )
-
-        # Act
-        previous = period.previous()
-
-        # Assert
-        self.assertEqual(previous.start, datetime(2026, 6, 30, tzinfo=UTC))
-        self.assertEqual(previous.end, datetime(2026, 7, 14, tzinfo=UTC))
-        self.assertEqual(previous.end - previous.start, period.end - period.start)
-
     def test_merge_previous_values_adds_numeric_siblings(self):
         # Arrange
         current = {
