@@ -237,6 +237,48 @@ def _fuse(rankings: list[list[dict]]) -> list[tuple[float, dict]]:
     )
 
 
+def _search_result(entity: dict) -> dict | None:
+    """A citable work as search_works returns it, or None without a DOI."""
+    if not entity.get("doi"):  # semantic search cannot filter on DOI
+        return None
+    result = _from_openalex(entity)
+    if not result["title"]:
+        return None
+    result["abstract"] = _abstract_excerpt(entity)
+    return result
+
+
+def _rank_works(fused: list[tuple[float, dict]], title: str, author: str) -> list:
+    """The best ``_MAX_WORK_RESULTS`` results of a fused ranking.
+
+    An exact title match ranks first, then works by ``author``, then fused
+    score; replies and meeting abstracts rank last.
+    """
+    query_title = _norm(title)
+    candidates = []
+    for score, entity in fused:
+        result = _search_result(entity)
+        if result is None:
+            continue
+        exact = _similarity(query_title, _norm(result["title"])) >= _EXACT_TITLE
+        by_author = bool(author) and _authors_match([author], result["authors"])
+        if len(result["authors"]) > _RESULT_AUTHORS:
+            result["author_count"] = len(result["authors"])
+            result["authors"] = result["authors"][:_RESULT_AUTHORS]
+        reply = _looks_like_reply(result["title"])
+        candidates.append(((reply, not exact, not by_author, -score), result))
+    candidates.sort(key=lambda pair: pair[0])
+
+    # Reprints and duplicate records share title and year; keep the best.
+    results, seen = [], set()
+    for _, result in candidates:
+        key = (_norm(result["title"]), result["year"])
+        if key not in seen:
+            seen.add(key)
+            results.append(result)
+    return results[:_MAX_WORK_RESULTS]
+
+
 class CitationToolset:
     """The ``search_works`` and ``verify_citations`` tools.
 
@@ -293,49 +335,26 @@ class CitationToolset:
         title = str(args.get("title") or "").strip()
         if not title:
             return {"error": "title is required"}
-        # Commas separate OpenAlex filters, so none may reach a filter value.
-        author = " ".join(str(args.get("author") or "").replace(",", " ").split())
+        # Matching keeps the name as given ("Piaggio, G." reads surname-first);
+        # commas separate OpenAlex filters, so none may reach the filter value.
+        author = str(args.get("author") or "").strip()
+        author_filter = " ".join(author.replace(",", " ").split())
         filters = {"type": _WORK_TYPES}
         years = _year_filter(_year(args.get("year_from")), _year(args.get("year_to")))
         if years:
             filters["publication_year"] = years
         # Semantic search takes no author filter; its works by the author are
-        # ranked up below instead.
+        # ranked up instead.
         keyword_filters = (
-            {**filters, "raw_author_name.search": author} if author else filters
+            {**filters, "raw_author_name.search": author_filter}
+            if author_filter
+            else filters
         )
         with ThreadPoolExecutor(max_workers=2) as pool:
             keyword = pool.submit(self._search, title, False, keyword_filters)
             semantic = pool.submit(self._search, title, True, filters)
             rankings = [keyword.result(), semantic.result()]
-
-        query_title = _norm(title)
-        candidates = []
-        for score, entity in _fuse(rankings):
-            if not entity.get("doi"):  # semantic search cannot filter on DOI
-                continue
-            result = _from_openalex(entity)
-            if not result["title"]:
-                continue
-            result["abstract"] = _abstract_excerpt(entity)
-            exact = _similarity(query_title, _norm(result["title"])) >= _EXACT_TITLE
-            by_author = bool(author) and _authors_match([author], result["authors"])
-            if len(result["authors"]) > _RESULT_AUTHORS:
-                result["author_count"] = len(result["authors"])
-                result["authors"] = result["authors"][:_RESULT_AUTHORS]
-            reply = _looks_like_reply(result["title"])
-            candidates.append(((reply, not exact, not by_author, -score), result))
-        candidates.sort(key=lambda pair: pair[0])
-
-        # Reprints and duplicate records share title and year; keep the best.
-        results, seen = [], set()
-        for _, result in candidates:
-            key = (_norm(result["title"]), result["year"])
-            if key in seen:
-                continue
-            seen.add(key)
-            results.append(result)
-        return {"results": results[:_MAX_WORK_RESULTS]}
+        return {"results": _rank_works(_fuse(rankings), title, author)}
 
     def _search(self, query: str, semantic: bool, filters: dict) -> list[dict]:
         """One OpenAlex ranking; a failed search is an empty one, not fatal."""

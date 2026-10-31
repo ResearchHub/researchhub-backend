@@ -258,6 +258,29 @@ class ProposalToolsTestCase(TestCase):
         self.assertEqual(keyword["filters"]["raw_author_name.search"], "Piaggio G.")
         self.assertNotIn("raw_author_name.search", semantic["filters"])
 
+    def test_search_works_ranks_surname_first_author_up(self):
+        # Arrange: only semantic search returns anything, and it ranks the
+        # requested author's paper second.
+        query = "noninferiority trial reporting"
+        other = _build_openalex_work(
+            "Equivalence trials in practice", ["Ann Lee"], doi="https://doi.org/10.1/o"
+        )
+        piaggio = _build_openalex_work(
+            "Reporting noninferiority trials",
+            ["G. Piaggio"],
+            doi="https://doi.org/10.1/p",
+        )
+        oa = _FakeOpenAlex(
+            {}, works_by_query={}, semantic_by_query={query: [other, piaggio]}
+        )
+        tool = CitationToolset(oa_client=oa)
+
+        # Act
+        out = tool.search_works({"title": query, "author": "Piaggio, G."})
+
+        # Assert: "Piaggio, G." is read surname-first and matches "G. Piaggio".
+        self.assertEqual(out["results"][0]["title"], "Reporting noninferiority trials")
+
     def test_search_works_open_ended_year_bounds(self):
         # Arrange
         oa = _FakeOpenAlex({})
