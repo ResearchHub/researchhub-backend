@@ -297,38 +297,8 @@ class OpenRouterProvider(LLMProvider):
             kwargs["extra_body"] = {"reasoning": reasoning}
 
         for attempt in range(1 + _EMPTY_RESPONSE_RETRIES):
-            started = time.perf_counter()
             try:
-                response = self._client.chat.completions.create(**kwargs)
-            except Exception as e:
-                refusal = _refusal_error(e)
-                if refusal is not None:
-                    # The same outcome as a refusal the model writes, so it is
-                    # reported the same way.
-                    logger.warning(
-                        "openrouter: request refused (model=%s, error=%r)",
-                        self.model_id,
-                        refusal,
-                    )
-                    return AssistantTurn(
-                        text_blocks=[],
-                        tool_calls=[],
-                        stop_reason=StopReason.CONTENT_FILTERED,
-                        stop_details=refusal,
-                    )
-                logger.exception("OpenRouter complete failed")
-                raise ProviderError(
-                    f"OpenRouter complete failed: {e}",
-                    retryable=_is_retryable_error(e),
-                ) from e
-            latency_ms = int((time.perf_counter() - started) * 1000)
-
-            self._log_usage(response)
-            usage = self._parse_usage(response)
-            if usage is not None and on_usage is not None:
-                on_usage(usage)
-            try:
-                return self._parse_turn(response, latency_ms=latency_ms)
+                return self._request_turn(kwargs, on_usage)
             except _EmptyResponseError as e:
                 # The SDK does not retry a 200, so a response that arrived
                 # empty for a transient reason gets its repeat here or not at
@@ -343,6 +313,42 @@ class OpenRouterProvider(LLMProvider):
                     before_retry()
 
     # -- private helpers --------------------------------------------------
+
+    def _request_turn(
+        self, kwargs: dict, on_usage: Callable[[TurnUsage], None] | None
+    ) -> AssistantTurn:
+        """Send one Chat Completions request and parse its turn."""
+        started = time.perf_counter()
+        try:
+            response = self._client.chat.completions.create(**kwargs)
+        except Exception as e:
+            refusal = _refusal_error(e)
+            if refusal is not None:
+                # The same outcome as a refusal the model writes, so it is
+                # reported the same way.
+                logger.warning(
+                    "openrouter: request refused (model=%s, error=%r)",
+                    self.model_id,
+                    refusal,
+                )
+                return AssistantTurn(
+                    text_blocks=[],
+                    tool_calls=[],
+                    stop_reason=StopReason.CONTENT_FILTERED,
+                    stop_details=refusal,
+                )
+            logger.exception("OpenRouter complete failed")
+            raise ProviderError(
+                f"OpenRouter complete failed: {e}",
+                retryable=_is_retryable_error(e),
+            ) from e
+        latency_ms = int((time.perf_counter() - started) * 1000)
+
+        self._log_usage(response)
+        usage = self._parse_usage(response)
+        if usage is not None and on_usage is not None:
+            on_usage(usage)
+        return self._parse_turn(response, latency_ms=latency_ms)
 
     def _reasoning(self) -> dict:
         """OpenRouter's ``reasoning`` option for this provider's settings."""
