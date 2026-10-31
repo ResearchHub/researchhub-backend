@@ -36,6 +36,8 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 
+import requests
+
 from research_ai.services.agent import Tool, Toolset
 from utils.openalex import OpenAlex, work_author_names, work_venue
 from utils.parsers import rebuild_sentence_from_inverted_index
@@ -357,7 +359,11 @@ class CitationToolset:
         return {"results": _rank_works(_fuse(rankings), title, author)}
 
     def _search(self, query: str, semantic: bool, filters: dict) -> list[dict]:
-        """One OpenAlex ranking; a failed search is an empty one, not fatal."""
+        """One OpenAlex ranking; a failed request is an empty one, not fatal.
+
+        Only request and response-decoding failures are absorbed; anything
+        else is a bug and propagates.
+        """
         try:
             entities = self._oa.search_works(
                 query,
@@ -365,7 +371,7 @@ class CitationToolset:
                 semantic=semantic,
                 filters=filters,
             )
-        except Exception as exc:
+        except (requests.RequestException, ValueError) as exc:
             mode = "semantic" if semantic else "keyword"
             logger.info("OpenAlex %s search failed for %r: %s", mode, query, exc)
             return []

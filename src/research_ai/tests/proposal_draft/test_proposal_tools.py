@@ -2,7 +2,9 @@
 
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import Mock
 
+import requests
 from django.test import TestCase
 from django.utils import timezone
 
@@ -35,7 +37,7 @@ class _FakeOpenAlex:
         mode = "semantic" if semantic else "keyword"
         self.calls.append({"query": query, "mode": mode, "filters": filters or {}})
         if mode in self._fail:
-            raise ConnectionError("OpenAlex unavailable")
+            raise requests.ConnectionError("OpenAlex unavailable")
         by_query = self._works_by_query
         if semantic and self._semantic_by_query is not None:
             by_query = self._semantic_by_query
@@ -436,6 +438,16 @@ class ProposalToolsTestCase(TestCase):
         self.assertEqual(
             [r["title"] for r in out["results"]], ["Home waking salivary cortisone"]
         )
+
+    def test_search_works_propagates_unexpected_client_errors(self):
+        # Arrange: a bug in the client, not a failed request.
+        oa = Mock()
+        oa.search_works.side_effect = TypeError("bad call signature")
+        tool = CitationToolset(oa_client=oa)
+
+        # Act / Assert: the bug surfaces instead of becoming empty results.
+        with self.assertRaises(TypeError):
+            tool.search_works({"title": "CRISPR base editing"})
 
     def test_search_works_includes_abstract_excerpt(self):
         # Arrange
