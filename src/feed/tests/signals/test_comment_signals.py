@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, call, patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from feed.models import FeedEntry
 from hub.models import Hub
@@ -14,7 +15,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from user.models import User
-from utils.test_helpers import AWSMockTestCase
+from utils.test_helpers import AWSMockTestCase, AWSMockTransactionTestCase
 
 
 class CommentSignalsTests(AWSMockTestCase):
@@ -142,3 +143,162 @@ class CommentSignalsTests(AWSMockTestCase):
                 ),
             ]
         )
+
+
+class CommentUpdateFeedRefreshTests(AWSMockTransactionTestCase):
+    """
+    Uses AWSMockTransactionTestCase so the real transaction.on_commit() hook runs.
+    TestCase never commits, which would skip the refresh scheduled when a comment
+    is edited.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.create_patcher = patch("feed.signals.comment_signals.create_feed_entry")
+        self.mock_create_feed_entry = self.create_patcher.start()
+        self.mock_create_feed_entry.apply_async = MagicMock()
+        self.addCleanup(self.create_patcher.stop)
+
+        self.refresh_patcher = patch(
+            "feed.signals.comment_signals.refresh_feed_entries_for_objects"
+        )
+        self.mock_refresh = self.refresh_patcher.start()
+        self.mock_refresh.apply_async = MagicMock()
+        self.addCleanup(self.refresh_patcher.stop)
+
+        self.user = User.objects.create_user(username="user1")
+        self.paper = Paper.objects.create(title="paper1")
+        self.hub1 = Hub.objects.create(name="hub1")
+        self.hub2 = Hub.objects.create(name="hub2")
+        self.paper.unified_document.hubs.add(self.hub1, self.hub2)
+
+        self.thread = RhCommentThreadModel.objects.create(
+            thread_type=PEER_REVIEW,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+            created_by=self.user,
+        )
+        self.comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "comment1"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.user,
+            thread=self.thread,
+        )
+        self.reply = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "reply"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            thread=self.thread,
+            parent=self.comment,
+        )
+        self.nested_reply = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "nested reply"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            thread=self.thread,
+            parent=self.reply,
+        )
+        self.comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+        self.paper_content_type = ContentType.objects.get_for_model(self.paper)
+        self.mock_refresh.apply_async.reset_mock()
+
+    def _refresh_calls(self):
+        return [
+            call_args.kwargs["args"]
+            for call_args in self.mock_refresh.apply_async.call_args_list
+        ]
+
+    def test_comment_update_refreshes_comment_and_direct_replies_after_commit(self):
+        """
+        Editing a comment rewrites its feed snapshot, and the snapshots of
+        replies that quote it, only after the edit commits.
+        """
+        # Act
+        with transaction.atomic():
+            self.comment.comment_content_json = {"ops": [{"insert": "edited"}]}
+            self.comment.save()
+
+            # The parent document refresh is immediate. Comment snapshots stay
+            # queued until this block commits.
+            self.assertEqual(
+                self._refresh_calls(),
+                [(self.paper.id, self.paper_content_type.id)],
+            )
+
+        # Assert
+        self.mock_refresh.apply_async.assert_has_calls(
+            [
+                call(
+                    args=(self.comment.id, self.comment_content_type.id),
+                    priority=1,
+                ),
+                call(
+                    args=(self.reply.id, self.comment_content_type.id),
+                    priority=1,
+                ),
+                call(
+                    args=(self.paper.id, self.paper_content_type.id),
+                    priority=1,
+                ),
+            ],
+            any_order=True,
+        )
+        self.assertEqual(self.mock_refresh.apply_async.call_count, 3)
+        refreshed_comment_ids = [
+            item_id
+            for item_id, content_type_id in self._refresh_calls()
+            if content_type_id == self.comment_content_type.id
+        ]
+        self.assertNotIn(self.nested_reply.id, refreshed_comment_ids)
+
+    def test_comment_update_does_not_refresh_comment_snapshots_on_rollback(self):
+        """
+        A rolled-back edit does not enqueue refreshes for the comment or its replies.
+        """
+        # Act
+        with self.assertRaises(RuntimeError), transaction.atomic():
+            self.comment.comment_content_json = {"ops": [{"insert": "edited"}]}
+            self.comment.save()
+            raise RuntimeError("rollback")
+
+        # Assert
+        refreshed_comment_ids = [
+            item_id
+            for item_id, content_type_id in self._refresh_calls()
+            if content_type_id == self.comment_content_type.id
+        ]
+        self.assertEqual(refreshed_comment_ids, [])
+
+    def test_enqueue_failure_still_refreshes_later_comments(self):
+        """
+        A failed enqueue does not stop later comments or raise after the edit commits.
+        """
+
+        def apply_async(*, args, priority):
+            item_id, content_type_id = args
+            if (
+                item_id == self.comment.id
+                and content_type_id == self.comment_content_type.id
+            ):
+                raise ConnectionError("broker down")
+
+        self.mock_refresh.apply_async.side_effect = apply_async
+
+        # Act
+        with transaction.atomic():
+            self.comment.comment_content_json = {"ops": [{"insert": "edited"}]}
+            self.comment.save()
+
+        # Assert
+        self.comment.refresh_from_db()
+        self.assertEqual(
+            self.comment.comment_content_json,
+            {"ops": [{"insert": "edited"}]},
+        )
+        refreshed_comment_ids = [
+            item_id
+            for item_id, content_type_id in self._refresh_calls()
+            if content_type_id == self.comment_content_type.id
+        ]
+        self.assertIn(self.reply.id, refreshed_comment_ids)
+        self.assertNotIn(self.nested_reply.id, refreshed_comment_ids)
