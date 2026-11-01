@@ -1,4 +1,5 @@
 from allauth.account.models import EmailAddress
+from allauth.socialaccount.models import SocialAccount
 from rest_framework.test import APIClient
 
 from user.models import User
@@ -48,6 +49,22 @@ class CheckAccountTests(AWSMockTestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            {"exists": True, "auth": "email", "is_verified": True},
+        )
+
+    def test_offers_email_sign_in_to_password_user_with_social_account(self):
+        """A password user who also linked Google can still sign in with email."""
+        # Arrange
+        self.user.set_password("password")
+        self.user.save(update_fields=["password"])
+        SocialAccount.objects.create(user=self.user, provider="google", uid="123")
+
+        # Act
+        response = self.check_account(self.user.email)
+
+        # Assert
         self.assertEqual(
             response.data,
             {"exists": True, "auth": "email", "is_verified": True},
