@@ -108,7 +108,7 @@ class TestCircleWalletService(TestCase):
         """Circle rejects names containing <>(){};* so they are removed."""
         # Arrange
         self.user.first_name = "*Jane"
-        self.user.last_name = "Doe* (PhD) {x};<y>"
+        self.user.last_name = "Doe * (PhD)  {x};<y>"
         self.user.save(update_fields=["first_name", "last_name"])
         self.mock_client.create_wallet.return_value = CircleWalletCreationResult(
             eth_wallet_id="eth-id",
