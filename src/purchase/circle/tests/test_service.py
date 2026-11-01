@@ -104,6 +104,55 @@ class TestCircleWalletService(TestCase):
         self.assertEqual(wallet.address, "0xBrandNewAddress")
         self.assertEqual(wallet.wallet_type, Wallet.WALLET_TYPE_CIRCLE)
 
+    def test_strips_circle_disallowed_characters_from_wallet_name(self):
+        """Circle rejects names containing <>(){};* so they are removed."""
+        # Arrange
+        self.user.first_name = "*Jane"
+        self.user.last_name = "Doe* (PhD) {x};<y>"
+        self.user.save(update_fields=["first_name", "last_name"])
+        self.mock_client.create_wallet.return_value = CircleWalletCreationResult(
+            eth_wallet_id="eth-id",
+            base_wallet_id="base-id",
+        )
+        self.mock_client.get_wallet.return_value = CircleWalletResult(
+            wallet_id="eth-id",
+            address="0xAddr",
+            state="LIVE",
+        )
+
+        # Act
+        self.service.get_or_create_deposit_address(self.user)
+
+        # Assert
+        self.assertEqual(
+            self.mock_client.create_wallet.call_args.kwargs["wallet_name"],
+            "Jane Doe PhD xy's wallet",
+        )
+
+    def test_omits_wallet_name_when_only_disallowed_characters(self):
+        """A name made only of disallowed characters falls back to no name."""
+        # Arrange
+        self.user.first_name = "***"
+        self.user.last_name = "()"
+        self.user.save(update_fields=["first_name", "last_name"])
+        self.mock_client.create_wallet.return_value = CircleWalletCreationResult(
+            eth_wallet_id="eth-id",
+            base_wallet_id="base-id",
+        )
+        self.mock_client.get_wallet.return_value = CircleWalletResult(
+            wallet_id="eth-id",
+            address="0xAddr",
+            state="LIVE",
+        )
+
+        # Act
+        self.service.get_or_create_deposit_address(self.user)
+
+        # Assert
+        self.assertIsNone(
+            self.mock_client.create_wallet.call_args.kwargs["wallet_name"]
+        )
+
     def test_creates_circle_wallet_when_empty_wallet_exists(self):
         """When user has an empty wallet record, create Circle wallet."""
         wallet = Wallet.objects.create(user=self.user)
