@@ -1028,15 +1028,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/d0/76/5bdbd551919a6236d
 
 [[package]]
 name = "django-ses"
-version = "4.8.0"
+version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/cf/9ecd938a2fde48e427f0899fbca4dfb176426c5e9d0808477a27dd702b54/django_ses-4.8.0.tar.gz", hash = "sha256:7be2907bbd86aaac115f3bb97fc5653b7ada70743e34cd144949eed93820302e", size = 72936, upload-time = "2026-09-03T23:39:19.946Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b4/17/b116bb293964d54406b9d4337514f8053886eb66bbb42958286135ae71cd/django_ses-4.9.0.tar.gz", hash = "sha256:d1aa855d8415bb9991fc1fa427dd31a5bb55b98e27c1b19b973566b70a6e83dd", size = 79421, upload-time = "2026-10-29T23:59:48.57Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/e7/ea705f99f8db91f1718e26a7fccd6a0d5cb03a4ffbb5a8138d8e07be2d24/django_ses-4.8.0-py3-none-any.whl", hash = "sha256:6c3e625e6b0c2032153859ef20ea6774c47f35a3794a8163b2357ae4b48e7c3c", size = 38233, upload-time = "2026-09-03T23:39:18.423Z" },
+    { url = "https://files.pythonhosted.org/packages/2c/b9/28547a2f22e3ee3d5db1b3935462df2e4a62f9fb48fc01f0d111bc0ec424/django_ses-4.9.0-py3-none-any.whl", hash = "sha256:34e9f6f13b3ebd8618cfd8d9f93d75f40d6dc5a896a1b3ffa48c4054be75fbe5", size = 40891, upload-time = "2026-10-29T23:59:46.923Z" },
 ]
 
 [package.optional-dependencies]
@@ -2678,7 +2678,7 @@ requires-dist = [
     { name = "django-filter", specifier = ">=26.2,<27" },
     { name = "django-health-check", specifier = ">=4.11.1,<5" },
     { name = "django-opensearch-dsl", specifier = "==0.8.0" },
-    { name = "django-ses", extras = ["events"], specifier = ">=4.7.2,<5" },
+    { name = "django-ses", extras = ["events"], specifier = ">=4.9.0,<5" },
     { name = "django-silk", specifier = ">=5.6.0,<6" },
     { name = "django-simple-history", specifier = ">=3.13.0,<4" },
     { name = "django-storages", specifier = "==1.14.6" },
