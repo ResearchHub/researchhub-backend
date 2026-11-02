@@ -191,10 +191,9 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
 
     @mock.patch("reputation.tasks.logger")
     @mock.patch("reputation.tasks.broadcast_withdrawal.retry")
-    @mock.patch("reputation.tasks.broadcast_withdrawal_transfer")
-    @mock.patch("reputation.tasks.reserve_withdrawal_nonce")
+    @mock.patch("reputation.tasks.reserve_nonce_and_broadcast_withdrawal")
     def test_broadcast_withdrawal_failure_handling(
-        self, mock_reserve, mock_transfer, mock_retry, mock_logger
+        self, mock_transfer, mock_retry, mock_logger
     ):
         mock_transfer.side_effect = Exception("RPC unavailable")
 
@@ -307,7 +306,7 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
 
     @mock.patch("reputation.tasks.broadcast_withdrawal.delay")
     @mock.patch("reputation.lib.logger")
-    @mock.patch("reputation.tasks.broadcast_withdrawal_transfer")
+    @mock.patch("reputation.tasks.reserve_nonce_and_broadcast_withdrawal")
     def test_exhausted_retries_after_nonce_reserved_does_not_refund(
         self, mock_transfer, mock_logger, mock_delay
     ):
@@ -332,6 +331,27 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         self.assertEqual(self.user.get_balance(), self.initial_balance - Decimal(510))
         mock_logger.error.assert_called_once()
         mock_delay.assert_not_called()
+
+    @mock.patch("reputation.lib.get_nonce", return_value=7)
+    @mock.patch("reputation.lib.execute_erc20_transfer")
+    def test_withdrawal_parked_for_reconciliation_is_not_broadcast(
+        self, mock_transfer, mock_nonce
+    ):
+        # Arrange: parked after its retries ran out; a task queued earlier runs.
+        withdrawal = self._create_withdrawal_with_balance(
+            paid_status=PaidStatusModelMixin.PENDING
+        )
+        withdrawal.broadcast_nonce = 7
+        withdrawal.save(update_fields=["broadcast_nonce"])
+
+        # Act
+        self.assertTrue(broadcast_withdrawal(withdrawal.id))
+
+        # Assert
+        mock_transfer.assert_not_called()
+        withdrawal.refresh_from_db()
+        self.assertIsNone(withdrawal.transaction_hash)
+        self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.PENDING)
 
 
 class CheckPendingWithdrawalRecoveryTests(AWSMockTransactionTestCase):
@@ -477,3 +497,35 @@ class WithdrawalOnCommitTests(AWSMockTransactionTestCase):
         self.assertEqual(
             balance.amount, f"-{Decimal(withdrawal.amount) + Decimal(withdrawal.fee)}"
         )
+
+    @mock.patch(
+        "reputation.tasks.broadcast_withdrawal.delay",
+        side_effect=ConnectionError("broker down"),
+    )
+    @mock.patch.object(
+        WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
+    )
+    def test_enqueue_failure_after_commit_still_returns_created(
+        self, mock_hotwallet, mock_delay
+    ):
+        from rest_framework.test import APIClient
+
+        # Arrange
+        client = APIClient()
+        client.force_authenticate(self.user)
+
+        # Act
+        response = client.post(
+            "/api/withdrawal/",
+            {
+                "amount": str(WITHDRAWAL_MINIMUM + 10),
+                "to_address": VALID_TEST_TO_ADDRESS,
+                "network": "ETHEREUM",
+            },
+        )
+
+        # Assert: committed and left INITIATED for check_pending_withdrawal.
+        self.assertEqual(response.status_code, 201, response.data)
+        withdrawal = Withdrawal.objects.get(id=response.data["id"])
+        self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.INITIATED)
+        mock_delay.assert_called_once_with(withdrawal.id)

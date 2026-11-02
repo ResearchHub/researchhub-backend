@@ -368,9 +368,14 @@ def _calculate_tokens_and_update_withdrawal_amount(withdrawal, amount):
 
 
 def _is_broadcastable(withdrawal):
-    return not withdrawal.transaction_hash and withdrawal.paid_status in (
-        PaidStatusModelMixin.INITIATED,
-        PaidStatusModelMixin.PENDING,
+    if withdrawal.transaction_hash:
+        return False
+    if withdrawal.paid_status == PaidStatusModelMixin.INITIATED:
+        return True
+    # PENDING with a nonce but no hash awaits manual reconciliation.
+    return (
+        withdrawal.paid_status == PaidStatusModelMixin.PENDING
+        and withdrawal.broadcast_nonce is None
     )
 
 
@@ -480,11 +485,31 @@ def broadcast_withdrawal_transfer(withdrawal):
     return withdrawal
 
 
+def reserve_nonce_and_broadcast_withdrawal(withdrawal_id):
+    """
+    Reserve the nonce and broadcast in separate transactions. If they shared
+    one, a failed send would roll the nonce back and the retry would pay out
+    again under a fresh nonce.
+    """
+    with transaction.atomic():
+        withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
+        reserve_withdrawal_nonce(withdrawal)
+    with transaction.atomic():
+        withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
+        return broadcast_withdrawal_transfer(withdrawal)
+
+
 def dispatch_withdrawal_broadcast(withdrawal_id):
-    """Schedule on-chain broadcast after the current DB transaction commits."""
+    """
+    Schedule on-chain broadcast after the current DB transaction commits.
+    An enqueue failure is logged rather than raised: the withdrawal is already
+    committed, and check_pending_withdrawal re-enqueues INITIATED rows.
+    """
     from reputation.tasks import broadcast_withdrawal
 
-    transaction.on_commit(lambda: broadcast_withdrawal.delay(withdrawal_id))
+    transaction.on_commit(
+        lambda: broadcast_withdrawal.delay(withdrawal_id), robust=True
+    )
 
 
 class PendingWithdrawal:

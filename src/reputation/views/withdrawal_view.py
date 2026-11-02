@@ -108,15 +108,24 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         transaction_fee = self.calculate_transaction_fee(network)
 
+        if message := self._check_withdrawal_allowed(user, amount, to_address):
+            logger.error(f"Invalid withdrawal: {message}")
+            return Response(message, status=400)
+
+        # Kept outside the user lock below because it makes RPC calls.
+        valid, message = self._check_hotwallet_balance(amount, network)
+        if not valid:
+            logger.error(f"Invalid withdrawal: {message}")
+            return Response(message, status=400)
+
         try:
             with transaction.atomic():
-                # Lock the user record first so concurrent requests run the
-                # checks below one at a time and cannot both pass them.
+                # Lock the user record to prevent race conditions during withdrawal
                 user = User.objects.select_for_update().get(id=user.id)
 
-                if message := self._check_withdrawal_allowed(
-                    user, amount, to_address, network
-                ):
+                # Re-check under the lock: a concurrent request may have
+                # committed a withdrawal since the check above.
+                if message := self._check_withdrawal_allowed(user, amount, to_address):
                     logger.error(f"Invalid withdrawal: {message}")
                     return Response(message, status=400)
 
@@ -140,7 +149,13 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
                 self._prepare_withdrawal(withdrawal, amount, transaction_fee)
                 dispatch_withdrawal_broadcast(withdrawal.id)
+        except Exception:
+            logger.exception("Failed to create withdrawal for user %s", user.id)
+            return Response("Failed to create withdrawal", status=400)
 
+        # The withdrawal is committed, so a tracking failure must not fail
+        # the request.
+        try:
             # Track in Amplitude
             track_revenue_event.apply_async(
                 (
@@ -152,17 +167,15 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 ),
                 priority=1,
             )
+        except Exception:
+            logger.exception("Failed to track withdrawal fee for user %s", user.id)
 
-            serialized = WithdrawalSerializer(withdrawal)
-            return Response(serialized.data, status=201)
-        except Exception as e:
-            logger.exception("Failed to create withdrawal for user %s", user.id)
-            return Response(str(e), status=400)
+        serialized = WithdrawalSerializer(withdrawal)
+        return Response(serialized.data, status=201)
 
-    def _check_withdrawal_allowed(self, user, amount, to_address, network):
+    def _check_withdrawal_allowed(self, user, amount, to_address):
         """
         Returns an error message if the user may not withdraw right now.
-        Must be called with the user row locked.
         """
         pending_tx = Withdrawal.objects.filter(
             user=user,
@@ -189,9 +202,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             valid, message = self._check_withdrawal_interval(user, to_address)
         if valid:
             valid, message = self._check_withdrawal_time_limit(to_address, user)
-
-        if valid:
-            valid, message = self._check_hotwallet_balance(amount, network)
 
         return None if valid else message
 

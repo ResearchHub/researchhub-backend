@@ -3,18 +3,16 @@ from datetime import UTC, datetime, timedelta
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
 from django.db.models import DurationField, F
 from django.db.models.functions import Cast
 
 import utils.locking as lock
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.lib import (
-    broadcast_withdrawal_transfer,
     check_hotwallet,
     check_pending_withdrawal,
     mark_withdrawal_for_reconciliation,
-    reserve_withdrawal_nonce,
+    reserve_nonce_and_broadcast_withdrawal,
 )
 from reputation.models import Bounty, Contribution, Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
@@ -101,14 +99,7 @@ def broadcast_withdrawal(self, withdrawal_id):
         return False
 
     try:
-        # Commit the nonce before broadcasting so a failed send cannot roll it
-        # back and have the retry pay out again under a fresh nonce.
-        with transaction.atomic():
-            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
-            reserve_withdrawal_nonce(withdrawal)
-        with transaction.atomic():
-            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
-            broadcast_withdrawal_transfer(withdrawal)
+        reserve_nonce_and_broadcast_withdrawal(withdrawal_id)
         return True
     except Exception as exc:
         withdrawal = Withdrawal.objects.filter(id=withdrawal_id).first()

@@ -718,7 +718,7 @@ class WithdrawalViewSetTests(APITestCase):
             mock.patch.object(
                 WithdrawalViewSet,
                 "_prepare_withdrawal",
-                side_effect=Exception("Test exception"),
+                side_effect=Exception("https://rpc.example/secret-key"),
             ),
         ):
             response = self.client.post(
@@ -730,6 +730,7 @@ class WithdrawalViewSetTests(APITestCase):
             )
 
             self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.data, "Failed to create withdrawal")
 
     def test_unauthenticated_user_cannot_withdraw(self):
         """Test that unauthenticated users cannot withdraw."""
