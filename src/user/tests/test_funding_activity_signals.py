@@ -144,6 +144,57 @@ class FundingActivitySignalsTests(TestCase):
 
     @patch("user.signals.funding_activity_signals.create_funding_activity_task")
     @patch("user.signals.funding_activity_signals.transaction")
+    def test_escrow_paid_fundraise_skips_refunded_purchases(
+        self, mock_transaction, mock_task
+    ):
+        """
+        Contributions refunded by an earlier close get no FUNDRAISE_PAYOUT
+        activity when the reopened fundraise is paid out.
+        """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+
+        uni_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION"
+        )
+        fundraise = Fundraise.objects.create(
+            created_by=self.recipient,
+            status=Fundraise.OPEN,
+            unified_document=uni_doc,
+        )
+        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.FUNDRAISE,
+            status=Escrow.PENDING,
+            created_by=self.funder,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+        )
+        fundraise.escrow = escrow
+        fundraise.save()
+        purchase_kwargs = {
+            "user": self.funder,
+            "content_type": ct_fundraise,
+            "object_id": fundraise.id,
+            "purchase_type": Purchase.FUNDRAISE_CONTRIBUTION,
+            "amount": "100",
+            "purchase_method": Purchase.OFF_CHAIN,
+        }
+        Purchase.objects.create(paid_status=Purchase.REFUNDED, **purchase_kwargs)
+        paid = Purchase.objects.create(paid_status=Purchase.PAID, **purchase_kwargs)
+
+        # Act
+        escrow.status = Escrow.PAID
+        escrow.save()
+
+        # Assert
+        mock_task.delay.assert_called_once_with(
+            FundingActivity.FUNDRAISE_PAYOUT,
+            paid.pk,
+        )
+
+    @patch("user.signals.funding_activity_signals.create_funding_activity_task")
+    @patch("user.signals.funding_activity_signals.transaction")
     def test_escrow_paid_fundraise_schedules_usd_contribution_tasks(
         self, mock_transaction, mock_task
     ):

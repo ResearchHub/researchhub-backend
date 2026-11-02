@@ -64,6 +64,13 @@ class Purchase(PaidStatusModelMixin):
     FUNDRAISE_CONTRIBUTION = "FUNDRAISE_CONTRIBUTION"
     FUNDING_POOL_CONTRIBUTION = "FUNDING_POOL_CONTRIBUTION"
 
+    # Set when a fundraise contribution is returned to its contributor (or pool)
+    # because the fundraise was closed. Only PAID purchases may move to it.
+    REFUNDED = "REFUNDED"
+    PAID_STATUS_CHOICES = PaidStatusModelMixin.PAID_STATUS_CHOICES + [
+        (REFUNDED, REFUNDED),
+    ]
+
     PURCHASE_METHOD_CHOICES = [
         (OFF_CHAIN, OFF_CHAIN),
     ]
@@ -96,6 +103,12 @@ class Purchase(PaidStatusModelMixin):
         max_length=16,
     )
     purchase_type = models.CharField(choices=PURCHASE_TYPE_CHOICES, max_length=32)
+    paid_status = models.CharField(
+        max_length=255,
+        choices=PAID_STATUS_CHOICES,
+        default=PaidStatusModelMixin.INITIATED,
+        null=True,
+    )
 
     transaction_hash = models.CharField(max_length=255, blank=True, null=True)
 

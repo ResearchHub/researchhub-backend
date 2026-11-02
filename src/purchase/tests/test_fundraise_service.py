@@ -1,9 +1,13 @@
+import importlib
 from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
+from django.apps import apps as django_apps
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -1252,6 +1256,202 @@ class CloseFundraiseTests(TestCase):
             Balance.objects.filter(user=user_contributor, amount=40).exists()
         )
 
+    # --- Close → reopen → close lifecycle tests ---
+
+    def test_close_fundraise_marks_rsc_contributions_refunded(self):
+        """Closing moves each refunded RSC contribution from PAID to REFUNDED."""
+        # Arrange
+        contributor = create_random_authenticated_user("fundraise_contributor")
+        purchase = self._create_rsc_contribution(self.fundraise, contributor, 100)
+
+        # Act
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+
+        # Assert
+        self.assertTrue(result)
+        purchase.refresh_from_db()
+        self.assertEqual(purchase.paid_status, Purchase.REFUNDED)
+
+    def test_close_reopen_close_refunds_each_contribution_once(self):
+        """
+        A second close refunds only contributions made after the reopen, instead
+        of paying the first round's contributors (and fees) again out of the
+        newer contributions.
+        """
+        # Arrange
+        User.objects.get_or_create(id=1)
+        first = create_random_authenticated_user("first_contributor")
+        second = create_random_authenticated_user("second_contributor")
+        self._give_user_rsc_balance(first, 1000)
+        self._give_user_rsc_balance(second, 1000)
+
+        first_purchase, error = self.fundraise_service.create_rsc_contribution(
+            first, self.fundraise, Decimal(100), use_credits=False
+        )
+        self.assertIsNone(error)
+        self.assertTrue(self.fundraise_service.close_fundraise(self.fundraise))
+        self.fundraise_service.reopen_fundraise(self.fundraise, duration_days=7)
+
+        second_purchase, error = self.fundraise_service.create_rsc_contribution(
+            second, self.fundraise, Decimal(100), use_credits=False
+        )
+        self.assertIsNone(error)
+
+        # Act
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+
+        # Assert
+        self.assertTrue(result)
+        self.assertEqual(first.get_available_balance(), Decimal(1000))
+        self.assertEqual(second.get_available_balance(), Decimal(1000))
+
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.CLOSED)
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal(0))
+        self.assertEqual(self.fundraise.escrow.status, Escrow.CANCELLED)
+
+        first_purchase.refresh_from_db()
+        second_purchase.refresh_from_db()
+        self.assertEqual(first_purchase.paid_status, Purchase.REFUNDED)
+        self.assertEqual(second_purchase.paid_status, Purchase.REFUNDED)
+
+    def test_close_reopen_close_keeps_earlier_usd_refunds(self):
+        """
+        Reopening does not reinstate USD contributions refunded by the first
+        close; the second close cancels only the newer contribution.
+        """
+        # Arrange
+        contributor = create_random_authenticated_user("usd_contributor")
+        first = self._create_usd_contribution(self.fundraise, contributor, 10000)
+        self.assertTrue(self.fundraise_service.close_fundraise(self.fundraise))
+
+        self.fundraise_service.reopen_fundraise(self.fundraise, duration_days=7)
+        first.refresh_from_db()
+        self.assertTrue(first.is_refunded)
+        self.assertEqual(first.status, UsdFundraiseContribution.Status.CANCELLED)
+
+        second = self._create_usd_contribution(self.fundraise, contributor, 5000)
+
+        # Act
+        result = self.fundraise_service.close_fundraise(self.fundraise)
+
+        # Assert
+        self.assertTrue(result)
+        for contribution in (first, second):
+            contribution.refresh_from_db()
+            self.assertTrue(contribution.is_refunded)
+            self.assertEqual(
+                contribution.status, UsdFundraiseContribution.Status.CANCELLED
+            )
+        self.assertEqual(self.fundraise.get_amount_raised(currency=USD), 0)
+
+    def test_close_and_reopen_lock_escrow_before_changing_status(self):
+        """Close and reopen write the escrow status through a locked row."""
+        # Arrange
+        escrow_table = Escrow._meta.db_table
+
+        def escrow_locks(queries):
+            return [
+                q["sql"]
+                for q in queries
+                if "FOR UPDATE" in q["sql"] and f'FROM "{escrow_table}"' in q["sql"]
+            ]
+
+        # Act
+        with CaptureQueriesContext(connection) as close_queries:
+            closed = self.fundraise_service.close_fundraise(self.fundraise)
+        with CaptureQueriesContext(connection) as reopen_queries:
+            self.fundraise_service.reopen_fundraise(self.fundraise, duration_days=7)
+
+        # Assert
+        self.assertTrue(closed)
+        self.assertEqual(len(escrow_locks(close_queries.captured_queries)), 1)
+        self.assertEqual(len(escrow_locks(reopen_queries.captured_queries)), 1)
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(self.fundraise.escrow.status, Escrow.PENDING)
+
+    def test_backfill_marks_contributions_on_closed_fundraises_refunded(self):
+        """The 0064 backfill flags contributions already refunded by a close."""
+        # Arrange
+        migration = importlib.import_module(
+            "purchase.migrations.0064_purchase_paid_status_refunded"
+        )
+        contributor = create_random_authenticated_user("fundraise_contributor")
+        open_purchase = self._create_rsc_contribution(self.fundraise, contributor)
+        closed_fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=100,
+            goal_currency="USD",
+            status=Fundraise.CLOSED,
+        )
+        closed_purchase = self._create_rsc_contribution(closed_fundraise, contributor)
+
+        # Act
+        migration.backfill_refunded_contributions(django_apps, None)
+
+        # Assert
+        open_purchase.refresh_from_db()
+        closed_purchase.refresh_from_db()
+        self.assertEqual(open_purchase.paid_status, Purchase.PAID)
+        self.assertEqual(closed_purchase.paid_status, Purchase.REFUNDED)
+
+
+class CompleteFundraiseTests(TestCase):
+    """Tests for FundraiseService.complete_fundraise() method."""
+
+    def setUp(self):
+        self.creator = create_random_authenticated_user("fundraise_creator")
+        self.contributor = create_random_authenticated_user("usd_contributor")
+        self.post = create_post(created_by=self.creator, document_type=PREREGISTRATION)
+        self.service = FundraiseService(referral_bonus_service=Mock())
+        self.fundraise = self.service.create_fundraise_with_escrow(
+            user=self.creator,
+            unified_document=self.post.unified_document,
+            goal_amount=100,
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+
+    def _create_usd_contribution(self, **kwargs):
+        return UsdFundraiseContribution.objects.create(
+            user=self.contributor,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            fee_cents=900,
+            origin_fund_id="test_origin_fund",
+            destination_org_id="test_destination_org",
+            **kwargs,
+        )
+
+    def test_complete_usd_only_fundraise(self):
+        """A fundraise funded only in USD can complete with an empty escrow."""
+        # Arrange
+        self._create_usd_contribution()
+
+        # Act
+        self.service.complete_fundraise(self.fundraise)
+
+        # Assert
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.COMPLETED)
+        self.assertEqual(self.fundraise.escrow.status, Escrow.PAID)
+        self.assertEqual(self.fundraise.escrow.amount_paid, Decimal(0))
+
+    def test_complete_fundraise_with_only_refunded_usd_fails(self):
+        """Refunded USD contributions do not count as funds to pay out."""
+        # Arrange
+        self._create_usd_contribution(
+            is_refunded=True, status=UsdFundraiseContribution.Status.CANCELLED
+        )
+
+        # Act & Assert
+        with self.assertRaisesMessage(ValueError, "Fundraise has no funds to payout"):
+            self.service.complete_fundraise(self.fundraise)
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.OPEN)
+        self.assertEqual(self.fundraise.escrow.status, Escrow.PENDING)
+
 
 class CreateUsdContributionTests(TestCase):
     """
@@ -1410,6 +1610,86 @@ class CreateUsdContributionTests(TestCase):
                 user=self.user, fundraise=self.fundraise
             ).exists()
         )
+
+    def test_create_usd_contribution_transfer_runs_outside_transaction(self):
+        """
+        The Endaoment transfer is not inside a transaction the service opened,
+        so a rollback cannot drop the record of money that already moved.
+        """
+        # Arrange
+        baseline_depth = len(connection.atomic_blocks)
+        depths = []
+
+        def transfer(**kwargs):
+            depths.append(len(connection.atomic_blocks))
+            return {"id": "transfer_123"}
+
+        self.mock_endaoment_service.transfer_to_researchhub_fund.side_effect = transfer
+
+        # Act
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            origin_fund_id="fund_abc",
+        )
+
+        # Assert
+        self.assertIsNone(error)
+        self.assertIsNotNone(contribution)
+        self.assertEqual(depths, [baseline_depth])
+
+    def test_create_usd_contribution_stale_open_fundraise_skips_transfer(self):
+        """A fundraise closed after the caller loaded it moves no money."""
+        # Arrange
+        Fundraise.objects.filter(id=self.fundraise.id).update(status=Fundraise.CLOSED)
+
+        # Act
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,  # stale instance still says OPEN
+            amount_cents=10000,
+            origin_fund_id="fund_abc",
+        )
+
+        # Assert
+        self.assertIsNone(contribution)
+        self.assertEqual(error, "Fundraise is not open")
+        self.mock_endaoment_service.transfer_to_researchhub_fund.assert_not_called()
+
+    def test_create_usd_contribution_fundraise_closed_during_transfer(self):
+        """
+        A transfer that lands after the fundraise closed is recorded as refunded,
+        so it is not counted and shows up for the manual Endaoment refund.
+        """
+
+        # Arrange
+        def close_then_transfer(**kwargs):
+            self.service.close_fundraise(Fundraise.objects.get(id=self.fundraise.id))
+            return {"id": "transfer_123"}
+
+        self.mock_endaoment_service.transfer_to_researchhub_fund.side_effect = (
+            close_then_transfer
+        )
+
+        # Act
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            origin_fund_id="fund_abc",
+        )
+
+        # Assert
+        self.assertIsNone(contribution)
+        self.assertEqual(error, "Fundraise is not open")
+        recorded = UsdFundraiseContribution.objects.get(
+            user=self.user, fundraise=self.fundraise
+        )
+        self.assertEqual(recorded.endaoment_transfer_id, "transfer_123")
+        self.assertTrue(recorded.is_refunded)
+        self.assertEqual(recorded.status, UsdFundraiseContribution.Status.CANCELLED)
+        self.assertEqual(self.fundraise.get_amount_raised(currency=USD), 0)
 
 
 class ExportUsdContributionsTests(TestCase):
