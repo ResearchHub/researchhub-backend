@@ -376,6 +376,22 @@ class NewCitationsTests(TestCase):
             score.details, ["1 new DOIs under 'References', expected at least 2"]
         )
 
+    def test_a_doi_moved_into_the_section_is_not_new(self):
+        # Arrange
+        before = _note(
+            [_heading("Background"), "10.1111/old.1", _heading("References")]
+        )
+        after = _note(
+            [_heading("Background"), "Text.", _heading("References"), "10.1111/old.1"]
+        )
+        case = _case(min_new_dois=1, doi_section="References")
+
+        # Act
+        score = new_citations(case, _run(before, after))
+
+        # Assert
+        self.assertEqual(score.value, 0.0)
+
     def test_passes_when_enough_dois_were_added(self):
         # Arrange
         after = _note(["10.1000/a.1", "10.2000/b.2"])
