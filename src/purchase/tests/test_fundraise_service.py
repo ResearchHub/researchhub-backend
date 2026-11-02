@@ -1526,6 +1526,18 @@ class CompleteFundraiseTests(TestCase):
         self.assertEqual(self.fundraise.escrow.status, Escrow.PAID)
         self.assertEqual(self.fundraise.escrow.amount_paid, Decimal(0))
 
+    def test_complete_fundraise_without_escrow_fails(self):
+        """A fundraise with no escrow has nothing to pay out."""
+        # Arrange
+        self._create_usd_contribution()
+        Fundraise.objects.filter(id=self.fundraise.id).update(escrow=None)
+
+        # Act & Assert
+        with self.assertRaisesMessage(ValueError, "Fundraise has no funds to payout"):
+            self.service.complete_fundraise(self.fundraise)
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, Fundraise.OPEN)
+
     def test_complete_fundraise_with_only_refunded_usd_fails(self):
         """Refunded USD contributions do not count as funds to pay out."""
         # Arrange
@@ -1744,6 +1756,57 @@ class CreateUsdContributionTests(TestCase):
         self.assertIsNone(contribution)
         self.assertEqual(error, "Fundraise is not open")
         self.mock_endaoment_service.transfer_to_researchhub_fund.assert_not_called()
+
+    def test_create_usd_contribution_expired_fundraise_skips_transfer(self):
+        """An expired fundraise moves no money."""
+        # Arrange
+        Fundraise.objects.filter(id=self.fundraise.id).update(
+            end_date=timezone.now() - timedelta(days=1)
+        )
+
+        # Act
+        contribution, error = self.service.create_usd_contribution(
+            user=self.user,
+            fundraise=self.fundraise,
+            amount_cents=10000,
+            origin_fund_id="fund_abc",
+        )
+
+        # Assert
+        self.assertIsNone(contribution)
+        self.assertEqual(error, "Fundraise is expired")
+        self.mock_endaoment_service.transfer_to_researchhub_fund.assert_not_called()
+
+    def test_create_usd_contribution_logs_transfer_when_recording_fails(self):
+        """
+        If saving fails after the transfer succeeded, the transfer id is logged
+        so the orphaned transfer can be found and reconciled.
+        """
+        # Arrange
+        self.mock_endaoment_service.transfer_to_researchhub_fund.return_value = {
+            "id": "transfer_123"
+        }
+
+        # Act
+        with (
+            patch.object(
+                UsdFundraiseContribution.objects,
+                "create",
+                side_effect=RuntimeError("db down"),
+            ),
+            self.assertLogs("purchase.services.fundraise_service", "ERROR") as logs,
+            self.assertRaises(RuntimeError),
+        ):
+            self.service.create_usd_contribution(
+                user=self.user,
+                fundraise=self.fundraise,
+                amount_cents=10000,
+                origin_fund_id="fund_abc",
+            )
+
+        # Assert
+        self.assertIn("transfer_123", logs.output[0])
+        self.assertIn("was not recorded", logs.output[0])
 
     def test_create_usd_contribution_fundraise_closed_during_transfer(self):
         """
