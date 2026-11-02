@@ -561,13 +561,16 @@ class ResearchhubPostViewSet(
                     ):
                         grant_data["application_visibility"] = application_visibility
 
-                    funding_mechanism = data.get("grant_funding_mechanism")
-                    if not funding_mechanism and note is not None:
+                    if "grant_funding_mechanism" in data:
+                        grant_data["funding_mechanism"] = data.get(
+                            "grant_funding_mechanism"
+                        )
+                    elif note is not None:
                         draft_settings = getattr(note, "grant_settings", None)
                         if draft_settings is not None:
-                            funding_mechanism = draft_settings.funding_mechanism
-                    if funding_mechanism:
-                        grant_data["funding_mechanism"] = funding_mechanism
+                            grant_data["funding_mechanism"] = (
+                                draft_settings.funding_mechanism
+                            )
 
                     grant_serializer = GrantCreateSerializer(data=grant_data)
                     grant_serializer.is_valid(raise_exception=True)
