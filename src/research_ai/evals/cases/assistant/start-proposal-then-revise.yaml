@@ -1,0 +1,10 @@
+id: assistant/start-proposal-then-revise
+agent: assistant
+turns:
+  - >-
+    Start a preregistration for a study on whether a daily 10-minute
+    mindfulness exercise reduces exam anxiety in undergraduates. Draft the
+    aims and the methods.
+  - Shorten the aims to three bullet points.
+expect:
+  tools_called: [create_note, edit_note]

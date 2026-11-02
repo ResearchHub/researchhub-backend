@@ -1,0 +1,41 @@
+id: notebook/tighten-methods-only
+agent: notebook
+note:
+  title: Sleep spindles and overnight memory consolidation
+  document_type: PREREGISTRATION
+  blocks:
+    - "## Introduction"
+    - >-
+      Sleep spindles, bursts of 11-16 Hz activity during NREM stage 2 sleep,
+      have been linked to the consolidation of declarative memories. Prior
+      work has mostly used small samples and a single night of recording.
+    - "## Hypotheses"
+    - >-
+      H1: Spindle density during NREM2 predicts overnight retention on a
+      word-pair task, controlling for baseline learning.
+    - "## Methods"
+    - >-
+      So basically what we are going to do is that we are going to recruit
+      some healthy adults, probably students, and they will come to the lab
+      and sleep there for a night or maybe two nights if that works out.
+    - >-
+      Before they go to sleep they will learn word pairs, and then in the
+      morning we will test them again on the word pairs to see how much they
+      remember, and we will also record their EEG during the night so that we
+      can count the spindles, which we will do with some kind of automatic
+      detection algorithm.
+    - >-
+      Then we will do statistics on it to see if more spindles means better
+      memory, probably a regression or something like that.
+    - "## Budget"
+    - >-
+      Participant compensation: 40 participants x $150 = $6,000. EEG cap
+      consumables: $1,200. Research assistant time: $9,000.
+turns:
+  - >-
+    Tighten the Methods section: make it concise and specific. Leave every
+    other section exactly as it is.
+expect:
+  tools_called: [read_note, edit_note]
+  tools_not_called: [create_note]
+  unchanged_sections: [Introduction, Hypotheses, Budget]

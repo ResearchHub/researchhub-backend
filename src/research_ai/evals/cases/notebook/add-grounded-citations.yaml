@@ -1,0 +1,24 @@
+id: notebook/add-grounded-citations
+agent: notebook
+note:
+  title: Gut microbiome and depression
+  document_type: NOTE
+  blocks:
+    - "## Aims"
+    - >-
+      Review the evidence that gut microbiome composition differs between
+      people with major depressive disorder and healthy controls.
+    - "## Background"
+    - >-
+      Several studies report lower abundance of butyrate-producing bacteria,
+      such as Faecalibacterium and Coprococcus, in people with depression.
+    - "## References"
+    - ""
+turns:
+  - >-
+    Find two peer-reviewed papers that support the claim in the Background
+    section and add them under References, with their DOIs as links.
+expect:
+  tools_called: [read_note, search_works, edit_note]
+  tools_not_called: [create_note]
+  unchanged_sections: [Aims]
