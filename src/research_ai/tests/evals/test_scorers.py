@@ -70,8 +70,10 @@ def _turn(reply="Done.", status=AgentExecution.Status.SUCCEEDED, calls=()):
     )
 
 
-def _call(name, result="", **tool_input):
-    return ToolCall(turn=0, name=name, input=tool_input, result=result, is_error=False)
+def _call(name, result="", is_error=False, **tool_input):
+    return ToolCall(
+        turn=0, name=name, input=tool_input, result=result, is_error=is_error
+    )
 
 
 def _run(before=None, after=None, turns=None, error=""):
@@ -155,6 +157,36 @@ class ToolExpectationsTests(TestCase):
         )
         self.assertAlmostEqual(score.value, 0.5)
 
+    def test_a_required_tool_that_only_failed_does_not_count(self):
+        # Arrange
+        run = _run(
+            before=_note([]),
+            turns=[
+                _turn(
+                    calls=[
+                        _call("read_note", note_id=NOTE_ID),
+                        _call("edit_note", is_error=True, note_id=NOTE_ID),
+                    ]
+                )
+            ],
+        )
+
+        # Act
+        score = tool_expectations(_case(tools_called=["edit_note"]), run)
+
+        # Assert
+        self.assertEqual(score.details, ["every edit_note call failed"])
+
+    def test_a_forbidden_tool_counts_even_when_it_failed(self):
+        # Arrange
+        run = _run(turns=[_turn(calls=[_call("create_note", is_error=True)])])
+
+        # Act
+        score = tool_expectations(_case(tools_not_called=["create_note"]), run)
+
+        # Assert
+        self.assertEqual(score.details, ["called create_note"])
+
     def test_flags_an_edit_of_a_fixture_note_before_reading_it(self):
         # Arrange
         run = _run(
@@ -234,6 +266,28 @@ class GroundedCitationsTests(TestCase):
         # Assert
         self.assertEqual(score.details, ["ungrounded DOI 10.9999/made.up"])
         self.assertAlmostEqual(score.value, 0.5)
+
+    def test_a_note_read_back_does_not_ground_what_the_agent_wrote(self):
+        # Arrange
+        after = _note(["10.9999/made.up"])
+        run = _run(
+            before=_note([]),
+            after=after,
+            turns=[
+                _turn(
+                    calls=[
+                        _call("edit_note", result='{"saved": true}'),
+                        _call("read_note", result='{"blocks": ["10.9999/made.up"]}'),
+                    ]
+                )
+            ],
+        )
+
+        # Act
+        score = grounded_citations(_case(), run)
+
+        # Assert
+        self.assertEqual(score.details, ["ungrounded DOI 10.9999/made.up"])
 
     def test_not_applicable_without_dois(self):
         # Act / Assert

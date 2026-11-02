@@ -8,7 +8,12 @@ from django.test import TestCase, override_settings
 
 from note.related_models.note_model import Note
 from research_ai.evals.cases import parse_case
-from research_ai.evals.harness import AgentEvalHarness, build_engine
+from research_ai.evals.harness import (
+    AgentEvalHarness,
+    TurnRun,
+    _collect_block,
+    build_engine,
+)
 from research_ai.evals.report import (
     ScoredRun,
     build_report,
@@ -201,3 +206,34 @@ class AgentEvalHarnessTests(TestCase):
         self.assertEqual(report["summary"]["by_scorer"]["tool_expectations"], 0.333)
         self.assertIn(case.id, summary)
         self.assertIn("never called create_note", summary)
+
+
+class CollectBlockTests(TestCase):
+    def test_keeps_server_tool_results_but_not_the_models_requests(self):
+        # Arrange
+        turn = TurnRun(
+            index=0,
+            message="m",
+            execution_id=1,
+            status="SUCCEEDED",
+            error="",
+            reply="",
+            iterations=1,
+            input_tokens=0,
+            output_tokens=0,
+            cost_microusd=0,
+            duration_ms=None,
+        )
+        request = {
+            "type": "server_tool_use",
+            "name": "web_search",
+            "input": {"query": "10.9999/made.up"},
+        }
+        result = {"type": "web_search_tool_result", "content": [{"url": "u"}]}
+
+        # Act
+        _collect_block(turn, {}, {"type": "server_tool", "data": request})
+        _collect_block(turn, {}, {"type": "server_tool", "data": result})
+
+        # Assert
+        self.assertEqual(turn.server_tool_results, [json.dumps(result)])

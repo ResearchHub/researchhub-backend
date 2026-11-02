@@ -15,7 +15,12 @@ from dataclasses import dataclass, field
 from research_ai.evals.cases import EvalCase
 from research_ai.evals.harness import CaseRun, NoteSnapshot
 from research_ai.models import AgentExecution
-from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
+from research_ai.services.note_tools import (
+    CREATE_NOTE,
+    EDIT_NOTE,
+    READ_NOTE,
+    RENAME_NOTE,
+)
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
     PREREGISTRATION,
@@ -52,6 +57,7 @@ _PROPOSAL_TELLS = [
 # note being pasted back.
 _PASTE_MIN_CHARS = 120
 _PASTE_MAX_BLOCKS = 2
+_NOTE_TOOLS = frozenset({READ_NOTE, EDIT_NOTE, CREATE_NOTE, RENAME_NOTE})
 
 
 def turn_ok(case: EvalCase, run: CaseRun) -> Score:
@@ -69,11 +75,14 @@ def tool_expectations(case: EvalCase, run: CaseRun) -> Score | None:
     """Required and forbidden tools, and no edit of a note never read."""
     if run.error:
         return None
-    called = [call.name for call in run.tool_calls]
+    called = {call.name for call in run.tool_calls}
+    # A required tool counts only once it worked: a failed edit_note followed
+    # by a cheerful reply has not done the edit.
+    succeeded = {call.name for call in run.tool_calls if not call.is_error}
     details = [
-        f"never called {name}"
+        f"never called {name}" if name not in called else f"every {name} call failed"
         for name in case.expect.tools_called
-        if name not in called
+        if name not in succeeded
     ]
     details += [
         f"called {name}" for name in case.expect.tools_not_called if name in called
@@ -137,8 +146,10 @@ def _edit_scope_of(
 def grounded_citations(case: EvalCase, run: CaseRun) -> Score | None:
     """Every DOI the run added to a note or reply came from somewhere.
 
-    A DOI is grounded when the user, the fixture note, or a tool result in
-    this run carried it. Not applicable when the run cites no new DOI.
+    A DOI is grounded when the user, the fixture note, or an external tool
+    result in this run carried it. Note tool results are not evidence: they
+    echo back what the agent itself wrote. Not applicable when the run cites
+    no new DOI.
     """
     if run.error:
         return None
@@ -148,7 +159,11 @@ def grounded_citations(case: EvalCase, run: CaseRun) -> Score | None:
             note.plain_text + json.dumps(note.blocks)
             for note in run.notes_before.values()
         ]
-        + [call.result for call in run.tool_calls]
+        + [
+            call.result
+            for call in run.tool_calls
+            if call.name not in _NOTE_TOOLS and not call.is_error
+        ]
         + [result for turn in run.turns for result in turn.server_tool_results]
     ).lower()
     cited = set()
