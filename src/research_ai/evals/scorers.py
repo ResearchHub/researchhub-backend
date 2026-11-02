@@ -179,8 +179,9 @@ def grounded_citations(case: EvalCase, run: CaseRun) -> Score | None:
 
 def new_citations(case: EvalCase, run: CaseRun) -> Score | None:
     """The run added at least ``min_new_dois`` DOIs, under ``doi_section``
-    when the case names one. ``grounded_citations`` checks where they came
-    from; this checks that they are there at all."""
+    when the case names one. A DOI anywhere in the original note is not new,
+    so moving one into the section does not count. ``grounded_citations``
+    checks where they came from; this checks that they are there at all."""
     required = case.expect.min_new_dois
     if run.error or required is None:
         return None
@@ -189,7 +190,7 @@ def new_citations(case: EvalCase, run: CaseRun) -> Score | None:
     for note_id, after in run.notes_after.items():
         before = run.notes_before.get(note_id)
         added |= _section_dois(after.blocks, heading) - (
-            _section_dois(before.blocks, heading) if before else set()
+            _section_dois(before.blocks, None) if before else set()
         )
     where = f" under {heading!r}" if heading else ""
     details = (
