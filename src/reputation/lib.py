@@ -10,6 +10,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from web3 import Web3
+from web3.exceptions import TransactionNotFound
 
 import ethereum.lib
 import ethereum.utils
@@ -448,18 +449,17 @@ def evaluate_transaction_hash(transaction_hash, network="ETHEREUM"):
     paid_date = None
     paid_status = PaidStatusModelMixin.PENDING
     try:
-        timeout = 5 * 1  # 5 second timeout
-        w3_instance = (
-            web3_provider.ethereum if network == "ETHEREUM" else web3_provider.base
-        )
-        transaction_receipt = w3_instance.eth.wait_for_transaction_receipt(
-            transaction_hash, timeout=timeout
-        )
+        w3_instance = _get_w3_for_network(network)
+        # Non-blocking lookup: callers hold a row lock, and an unmined
+        # transaction is simply re-checked on the next run.
+        transaction_receipt = w3_instance.eth.get_transaction_receipt(transaction_hash)
         if transaction_receipt["status"] == 0:
             paid_status = "FAILED"
         elif transaction_receipt["status"] == 1:
             paid_status = "PAID"
             paid_date = datetime.now()
+    except TransactionNotFound:
+        logger.info("Transaction not mined yet hash=%s", transaction_hash)
     except Exception:
         logger.exception("Error evaluating transaction hash=%s", transaction_hash)
 
