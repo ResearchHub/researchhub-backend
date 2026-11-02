@@ -1219,11 +1219,12 @@ class ViewTests(APITestCase):
         self.assertEqual(grant.funding_mechanism, Grant.AWARD)
 
     def test_grant_funding_mechanism_update_rejects_invalid_value(self):
-        """Invalid mechanism-only updates are rejected and leave the grant unchanged."""
+        """Invalid/empty mechanism is rejected before the post is mutated."""
         # Arrange
         author = create_random_default_user("bad_mechanism_author", moderator=True)
         make_user_verified(author)
         self.client.force_authenticate(author)
+        original_title = "x" * MIN_POST_TITLE_LENGTH
         doc_response = self.client.post(
             "/api/researchhubpost/",
             {
@@ -1232,7 +1233,7 @@ class ViewTests(APITestCase):
                 "full_src": "body",
                 "is_public": True,
                 "renderable_text": "x" * MIN_POST_BODY_LENGTH,
-                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "title": original_title,
                 "grant_amount": 40000,
                 "grant_currency": "USD",
                 "grant_organization": "Mechanism Foundation",
@@ -1240,27 +1241,41 @@ class ViewTests(APITestCase):
             },
         )
         self.assertEqual(doc_response.status_code, 200)
+        post_id = doc_response.data["id"]
         grant_id = doc_response.data["grant"]["id"]
 
-        # Act
-        updated_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "post_id": doc_response.data["id"],
-                "document_type": "GRANT",
-                "created_by": author.id,
-                "full_src": "updated body",
-                "is_public": True,
-                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
-                "title": "x" * MIN_POST_TITLE_LENGTH,
-                "grant_funding_mechanism": "NOT_A_MECHANISM",
-            },
-        )
+        for invalid, with_amount in (("", False), ("NOT_A_MECHANISM", True)):
+            with self.subTest(invalid=invalid, with_amount=with_amount):
+                payload = {
+                    "post_id": post_id,
+                    "document_type": "GRANT",
+                    "created_by": author.id,
+                    "full_src": "updated body",
+                    "is_public": True,
+                    "renderable_text": "y" * MIN_POST_BODY_LENGTH,
+                    "title": "y" * MIN_POST_TITLE_LENGTH,
+                    "grant_funding_mechanism": invalid,
+                }
+                if with_amount:
+                    payload.update(
+                        {
+                            "grant_amount": 45000,
+                            "grant_currency": "USD",
+                            "grant_organization": "Mechanism Foundation",
+                            "grant_description": "Grant mechanism validation",
+                        }
+                    )
 
-        # Assert
-        self.assertEqual(updated_response.status_code, 400)
-        grant = Grant.objects.get(id=grant_id)
-        self.assertEqual(grant.funding_mechanism, Grant.FUNDING)
+                # Act
+                updated_response = self.client.post("/api/researchhubpost/", payload)
+
+                # Assert
+                self.assertEqual(updated_response.status_code, 400)
+                post = ResearchhubPost.objects.get(id=post_id)
+                self.assertEqual(post.title, original_title)
+                grant = Grant.objects.get(id=grant_id)
+                self.assertEqual(grant.funding_mechanism, Grant.FUNDING)
+                self.assertEqual(grant.amount, Decimal("40000.00"))
 
     def test_grant_update_with_end_date(self):
         """Test that grant end date can be updated"""

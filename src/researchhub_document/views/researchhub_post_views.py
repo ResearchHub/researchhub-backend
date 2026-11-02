@@ -712,6 +712,13 @@ class ResearchhubPostViewSet(
             if validation_response is not None:
                 return validation_response
 
+            funding_mechanism_provided = "grant_funding_mechanism" in data
+            validated_funding_mechanism = None
+            if funding_mechanism_provided:
+                validated_funding_mechanism = serializers.ChoiceField(
+                    choices=Grant.FUNDING_MECHANISM_CHOICES
+                ).run_validation(data.get("grant_funding_mechanism"))
+
             serializer = ResearchhubPostSerializer(
                 rh_post, data=data, partial=True, context={"request": request}
             )
@@ -764,8 +771,8 @@ class ResearchhubPostViewSet(
                 if application_visibility := data.get("grant_application_visibility"):
                     grant_data["application_visibility"] = application_visibility
 
-                if funding_mechanism := data.get("grant_funding_mechanism"):
-                    grant_data["funding_mechanism"] = funding_mechanism
+                if funding_mechanism_provided:
+                    grant_data["funding_mechanism"] = validated_funding_mechanism
 
                 grant_serializer = GrantCreateSerializer(data=grant_data)
                 grant_serializer.is_valid(raise_exception=True)
@@ -801,12 +808,9 @@ class ResearchhubPostViewSet(
 
                 existing_grant.save()
                 grant = existing_grant
-            elif existing_grant and "grant_funding_mechanism" in data:
+            elif existing_grant and funding_mechanism_provided:
                 # Allow updating mechanism alone without re-sending grant_amount.
-                funding_mechanism = serializers.ChoiceField(
-                    choices=Grant.FUNDING_MECHANISM_CHOICES
-                ).run_validation(data.get("grant_funding_mechanism"))
-                existing_grant.funding_mechanism = funding_mechanism
+                existing_grant.funding_mechanism = validated_funding_mechanism
                 existing_grant.save(update_fields=["funding_mechanism"])
                 grant = existing_grant
             else:
