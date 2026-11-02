@@ -224,6 +224,52 @@ class SweepDepositTaskTest(TestCase):
 
         mock_retry.assert_called_once()
 
+    def _run_with_retries_exhausted(self):
+        sweep_deposit_to_multisig.push_request(
+            retries=sweep_deposit_to_multisig.max_retries
+        )
+        try:
+            with self.assertRaises(RuntimeError):
+                sweep_deposit_to_multisig.run("wallet-1", "100", "BASE", "notif-1")
+        finally:
+            sweep_deposit_to_multisig.pop_request()
+
+    @patch.object(sweep_deposit_to_multisig, "retry", side_effect=RuntimeError("retry"))
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_task_marks_pending_sweep_failed_when_retries_exhausted(
+        self, mock_service_class, _mock_retry
+    ):
+        # Arrange
+        mock_service_class.return_value.execute_sweep.side_effect = RuntimeError(
+            "transport failed"
+        )
+
+        # Act
+        self._run_with_retries_exhausted()
+
+        # Assert
+        self.deposit.refresh_from_db()
+        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_FAILED)
+
+    @patch.object(sweep_deposit_to_multisig, "retry", side_effect=RuntimeError("retry"))
+    @patch("purchase.tasks.CircleWalletService")
+    def test_sweep_task_does_not_fail_settled_sweep_when_retries_exhausted(
+        self, mock_service_class, _mock_retry
+    ):
+        # Arrange
+        self.deposit.sweep_status = Deposit.SWEEP_COMPLETED
+        self.deposit.save(update_fields=["sweep_status"])
+        mock_service_class.return_value.execute_sweep.side_effect = RuntimeError(
+            "transport failed"
+        )
+
+        # Act
+        self._run_with_retries_exhausted()
+
+        # Assert
+        self.deposit.refresh_from_db()
+        self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_COMPLETED)
+
 
 class PreregistrationUpdateReminderTest(TestCase):
     def setUp(self):

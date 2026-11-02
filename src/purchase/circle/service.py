@@ -69,7 +69,15 @@ def process_circle_deposit(
     created and immediately marked PAID.
 
     If the Deposit is already PAID, the user is *not* credited again and no
-    sweep is dispatched.
+    sweep is dispatched. The row is locked so concurrent COMPLETED webhooks
+    (Circle retries them) cannot both credit the user.
+
+    If the Deposit is FAILED, it is not credited either. Circle's FAILED,
+    CANCELLED and DENIED states are terminal, so a COMPLETED for the same
+    transaction contradicts an earlier notification. Crediting it could pay
+    out RSC that never reached the wallet (the sweep would then hit a zero
+    balance and still be marked COMPLETED), so it is logged for manual
+    reconciliation instead.
 
     Args:
         circle_transaction_id: Circle's unique transaction identifier.
@@ -87,7 +95,7 @@ def process_circle_deposit(
     credited = False
 
     with transaction.atomic():
-        deposit, created = Deposit.objects.get_or_create(
+        deposit, created = Deposit.objects.select_for_update().get_or_create(
             circle_transaction_id=circle_transaction_id,
             defaults={
                 "user": user,
@@ -104,6 +112,15 @@ def process_circle_deposit(
             # Brand-new deposit (no prior INITIATED/CONFIRMED webhook).
             deposit.set_paid()
             credited = True
+        elif deposit.paid_status == Deposit.FAILED:
+            logger.error(
+                "Circle COMPLETED for a FAILED deposit, not crediting: "
+                "user=%s amount=%s circle_transaction_id=%s",
+                user.id,
+                amount,
+                circle_transaction_id,
+            )
+            return deposit, False
         elif deposit.paid_status != Deposit.PAID:
             # Existing pending deposit from an earlier webhook — promote it.
             deposit.circle_status = Deposit.CIRCLE_COMPLETED

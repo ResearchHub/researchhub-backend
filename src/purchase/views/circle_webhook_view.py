@@ -135,6 +135,26 @@ class CircleWebhookView(APIView):
             .update(sweep_status=new_status)
         )
 
+    def _sweep_awaiting_transfer_id(self, notification):
+        """
+        Whether the notification's wallet has a dispatched sweep whose transfer
+        id is not saved yet. execute_sweep saves the id only after Circle
+        returns it, so a fast outbound webhook can arrive first.
+        """
+        wallet_id = notification.get("walletId")
+        network = BLOCKCHAIN_TO_NETWORK.get(notification.get("blockchain", ""))
+        if not wallet_id or network is None:
+            return False
+        try:
+            wallet = Wallet.get_by_circle_wallet_id(wallet_id, network=network)
+        except Wallet.DoesNotExist:
+            return False
+        return Deposit.objects.filter(
+            user=wallet.user,
+            network=network,
+            sweep_status=Deposit.SWEEP_PENDING,
+        ).exists()
+
     def _handle_outbound(self, payload, notification):
         state = notification.get("state", "")
         transaction_id = notification.get("id")
@@ -145,6 +165,24 @@ class CircleWebhookView(APIView):
                 payload.get("notificationId"),
             )
             return Response(status=status.HTTP_200_OK)
+
+        if (
+            state in COMPLETED_STATES | FAILED_STATES
+            and not Deposit.objects.filter(sweep_transfer_id=transaction_id).exists()
+            and self._sweep_awaiting_transfer_id(notification)
+        ):
+            # Ask Circle to redeliver once execute_sweep has saved the id,
+            # otherwise the sweep would stay INITIATED forever.
+            logger.info(
+                "Outbound webhook arrived before sweep transfer id was saved: "
+                "transfer_id=%s notification_id=%s",
+                transaction_id,
+                payload.get("notificationId"),
+            )
+            return Response(
+                {"message": "Sweep transfer not recorded yet"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         if state in COMPLETED_STATES:
             updated = self._update_sweep_status(transaction_id, Deposit.SWEEP_COMPLETED)

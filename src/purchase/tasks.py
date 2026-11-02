@@ -180,8 +180,11 @@ def sweep_deposit_to_multisig(self, circle_wallet_id, amount, network, sweep_ref
             sweep_reference=sweep_reference,
         )
     except Exception as exc:
-        deposit = Deposit.objects.filter(circle_transaction_id=sweep_reference).first()
-        if deposit and self.request.retries >= self.max_retries:
-            deposit.sweep_status = Deposit.SWEEP_FAILED
-            deposit.save(update_fields=["sweep_status"])
+        if self.request.retries >= self.max_retries:
+            # Only a sweep that never got a transfer can be failed here; one
+            # that is INITIATED or settled is tracked by the outbound webhook.
+            Deposit.objects.filter(
+                circle_transaction_id=sweep_reference,
+                sweep_status=Deposit.SWEEP_PENDING,
+            ).update(sweep_status=Deposit.SWEEP_FAILED)
         raise self.retry(exc=exc)
