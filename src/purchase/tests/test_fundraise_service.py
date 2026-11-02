@@ -1,13 +1,14 @@
 import importlib
+import time
 from datetime import timedelta
 from decimal import Decimal
+from threading import Event, Thread
 from unittest.mock import Mock, patch
 
 from django.apps import apps as django_apps
 from django.contrib.contenttypes.models import ContentType
-from django.db import connection
+from django.db import connection, transaction
 from django.test import TestCase
-from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -44,6 +45,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from user.related_models.user_model import User
 from user.tests.helpers import create_random_authenticated_user, create_user
+from utils.test_helpers import AWSMockTransactionTestCase
 
 
 class TestFundraiseService(APITestCase):
@@ -1345,31 +1347,6 @@ class CloseFundraiseTests(TestCase):
             )
         self.assertEqual(self.fundraise.get_amount_raised(currency=USD), 0)
 
-    def test_close_and_reopen_lock_escrow_before_changing_status(self):
-        """Close and reopen write the escrow status through a locked row."""
-        # Arrange
-        escrow_table = Escrow._meta.db_table
-
-        def escrow_locks(queries):
-            return [
-                q["sql"]
-                for q in queries
-                if "FOR UPDATE" in q["sql"] and f'FROM "{escrow_table}"' in q["sql"]
-            ]
-
-        # Act
-        with CaptureQueriesContext(connection) as close_queries:
-            closed = self.fundraise_service.close_fundraise(self.fundraise)
-        with CaptureQueriesContext(connection) as reopen_queries:
-            self.fundraise_service.reopen_fundraise(self.fundraise, duration_days=7)
-
-        # Assert
-        self.assertTrue(closed)
-        self.assertEqual(len(escrow_locks(close_queries.captured_queries)), 1)
-        self.assertEqual(len(escrow_locks(reopen_queries.captured_queries)), 1)
-        self.fundraise.escrow.refresh_from_db()
-        self.assertEqual(self.fundraise.escrow.status, Escrow.PENDING)
-
     def test_backfill_marks_contributions_on_closed_fundraises_refunded(self):
         """The 0064 backfill flags contributions already refunded by a close."""
         # Arrange
@@ -1395,6 +1372,117 @@ class CloseFundraiseTests(TestCase):
         closed_purchase.refresh_from_db()
         self.assertEqual(open_purchase.paid_status, Purchase.PAID)
         self.assertEqual(closed_purchase.paid_status, Purchase.REFUNDED)
+
+
+class EscrowLockConcurrencyTests(AWSMockTransactionTestCase):
+    """Close and reopen must not overwrite an escrow update that commits first."""
+
+    def setUp(self):
+        super().setUp()
+        self.user = create_random_authenticated_user("escrow_lock", moderator=True)
+        self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        self.service = FundraiseService()
+
+    def _create_fundraise(self, status, escrow_status):
+        fundraise = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=100,
+            goal_currency="USD",
+            status=status,
+        )
+        Escrow.objects.filter(id=fundraise.escrow_id).update(status=escrow_status)
+        return fundraise
+
+    def _wait_for_lock_waiter(self):
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() AND wait_event_type = 'Lock'"
+                )
+                if cursor.fetchone()[0]:
+                    return
+            time.sleep(0.05)
+        self.fail("Fundraise action never waited on the escrow row lock")
+
+    def _run_during_concurrent_escrow_update(self, fundraise, action):
+        """
+        Hold the escrow row lock while changing amount_holding, start `action`,
+        and commit the update only once `action` is blocked on that lock.
+        """
+        locked = Event()
+        release = Event()
+        errors = []
+
+        def update_escrow():
+            try:
+                with transaction.atomic():
+                    escrow = Escrow.objects.select_for_update().get(
+                        id=fundraise.escrow_id
+                    )
+                    escrow.amount_holding = Decimal(50)
+                    escrow.save(update_fields=["amount_holding"])
+                    locked.set()
+                    release.wait(10)
+            except Exception as error:
+                errors.append(error)
+            finally:
+                connection.close()
+
+        def run_action():
+            try:
+                action(Fundraise.objects.get(id=fundraise.id))
+            except Exception as error:
+                errors.append(error)
+            finally:
+                connection.close()
+
+        updater = Thread(target=update_escrow)
+        updater.start()
+        self.assertTrue(locked.wait(10))
+        actor = Thread(target=run_action)
+        actor.start()
+        try:
+            self._wait_for_lock_waiter()
+        finally:
+            release.set()
+            updater.join(10)
+            actor.join(10)
+
+        self.assertEqual(errors, [])
+
+    def test_reopen_keeps_concurrent_escrow_update(self):
+        """Reopen sets PENDING without writing back a stale amount_holding."""
+        # Arrange
+        fundraise = self._create_fundraise(Fundraise.CLOSED, Escrow.CANCELLED)
+
+        # Act
+        self._run_during_concurrent_escrow_update(
+            fundraise,
+            lambda f: self.service.reopen_fundraise(f, duration_days=7),
+        )
+
+        # Assert
+        escrow = Escrow.objects.get(id=fundraise.escrow_id)
+        self.assertEqual(escrow.status, Escrow.PENDING)
+        self.assertEqual(escrow.amount_holding, Decimal(50))
+
+    def test_close_keeps_concurrent_escrow_update(self):
+        """Close sets CANCELLED without writing back a stale amount_holding."""
+        # Arrange
+        fundraise = self._create_fundraise(Fundraise.OPEN, Escrow.PENDING)
+
+        # Act
+        self._run_during_concurrent_escrow_update(
+            fundraise, self.service.close_fundraise
+        )
+
+        # Assert
+        escrow = Escrow.objects.get(id=fundraise.escrow_id)
+        self.assertEqual(escrow.status, Escrow.CANCELLED)
+        self.assertEqual(escrow.amount_holding, Decimal(50))
 
 
 class CompleteFundraiseTests(TestCase):

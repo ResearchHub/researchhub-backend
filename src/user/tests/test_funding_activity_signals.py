@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.test import TestCase
 
 from paper.tests.helpers import create_paper
@@ -23,6 +24,7 @@ from user.related_models.funding_activity_model import (
 )
 from user.tasks.funding_activity_tasks import create_funding_activity_task
 from user.tests.helpers import create_user
+from utils.test_helpers import AWSMockTransactionTestCase
 
 
 class FundingActivitySignalsTests(TestCase):
@@ -140,57 +142,6 @@ class FundingActivitySignalsTests(TestCase):
         mock_task.delay.assert_called_once_with(
             FundingActivity.FUNDRAISE_PAYOUT,
             purchase.pk,
-        )
-
-    @patch("user.signals.funding_activity_signals.create_funding_activity_task")
-    @patch("user.signals.funding_activity_signals.transaction")
-    def test_escrow_paid_fundraise_skips_refunded_purchases(
-        self, mock_transaction, mock_task
-    ):
-        """
-        Contributions refunded by an earlier close get no FUNDRAISE_PAYOUT
-        activity when the reopened fundraise is paid out.
-        """
-        # Arrange
-        mock_transaction.on_commit = lambda func: func()
-
-        uni_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type="PREREGISTRATION"
-        )
-        fundraise = Fundraise.objects.create(
-            created_by=self.recipient,
-            status=Fundraise.OPEN,
-            unified_document=uni_doc,
-        )
-        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
-        escrow = Escrow.objects.create(
-            hold_type=Escrow.FUNDRAISE,
-            status=Escrow.PENDING,
-            created_by=self.funder,
-            content_type=ct_fundraise,
-            object_id=fundraise.id,
-        )
-        fundraise.escrow = escrow
-        fundraise.save()
-        purchase_kwargs = {
-            "user": self.funder,
-            "content_type": ct_fundraise,
-            "object_id": fundraise.id,
-            "purchase_type": Purchase.FUNDRAISE_CONTRIBUTION,
-            "amount": "100",
-            "purchase_method": Purchase.OFF_CHAIN,
-        }
-        Purchase.objects.create(paid_status=Purchase.REFUNDED, **purchase_kwargs)
-        paid = Purchase.objects.create(paid_status=Purchase.PAID, **purchase_kwargs)
-
-        # Act
-        escrow.status = Escrow.PAID
-        escrow.save()
-
-        # Assert
-        mock_task.delay.assert_called_once_with(
-            FundingActivity.FUNDRAISE_PAYOUT,
-            paid.pk,
         )
 
     @patch("user.signals.funding_activity_signals.create_funding_activity_task")
@@ -596,3 +547,62 @@ class FundingActivitySignalsTests(TestCase):
         self.assertEqual(recipients.get().recipient_user_id, self.recipient.id)
         self.assertEqual(recipients.get().amount_usd_cents, 10000)
         self.assertEqual(recipients.get().amount, Decimal(200))
+
+
+class FundingActivitySignalsCommitTests(AWSMockTransactionTestCase):
+    """Signal tests that keep the real transaction.on_commit() boundary."""
+
+    def setUp(self):
+        super().setUp()
+        self.funder = create_user(email="funder@test.com")
+        self.recipient = create_user(email="recipient@test.com")
+
+    @patch("user.signals.funding_activity_signals.create_funding_activity_task")
+    def test_escrow_paid_fundraise_skips_refunded_purchases(self, mock_task):
+        """
+        Contributions refunded by an earlier close get no FUNDRAISE_PAYOUT
+        activity when the reopened fundraise is paid out, and the paid ones are
+        scheduled only once the payout commits.
+        """
+        # Arrange
+        uni_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PREREGISTRATION"
+        )
+        fundraise = Fundraise.objects.create(
+            created_by=self.recipient,
+            status=Fundraise.OPEN,
+            unified_document=uni_doc,
+        )
+        ct_fundraise = ContentType.objects.get_for_model(Fundraise)
+        escrow = Escrow.objects.create(
+            hold_type=Escrow.FUNDRAISE,
+            status=Escrow.PENDING,
+            created_by=self.funder,
+            content_type=ct_fundraise,
+            object_id=fundraise.id,
+        )
+        fundraise.escrow = escrow
+        fundraise.save()
+        purchase_kwargs = {
+            "user": self.funder,
+            "content_type": ct_fundraise,
+            "object_id": fundraise.id,
+            "purchase_type": Purchase.FUNDRAISE_CONTRIBUTION,
+            "amount": "100",
+            "purchase_method": Purchase.OFF_CHAIN,
+        }
+        Purchase.objects.create(paid_status=Purchase.REFUNDED, **purchase_kwargs)
+        paid = Purchase.objects.create(paid_status=Purchase.PAID, **purchase_kwargs)
+
+        # Act
+        with transaction.atomic():
+            escrow.status = Escrow.PAID
+            escrow.save()
+            scheduled_before_commit = mock_task.delay.call_count
+
+        # Assert
+        self.assertEqual(scheduled_before_commit, 0)
+        mock_task.delay.assert_called_once_with(
+            FundingActivity.FUNDRAISE_PAYOUT,
+            paid.pk,
+        )
