@@ -113,7 +113,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return Response(message, status=400)
 
         # Kept outside the user lock below because it makes RPC calls.
-        valid, message = self._check_hotwallet_balance(amount, network)
+        try:
+            valid, message = self._check_hotwallet_balance(amount, network)
+        except Exception:
+            logger.exception("Failed to check hotwallet balance for user %s", user.id)
+            return Response("Failed to create withdrawal", status=400)
         if not valid:
             logger.error(f"Invalid withdrawal: {message}")
             return Response(message, status=400)

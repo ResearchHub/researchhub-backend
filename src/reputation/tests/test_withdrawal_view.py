@@ -732,6 +732,32 @@ class WithdrawalViewSetTests(APITestCase):
             self.assertEqual(response.status_code, 400)
             self.assertEqual(response.data, "Failed to create withdrawal")
 
+    def test_hotwallet_rpc_error_returns_generic_400(self):
+        """An RPC failure in the hot-wallet check doesn't surface as a 500."""
+        # Arrange
+        user = self._create_withdrawer("rep_user")
+        create_deposit(user, amount="1000.0")
+        self.client.force_authenticate(user)
+
+        # Act
+        with mock.patch.object(
+            WithdrawalViewSet,
+            "_check_hotwallet_balance",
+            side_effect=ConnectionError("https://rpc.example/secret-key"),
+        ):
+            response = self.client.post(
+                self.withdrawal_url,
+                {
+                    "amount": "500",
+                    "to_address": VALID_TEST_TO_ADDRESS,
+                },
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, "Failed to create withdrawal")
+        self.assertFalse(Withdrawal.objects.filter(user=user).exists())
+
     def test_unauthenticated_user_cannot_withdraw(self):
         """Test that unauthenticated users cannot withdraw."""
         # Don't authenticate any user
