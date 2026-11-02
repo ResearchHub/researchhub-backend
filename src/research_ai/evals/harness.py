@@ -108,7 +108,7 @@ class CaseRun:
 class _AllowAllScreening:
     """Lets every message through: evals grade the agent, not the screen."""
 
-    def rejects(self, message, *, note=None) -> bool:
+    def rejects(self, *_args, **_kwargs) -> bool:
         return False
 
 
@@ -121,6 +121,7 @@ class EvalChatService(NotebookChatService):
     """
 
     def _schedule_turn(self, execution_id: int) -> None:
+        # Deliberately empty: AgentEvalHarness calls run_turn itself.
         pass
 
 
@@ -261,22 +262,25 @@ def collect_turn(index: int, text: str, execution: AgentExecution) -> TurnRun:
     calls = {}
     for message in execution.messages.order_by("execution_sequence"):
         for block in message.content or []:
-            kind = block.get("type")
-            if kind == "tool_use":
-                calls[block["id"]] = ToolCall(
-                    turn=index,
-                    name=block["name"],
-                    input=block.get("input") or {},
-                    result="",
-                    is_error=False,
-                )
-                turn.tool_calls.append(calls[block["id"]])
-            elif kind == "tool_result" and block.get("tool_use_id") in calls:
-                call = calls[block["tool_use_id"]]
-                call.result = json.dumps(block.get("content"), default=str)
-                call.is_error = bool(block.get("is_error"))
-            elif kind == "server_tool":
-                turn.server_tool_results.append(
-                    json.dumps(block.get("data"), default=str)
-                )
+            _collect_block(turn, calls, block)
     return turn
+
+
+def _collect_block(turn: TurnRun, calls: dict[str, ToolCall], block: dict) -> None:
+    """Fold one trace block into ``turn``, pairing results with their calls."""
+    kind = block.get("type")
+    if kind == "tool_use":
+        calls[block["id"]] = ToolCall(
+            turn=turn.index,
+            name=block["name"],
+            input=block.get("input") or {},
+            result="",
+            is_error=False,
+        )
+        turn.tool_calls.append(calls[block["id"]])
+    elif kind == "tool_result" and block.get("tool_use_id") in calls:
+        call = calls[block["tool_use_id"]]
+        call.result = json.dumps(block.get("content"), default=str)
+        call.is_error = bool(block.get("is_error"))
+    elif kind == "server_tool":
+        turn.server_tool_results.append(json.dumps(block.get("data"), default=str))

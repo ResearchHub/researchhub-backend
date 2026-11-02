@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from research_ai.evals.cases import EvalCase
-from research_ai.evals.harness import CaseRun
+from research_ai.evals.harness import CaseRun, NoteSnapshot
 from research_ai.models import AgentExecution
 from research_ai.services.note_tools import EDIT_NOTE, READ_NOTE
 from researchhub_document.related_models.constants.document_type import (
@@ -108,19 +108,30 @@ def edit_scope(case: EvalCase, run: CaseRun) -> Score | None:
         if after is None:
             details.append(f"note {note_id} missing after the run")
             continue
-        if case.expect.note_unchanged:
-            checks += 1
-            if after.blocks != before.blocks:
-                details.append(f"note {note_id} changed")
-        before_sections = sections(before.blocks)
-        after_sections = sections(after.blocks)
-        for heading in case.expect.unchanged_sections:
-            checks += 1
-            if heading not in before_sections:
-                details.append(f"fixture has no section {heading!r}")
-            elif after_sections.get(heading) != before_sections[heading]:
-                details.append(f"section {heading!r} changed")
+        note_checks, note_details = _edit_scope_of(case, before, after)
+        checks += note_checks
+        details += note_details
     return Score("edit_scope", _fraction(max(checks, 1), len(details)), details)
+
+
+def _edit_scope_of(
+    case: EvalCase, before: NoteSnapshot, after: NoteSnapshot
+) -> tuple[int, list[str]]:
+    """(checks run, failures) for one note the run started with."""
+    checks = len(case.expect.unchanged_sections)
+    details = []
+    if case.expect.note_unchanged:
+        checks += 1
+        if after.blocks != before.blocks:
+            details.append(f"note {before.id} changed")
+    before_sections = sections(before.blocks)
+    after_sections = sections(after.blocks)
+    for heading in case.expect.unchanged_sections:
+        if heading not in before_sections:
+            details.append(f"fixture has no section {heading!r}")
+        elif after_sections.get(heading) != before_sections[heading]:
+            details.append(f"section {heading!r} changed")
+    return checks, details
 
 
 def grounded_citations(case: EvalCase, run: CaseRun) -> Score | None:
