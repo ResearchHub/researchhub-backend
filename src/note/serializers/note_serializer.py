@@ -385,6 +385,7 @@ class NoteSerializer(ModelSerializer):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_mechanism",
                     "funding_pool",
                 ]
             },
@@ -566,6 +567,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_mechanism",
                     "funding_pool",
                 ]
             },
