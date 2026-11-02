@@ -979,15 +979,15 @@ wheels = [
 
 [[package]]
 name = "django-fernet-encrypted-fields"
-version = "0.3.1"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1a/aa/529af3888215b8a660fc3897d6d63eaf1de9aa0699c633ca0ec483d4361c/django_fernet_encrypted_fields-0.3.1.tar.gz", hash = "sha256:5ed328c7f9cc7f2d452bb2e125f3ea2bea3563a259fa943e5a1c626175889a71", size = 5265, upload-time = "2025-11-10T08:39:57.398Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/d7/df0426ebf5b1784d064825ec8e5940e634991452066cfacc7fe0138f091a/django_fernet_encrypted_fields-0.4.0.tar.gz", hash = "sha256:836c927a260a834a35c4caecf82a97a5e411408cbecb44e25caddd02d8cdd86e", size = 5505, upload-time = "2026-04-14T01:25:15.216Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/7f/4e0b7ed8413fa58e7a77017342e8ab0e977d41cfc376ab9180ae75f216ec/django_fernet_encrypted_fields-0.3.1-py3-none-any.whl", hash = "sha256:3bd2abab02556dc6e15a58a61161ee6c5cdf45a50a8a52d9e035009eb54c6442", size = 5484, upload-time = "2025-11-10T08:39:55.866Z" },
+    { url = "https://files.pythonhosted.org/packages/83/75/c6de2333c26d0052d2175bf21dc3f5c45e878090946a75fb0c827da6e40a/django_fernet_encrypted_fields-0.4.0-py3-none-any.whl", hash = "sha256:b3e4049882b8c7216d868b7aa7533e466a48c1307b5d4b1b8dc4cb5946d87eec", size = 5681, upload-time = "2026-04-14T01:25:13.309Z" },
 ]
 
 [[package]]
@@ -2674,7 +2674,7 @@ requires-dist = [
     { name = "django-cors-headers", specifier = ">=4.9.0,<5" },
     { name = "django-debug-toolbar", specifier = ">=8.0.0,<9" },
     { name = "django-extensions", specifier = ">=4.1,<5" },
-    { name = "django-fernet-encrypted-fields", specifier = ">=0.3.1" },
+    { name = "django-fernet-encrypted-fields", specifier = ">=0.4.0" },
     { name = "django-filter", specifier = ">=26.2,<27" },
     { name = "django-health-check", specifier = ">=4.11.1,<5" },
     { name = "django-opensearch-dsl", specifier = "==0.8.0" },
