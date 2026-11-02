@@ -6,6 +6,7 @@ from research_ai.evals.scorers import (
     edit_scope,
     grounded_citations,
     link_format,
+    new_citations,
     proposal_hygiene,
     reply_shape,
     sections,
@@ -348,6 +349,48 @@ class GroundedCitationsTests(TestCase):
     def test_not_applicable_without_dois(self):
         # Act / Assert
         self.assertIsNone(grounded_citations(_case(), _run(_note([]), _note(["x"]))))
+
+
+class NewCitationsTests(TestCase):
+    def test_counts_only_new_dois_under_the_named_section(self):
+        # Arrange
+        before = _note(
+            [_heading("Background"), "10.1111/old.1", _heading("References")]
+        )
+        after = _note(
+            [
+                _heading("Background"),
+                "10.1111/old.1 and 10.2222/elsewhere.2",
+                _heading("References"),
+                _link("Doe 2020", "https://doi.org/10.3333/new.3"),
+            ]
+        )
+        case = _case(min_new_dois=2, doi_section="References")
+
+        # Act
+        score = new_citations(case, _run(before, after))
+
+        # Assert
+        self.assertAlmostEqual(score.value, 0.5)
+        self.assertEqual(
+            score.details, ["1 new DOIs under 'References', expected at least 2"]
+        )
+
+    def test_passes_when_enough_dois_were_added(self):
+        # Arrange
+        after = _note(["10.1000/a.1", "10.2000/b.2"])
+
+        # Act
+        score = new_citations(_case(min_new_dois=2), _run(_note([]), after))
+
+        # Assert
+        self.assertEqual(score.value, 1.0)
+
+    def test_not_applicable_unless_the_case_asks(self):
+        # Act / Assert
+        self.assertIsNone(
+            new_citations(_case(), _run(_note([]), _note(["10.1000/a.1"])))
+        )
 
 
 class LinkFormatTests(TestCase):

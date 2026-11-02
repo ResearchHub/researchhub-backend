@@ -22,3 +22,5 @@ expect:
   tools_called: [read_note, search_works, edit_note]
   tools_not_called: [create_note]
   unchanged_sections: [Aims]
+  min_new_dois: 2
+  doi_section: References

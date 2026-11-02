@@ -18,6 +18,8 @@ A case is one YAML file::
       unchanged_sections: [Introduction]
       note_unchanged: false
       proposal_hygiene: true
+      min_new_dois: 2            # at least this many new DOIs ...
+      doi_section: References    # ... under this heading (default: anywhere)
 
 Unknown keys are rejected so a typo in ``expect`` cannot silently disable a
 check.
@@ -52,6 +54,8 @@ _EXPECT_KEYS = {
     "note_unchanged",
     "proposal_hygiene",
     "max_reply_chars",
+    "min_new_dois",
+    "doi_section",
 }
 
 
@@ -75,6 +79,8 @@ class Expectations:
     note_unchanged: bool = False
     proposal_hygiene: bool = False
     max_reply_chars: int = 3000
+    min_new_dois: int | None = None
+    doi_section: str | None = None
 
 
 @dataclass(frozen=True)
@@ -180,15 +186,20 @@ def _parse_expect(raw) -> Expectations:
     for key in ("note_unchanged", "proposal_hygiene"):
         if not isinstance(raw.get(key, False), bool):
             raise CaseError(f"expect.{key} must be true or false")
-    max_reply_chars = raw.get("max_reply_chars", 1)
-    # bool is an int subclass; ``true`` is not a length.
-    if (
-        isinstance(max_reply_chars, bool)
-        or not isinstance(max_reply_chars, int)
-        or max_reply_chars < 1
-    ):
-        raise CaseError("expect.max_reply_chars must be a positive integer")
+    for key in ("max_reply_chars", "min_new_dois"):
+        if key in raw and not _is_positive_int(raw[key]):
+            raise CaseError(f"expect.{key} must be a positive integer")
+    if "doi_section" in raw:
+        if not isinstance(raw["doi_section"], str) or not raw["doi_section"]:
+            raise CaseError("expect.doi_section must be a heading")
+        if "min_new_dois" not in raw:
+            raise CaseError("expect.doi_section needs min_new_dois")
     return Expectations(**raw)
+
+
+def _is_positive_int(value) -> bool:
+    # bool is an int subclass; ``true`` is not a count.
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 def _reject_unknown(raw: dict, allowed: set, where: str) -> None:

@@ -177,6 +177,29 @@ def grounded_citations(case: EvalCase, run: CaseRun) -> Score | None:
     return Score("grounded_citations", _fraction(len(cited), len(details)), details)
 
 
+def new_citations(case: EvalCase, run: CaseRun) -> Score | None:
+    """The run added at least ``min_new_dois`` DOIs, under ``doi_section``
+    when the case names one. ``grounded_citations`` checks where they came
+    from; this checks that they are there at all."""
+    required = case.expect.min_new_dois
+    if run.error or required is None:
+        return None
+    heading = case.expect.doi_section
+    added = set()
+    for note_id, after in run.notes_after.items():
+        before = run.notes_before.get(note_id)
+        added |= _section_dois(after.blocks, heading) - (
+            _section_dois(before.blocks, heading) if before else set()
+        )
+    where = f" under {heading!r}" if heading else ""
+    details = (
+        [f"{len(added)} new DOIs{where}, expected at least {required}"]
+        if len(added) < required
+        else []
+    )
+    return Score("new_citations", round(min(len(added) / required, 1.0), 3), details)
+
+
 def link_format(case: EvalCase, run: CaseRun) -> Score | None:
     """URLs the run wrote into a note are link marks, not plain text."""
     if run.error or not run.notes_after:
@@ -249,6 +272,7 @@ SCORERS: list[Scorer] = [
     tool_expectations,
     edit_scope,
     grounded_citations,
+    new_citations,
     link_format,
     proposal_hygiene,
     reply_shape,
@@ -279,6 +303,13 @@ def sections(blocks: list) -> dict[str, list]:
         for _level, heading in open_sections or [(0, "")]:
             result[heading].append(block)
     return result
+
+
+def _section_dois(blocks: list, heading: str | None) -> set[str]:
+    """DOIs in ``blocks``, or only in the section under ``heading``."""
+    if heading is not None:
+        blocks = sections(blocks).get(heading, [])
+    return _dois(json.dumps(blocks))
 
 
 def _evidence(call: ToolCall) -> str:
