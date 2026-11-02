@@ -13,6 +13,8 @@ from reputation.lib import (
     broadcast_withdrawal_transfer,
     check_hotwallet,
     check_pending_withdrawal,
+    mark_withdrawal_for_reconciliation,
+    reserve_withdrawal_nonce,
 )
 from reputation.models import Bounty, Contribution, Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
@@ -99,6 +101,11 @@ def broadcast_withdrawal(self, withdrawal_id):
         return False
 
     try:
+        # Commit the nonce before broadcasting so a failed send cannot roll it
+        # back and have the retry pay out again under a fresh nonce.
+        with transaction.atomic():
+            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
+            reserve_withdrawal_nonce(withdrawal)
         with transaction.atomic():
             withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
             broadcast_withdrawal_transfer(withdrawal)
@@ -122,7 +129,13 @@ def broadcast_withdrawal(self, withdrawal_id):
                     PaidStatusModelMixin.FAILED,
                 )
             ):
-                withdrawal.set_paid_failed()
+                if withdrawal.broadcast_nonce is None:
+                    withdrawal.set_paid_failed()
+                else:
+                    # The transfer may have landed, so refunding is unsafe.
+                    mark_withdrawal_for_reconciliation(
+                        withdrawal, "broadcast retries exhausted after nonce reserved"
+                    )
             logger.exception(
                 "Failed to broadcast for withdrawal %s after all retries",
                 withdrawal_id,

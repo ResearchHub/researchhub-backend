@@ -367,24 +367,68 @@ def _calculate_tokens_and_update_withdrawal_amount(withdrawal, amount):
     withdrawal.save(update_fields=["amount"])
 
 
+def _is_broadcastable(withdrawal):
+    return not withdrawal.transaction_hash and withdrawal.paid_status in (
+        PaidStatusModelMixin.INITIATED,
+        PaidStatusModelMixin.PENDING,
+    )
+
+
+# Node errors meaning a transaction with this nonce was already accepted.
+NONCE_ALREADY_USED_ERRORS = (
+    "nonce too low",
+    "already known",
+    "replacement transaction underpriced",
+)
+
+
+def _is_nonce_already_used_error(exc):
+    message = str(exc).lower()
+    return any(error in message for error in NONCE_ALREADY_USED_ERRORS)
+
+
+def mark_withdrawal_for_reconciliation(withdrawal, reason):
+    """
+    Park a withdrawal whose transfer may have been sent but has no known hash.
+    It stays PENDING (so it is neither refunded nor re-broadcast) until an
+    admin reconciles it against the hot wallet's transactions for the nonce.
+    """
+    logger.error(
+        "Withdrawal %s needs manual reconciliation: %s "
+        "(network=%s, nonce=%s, to_address=%s)",
+        withdrawal.id,
+        reason,
+        withdrawal.network,
+        withdrawal.broadcast_nonce,
+        withdrawal.to_address,
+    )
+    withdrawal.paid_status = PaidStatusModelMixin.PENDING
+    withdrawal.save(update_fields=["paid_status"])
+    return withdrawal
+
+
+def reserve_withdrawal_nonce(withdrawal):
+    """
+    Assign the broadcast nonce before any transfer is sent. Callers must commit
+    this write on its own, so a retry after an ambiguous send failure reuses
+    the nonce instead of fetching a fresh one and paying out twice.
+    """
+    if withdrawal.broadcast_nonce is not None or not _is_broadcastable(withdrawal):
+        return withdrawal
+
+    w3 = _get_w3_for_network(withdrawal.network)
+    checksum_sender = Web3.to_checksum_address(settings.WEB3_WALLET_ADDRESS)
+    withdrawal.broadcast_nonce = get_nonce(w3, checksum_sender)
+    withdrawal.save(update_fields=["broadcast_nonce"])
+    return withdrawal
+
+
 def broadcast_withdrawal_transfer(withdrawal):
     """
     Broadcast the ERC-20 transfer for a withdrawal row that has been committed
     to the database. Idempotent when transaction_hash is already set.
     """
-    if withdrawal.transaction_hash:
-        return withdrawal
-
-    if withdrawal.paid_status in (
-        PaidStatusModelMixin.PAID,
-        PaidStatusModelMixin.FAILED,
-    ):
-        return withdrawal
-
-    if withdrawal.paid_status not in (
-        PaidStatusModelMixin.INITIATED,
-        PaidStatusModelMixin.PENDING,
-    ):
+    if not _is_broadcastable(withdrawal):
         return withdrawal
 
     network = withdrawal.network
@@ -406,17 +450,29 @@ def broadcast_withdrawal_transfer(withdrawal):
     if withdrawal.broadcast_nonce is None:
         withdrawal.broadcast_nonce = get_nonce(w3, checksum_sender)
         withdrawal.save(update_fields=["broadcast_nonce"])
+    elif get_nonce(w3, checksum_sender) > withdrawal.broadcast_nonce:
+        # An earlier attempt may have been accepted by the node before raising.
+        return mark_withdrawal_for_reconciliation(
+            withdrawal, "broadcast nonce already used on chain"
+        )
 
-    tx_hash = execute_erc20_transfer(
-        w3,
-        settings.WEB3_WALLET_ADDRESS,
-        _get_private_key_for_transfer(),
-        contract,
-        withdrawal.to_address,
-        amount,
-        network=network,
-        nonce=withdrawal.broadcast_nonce,
-    )
+    try:
+        tx_hash = execute_erc20_transfer(
+            w3,
+            settings.WEB3_WALLET_ADDRESS,
+            _get_private_key_for_transfer(),
+            contract,
+            withdrawal.to_address,
+            amount,
+            network=network,
+            nonce=withdrawal.broadcast_nonce,
+        )
+    except Exception as exc:
+        if _is_nonce_already_used_error(exc):
+            return mark_withdrawal_for_reconciliation(
+                withdrawal, f"node rejected broadcast nonce: {exc}"
+            )
+        raise
 
     withdrawal.transaction_hash = tx_hash
     withdrawal.paid_status = PaidStatusModelMixin.PENDING
@@ -472,11 +528,14 @@ def check_pending_withdrawal():
     """
     from reputation.tasks import broadcast_withdrawal
 
+    # PENDING rows with a nonce but no hash await manual reconciliation
+    # (see mark_withdrawal_for_reconciliation) and are not re-broadcast.
     stuck_withdrawals = Withdrawal.objects.filter(
         Q(paid_status=PaidStatusModelMixin.INITIATED)
         | Q(
             paid_status=PaidStatusModelMixin.PENDING,
             transaction_hash__isnull=True,
+            broadcast_nonce__isnull=True,
         )
     )
     for withdrawal in stuck_withdrawals.iterator():
@@ -489,6 +548,11 @@ def check_pending_withdrawal():
     for withdrawal in pending_withdrawals:
         with transaction.atomic():
             withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal.id)
+            if (
+                withdrawal.paid_status != PaidStatusModelMixin.PENDING
+                or not withdrawal.transaction_hash
+            ):
+                continue
             paid_status, paid_date = evaluate_transaction_hash(
                 withdrawal.transaction_hash, network=withdrawal.network
             )
