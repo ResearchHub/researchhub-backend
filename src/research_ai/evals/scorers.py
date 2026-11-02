@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from research_ai.evals.cases import EvalCase
-from research_ai.evals.harness import CaseRun, NoteSnapshot
+from research_ai.evals.harness import CaseRun, NoteSnapshot, ToolCall
 from research_ai.models import AgentExecution
 from research_ai.services.note_tools import (
     CREATE_NOTE,
@@ -147,9 +147,10 @@ def grounded_citations(case: EvalCase, run: CaseRun) -> Score | None:
     """Every DOI the run added to a note or reply came from somewhere.
 
     A DOI is grounded when the user, the fixture note, or an external tool
-    result in this run carried it. Note tool results are not evidence: they
-    echo back what the agent itself wrote. Not applicable when the run cites
-    no new DOI.
+    result in this run carried it. Anything the agent wrote itself is not
+    evidence: note tool results echo the note back, and a result field that
+    repeats the call's input (web_search returns its ``query``) is dropped.
+    Not applicable when the run cites no new DOI.
     """
     if run.error:
         return None
@@ -160,11 +161,10 @@ def grounded_citations(case: EvalCase, run: CaseRun) -> Score | None:
             for note in run.notes_before.values()
         ]
         + [
-            call.result
+            _evidence(call)
             for call in run.tool_calls
             if call.name not in _NOTE_TOOLS and not call.is_error
         ]
-        + [result for turn in run.turns for result in turn.server_tool_results]
     ).lower()
     cited = set()
     for note in run.notes_after.values():
@@ -279,6 +279,25 @@ def sections(blocks: list) -> dict[str, list]:
         for _level, heading in open_sections or [(0, "")]:
             result[heading].append(block)
     return result
+
+
+def _evidence(call: ToolCall) -> str:
+    """``call``'s result text without top-level fields that echo its input."""
+    try:
+        result = json.loads(call.result)
+    except ValueError:
+        return call.result
+    if not isinstance(result, dict):
+        return call.result
+    echoed = {value.strip() for value in call.input.values() if isinstance(value, str)}
+    return json.dumps(
+        {
+            key: value
+            for key, value in result.items()
+            if not (isinstance(value, str) and value.strip() in echoed)
+        },
+        default=str,
+    )
 
 
 def _unlinked_urls(blocks: list) -> list[str]:

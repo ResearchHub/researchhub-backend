@@ -52,9 +52,11 @@ class ToolCall:
     turn: int
     name: str
     input: dict
-    # The result content as JSON text; scorers search it, never parse it.
+    # The result content as JSON text.
     result: str
     is_error: bool
+    # Run by the provider inside the turn (its own web_search), not by us.
+    native: bool = False
 
 
 @dataclass
@@ -71,9 +73,6 @@ class TurnRun:
     cost_microusd: int
     duration_ms: int | None
     tool_calls: list[ToolCall] = field(default_factory=list)
-    # Provider-side tool results (native web search), as JSON text; the
-    # model's requests for them are left out.
-    server_tool_results: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -283,12 +282,30 @@ def _collect_block(turn: TurnRun, calls: dict[str, ToolCall], block: dict) -> No
         call = calls[block["tool_use_id"]]
         call.result = json.dumps(block.get("content"), default=str)
         call.is_error = bool(block.get("is_error"))
-    elif kind == "server_tool" and _is_server_tool_result(block.get("data")):
-        turn.server_tool_results.append(json.dumps(block.get("data"), default=str))
+    elif kind == "server_tool" and isinstance(block.get("data"), dict):
+        _collect_server_tool(turn, calls, block["data"])
 
 
-def _is_server_tool_result(data) -> bool:
-    """A provider-run tool's output (``web_search_tool_result`` and the like),
-    not the model's request for it (``server_tool_use``), which holds only
-    what the model wrote."""
-    return isinstance(data, dict) and str(data.get("type", "")).endswith("_result")
+def _collect_server_tool(turn: TurnRun, calls: dict[str, ToolCall], data: dict):
+    """A provider-run tool: its ``server_tool_use`` request becomes a native
+    ``ToolCall``, and the ``*_result`` block that answers it fills its result.
+    The request's input never counts as a result."""
+    block_type = str(data.get("type", ""))
+    if block_type == "server_tool_use" and data.get("id"):
+        calls[data["id"]] = ToolCall(
+            turn=turn.index,
+            name=str(data.get("name", "")),
+            input=data.get("input") or {},
+            result="",
+            is_error=False,
+            native=True,
+        )
+        turn.tool_calls.append(calls[data["id"]])
+    elif block_type.endswith("_result") and data.get("tool_use_id") in calls:
+        call = calls[data["tool_use_id"]]
+        content = data.get("content")
+        call.result = json.dumps(content, default=str)
+        # e.g. web_search_tool_result_error in place of the result list.
+        call.is_error = isinstance(content, dict) and str(
+            content.get("type", "")
+        ).endswith("_error")

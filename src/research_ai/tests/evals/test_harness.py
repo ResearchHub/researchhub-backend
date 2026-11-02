@@ -225,9 +225,8 @@ class WriteReportTests(TestCase):
 
 
 class CollectBlockTests(TestCase):
-    def test_keeps_server_tool_results_but_not_the_models_requests(self):
-        # Arrange
-        turn = TurnRun(
+    def _turn(self):
+        return TurnRun(
             index=0,
             message="m",
             execution_id=1,
@@ -240,16 +239,46 @@ class CollectBlockTests(TestCase):
             cost_microusd=0,
             duration_ms=None,
         )
+
+    def _native(self, turn, result_content):
+        calls = {}
         request = {
             "type": "server_tool_use",
+            "id": "srv1",
             "name": "web_search",
             "input": {"query": "10.9999/made.up"},
         }
-        result = {"type": "web_search_tool_result", "content": [{"url": "u"}]}
+        result = {
+            "type": "web_search_tool_result",
+            "tool_use_id": "srv1",
+            "content": result_content,
+        }
+        _collect_block(turn, calls, {"type": "server_tool", "data": request})
+        _collect_block(turn, calls, {"type": "server_tool", "data": result})
+
+    def test_records_a_native_tool_call_with_its_result(self):
+        # Arrange
+        turn = self._turn()
 
         # Act
-        _collect_block(turn, {}, {"type": "server_tool", "data": request})
-        _collect_block(turn, {}, {"type": "server_tool", "data": result})
+        self._native(turn, [{"url": "https://example.org"}])
 
         # Assert
-        self.assertEqual(turn.server_tool_results, [json.dumps(result)])
+        (call,) = turn.tool_calls
+        self.assertEqual(call.name, "web_search")
+        self.assertTrue(call.native)
+        self.assertFalse(call.is_error)
+        self.assertEqual(call.input, {"query": "10.9999/made.up"})
+        self.assertEqual(call.result, json.dumps([{"url": "https://example.org"}]))
+
+    def test_marks_a_native_error_result_as_failed(self):
+        # Arrange
+        turn = self._turn()
+
+        # Act
+        self._native(
+            turn, {"type": "web_search_tool_result_error", "error_code": "unavailable"}
+        )
+
+        # Assert
+        self.assertTrue(turn.tool_calls[0].is_error)
