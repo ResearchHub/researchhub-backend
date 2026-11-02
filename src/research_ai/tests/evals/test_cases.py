@@ -63,6 +63,12 @@ class ParseCaseTests(TestCase):
             (_notebook_case(note={"title": "T", "blocks": []}), "note.blocks"),
             (_notebook_case(expect=["x"]), "expect must be a mapping"),
             (_notebook_case(expect={"tools_called": "read_note"}), "list of strings"),
+            (_notebook_case(expect={"min_new_dois": 0}), "positive integer"),
+            (_notebook_case(expect={"doi_section": "Refs"}), "needs min_new_dois"),
+            (
+                _notebook_case(expect={"min_new_dois": 1, "doi_section": ""}),
+                "must be a heading",
+            ),
         ]
         for raw, message in cases:
             # Act / Assert
