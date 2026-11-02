@@ -71,7 +71,8 @@ class TurnRun:
     cost_microusd: int
     duration_ms: int | None
     tool_calls: list[ToolCall] = field(default_factory=list)
-    # Provider-side tool output (native web search), as JSON text.
+    # Provider-side tool results (native web search), as JSON text; the
+    # model's requests for them are left out.
     server_tool_results: list[str] = field(default_factory=list)
 
 
@@ -282,5 +283,12 @@ def _collect_block(turn: TurnRun, calls: dict[str, ToolCall], block: dict) -> No
         call = calls[block["tool_use_id"]]
         call.result = json.dumps(block.get("content"), default=str)
         call.is_error = bool(block.get("is_error"))
-    elif kind == "server_tool":
+    elif kind == "server_tool" and _is_server_tool_result(block.get("data")):
         turn.server_tool_results.append(json.dumps(block.get("data"), default=str))
+
+
+def _is_server_tool_result(data) -> bool:
+    """A provider-run tool's output (``web_search_tool_result`` and the like),
+    not the model's request for it (``server_tool_use``), which holds only
+    what the model wrote."""
+    return isinstance(data, dict) and str(data.get("type", "")).endswith("_result")
