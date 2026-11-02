@@ -100,7 +100,7 @@ def load_cases(
 
 def load_case(path: Path) -> EvalCase:
     try:
-        raw = yaml.safe_load(path.read_text())
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         return parse_case(raw)
     except (yaml.YAMLError, CaseError) as exc:
         raise CaseError(f"{path}: {exc}") from exc
@@ -177,6 +177,17 @@ def _parse_expect(raw) -> Expectations:
         value = raw.get(key, [])
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
             raise CaseError(f"expect.{key} must be a list of strings")
+    for key in ("note_unchanged", "proposal_hygiene"):
+        if not isinstance(raw.get(key, False), bool):
+            raise CaseError(f"expect.{key} must be true or false")
+    max_reply_chars = raw.get("max_reply_chars", 1)
+    # bool is an int subclass; ``true`` is not a length.
+    if (
+        isinstance(max_reply_chars, bool)
+        or not isinstance(max_reply_chars, int)
+        or max_reply_chars < 1
+    ):
+        raise CaseError("expect.max_reply_chars must be a positive integer")
     return Expectations(**raw)
 
 

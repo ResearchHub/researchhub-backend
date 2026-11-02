@@ -50,6 +50,24 @@ class ParseCaseTests(TestCase):
         with self.assertRaisesRegex(CaseError, "unknown expect keys"):
             parse_case(raw)
 
+    def test_rejects_a_non_boolean_flag(self):
+        # Arrange
+        raw = _notebook_case(expect={"note_unchanged": "yes"})
+
+        # Act / Assert
+        with self.assertRaisesRegex(CaseError, "note_unchanged must be true or false"):
+            parse_case(raw)
+
+    def test_rejects_a_reply_limit_that_is_not_a_positive_integer(self):
+        for value in (True, 0, "2000"):
+            with self.subTest(value=value):
+                # Arrange
+                raw = _notebook_case(expect={"max_reply_chars": value})
+
+                # Act / Assert
+                with self.assertRaisesRegex(CaseError, "positive integer"):
+                    parse_case(raw)
+
     def test_notebook_case_needs_a_note(self):
         # Arrange
         raw = _notebook_case(note=None)

@@ -6,6 +6,7 @@ without re-running the model.
 """
 
 import json
+import re
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -15,6 +16,8 @@ from statistics import mean
 from research_ai.evals.cases import EvalCase
 from research_ai.evals.harness import CaseRun
 from research_ai.evals.scorers import Score
+
+_UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 @dataclass
@@ -65,7 +68,9 @@ def build_report(
 def write_report(report: dict, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = report["started_at"].replace(":", "").split(".")[0]
-    name = f"{stamp}-{report['tag']}.json" if report["tag"] else f"{stamp}.json"
+    # The tag is free text; keep it from naming a path outside ``out_dir``.
+    tag = _UNSAFE_FILENAME.sub("-", report["tag"]).strip("-.")
+    name = f"{stamp}-{tag}.json" if tag else f"{stamp}.json"
     path = out_dir / name
     path.write_text(json.dumps(report, indent=2, default=str))
     return path

@@ -208,6 +208,22 @@ class AgentEvalHarnessTests(TestCase):
         self.assertIn("never called create_note", summary)
 
 
+class WriteReportTests(TestCase):
+    def test_keeps_a_tag_with_path_separators_inside_the_out_dir(self):
+        # Arrange
+        report = {"started_at": "2026-01-01T00:00:00", "tag": "../prompt v2/x"}
+
+        # Act
+        with tempfile.TemporaryDirectory() as out:
+            path = write_report(report, Path(out))
+            parent = path.parent
+            out_dir = Path(out)
+
+        # Assert
+        self.assertEqual(parent, out_dir)
+        self.assertEqual(path.name, "2026-01-01T000000-prompt-v2-x.json")
+
+
 class CollectBlockTests(TestCase):
     def test_keeps_server_tool_results_but_not_the_models_requests(self):
         # Arrange
