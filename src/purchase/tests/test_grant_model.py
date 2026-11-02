@@ -171,6 +171,9 @@ class GrantModelTests(TestCase):
         # Test default status
         self.assertEqual(grant.status, Grant.PENDING)
 
+        # Test default funding mechanism
+        self.assertEqual(grant.funding_mechanism, Grant.FUNDING)
+
         # Test that start_date is auto-set
         self.assertIsNotNone(grant.start_date)
 

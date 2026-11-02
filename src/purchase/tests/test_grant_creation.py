@@ -109,7 +109,28 @@ class GrantCreationTests(APITestCase):
                 self.assertEqual(
                     grant.application_visibility, Grant.APPLICATION_VISIBILITY_PRIVATE
                 )
+                self.assertEqual(grant.funding_mechanism, Grant.FUNDING)
                 self.assertTrue(FundingPool.objects.filter(grant=grant).exists())
+
+    def test_author_can_create_award_grant(self):
+        # Arrange
+        post = create_post(created_by=self.owner, document_type=GRANT)
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        response = self.client.post(
+            "/api/grant/",
+            {
+                **self.grant_data,
+                "post_id": post.pk,
+                "funding_mechanism": Grant.AWARD,
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        grant = Grant.objects.get(pk=response.data["id"])
+        self.assertEqual(grant.funding_mechanism, Grant.AWARD)
 
     def test_moderator_can_create_grant_for_another_author(self):
         # Arrange

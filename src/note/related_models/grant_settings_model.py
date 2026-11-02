@@ -38,6 +38,12 @@ class GrantSettings(DefaultModel):
         choices=Grant.APPLICATION_VISIBILITY_CHOICES,
         max_length=16,
     )
+    funding_mechanism = models.CharField(
+        blank=True,
+        choices=Grant.FUNDING_MECHANISM_CHOICES,
+        default=Grant.FUNDING,
+        max_length=16,
+    )
     contacts = models.ManyToManyField(
         "user.User",
         blank=True,

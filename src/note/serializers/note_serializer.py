@@ -107,6 +107,7 @@ class GrantSettingsSerializer(ModelSerializer):
             "currency",
             "description",
             "end_date",
+            "funding_mechanism",
             "organization",
         ]
 

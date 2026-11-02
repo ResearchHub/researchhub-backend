@@ -560,6 +560,9 @@ class ResearchhubPostViewSet(
                     ):
                         grant_data["application_visibility"] = application_visibility
 
+                    if funding_mechanism := data.get("grant_funding_mechanism"):
+                        grant_data["funding_mechanism"] = funding_mechanism
+
                     grant_serializer = GrantCreateSerializer(data=grant_data)
                     grant_serializer.is_valid(raise_exception=True)
                     grant = grant_serializer.save(created_by=created_by)
@@ -646,6 +649,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_mechanism",
                         "funding_pool",
                     ],
                 ).data
@@ -754,6 +758,9 @@ class ResearchhubPostViewSet(
                 if application_visibility := data.get("grant_application_visibility"):
                     grant_data["application_visibility"] = application_visibility
 
+                if funding_mechanism := data.get("grant_funding_mechanism"):
+                    grant_data["funding_mechanism"] = funding_mechanism
+
                 grant_serializer = GrantCreateSerializer(data=grant_data)
                 grant_serializer.is_valid(raise_exception=True)
 
@@ -773,6 +780,10 @@ class ResearchhubPostViewSet(
                     existing_grant.application_visibility = (
                         grant_serializer.validated_data["application_visibility"]
                     )
+                if "funding_mechanism" in grant_serializer.validated_data:
+                    existing_grant.funding_mechanism = grant_serializer.validated_data[
+                        "funding_mechanism"
+                    ]
 
                 # Handle contacts properly - get contact_ids and convert to User objects
                 contact_ids = grant_serializer.validated_data.get("contact_ids", [])
@@ -837,6 +848,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_mechanism",
                         "funding_pool",
                     ],
                 ).data
