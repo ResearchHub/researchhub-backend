@@ -1004,16 +1004,16 @@ wheels = [
 
 [[package]]
 name = "django-health-check"
-version = "4.11.1"
+version = "4.11.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
     { name = "dnspython" },
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/db/3d79faead00da6e97fbef3d5bf11b764418646222de03e02267f19a000a3/django_health_check-4.11.1.tar.gz", hash = "sha256:f66b999a0eeec564d071b0c1da70be36eef1a1b4f444f173670262c52cf70cf8", size = 26951, upload-time = "2026-10-24T18:48:10.413Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/97/a7/85c100f91cf0630cc5f891c90d8e2299882dc1f034e36f9a6d3fd304fed6/django_health_check-4.11.4.tar.gz", hash = "sha256:47eb41f72edd307c1b6d70b71e10930ffb7ffcb5bbdc208a4dff86e7abfc674d", size = 27692, upload-time = "2026-11-02T10:11:32.024Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ab/1b/41e825ae672a6c7407adaff0b1caee5ce9a624939955c2e59c12f129255e/django_health_check-4.11.1-py3-none-any.whl", hash = "sha256:520e77ba160fcfe96734646befbfea83459e967cb2f5cdad62bd30749b640306", size = 33559, upload-time = "2026-10-24T18:48:09.118Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/b0/20eee7ddd42f771d7875a614d371caf202e0464bb30f9daf0037b7194bca/django_health_check-4.11.4-py3-none-any.whl", hash = "sha256:00a0c3f4f91739fa7a929732e76feb3a6902bfb117bfc178e4935520eae1a694", size = 34386, upload-time = "2026-11-02T10:11:30.71Z" },
 ]
 
 [[package]]
@@ -2676,7 +2676,7 @@ requires-dist = [
     { name = "django-extensions", specifier = ">=4.1,<5" },
     { name = "django-fernet-encrypted-fields", specifier = ">=0.4.0" },
     { name = "django-filter", specifier = ">=26.2,<27" },
-    { name = "django-health-check", specifier = ">=4.11.1,<5" },
+    { name = "django-health-check", specifier = ">=4.11.4,<5" },
     { name = "django-opensearch-dsl", specifier = "==0.8.0" },
     { name = "django-ses", extras = ["events"], specifier = ">=4.9.0,<5" },
     { name = "django-silk", specifier = ">=5.6.0,<6" },
