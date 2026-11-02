@@ -814,7 +814,7 @@ class ResearchhubPostViewSet(
             elif existing_grant and funding_mechanism_provided:
                 # Allow updating mechanism alone without re-sending grant_amount.
                 existing_grant.funding_mechanism = validated_funding_mechanism
-                existing_grant.save(update_fields=["funding_mechanism"])
+                existing_grant.save(update_fields=["funding_mechanism", "updated_date"])
                 grant = existing_grant
             else:
                 # No grant data provided or no existing grant, preserve existing grant

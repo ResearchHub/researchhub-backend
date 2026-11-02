@@ -1192,6 +1192,7 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 200)
         grant_id = doc_response.data["grant"]["id"]
         self.assertEqual(doc_response.data["grant"]["funding_mechanism"], Grant.FUNDING)
+        original_updated_date = Grant.objects.get(id=grant_id).updated_date
 
         # Act
         updated_response = self.client.post(
@@ -1217,6 +1218,7 @@ class ViewTests(APITestCase):
         self.assertEqual(updated_response.data["grant"]["amount"]["usd"], 40000.0)
         grant = Grant.objects.get(id=grant_id)
         self.assertEqual(grant.funding_mechanism, Grant.AWARD)
+        self.assertGreater(grant.updated_date, original_updated_date)
 
     def test_grant_funding_mechanism_update_rejects_invalid_value(self):
         """Invalid/empty mechanism is rejected before the post is mutated."""
