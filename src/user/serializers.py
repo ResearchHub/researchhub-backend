@@ -200,6 +200,7 @@ class AuthorSerializer(ModelSerializer):
             "num_posts",
             "orcid_id",
             "is_orcid_connected",
+            "is_x_connected",
             "reputation",
             "suspended_status",
             "total_score",

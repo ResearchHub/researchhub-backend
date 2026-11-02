@@ -226,21 +226,17 @@ class SetXProfileLinkTests(TestCase):
 
     def test_leaves_x_profile_link_unchanged(self):
         """
-        Test that the X link is only set when a single X account has a username
-        and the author has no link yet.
+        Test that the X link is only set when a single X account has a username.
         """
         cases = [
-            ("existing link", "https://x.com/existing", ["xuser"]),
-            ("no x account", None, []),
-            ("no username", None, [None]),
-            ("multiple x accounts", None, ["first", "second"]),
+            ("no x account", []),
+            ("no username", [None]),
+            ("multiple x accounts", ["first", "second"]),
         ]
-        for name, existing_link, usernames in cases:
+        for name, usernames in cases:
             with self.subTest(name):
                 # Arrange
                 user = create_random_default_user(f"x_profile_{name}")
-                user.author_profile.twitter = existing_link
-                user.author_profile.save()
                 for i, username in enumerate(usernames):
                     SocialAccount.objects.create(
                         user=user,
@@ -254,4 +250,4 @@ class SetXProfileLinkTests(TestCase):
 
                 # Assert
                 user.author_profile.refresh_from_db()
-                self.assertEqual(user.author_profile.twitter, existing_link)
+                self.assertIsNone(user.author_profile.twitter)
