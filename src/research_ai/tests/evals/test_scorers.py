@@ -177,6 +177,24 @@ class ToolExpectationsTests(TestCase):
         # Assert
         self.assertEqual(score.details, ["every edit_note call failed"])
 
+    def test_counts_a_native_provider_tool_call(self):
+        # Arrange
+        native = ToolCall(
+            turn=0,
+            name="web_search",
+            input={},
+            result="[]",
+            is_error=False,
+            native=True,
+        )
+        run = _run(turns=[_turn(calls=[native])])
+
+        # Act
+        score = tool_expectations(_case(tools_not_called=["web_search"]), run)
+
+        # Assert
+        self.assertEqual(score.details, ["called web_search"])
+
     def test_a_forbidden_tool_counts_even_when_it_failed(self):
         # Arrange
         run = _run(turns=[_turn(calls=[_call("create_note", is_error=True)])])
@@ -288,6 +306,44 @@ class GroundedCitationsTests(TestCase):
 
         # Assert
         self.assertEqual(score.details, ["ungrounded DOI 10.9999/made.up"])
+
+    def test_a_search_query_echoed_in_its_result_is_not_evidence(self):
+        # Arrange
+        run = _run(
+            before=_note([]),
+            after=_note(["10.9999/made.up"]),
+            turns=[
+                _turn(
+                    calls=[
+                        _call(
+                            "web_search",
+                            result='{"query": "10.9999/made.up", "results": []}',
+                            query="10.9999/made.up",
+                        ),
+                    ]
+                )
+            ],
+        )
+
+        # Act
+        score = grounded_citations(_case(), run)
+
+        # Assert
+        self.assertEqual(score.details, ["ungrounded DOI 10.9999/made.up"])
+
+    def test_a_search_result_that_carries_the_doi_grounds_it(self):
+        # Arrange
+        result = (
+            '{"query": "spindles", "results": [{"url": "https://doi.org/10.1234/a.1"}]}'
+        )
+        run = _run(
+            before=_note([]),
+            after=_note(["10.1234/a.1"]),
+            turns=[_turn(calls=[_call("web_search", result=result, query="spindles")])],
+        )
+
+        # Act / Assert
+        self.assertEqual(grounded_citations(_case(), run).value, 1.0)
 
     def test_not_applicable_without_dois(self):
         # Act / Assert

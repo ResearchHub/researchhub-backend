@@ -1,9 +1,12 @@
+import tempfile
+from pathlib import Path
 from unittest import TestCase
 
 from research_ai.evals.cases import (
     ASSISTANT,
     NOTEBOOK,
     CaseError,
+    load_case,
     load_cases,
     parse_case,
 )
@@ -49,6 +52,35 @@ class ParseCaseTests(TestCase):
         # Act / Assert
         with self.assertRaisesRegex(CaseError, "unknown expect keys"):
             parse_case(raw)
+
+    def test_rejects_malformed_case_fields(self):
+        cases = [
+            ("not a mapping", "must be a mapping"),
+            (_notebook_case(id=""), "id must be"),
+            (_notebook_case(turns=[]), "turns must be"),
+            (_notebook_case(turns=["  "]), "turns must be"),
+            (_notebook_case(note=["x"]), "note must be a mapping"),
+            (_notebook_case(note={"title": "T", "blocks": []}), "note.blocks"),
+            (_notebook_case(expect=["x"]), "expect must be a mapping"),
+            (_notebook_case(expect={"tools_called": "read_note"}), "list of strings"),
+        ]
+        for raw, message in cases:
+            # Act / Assert
+            with (
+                self.subTest(message=message),
+                self.assertRaisesRegex(CaseError, message),
+            ):
+                parse_case(raw)
+
+    def test_load_case_names_the_file_on_invalid_yaml(self):
+        # Arrange
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root) / "broken.yaml"
+            path.write_text("id: [unclosed", encoding="utf-8")
+
+            # Act / Assert
+            with self.assertRaisesRegex(CaseError, "broken.yaml"):
+                load_case(path)
 
     def test_rejects_a_non_boolean_flag(self):
         # Arrange
