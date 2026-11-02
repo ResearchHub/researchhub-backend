@@ -179,22 +179,41 @@ def _parse_expect(raw) -> Expectations:
     if not isinstance(raw, dict):
         raise CaseError("expect must be a mapping")
     _reject_unknown(raw, _EXPECT_KEYS, "expect")
-    for key in ("tools_called", "tools_not_called", "unchanged_sections"):
-        value = raw.get(key, [])
-        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
-            raise CaseError(f"expect.{key} must be a list of strings")
-    for key in ("note_unchanged", "proposal_hygiene"):
-        if not isinstance(raw.get(key, False), bool):
-            raise CaseError(f"expect.{key} must be true or false")
-    for key in ("max_reply_chars", "min_new_dois"):
-        if key in raw and not _is_positive_int(raw[key]):
-            raise CaseError(f"expect.{key} must be a positive integer")
-    if "doi_section" in raw:
-        if not isinstance(raw["doi_section"], str) or not raw["doi_section"]:
-            raise CaseError("expect.doi_section must be a heading")
-        if "min_new_dois" not in raw:
-            raise CaseError("expect.doi_section needs min_new_dois")
+    _require(
+        raw,
+        ("tools_called", "tools_not_called", "unchanged_sections"),
+        _is_string_list,
+        "a list of strings",
+    )
+    _require(
+        raw,
+        ("note_unchanged", "proposal_hygiene"),
+        lambda value: isinstance(value, bool),
+        "true or false",
+    )
+    _require(
+        raw, ("max_reply_chars", "min_new_dois"), _is_positive_int, "a positive integer"
+    )
+    _require(
+        raw,
+        ("doi_section",),
+        lambda value: isinstance(value, str) and bool(value),
+        "a heading",
+    )
+    if "doi_section" in raw and "min_new_dois" not in raw:
+        raise CaseError("expect.doi_section needs min_new_dois")
     return Expectations(**raw)
+
+
+def _require(raw: dict, keys: tuple, valid, what: str) -> None:
+    """Raise unless every ``keys`` entry present in ``raw`` is ``valid``."""
+    for key in keys:
+        if key in raw and not valid(raw[key]):
+            raise CaseError(f"expect.{key} must be {what}")
+
+
+def _is_string_list(value) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
 def _is_positive_int(value) -> bool:
