@@ -39,7 +39,6 @@ class GrantSettings(DefaultModel):
         max_length=16,
     )
     funding_mechanism = models.CharField(
-        blank=True,
         choices=Grant.FUNDING_MECHANISM_CHOICES,
         default=Grant.FUNDING,
         max_length=16,

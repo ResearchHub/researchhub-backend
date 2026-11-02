@@ -3,6 +3,7 @@ from decimal import Decimal
 from django.test import TestCase
 
 from note.models import GrantSettings
+from note.serializers.note_serializer import GrantSettingsSerializer
 from note.services.note_draft_service import (
     NOT_RFP_NOTE,
     NOTE_PUBLISHED,
@@ -17,6 +18,20 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from user.tests.helpers import create_random_authenticated_user
+
+
+class GrantSettingsSerializerFundingMechanismTests(TestCase):
+    def test_rejects_empty_and_unknown_funding_mechanisms(self):
+        for invalid in ("", "POOL", None):
+            with self.subTest(invalid=invalid):
+                # Act
+                serializer = GrantSettingsSerializer(
+                    data={"funding_mechanism": invalid}, partial=True
+                )
+
+                # Assert
+                self.assertFalse(serializer.is_valid())
+                self.assertIn("funding_mechanism", serializer.errors)
 
 
 class UpdateGrantSettingsTests(TestCase):

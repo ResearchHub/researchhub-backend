@@ -405,6 +405,7 @@ class ResearchhubPostViewSet(
         try:
             with transaction.atomic():
                 created_by = request.user
+                note = None
                 if note_id is not None and document_type != REGISTERED_REPORT:
                     note = NotePublicationService().get_note_for_publication(
                         note_id, created_by
@@ -560,7 +561,12 @@ class ResearchhubPostViewSet(
                     ):
                         grant_data["application_visibility"] = application_visibility
 
-                    if funding_mechanism := data.get("grant_funding_mechanism"):
+                    funding_mechanism = data.get("grant_funding_mechanism")
+                    if not funding_mechanism and note is not None:
+                        draft_settings = getattr(note, "grant_settings", None)
+                        if draft_settings is not None:
+                            funding_mechanism = draft_settings.funding_mechanism
+                    if funding_mechanism:
                         grant_data["funding_mechanism"] = funding_mechanism
 
                     grant_serializer = GrantCreateSerializer(data=grant_data)
@@ -794,6 +800,14 @@ class ResearchhubPostViewSet(
                     existing_grant.contacts.clear()
 
                 existing_grant.save()
+                grant = existing_grant
+            elif existing_grant and "grant_funding_mechanism" in data:
+                # Allow updating mechanism alone without re-sending grant_amount.
+                funding_mechanism = serializers.ChoiceField(
+                    choices=Grant.FUNDING_MECHANISM_CHOICES
+                ).run_validation(data.get("grant_funding_mechanism"))
+                existing_grant.funding_mechanism = funding_mechanism
+                existing_grant.save(update_fields=["funding_mechanism"])
                 grant = existing_grant
             else:
                 # No grant data provided or no existing grant, preserve existing grant
