@@ -43,28 +43,38 @@ class ParseCaseTests(TestCase):
         self.assertFalse(case.expect.note_unchanged)
 
     def test_rejects_unknown_expect_keys(self):
+        # Arrange
+        raw = _notebook_case(expect={"tool_called": ["read_note"]})
+
         # Act / Assert
         with self.assertRaisesRegex(CaseError, "unknown expect keys"):
-            parse_case(_notebook_case(expect={"tool_called": ["read_note"]}))
+            parse_case(raw)
 
     def test_notebook_case_needs_a_note(self):
+        # Arrange
+        raw = _notebook_case(note=None)
+
         # Act / Assert
         with self.assertRaisesRegex(CaseError, "needs a note"):
-            parse_case(_notebook_case(note=None))
+            parse_case(raw)
 
     def test_assistant_case_starts_without_a_note(self):
+        # Arrange
+        raw = _notebook_case(agent=ASSISTANT)
+
         # Act / Assert
         with self.assertRaisesRegex(CaseError, "starts with no note"):
-            parse_case(_notebook_case(agent=ASSISTANT))
+            parse_case(raw)
 
     def test_rejects_unknown_document_type(self):
+        # Arrange
+        raw = _notebook_case(
+            note={"title": "T", "document_type": "PAPER", "blocks": ["x"]}
+        )
+
         # Act / Assert
         with self.assertRaisesRegex(CaseError, "document_type"):
-            parse_case(
-                _notebook_case(
-                    note={"title": "T", "document_type": "PAPER", "blocks": ["x"]}
-                )
-            )
+            parse_case(raw)
 
 
 class CheckedInCasesTests(TestCase):
