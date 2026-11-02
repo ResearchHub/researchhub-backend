@@ -2039,6 +2039,9 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         )
 
     def test_get_preregistration_includes_grants_and_ai_peer_review(self):
+        self.grant_a.funding_mechanism = Grant.AWARD
+        self.grant_a.save(update_fields=["funding_mechanism"])
+
         url = f"/api/researchhubpost/{self.prereg_post.id}/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -2065,6 +2068,7 @@ class PreregistrationGrantsPayloadTests(APITestCase):
             entry_a["application_visibility"],
             Grant.APPLICATION_VISIBILITY_OPTIONAL,
         )
+        self.assertEqual(entry_a["funding_mechanism"], Grant.AWARD)
         self.assertEqual(entry_a["application_id"], self.application_a.id)
         self.assertEqual(entry_a["created_by"]["id"], self.moderator.id)
         funding_pool_a = entry_a["funding_pool"]
@@ -2098,6 +2102,7 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         self.assertEqual(entry_b["title"], grant_b_post.title)
         self.assertEqual(entry_b["applicant_count"], 1)
         self.assertEqual(entry_b["application_id"], self.application_b.id)
+        self.assertEqual(entry_b["funding_mechanism"], Grant.FUNDING)
         self.assertEqual(entry_b["created_by"]["id"], self.moderator.id)
         self.assertIsNone(entry_b["funding_pool"])
         self.assertEqual(entry_b["proposal"]["application_id"], self.application_b.id)
