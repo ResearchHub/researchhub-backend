@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
@@ -28,6 +28,7 @@ from purchase.related_models.constants import (
     USD_FUNDRAISE_FEE_PERCENT,
 )
 from purchase.related_models.constants.currency import RSC, USD
+from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.services.fundraise_notification_service import (
     FundraiseNotificationService,
 )
@@ -36,6 +37,7 @@ from reputation.distributions import create_bounty_refund_distribution
 from reputation.distributor import Distributor
 from reputation.models import BountyFee, Escrow
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -215,6 +217,48 @@ class FundraiseService:
             return self.create_rsc_contribution(
                 user, fundraise, amount, use_credits=use_credits
             )
+
+    def ensure_award_fundraise(
+        self,
+        grant: Grant,
+        post: ResearchhubPost,
+        *,
+        goal_currency: str = USD,
+        end_date: datetime | None = None,
+    ) -> Fundraise | None:
+        """Open a goal-0 fundraise when an existing proposal joins an award grant."""
+        if grant.funding_mechanism != Grant.AWARD:
+            return None
+
+        existing = (
+            Fundraise.objects.filter(unified_document_id=post.unified_document_id)
+            .order_by("-created_date")
+            .first()
+        )
+        if existing is not None:
+            return existing
+
+        fundraise_data = {
+            "goal_amount": Decimal(0),
+            "goal_currency": goal_currency,
+            "unified_document_id": post.unified_document_id,
+            "recipient_user_id": post.created_by_id,
+        }
+        if end_date is not None:
+            fundraise_data["end_date"] = end_date
+
+        serializer = FundraiseCreateSerializer(
+            data=fundraise_data,
+            context={"allow_zero_goal": True},
+        )
+        serializer.is_valid(raise_exception=True)
+        return self.create_fundraise_with_escrow(
+            user=post.created_by,
+            unified_document=post.unified_document,
+            goal_amount=serializer.validated_data["goal_amount"],
+            goal_currency=serializer.validated_data["goal_currency"],
+            end_date=serializer.validated_data.get("end_date"),
+        )
 
     def create_fundraise_with_escrow(
         self,

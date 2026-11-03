@@ -13,6 +13,7 @@ from purchase.models import Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -308,9 +309,11 @@ class GrantViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        _, created = GrantApplication.objects.get_or_create(
-            grant=grant, preregistration_post=post, applicant=request.user
-        )
+        with transaction.atomic():
+            FundraiseService().ensure_award_fundraise(grant, post)
+            _, created = GrantApplication.objects.get_or_create(
+                grant=grant, preregistration_post=post, applicant=request.user
+            )
 
         if created:
             self._invalidate_grant_feed_cache()

@@ -10,8 +10,9 @@ from rest_framework.test import APITestCase
 from discussion.models import Flag
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from notification.models import Notification
-from purchase.models import Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -419,6 +420,61 @@ class GrantViewTests(APITestCase):
             description="Another grant",
             status=Grant.OPEN,
             funding_mechanism=mechanism,
+        )
+
+    def test_award_application_opens_a_zero_goal_fundraise(self):
+        """Applying an existing proposal to an award grant opens its escrow."""
+        # Arrange
+        award_grant = self._open_grant(Grant.AWARD, "award-apply")
+        self.client.force_authenticate(self.regular_user)
+
+        # Act
+        response = self.client.post(
+            f"/api/grant/{award_grant.id}/application/",
+            {"preregistration_post_id": self.preregistration_post.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        fundraise = Fundraise.objects.get(
+            unified_document=self.preregistration_post.unified_document
+        )
+        self.assertEqual(fundraise.goal_amount, Decimal(0))
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+        self.assertEqual(fundraise.created_by, self.regular_user)
+        self.assertIsNotNone(fundraise.escrow)
+        self.assertAlmostEqual(
+            fundraise.end_date.timestamp(),
+            (datetime.now(UTC) + timedelta(days=30)).timestamp(),
+            delta=60,
+        )
+
+    def test_award_application_keeps_an_existing_fundraise(self):
+        """An existing proposal fundraise is not replaced when applying."""
+        # Arrange
+        award_grant = self._open_grant(Grant.AWARD, "award-existing")
+        existing = FundraiseService().create_fundraise_with_escrow(
+            user=self.regular_user,
+            unified_document=self.preregistration_post.unified_document,
+            goal_amount=Decimal(500),
+        )
+        self.client.force_authenticate(self.regular_user)
+
+        # Act
+        response = self.client.post(
+            f"/api/grant/{award_grant.id}/application/",
+            {"preregistration_post_id": self.preregistration_post.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        existing.refresh_from_db()
+        self.assertEqual(existing.goal_amount, Decimal(500))
+        self.assertEqual(
+            Fundraise.objects.filter(
+                unified_document=self.preregistration_post.unified_document
+            ).count(),
+            1,
         )
 
     def test_apply_to_grant_unauthenticated(self):
