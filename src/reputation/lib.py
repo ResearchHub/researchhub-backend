@@ -22,8 +22,9 @@ from ethereum.lib import (
 )
 from mailing_list.services import EmailService
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.models import HotWalletNonce, Withdrawal
+from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
+from reputation.services.hot_wallet_nonce_service import HotWalletNonceService
 from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
@@ -418,27 +419,19 @@ def reserve_withdrawal_nonce(withdrawal):
     this write on its own, so a retry after an ambiguous send failure reuses
     the nonce instead of fetching a fresh one and paying out twice.
 
-    Nonces come from the hot wallet's HotWalletNonce row, locked so concurrent
-    withdrawals get different ones. The counter catches up with the chain's
-    pending count, which covers transactions sent outside this code.
+    HotWalletNonceService gives concurrent withdrawals different nonces.
     """
     if withdrawal.broadcast_nonce is not None or not _is_broadcastable(withdrawal):
         return withdrawal
 
     w3 = _get_w3_for_network(withdrawal.network)
     checksum_sender = Web3.to_checksum_address(settings.WEB3_WALLET_ADDRESS)
-    # The pending count only grows, so reading it before taking the lock is
-    # safe and keeps the RPC call out of the lock.
+    # The pending count only grows, so reading it before the service takes
+    # its lock is safe and keeps the RPC call out of the lock.
     chain_nonce = get_nonce(w3, checksum_sender)
-    with transaction.atomic():
-        counter, _ = HotWalletNonce.objects.select_for_update().get_or_create(
-            network=withdrawal.network, address=checksum_sender
-        )
-        withdrawal.broadcast_nonce = max(counter.next_nonce, chain_nonce)
-        withdrawal.save(update_fields=["broadcast_nonce"])
-        counter.next_nonce = withdrawal.broadcast_nonce + 1
-        counter.save(update_fields=["next_nonce", "updated_date"])
-    return withdrawal
+    return HotWalletNonceService().reserve_withdrawal_nonce(
+        withdrawal, checksum_sender, chain_nonce
+    )
 
 
 def broadcast_withdrawal_transfer(withdrawal):
