@@ -230,12 +230,21 @@ class FundraiseService:
         if grant.funding_mechanism != Grant.AWARD:
             return None
 
+        fundraises = Fundraise.objects.filter(
+            unified_document_id=post.unified_document_id
+        )
         existing = (
-            Fundraise.objects.filter(unified_document_id=post.unified_document_id)
+            fundraises.filter(status=Fundraise.OPEN)
+            .select_related("escrow")
             .order_by("-created_date")
             .first()
         )
-        if existing is not None:
+        if existing is None:
+            if fundraises.exists():
+                return fundraises.order_by("-created_date").first()
+        else:
+            if existing.has_received_funding():
+                return existing
             if existing.goal_amount != 0:
                 existing.goal_amount = Decimal(0)
                 existing.save(update_fields=["goal_amount", "updated_date"])

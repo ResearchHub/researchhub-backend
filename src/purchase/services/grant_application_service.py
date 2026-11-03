@@ -1,7 +1,7 @@
 from django.template.loader import render_to_string
 
 from mailing_list.services import EmailService
-from purchase.models import Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.services.work_cover_service_for_email import build_work_cover
 
@@ -10,6 +10,12 @@ AWARD_PROPOSAL_ON_FUNDING_GRANT = (
 )
 FUNDING_PROPOSAL_ON_AWARD_GRANT = (
     "This proposal is linked to a funding grant and cannot apply to an award grant."
+)
+FUNDED_PROPOSAL_ON_AWARD_GRANT = (
+    "This proposal has already raised funds and cannot apply to an award grant."
+)
+CLOSED_FUNDRAISE_ON_AWARD_GRANT = (
+    "This proposal's fundraise is not open and cannot apply to an award grant."
 )
 
 
@@ -29,11 +35,30 @@ class GrantApplicationService:
                 grant__funding_mechanism=Grant.FUNDING
             ).exists():
                 return FUNDING_PROPOSAL_ON_AWARD_GRANT
-            return None
+            return self._award_fundraise_error(post)
         if post.grant_applications.filter(
             grant__funding_mechanism=Grant.AWARD
         ).exists():
             return AWARD_PROPOSAL_ON_FUNDING_GRANT
+        return None
+
+    @staticmethod
+    def _award_fundraise_error(post: ResearchhubPost) -> str | None:
+        fundraises = Fundraise.objects.filter(
+            unified_document_id=post.unified_document_id
+        )
+        open_fundraise = (
+            fundraises.filter(status=Fundraise.OPEN)
+            .select_related("escrow")
+            .order_by("-created_date")
+            .first()
+        )
+        if open_fundraise is None:
+            if fundraises.exists():
+                return CLOSED_FUNDRAISE_ON_AWARD_GRANT
+            return None
+        if open_fundraise.has_received_funding():
+            return FUNDED_PROPOSAL_ON_AWARD_GRANT
         return None
 
     def send_application_email(self, application_id: int) -> None:

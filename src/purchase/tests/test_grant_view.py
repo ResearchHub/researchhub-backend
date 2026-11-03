@@ -479,6 +479,76 @@ class GrantViewTests(APITestCase):
         self.assertEqual(existing.goal_amount, Decimal(0))
         self.assertEqual(existing.end_date, original_end_date)
 
+    def test_funded_proposal_cannot_apply_to_award_grant(self):
+        """A fundraise that already holds money cannot join an award grant."""
+        # Arrange
+        award_grant = self._open_grant(Grant.AWARD, "award-funded")
+        existing = FundraiseService().create_fundraise_with_escrow(
+            user=self.regular_user,
+            unified_document=self.preregistration_post.unified_document,
+            goal_amount=Decimal(500),
+        )
+        existing.escrow.amount_holding = Decimal(10)
+        existing.escrow.save(update_fields=["amount_holding"])
+        self.client.force_authenticate(self.regular_user)
+
+        # Act
+        response = self.client.post(
+            f"/api/grant/{award_grant.id}/application/",
+            {"preregistration_post_id": self.preregistration_post.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["error"],
+            "This proposal has already raised funds and "
+            "cannot apply to an award grant.",
+        )
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                grant=award_grant,
+                preregistration_post=self.preregistration_post,
+            ).exists()
+        )
+        existing.refresh_from_db()
+        self.assertEqual(existing.goal_amount, Decimal(500))
+
+    def test_closed_fundraise_cannot_apply_to_award_grant(self):
+        """A closed or completed fundraise cannot be used for an award grant."""
+        # Arrange
+        award_grant = self._open_grant(Grant.AWARD, "award-closed")
+        existing = FundraiseService().create_fundraise_with_escrow(
+            user=self.regular_user,
+            unified_document=self.preregistration_post.unified_document,
+            goal_amount=Decimal(500),
+        )
+        existing.status = Fundraise.COMPLETED
+        existing.save(update_fields=["status"])
+        self.client.force_authenticate(self.regular_user)
+
+        # Act
+        response = self.client.post(
+            f"/api/grant/{award_grant.id}/application/",
+            {"preregistration_post_id": self.preregistration_post.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["error"],
+            "This proposal's fundraise is not open and cannot apply to an award grant.",
+        )
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                grant=award_grant,
+                preregistration_post=self.preregistration_post,
+            ).exists()
+        )
+        existing.refresh_from_db()
+        self.assertEqual(existing.status, Fundraise.COMPLETED)
+        self.assertEqual(existing.goal_amount, Decimal(500))
+
     def test_funding_proposal_cannot_apply_to_award_grant(self):
         """A proposal already on a funding grant cannot join an award grant."""
         # Arrange

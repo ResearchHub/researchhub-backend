@@ -293,6 +293,53 @@ class TestFundraiseService(APITestCase):
         )
         self.assertEqual(fundraises.count(), 1)
 
+    def test_funded_fundraise_is_not_converted(self):
+        """Money already raised keeps the original goal."""
+        # Arrange
+        grant = self._grant(Grant.AWARD)
+        proposal = self._proposal()
+        existing = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal(500),
+        )
+        existing.escrow.amount_holding = Decimal(10)
+        existing.escrow.save(update_fields=["amount_holding"])
+
+        # Act
+        fundraise = self.service.ensure_award_fundraise(grant, proposal)
+
+        # Assert
+        self.assertEqual(fundraise.id, existing.id)
+        self.assertEqual(fundraise.goal_amount, Decimal(500))
+
+    def test_closed_fundraise_is_not_reused(self):
+        """A closed fundraise is not rewritten and no second fundraise is opened."""
+        # Arrange
+        grant = self._grant(Grant.AWARD)
+        proposal = self._proposal()
+        existing = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal(500),
+        )
+        existing.status = Fundraise.CLOSED
+        existing.save(update_fields=["status"])
+
+        # Act
+        fundraise = self.service.ensure_award_fundraise(grant, proposal)
+
+        # Assert
+        self.assertEqual(fundraise.id, existing.id)
+        self.assertEqual(fundraise.status, Fundraise.CLOSED)
+        self.assertEqual(fundraise.goal_amount, Decimal(500))
+        self.assertEqual(
+            Fundraise.objects.filter(
+                unified_document=proposal.unified_document
+            ).count(),
+            1,
+        )
+
 
 class CloseFundraiseTests(TestCase):
     """Tests for FundraiseService.close_fundraise() method."""
