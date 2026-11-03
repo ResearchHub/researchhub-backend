@@ -1,6 +1,6 @@
 import logging
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
@@ -15,6 +15,7 @@ from purchase.models import (
     FundingDistribution,
     FundingPool,
     Fundraise,
+    Grant,
     Purchase,
     RscExchangeRate,
     UsdFundraiseContribution,
@@ -27,6 +28,7 @@ from purchase.related_models.constants import (
     USD_FUNDRAISE_FEE_PERCENT,
 )
 from purchase.related_models.constants.currency import RSC, USD
+from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.services.fundraise_notification_service import (
     FundraiseNotificationService,
 )
@@ -35,6 +37,7 @@ from reputation.distributions import create_bounty_refund_distribution
 from reputation.distributor import Distributor
 from reputation.models import BountyFee, Escrow
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -61,6 +64,10 @@ USD_CONTRIBUTION_CSV_HEADERS = [
 ]
 
 logger = logging.getLogger(__name__)
+
+AWARD_PROPOSAL_CONTRIBUTION_DENIED = (
+    "Only the grant creator can contribute to an award proposal"
+)
 
 
 class FundraiseService:
@@ -93,10 +100,17 @@ class FundraiseService:
 
         Returns:
             Tuple of (is_valid, error_message). If valid, error_message is None.
+
+        Award proposals accept a payment only from the grant creator. That
+        check runs even when ``check_self_contribution`` is False.
         """
         error = self._contribution_block_reason(fundraise)
         if error:
             return False, error
+
+        award_error = self.award_proposal_contribution_error(fundraise, user)
+        if award_error:
+            return False, award_error
 
         if check_self_contribution and fundraise.created_by.id == user.id:
             nonprofit_org = fundraise.get_nonprofit_org()
@@ -104,6 +118,25 @@ class FundraiseService:
                 return False, "Cannot contribute to your own fundraise"
 
         return True, None
+
+    @staticmethod
+    def award_proposal_contribution_error(
+        fundraise: Fundraise, user: User | None
+    ) -> str | None:
+        """Return an error when ``user`` cannot pay an award proposal."""
+        creator_ids = set(
+            Grant.objects.filter(
+                funding_mechanism=Grant.AWARD,
+                applications__preregistration_post__unified_document_id=(
+                    fundraise.unified_document_id
+                ),
+            ).values_list("created_by_id", flat=True)
+        )
+        if not creator_ids:
+            return None
+        if user is not None and getattr(user, "id", None) in creator_ids:
+            return None
+        return AWARD_PROPOSAL_CONTRIBUTION_DENIED
 
     def create_contribution(
         self,
@@ -125,7 +158,8 @@ class FundraiseService:
             amount: The contribution amount (RSC as Decimal, USD in cents as int)
             currency: The currency type (RSC or USD)
             check_self_contribution: Whether to check if user is contributing to own
-                fundraise
+                fundraise. Award proposals still reject everyone except the grant
+                creator when this is False.
             origin_fund_id: The Endaoment fund (DAF) ID of the doner for USD grants
             use_credits: For RSC contributions, which balance pool pays for
                 ``amount + fee``. When True, pay entirely from funding credits.
@@ -181,6 +215,60 @@ class FundraiseService:
             return self.create_rsc_contribution(
                 user, fundraise, amount, use_credits=use_credits
             )
+
+    def ensure_award_fundraise(
+        self,
+        grant: Grant,
+        post: ResearchhubPost,
+        *,
+        goal_currency: str = USD,
+        end_date: datetime | None = None,
+    ) -> Fundraise | None:
+        """Open a goal-0 fundraise when an existing proposal joins an award grant."""
+        if grant.funding_mechanism != Grant.AWARD:
+            return None
+
+        fundraises = Fundraise.objects.filter(
+            unified_document_id=post.unified_document_id
+        )
+        existing = (
+            fundraises.filter(status=Fundraise.OPEN)
+            .select_related("escrow")
+            .order_by("-created_date")
+            .first()
+        )
+        if existing is None:
+            if fundraises.exists():
+                return fundraises.order_by("-created_date").first()
+        else:
+            if existing.has_received_funding() or existing.is_expired():
+                return existing
+            if existing.goal_amount != 0:
+                existing.goal_amount = Decimal(0)
+                existing.save(update_fields=["goal_amount", "updated_date"])
+            return existing
+
+        fundraise_data = {
+            "goal_amount": Decimal(0),
+            "goal_currency": goal_currency,
+            "unified_document_id": post.unified_document_id,
+            "recipient_user_id": post.created_by_id,
+        }
+        if end_date is not None:
+            fundraise_data["end_date"] = end_date
+
+        serializer = FundraiseCreateSerializer(
+            data=fundraise_data,
+            context={"allow_zero_goal": True},
+        )
+        serializer.is_valid(raise_exception=True)
+        return self.create_fundraise_with_escrow(
+            user=post.created_by,
+            unified_document=post.unified_document,
+            goal_amount=serializer.validated_data["goal_amount"],
+            goal_currency=serializer.validated_data["goal_currency"],
+            end_date=serializer.validated_data.get("end_date"),
+        )
 
     def create_fundraise_with_escrow(
         self,

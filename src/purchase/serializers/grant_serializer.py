@@ -19,6 +19,7 @@ class GrantSerializer(serializers.ModelSerializer):
             "created_date",
             "updated_date",
             "start_date",
+            "funding_mechanism",
         ]
 
 
@@ -36,6 +37,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = Grant
         fields = "__all__"
+        read_only_fields = ("funding_mechanism",)
 
     def get_created_by(self, grant):
         context = self.context

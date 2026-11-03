@@ -513,7 +513,18 @@ class ResearchhubPostViewSet(
                     )
 
                 fundraise = None
-                if goal_amount := data.get("fundraise_goal_amount"):
+                is_award_proposal = (
+                    target_grant is not None
+                    and target_grant.funding_mechanism == Grant.AWARD
+                )
+                if is_award_proposal:
+                    fundraise = FundraiseService().ensure_award_fundraise(
+                        target_grant,
+                        rh_post,
+                        goal_currency=data.get("fundraise_goal_currency") or USD,
+                        end_date=data.get("fundraise_end_date"),
+                    )
+                elif goal_amount := data.get("fundraise_goal_amount"):
                     fundraise_data = {
                         "goal_amount": goal_amount,
                         "goal_currency": data.get("fundraise_goal_currency") or USD,
@@ -715,13 +726,6 @@ class ResearchhubPostViewSet(
             if validation_response is not None:
                 return validation_response
 
-            funding_mechanism_provided = "grant_funding_mechanism" in data
-            validated_funding_mechanism = None
-            if funding_mechanism_provided:
-                validated_funding_mechanism = serializers.ChoiceField(
-                    choices=Grant.FUNDING_MECHANISM_CHOICES
-                ).run_validation(data.get("grant_funding_mechanism"))
-
             serializer = ResearchhubPostSerializer(
                 rh_post, data=data, partial=True, context={"request": request}
             )
@@ -774,9 +778,6 @@ class ResearchhubPostViewSet(
                 if application_visibility := data.get("grant_application_visibility"):
                     grant_data["application_visibility"] = application_visibility
 
-                if funding_mechanism_provided:
-                    grant_data["funding_mechanism"] = validated_funding_mechanism
-
                 grant_serializer = GrantCreateSerializer(data=grant_data)
                 grant_serializer.is_valid(raise_exception=True)
 
@@ -796,10 +797,6 @@ class ResearchhubPostViewSet(
                     existing_grant.application_visibility = (
                         grant_serializer.validated_data["application_visibility"]
                     )
-                if "funding_mechanism" in grant_serializer.validated_data:
-                    existing_grant.funding_mechanism = grant_serializer.validated_data[
-                        "funding_mechanism"
-                    ]
 
                 # Handle contacts properly - get contact_ids and convert to User objects
                 contact_ids = grant_serializer.validated_data.get("contact_ids", [])
@@ -810,11 +807,6 @@ class ResearchhubPostViewSet(
                     existing_grant.contacts.clear()
 
                 existing_grant.save()
-                grant = existing_grant
-            elif existing_grant and funding_mechanism_provided:
-                # Allow updating mechanism alone without re-sending grant_amount.
-                existing_grant.funding_mechanism = validated_funding_mechanism
-                existing_grant.save(update_fields=["funding_mechanism", "updated_date"])
                 grant = existing_grant
             else:
                 # No grant data provided or no existing grant, preserve existing grant
