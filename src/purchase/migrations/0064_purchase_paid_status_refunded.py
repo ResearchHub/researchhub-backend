@@ -37,6 +37,21 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterField(
+            model_name="aggregatepurchase",
+            name="paid_status",
+            field=models.CharField(
+                choices=[
+                    ("FAILED", "FAILED"),
+                    ("PAID", "PAID"),
+                    ("PENDING", "PENDING"),
+                    ("REFUNDED", "REFUNDED"),
+                ],
+                default="INITIATED",
+                max_length=255,
+                null=True,
+            ),
+        ),
+        migrations.AlterField(
             model_name="purchase",
             name="paid_status",
             field=models.CharField(
