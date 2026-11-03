@@ -28,6 +28,10 @@ class GrantCreateSerializer(serializers.ModelSerializer):
         choices=Grant.APPLICATION_VISIBILITY_CHOICES,
         required=False,
     )
+    funding_mechanism = serializers.ChoiceField(
+        choices=Grant.FUNDING_MECHANISM_CHOICES,
+        required=False,
+    )
 
     class Meta:
         model = Grant
@@ -41,6 +45,7 @@ class GrantCreateSerializer(serializers.ModelSerializer):
             "end_date",
             "contact_ids",
             "application_visibility",
+            "funding_mechanism",
         ]
 
     def validate(self, data):

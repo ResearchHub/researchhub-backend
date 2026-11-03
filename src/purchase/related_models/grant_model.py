@@ -45,6 +45,14 @@ class Grant(DefaultModel):
         (APPLICATION_VISIBILITY_PUBLIC, "Applications must be public"),
     )
 
+    FUNDING = "FUNDING"
+    AWARD = "AWARD"
+
+    FUNDING_MECHANISM_CHOICES = (
+        (FUNDING, "Funding"),
+        (AWARD, "Award"),
+    )
+
     # Foreign key relationships
     created_by = models.ForeignKey(
         "user.User",
@@ -101,6 +109,16 @@ class Grant(DefaultModel):
             "Privacy rule applied to preregistrations applying to this grant. "
             "OPTIONAL lets the applicant choose; PRIVATE/PUBLIC require the "
             "applicant's preregistration to match."
+        ),
+    )
+    funding_mechanism = models.CharField(
+        choices=FUNDING_MECHANISM_CHOICES,
+        default=FUNDING,
+        max_length=16,
+        db_comment=(
+            "How money reaches proposals. FUNDING uses a community goal; "
+            "AWARD has the creator pay proposals directly, with pool RSC "
+            "allocated separately."
         ),
     )
     flags = GenericRelation("discussion.Flag")

@@ -154,6 +154,7 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_mechanism",
                     "funding_pool",
                 ]
             },
@@ -360,6 +361,7 @@ class ResearchhubUnifiedDocumentViewSet(GenericViewSet):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_mechanism",
                     "funding_pool",
                 ]
             },
