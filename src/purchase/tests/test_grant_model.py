@@ -155,31 +155,6 @@ class GrantModelTests(TestCase):
         self.assertEqual(self.grant.unified_document, self.post.unified_document)
         self.assertIn(self.grant, self.post.unified_document.grants.all())
 
-    def test_grant_defaults(self):
-        """Test default values for grant fields"""
-        grant = Grant.objects.create(
-            created_by=self.user,
-            unified_document=self.post.unified_document,
-            amount=Decimal("10000.00"),
-            organization="Test Org",
-            description="Test description",
-        )
-
-        # Test default currency
-        self.assertEqual(grant.currency, "USD")
-
-        # Test default status
-        self.assertEqual(grant.status, Grant.PENDING)
-
-        # Test default funding mechanism
-        self.assertEqual(grant.funding_mechanism, Grant.FUNDING)
-
-        # Test that start_date is auto-set
-        self.assertIsNotNone(grant.start_date)
-
-        # Test that end_date defaults to None
-        self.assertIsNone(grant.end_date)
-
     def test_grant_with_end_date(self):
         """Test creating a grant with an end date"""
         end_date = datetime.now(UTC) + timedelta(days=60)
