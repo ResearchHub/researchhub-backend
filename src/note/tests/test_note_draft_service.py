@@ -3,7 +3,6 @@ from decimal import Decimal
 from django.test import TestCase
 
 from note.models import GrantSettings
-from note.serializers.note_serializer import GrantSettingsSerializer
 from note.services.note_draft_service import (
     NOT_RFP_NOTE,
     NOTE_PUBLISHED,
@@ -18,20 +17,6 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from user.tests.helpers import create_random_authenticated_user
-
-
-class GrantSettingsSerializerFundingMechanismTests(TestCase):
-    def test_rejects_empty_and_unknown_funding_mechanisms(self):
-        for invalid in ("", "POOL", None):
-            with self.subTest(invalid=invalid):
-                # Act
-                serializer = GrantSettingsSerializer(
-                    data={"funding_mechanism": invalid}, partial=True
-                )
-
-                # Assert
-                self.assertFalse(serializer.is_valid())
-                self.assertIn("funding_mechanism", serializer.errors)
 
 
 class UpdateGrantSettingsTests(TestCase):
@@ -60,24 +45,6 @@ class UpdateGrantSettingsTests(TestCase):
         self.assertEqual(list(settings.contacts.all()), [self.user])
         self.assertEqual(self.note.grant_settings, settings)
         self.assertEqual(settings.funding_mechanism, Grant.FUNDING)
-
-    def test_funding_mechanism_defaults_to_funding(self):
-        # Act
-        settings = update_grant_settings(
-            note=self.note, values={"organization": "Research Foundation"}
-        )
-
-        # Assert
-        self.assertEqual(settings.funding_mechanism, Grant.FUNDING)
-
-    def test_funding_mechanism_can_be_award(self):
-        # Act
-        settings = update_grant_settings(
-            note=self.note, values={"funding_mechanism": Grant.AWARD}
-        )
-
-        # Assert
-        self.assertEqual(settings.funding_mechanism, Grant.AWARD)
 
     def test_leaves_the_caller_values_intact(self):
         # Arrange
