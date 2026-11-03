@@ -22,7 +22,7 @@ Run Django commands from the repository root with `cd src && uv run python manag
 
 ```bash
 # Run the API
-cd src && uv run python manage.py runserver
+cd src && uv run uvicorn researchhub.asgi:application --host 0.0.0.0 --reload --lifespan off
 
 # Database
 cd src && uv run python manage.py migrate

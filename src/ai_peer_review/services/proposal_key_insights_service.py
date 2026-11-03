@@ -25,6 +25,7 @@ from ai_peer_review.services.proposal_review_scoring import parse_json_response
 from ai_peer_review.services.proposal_review_service import (
     get_proposal_markdown,
 )
+from research_ai.services.tracing_service import trace_operation
 from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -169,6 +170,15 @@ class ProposalKeyInsightsService:
         ``ProposalKeyInsight`` and related ``ProposalKeyInsightItem`` rows. With
         ``force=False``, skips the LLM when a completed key insight already exists.
         """
+        # Tagged with the review so Braintrust can add this cost to the review's.
+        with trace_operation(
+            "ai_peer_review.key_insights",
+            span_type="task",
+            metadata={"review_id": review_id},
+        ):
+            return self._run(review_id, force=force)
+
+    def _run(self, review_id: int, *, force: bool) -> ProposalKeyInsight:
         review = ProposalReview.objects.select_related("unified_document", "grant").get(
             pk=review_id
         )

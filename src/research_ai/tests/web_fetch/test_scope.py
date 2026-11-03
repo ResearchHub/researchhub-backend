@@ -142,6 +142,16 @@ class MentionedTests(TestCase):
                 # Act / Assert
                 self.assertFalse(mentioned(echoed, context))
 
+    def test_a_tool_input_word_that_is_no_host_is_ignored(self):
+        # Arrange
+        context = [
+            *_tool_turn("edit_note", {"content": "Yields rose 24%."}, {"ok": True}),
+            *_tool_turn("web_search", {"query": "crispr"}, {"results": [{"url": URL}]}),
+        ]
+
+        # Act / Assert
+        self.assertTrue(mentioned(URL, context))
+
     def test_a_tool_result_adding_parameters_to_a_written_url_does_not_count(self):
         # Arrange
         context = _tool_turn(

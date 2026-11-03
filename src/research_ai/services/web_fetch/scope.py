@@ -234,7 +234,11 @@ def _canonical(url: str) -> str | None:
         host = parsed.raw_host.rstrip(".")
         if not host:
             return None
-        parsed = parsed.with_host(host)
+        # yarl parses "https://24%." but refuses to set "24%" as a host.
+        try:
+            parsed = parsed.with_host(host)
+        except ValueError:
+            return None
     # yarl prints "https://host" without its root slash unless a query follows.
     if parsed.raw_path == "/" and not parsed.raw_query_string:
         parsed = parsed.with_path("/")

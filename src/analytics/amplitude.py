@@ -270,6 +270,16 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
                 "object_id": kwargs.get("pk"),
             },
         },
+        # Funding pool contributions
+        "funding_pool_create_contribution": {
+            "activity_type": UserActivityTypes.FUND,
+            "properties": lambda: {
+                "purchase_id": _get_purchase_id_from_response(res),
+                "amount": _get_amount_from_response(res) or request.data.get("amount"),
+                "content_type": "funding_pool",
+                "object_id": kwargs.get("pk"),
+            },
+        },
         # Tips/Boosts (Purchase with BOOST type)
         "purchase_create": {
             "activity_type": UserActivityTypes.TIP,
@@ -324,9 +334,9 @@ def _get_object_id_from_response(res):
 
 
 def _get_purchase_id_from_response(res):
-    """Extract purchase ID from fundraise contribution response"""
-    # This might need adjustment based on actual response structure
-    return res.data.get("purchase_id") or res.data.get("id")
+    """Extract purchase ID from contribution response or amplitude_data."""
+    amplitude_data = getattr(res, "amplitude_data", None) or {}
+    return amplitude_data.get("purchase_id") or res.data.get("purchase_id")
 
 
 def _get_amount_from_response(res):

@@ -29,6 +29,10 @@ FAILED_STATES = {"FAILED", "CANCELLED", "DENIED"}
 # but not yet finalized (i.e. not yet safe to credit the user).
 PENDING_DEPOSIT_STATES = {"INITIATED", "CONFIRMED"}
 
+# Characters Circle rejects in wallet metadata names
+# (error code `allowed_characters_format`).
+_WALLET_NAME_DISALLOWED_CHARS = str.maketrans("", "", "<>(){};*")
+
 # Single source of truth for network <-> Circle blockchain mappings.
 _NETWORK_DEFS = [
     {
@@ -221,7 +225,9 @@ class CircleWalletService:
     def _create_wallet(self, wallet: Wallet, user: User) -> None:
         """Create new Circle wallets (ETH + Base) and store both wallet IDs."""
         idempotency_key = str(uuid.uuid5(uuid.NAMESPACE_URL, f"rh-wallet-{wallet.pk}"))
-        full_name = user.get_full_name().strip()
+        full_name = " ".join(
+            user.get_full_name().translate(_WALLET_NAME_DISALLOWED_CHARS).split()
+        )
         wallet_name = f"{full_name}'s wallet" if full_name else None
         result = self.client.create_wallet(
             idempotency_key=idempotency_key,
