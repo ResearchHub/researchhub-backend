@@ -109,7 +109,8 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                 .order_by("provider")
                 .first()
             )
-            if social_account:
+            # Linked social accounts must not hide email sign-in for password users.
+            if social_account and not user.has_usable_password():
                 return Response(
                     # Social sign-in uses the provider-confirmed email.
                     {

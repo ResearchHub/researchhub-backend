@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Iterator
 
+import requests
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
@@ -258,7 +259,12 @@ def execute_editor_daily_payout_task():
     return result
 
 
-@app.task
+@app.task(
+    autoretry_for=(requests.RequestException,),
+    max_retries=3,
+    retry_backoff=60,
+    retry_backoff_max=600,
+)
 def execute_rsc_exchange_rate_record_tasks():
     result = rsc_exchange_rate_record_tasks()
     logger.info("Completed rsc_exchange_rate_record_tasks with result: %s", result)
