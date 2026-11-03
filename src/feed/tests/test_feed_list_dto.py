@@ -232,6 +232,7 @@ class FundingFeedListDtoTests(AWSMockTestCase):
             short_title="Test Grant",
             description="Grant description",
             status=Grant.OPEN,
+            funding_mechanism=Grant.AWARD,
         )
         GrantApplication.objects.create(
             grant=grant, preregistration_post=prereg_post, applicant=self.user
@@ -259,6 +260,7 @@ class FundingFeedListDtoTests(AWSMockTestCase):
         self.assertEqual(len(grants), 1)
         self.assertEqual(grants[0]["post_id"], grant_post.id)
         self.assertEqual(grants[0]["num_applicants"], 1)
+        self.assertEqual(grants[0]["funding_mechanism"], Grant.AWARD)
 
     @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
     def test_funding_nonprofit_is_slim(self, mock_usd_to_rsc):

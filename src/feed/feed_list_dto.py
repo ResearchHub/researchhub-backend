@@ -284,6 +284,7 @@ def _serialize_slim_grant(grant, context):
         "short_title": grant.short_title,
         "is_expired": grant.is_expired(),
         "is_active": grant.is_active(),
+        "funding_mechanism": grant.funding_mechanism,
     }
 
     all_applications = serialize_slim_grant_applications(grant, context)
@@ -391,6 +392,10 @@ class FundingFeedPostSerializer(serializers.Serializer):
         ):
             fundraise = post.unified_document.fundraises.first()
             data["fundraise"] = _serialize_slim_fundraise(fundraise, self.context)
+
+        applications = list(post.grant_applications.all())
+        if applications:
+            data["funding_mechanism"] = applications[0].grant.funding_mechanism
 
         return data
 
@@ -627,6 +632,7 @@ class FundingFeedListEntrySerializer(FundFeedListEntrySerializer):
                     "currency": grant.currency,
                     "description": grant.description,
                     "status": grant.status,
+                    "funding_mechanism": grant.funding_mechanism,
                     "image": self._get_grant_image(grant),
                     "num_applicants": num_applicants,
                 }

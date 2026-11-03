@@ -5,6 +5,7 @@ from rest_framework import serializers
 
 from ai_peer_review.serializers import ProposalKeyInsightSerializer
 from purchase.models import Grant
+from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -174,7 +175,9 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                         if application.preregistration_post
                         else None
                     ),
-                    "fundraise": self._serialize_application_fundraise(application),
+                    "fundraise": self._serialize_application_fundraise(
+                        application, grant
+                    ),
                     "key_insight": self._serialize_application_key_insight(
                         application, review_by_ud
                     ),
@@ -199,7 +202,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         return ProposalKeyInsightSerializer(ki).data
 
     @classmethod
-    def _serialize_application_fundraise(cls, application):
+    def _serialize_application_fundraise(cls, application, grant):
         post = application.preregistration_post
         if (
             not post
@@ -217,32 +220,21 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             return None
         fundraise = fundraises[0]
 
-        usd_goal = float(fundraise.goal_amount)
-        try:
-            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
-        except AttributeError:
-            rsc_goal = None
+        is_award = grant.funding_mechanism == Grant.AWARD
+        goal_amount = None
+        if not is_award:
+            usd_goal = float(fundraise.goal_amount)
+            try:
+                rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+            except AttributeError:
+                rsc_goal = None
+            goal_amount = {"usd": usd_goal, "rsc": rsc_goal}
 
         aggregated = fundraise.get_contributors_summary()
-
-        rsc_raised = sum(c.total_rsc for c in aggregated.top)
-        usd_raised = sum(c.total_usd for c in aggregated.top)
-        if fundraise.escrow:
-            escrow_rsc = float(
-                fundraise.escrow.amount_holding + fundraise.escrow.amount_paid
-            )
-            rsc_raised += escrow_rsc
-
-        try:
-            total_usd = usd_raised + (
-                RscExchangeRate.rsc_to_usd(rsc_raised) if rsc_raised > 0 else 0
-            )
-            total_rsc = rsc_raised + (
-                RscExchangeRate.usd_to_rsc(usd_raised) if usd_raised > 0 else 0
-            )
-        except AttributeError:
-            total_usd = usd_raised
-            total_rsc = rsc_raised
+        amount_raised = {
+            "usd": fundraise.get_amount_raised(currency=USD),
+            "rsc": fundraise.get_amount_raised(currency=RSC),
+        }
 
         contributors = []
         for entry in aggregated.top:
@@ -301,11 +293,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             "id": fundraise.id,
             "title": post.title,
             "status": fundraise.status,
-            "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
-            "amount_raised": {
-                "usd": total_usd,
-                "rsc": total_rsc,
-            },
+            **({} if goal_amount is None else {"goal_amount": goal_amount}),
+            "amount_raised": amount_raised,
             "contributors": {
                 "total": aggregated.total,
                 "top": contributors,
