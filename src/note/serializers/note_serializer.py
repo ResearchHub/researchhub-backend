@@ -107,6 +107,7 @@ class GrantSettingsSerializer(ModelSerializer):
             "currency",
             "description",
             "end_date",
+            "funding_mechanism",
             "organization",
         ]
 
@@ -384,6 +385,7 @@ class NoteSerializer(ModelSerializer):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_mechanism",
                     "funding_pool",
                 ]
             },
@@ -565,6 +567,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "contacts",
                     "applications",
                     "application_visibility",
+                    "funding_mechanism",
                     "funding_pool",
                 ]
             },

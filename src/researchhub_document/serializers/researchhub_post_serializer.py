@@ -335,6 +335,7 @@ class ResearchhubPostSerializer(
                     "title": grant_post.title if grant_post else None,
                     "applicant_count": applicant_counts.get(grant.id, 0),
                     "application_visibility": grant.application_visibility,
+                    "funding_mechanism": grant.funding_mechanism,
                     "application_id": application.id,
                     "created_by": {"id": grant.created_by_id},
                     "funding_pool": self._serialize_grant_funding_pool(grant),
