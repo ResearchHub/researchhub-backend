@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 
 from ai_peer_review.models import OverallRating, ProposalReview, Status
 from ai_peer_review.serializers import ProposalReviewSerializer
+from note.models import GrantSettings
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
 from purchase.models import Grant, GrantApplication
@@ -493,6 +494,75 @@ class ViewTests(APITestCase):
         )
         self.assertEqual(doc_response.data["grant"]["status"], "PENDING")
 
+    def test_grant_publish_uses_draft_funding_mechanism_when_request_omits_it(self):
+        """Draft note grant_settings.funding_mechanism is used when publishing."""
+        # Arrange
+        author = create_random_default_user("award_draft_author", moderator=True)
+        make_user_verified(author)
+        note, _ = create_note(author, organization=None)
+        note.document_type = GRANT
+        note.save(update_fields=["document_type"])
+        GrantSettings.objects.create(note=note, funding_mechanism=Grant.AWARD)
+        self.client.force_authenticate(author)
+
+        # Act — no grant_funding_mechanism in the publish payload
+        response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "note_id": note.id,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "Award Foundation",
+                "grant_description": "Award-style RFP from draft settings",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["grant"]["funding_mechanism"], Grant.AWARD)
+        grant = Grant.objects.get(id=response.data["grant"]["id"])
+        self.assertEqual(grant.funding_mechanism, Grant.AWARD)
+
+    def test_grant_publish_request_funding_mechanism_overrides_draft(self):
+        """Request grant_funding_mechanism wins over draft grant_settings."""
+        # Arrange
+        author = create_random_default_user("override_draft_author", moderator=True)
+        make_user_verified(author)
+        note, _ = create_note(author, organization=None)
+        note.document_type = GRANT
+        note.save(update_fields=["document_type"])
+        GrantSettings.objects.create(note=note, funding_mechanism=Grant.AWARD)
+        self.client.force_authenticate(author)
+
+        # Act
+        response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "note_id": note.id,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "Funding Foundation",
+                "grant_description": "Request overrides draft award setting",
+                "grant_funding_mechanism": Grant.FUNDING,
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["grant"]["funding_mechanism"], Grant.FUNDING)
+
     def test_grant_created_with_end_date(self):
         """Test that a grant can be created with an end date"""
         author = create_random_default_user("author", moderator=True)
@@ -926,6 +996,117 @@ class ViewTests(APITestCase):
         self.assertEqual(
             updated_response.data["grant"]["description"], "Grant to be preserved"
         )
+
+    def test_grant_funding_mechanism_updates_without_grant_amount(self):
+        """Mechanism can be updated on an existing grant without re-sending amount."""
+        # Arrange
+        author = create_random_default_user("mechanism_update_author", moderator=True)
+        make_user_verified(author)
+        self.client.force_authenticate(author)
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "grant_amount": 40000,
+                "grant_currency": "USD",
+                "grant_organization": "Mechanism Foundation",
+                "grant_description": "Grant mechanism update",
+            },
+        )
+        self.assertEqual(doc_response.status_code, 200)
+        grant_id = doc_response.data["grant"]["id"]
+        self.assertEqual(doc_response.data["grant"]["funding_mechanism"], Grant.FUNDING)
+        original_updated_date = Grant.objects.get(id=grant_id).updated_date
+
+        # Act
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": "x" * MIN_POST_TITLE_LENGTH,
+                "grant_funding_mechanism": Grant.AWARD,
+            },
+        )
+
+        # Assert
+        self.assertEqual(updated_response.status_code, 200)
+        self.assertEqual(updated_response.data["grant"]["id"], grant_id)
+        self.assertEqual(
+            updated_response.data["grant"]["funding_mechanism"], Grant.AWARD
+        )
+        self.assertEqual(updated_response.data["grant"]["amount"]["usd"], 40000.0)
+        grant = Grant.objects.get(id=grant_id)
+        self.assertEqual(grant.funding_mechanism, Grant.AWARD)
+        self.assertGreater(grant.updated_date, original_updated_date)
+
+    def test_grant_funding_mechanism_update_rejects_invalid_value(self):
+        """Invalid/empty mechanism is rejected before the post is mutated."""
+        # Arrange
+        author = create_random_default_user("bad_mechanism_author", moderator=True)
+        make_user_verified(author)
+        self.client.force_authenticate(author)
+        original_title = "x" * MIN_POST_TITLE_LENGTH
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "x" * MIN_POST_BODY_LENGTH,
+                "title": original_title,
+                "grant_amount": 40000,
+                "grant_currency": "USD",
+                "grant_organization": "Mechanism Foundation",
+                "grant_description": "Grant mechanism validation",
+            },
+        )
+        self.assertEqual(doc_response.status_code, 200)
+        post_id = doc_response.data["id"]
+        grant_id = doc_response.data["grant"]["id"]
+
+        for invalid, with_amount in (("", False), ("NOT_A_MECHANISM", True)):
+            with self.subTest(invalid=invalid, with_amount=with_amount):
+                payload = {
+                    "post_id": post_id,
+                    "document_type": "GRANT",
+                    "created_by": author.id,
+                    "full_src": "updated body",
+                    "is_public": True,
+                    "renderable_text": "y" * MIN_POST_BODY_LENGTH,
+                    "title": "y" * MIN_POST_TITLE_LENGTH,
+                    "grant_funding_mechanism": invalid,
+                }
+                if with_amount:
+                    payload.update(
+                        {
+                            "grant_amount": 45000,
+                            "grant_currency": "USD",
+                            "grant_organization": "Mechanism Foundation",
+                            "grant_description": "Grant mechanism validation",
+                        }
+                    )
+
+                # Act
+                updated_response = self.client.post("/api/researchhubpost/", payload)
+
+                # Assert
+                self.assertEqual(updated_response.status_code, 400)
+                post = ResearchhubPost.objects.get(id=post_id)
+                self.assertEqual(post.title, original_title)
+                grant = Grant.objects.get(id=grant_id)
+                self.assertEqual(grant.funding_mechanism, Grant.FUNDING)
+                self.assertEqual(grant.amount, Decimal("40000.00"))
 
     def test_grant_update_with_end_date(self):
         """Test that grant end date can be updated"""
@@ -1618,6 +1799,9 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         )
 
     def test_get_preregistration_includes_grants_and_ai_peer_review(self):
+        self.grant_a.funding_mechanism = Grant.AWARD
+        self.grant_a.save(update_fields=["funding_mechanism"])
+
         url = f"/api/researchhubpost/{self.prereg_post.id}/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -1644,6 +1828,7 @@ class PreregistrationGrantsPayloadTests(APITestCase):
             entry_a["application_visibility"],
             Grant.APPLICATION_VISIBILITY_OPTIONAL,
         )
+        self.assertEqual(entry_a["funding_mechanism"], Grant.AWARD)
         self.assertEqual(entry_a["application_id"], self.application_a.id)
         self.assertEqual(entry_a["created_by"]["id"], self.moderator.id)
         funding_pool_a = entry_a["funding_pool"]
@@ -1677,6 +1862,7 @@ class PreregistrationGrantsPayloadTests(APITestCase):
         self.assertEqual(entry_b["title"], grant_b_post.title)
         self.assertEqual(entry_b["applicant_count"], 1)
         self.assertEqual(entry_b["application_id"], self.application_b.id)
+        self.assertEqual(entry_b["funding_mechanism"], Grant.FUNDING)
         self.assertEqual(entry_b["created_by"]["id"], self.moderator.id)
         self.assertIsNone(entry_b["funding_pool"])
         self.assertEqual(entry_b["proposal"]["application_id"], self.application_b.id)
