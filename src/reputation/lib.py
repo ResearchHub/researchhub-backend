@@ -24,6 +24,7 @@ from mailing_list.services import EmailService
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
+from reputation.services.hot_wallet_nonce_service import HotWalletNonceService
 from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
@@ -417,20 +418,20 @@ def reserve_withdrawal_nonce(withdrawal):
     Assign the broadcast nonce before any transfer is sent. Callers must commit
     this write on its own, so a retry after an ambiguous send failure reuses
     the nonce instead of fetching a fresh one and paying out twice.
+
+    HotWalletNonceService gives concurrent withdrawals different nonces.
     """
     if withdrawal.broadcast_nonce is not None or not _is_broadcastable(withdrawal):
         return withdrawal
 
     w3 = _get_w3_for_network(withdrawal.network)
     checksum_sender = Web3.to_checksum_address(settings.WEB3_WALLET_ADDRESS)
-    withdrawal.broadcast_nonce = get_nonce(w3, checksum_sender)
-    update_fields = ["broadcast_nonce"]
-    if withdrawal.paid_status == PaidStatusModelMixin.PENDING:
-        # PENDING with a nonce means parked, so keep recovered rows broadcastable.
-        withdrawal.paid_status = PaidStatusModelMixin.INITIATED
-        update_fields.append("paid_status")
-    withdrawal.save(update_fields=update_fields)
-    return withdrawal
+    # The pending count only grows, so reading it before the service takes
+    # its lock is safe and keeps the RPC call out of the lock.
+    chain_nonce = get_nonce(w3, checksum_sender)
+    return HotWalletNonceService().reserve_withdrawal_nonce(
+        withdrawal, checksum_sender, chain_nonce
+    )
 
 
 def broadcast_withdrawal_transfer(withdrawal):

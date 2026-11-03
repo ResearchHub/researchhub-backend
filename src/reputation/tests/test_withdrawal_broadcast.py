@@ -1,3 +1,4 @@
+import threading
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest import mock
@@ -5,6 +6,7 @@ from unittest import mock
 from celery.exceptions import Retry
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection, transaction
 from django.test import override_settings
 from web3.exceptions import TransactionNotFound
 
@@ -14,8 +16,9 @@ from reputation.lib import (
     broadcast_withdrawal_transfer,
     check_pending_withdrawal,
     evaluate_transaction_hash,
+    reserve_withdrawal_nonce,
 )
-from reputation.models import Withdrawal
+from reputation.models import HotWalletNonce, Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.tasks import broadcast_withdrawal
 from reputation.tests.helpers import create_deposit
@@ -378,6 +381,128 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         withdrawal.refresh_from_db()
         self.assertEqual(withdrawal.transaction_hash, "0xabc")
         self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.PENDING)
+
+
+@override_settings(WEB3_WALLET_ADDRESS=TEST_WEB3_WALLET_ADDRESS)
+class ReserveWithdrawalNonceTests(AWSMockTransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = create_random_authenticated_user("nonce_user")
+
+    def _create_withdrawal(self, network="ETHEREUM"):
+        return Withdrawal.objects.create(
+            user=self.user,
+            token_address="0xtoken",
+            from_address="0xfrom",
+            to_address="0xto",
+            amount="500",
+            fee="10",
+            network=network,
+            paid_status=PaidStatusModelMixin.INITIATED,
+        )
+
+    def _reserve(self, withdrawal_id):
+        with transaction.atomic():
+            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
+            return reserve_withdrawal_nonce(withdrawal).broadcast_nonce
+
+    @mock.patch("reputation.lib.get_nonce")
+    def test_concurrent_reservations_get_different_nonces(self, mock_nonce):
+        # Arrange: both workers read the same pending count before either
+        # reaches the counter, and the counter row does not exist yet.
+        barrier = threading.Barrier(2, timeout=10)
+
+        def chain_nonce(w3, sender):
+            barrier.wait()
+            return 7
+
+        mock_nonce.side_effect = chain_nonce
+        withdrawal_ids = [self._create_withdrawal().id for _ in range(2)]
+        nonces, errors = [], []
+
+        def reserve(withdrawal_id):
+            try:
+                nonces.append(self._reserve(withdrawal_id))
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                connection.close()
+
+        threads = [
+            threading.Thread(target=reserve, args=(withdrawal_id,))
+            for withdrawal_id in withdrawal_ids
+        ]
+
+        # Act
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=30)
+
+        # Assert
+        self.assertEqual(errors, [])
+        self.assertEqual(sorted(nonces), [7, 8])
+        self.assertEqual(
+            sorted(
+                Withdrawal.objects.filter(id__in=withdrawal_ids).values_list(
+                    "broadcast_nonce", flat=True
+                )
+            ),
+            [7, 8],
+        )
+        self.assertEqual(HotWalletNonce.objects.get(network="ETHEREUM").next_nonce, 9)
+
+    @mock.patch("reputation.lib.get_nonce", return_value=7)
+    def test_counter_ahead_of_chain_hands_out_next_nonce(self, mock_nonce):
+        # Arrange: an earlier reservation has not reached the node yet.
+        first = self._create_withdrawal()
+        second = self._create_withdrawal()
+        self._reserve(first.id)
+
+        # Act
+        nonce = self._reserve(second.id)
+
+        # Assert
+        self.assertEqual(nonce, 8)
+
+    @mock.patch("reputation.lib.get_nonce")
+    def test_counter_catches_up_with_transactions_sent_elsewhere(self, mock_nonce):
+        # Arrange: the wallet sent transactions outside the withdrawal flow.
+        mock_nonce.return_value = 3
+        self._reserve(self._create_withdrawal().id)
+        mock_nonce.return_value = 10
+
+        # Act
+        nonce = self._reserve(self._create_withdrawal().id)
+
+        # Assert
+        self.assertEqual(nonce, 10)
+        self.assertEqual(HotWalletNonce.objects.get(network="ETHEREUM").next_nonce, 11)
+
+    @mock.patch("reputation.lib.get_nonce", return_value=7)
+    def test_networks_have_separate_counters(self, mock_nonce):
+        # Arrange
+        self._reserve(self._create_withdrawal(network="ETHEREUM").id)
+
+        # Act
+        nonce = self._reserve(self._create_withdrawal(network="BASE").id)
+
+        # Assert
+        self.assertEqual(nonce, 7)
+
+    @mock.patch("reputation.lib.get_nonce", return_value=7)
+    def test_reserved_nonce_is_kept(self, mock_nonce):
+        # Arrange
+        withdrawal = self._create_withdrawal()
+        self._reserve(withdrawal.id)
+        mock_nonce.return_value = 9
+
+        # Act
+        nonce = self._reserve(withdrawal.id)
+
+        # Assert
+        self.assertEqual(nonce, 7)
+        self.assertEqual(HotWalletNonce.objects.get(network="ETHEREUM").next_nonce, 8)
 
 
 class CheckPendingWithdrawalRecoveryTests(AWSMockTransactionTestCase):
