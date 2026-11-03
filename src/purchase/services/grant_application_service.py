@@ -1,16 +1,33 @@
 from django.template.loader import render_to_string
 
 from mailing_list.services import EmailService
-from purchase.models import GrantApplication
+from purchase.models import Grant, GrantApplication
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.services.work_cover_service_for_email import build_work_cover
+
+AWARD_PROPOSAL_ON_FUNDING_GRANT = (
+    "This proposal is linked to an award grant and cannot apply to a funding grant."
+)
 
 
 class GrantApplicationService:
-    """Handle communication about grant applications."""
+    """Handle grant applications and notice to the grant owner."""
 
     def __init__(self, email_service: EmailService | None = None) -> None:
         """Configure email delivery for grant applications."""
         self._emails = email_service or EmailService()
+
+    def funding_application_error(
+        self, grant: Grant, post: ResearchhubPost
+    ) -> str | None:
+        """Reject a funding grant when the proposal is already on an award grant."""
+        if grant.funding_mechanism == Grant.AWARD:
+            return None
+        if post.grant_applications.filter(
+            grant__funding_mechanism=Grant.AWARD
+        ).exists():
+            return AWARD_PROPOSAL_ON_FUNDING_GRANT
+        return None
 
     def send_application_email(self, application_id: int) -> None:
         """Email the grant owner a preview card of the applicant's proposal."""

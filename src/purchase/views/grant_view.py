@@ -14,6 +14,7 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from purchase.services.fundraise_service import FundraiseService
+from purchase.services.grant_application_service import GrantApplicationService
 from purchase.services.grant_service import GrantModerationService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -293,21 +294,8 @@ class GrantViewSet(viewsets.ModelViewSet):
         if mismatch := self._visibility_mismatch(grant, post):
             return Response({"error": mismatch}, status=400)
 
-        if (
-            grant.funding_mechanism != Grant.AWARD
-            and post.grant_applications.filter(
-                grant__funding_mechanism=Grant.AWARD
-            ).exists()
-        ):
-            return Response(
-                {
-                    "error": (
-                        "This proposal is linked to an award grant and "
-                        "cannot apply to a funding grant."
-                    )
-                },
-                status=400,
-            )
+        if error := GrantApplicationService().funding_application_error(grant, post):
+            return Response({"error": error}, status=400)
 
         with transaction.atomic():
             FundraiseService().ensure_award_fundraise(grant, post)
