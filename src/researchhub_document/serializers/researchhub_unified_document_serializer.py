@@ -85,7 +85,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
 
     class Meta:
         model = ResearchhubUnifiedDocument
-        exclude = ["concepts"]
+        fields = "__all__"
 
     def get_recommendation_metadata(self, unified_doc):
         if hasattr(unified_doc, "recommendation_metadata"):
