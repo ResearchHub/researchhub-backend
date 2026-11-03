@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -210,6 +210,155 @@ class TestFundraiseService(APITestCase):
         self.assertFalse(is_valid)
         self.assertEqual(
             str(serializer.errors["non_field_errors"][0]), "Fundraise already exists"
+        )
+
+    def _grant(self, mechanism):
+        creator = create_random_authenticated_user("award_fundraise_creator")
+        post = create_post(created_by=creator, document_type=GRANT_DOC)
+        return Grant.objects.create(
+            created_by=creator,
+            unified_document=post.unified_document,
+            amount=Decimal(1000),
+            currency="USD",
+            organization="Award Org",
+            description="Award grant",
+            status=Grant.OPEN,
+            funding_mechanism=mechanism,
+        )
+
+    def _proposal(self):
+        return create_post(
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            title="Existing proposal",
+        )
+
+    def test_award_application_opens_a_zero_goal_fundraise(self):
+        """An award grant gets a goal of 0 when the proposal has no fundraise."""
+        # Arrange
+        grant = self._grant(Grant.AWARD)
+        proposal = self._proposal()
+
+        # Act
+        fundraise = self.service.ensure_award_fundraise(grant, proposal)
+
+        # Assert
+        self.assertEqual(fundraise.goal_amount, Decimal(0))
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+        self.assertEqual(fundraise.created_by, self.user)
+        self.assertEqual(fundraise.unified_document, proposal.unified_document)
+        self.assertIsNotNone(fundraise.escrow)
+        self.assertAlmostEqual(
+            fundraise.end_date.timestamp(),
+            (datetime.now(UTC) + timedelta(days=30)).timestamp(),
+            delta=60,
+        )
+
+    def test_requested_end_date_is_stored(self):
+        """The caller can set the same end date a publish request would send."""
+        # Arrange
+        grant = self._grant(Grant.AWARD)
+        proposal = self._proposal()
+        end_date = datetime.now(UTC) + timedelta(days=60)
+
+        # Act
+        fundraise = self.service.ensure_award_fundraise(
+            grant, proposal, end_date=end_date
+        )
+
+        # Assert
+        self.assertEqual(fundraise.end_date, end_date)
+
+    def test_existing_fundraise_goal_becomes_zero(self):
+        """Linking an award grant zeroes an existing goal and keeps its end date."""
+        # Arrange
+        grant = self._grant(Grant.AWARD)
+        proposal = self._proposal()
+        existing = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal(500),
+        )
+        original_end_date = existing.end_date
+
+        # Act
+        fundraise = self.service.ensure_award_fundraise(grant, proposal)
+
+        # Assert
+        self.assertEqual(fundraise.id, existing.id)
+        self.assertEqual(fundraise.goal_amount, Decimal(0))
+        self.assertEqual(fundraise.end_date, original_end_date)
+        fundraises = Fundraise.objects.filter(
+            unified_document=proposal.unified_document
+        )
+        self.assertEqual(fundraises.count(), 1)
+
+    def test_funded_fundraise_is_not_converted(self):
+        """Money already raised keeps the original goal."""
+        # Arrange
+        grant = self._grant(Grant.AWARD)
+        proposal = self._proposal()
+        existing = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal(500),
+        )
+        existing.escrow.amount_holding = Decimal(10)
+        existing.escrow.save(update_fields=["amount_holding"])
+
+        # Act
+        fundraise = self.service.ensure_award_fundraise(grant, proposal)
+
+        # Assert
+        self.assertEqual(fundraise.id, existing.id)
+        self.assertEqual(fundraise.goal_amount, Decimal(500))
+
+    def test_expired_fundraise_is_not_converted(self):
+        """An expired open fundraise keeps its goal."""
+        # Arrange
+        grant = self._grant(Grant.AWARD)
+        proposal = self._proposal()
+        existing = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal(500),
+        )
+        existing.end_date = datetime.now(UTC) - timedelta(days=1)
+        existing.save(update_fields=["end_date"])
+
+        # Act
+        fundraise = self.service.ensure_award_fundraise(grant, proposal)
+
+        # Assert
+        self.assertEqual(fundraise.id, existing.id)
+        self.assertEqual(fundraise.goal_amount, Decimal(500))
+        self.assertTrue(fundraise.is_expired())
+
+    def test_closed_fundraise_is_not_reused(self):
+        """A closed fundraise is not rewritten and no second fundraise is opened."""
+        # Arrange
+        grant = self._grant(Grant.AWARD)
+        proposal = self._proposal()
+        existing = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal(500),
+        )
+        existing.status = Fundraise.CLOSED
+        existing.save(update_fields=["status"])
+
+        # Act
+        fundraise = self.service.ensure_award_fundraise(grant, proposal)
+
+        # Assert
+        self.assertEqual(fundraise.id, existing.id)
+        self.assertEqual(fundraise.status, Fundraise.CLOSED)
+        self.assertEqual(fundraise.goal_amount, Decimal(500))
+        self.assertEqual(
+            Fundraise.objects.filter(
+                unified_document=proposal.unified_document
+            ).count(),
+            1,
         )
 
 
