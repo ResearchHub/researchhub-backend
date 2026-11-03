@@ -424,7 +424,12 @@ def reserve_withdrawal_nonce(withdrawal):
     w3 = _get_w3_for_network(withdrawal.network)
     checksum_sender = Web3.to_checksum_address(settings.WEB3_WALLET_ADDRESS)
     withdrawal.broadcast_nonce = get_nonce(w3, checksum_sender)
-    withdrawal.save(update_fields=["broadcast_nonce"])
+    update_fields = ["broadcast_nonce"]
+    if withdrawal.paid_status == PaidStatusModelMixin.PENDING:
+        # PENDING with a nonce means parked, so keep recovered rows broadcastable.
+        withdrawal.paid_status = PaidStatusModelMixin.INITIATED
+        update_fields.append("paid_status")
+    withdrawal.save(update_fields=update_fields)
     return withdrawal
 
 
@@ -453,8 +458,7 @@ def broadcast_withdrawal_transfer(withdrawal):
 
     checksum_sender = Web3.to_checksum_address(settings.WEB3_WALLET_ADDRESS)
     if withdrawal.broadcast_nonce is None:
-        withdrawal.broadcast_nonce = get_nonce(w3, checksum_sender)
-        withdrawal.save(update_fields=["broadcast_nonce"])
+        reserve_withdrawal_nonce(withdrawal)
     elif get_nonce(w3, checksum_sender) > withdrawal.broadcast_nonce:
         # An earlier attempt may have been accepted by the node before raising.
         return mark_withdrawal_for_reconciliation(
