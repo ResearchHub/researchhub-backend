@@ -449,8 +449,8 @@ class GrantViewTests(APITestCase):
             delta=60,
         )
 
-    def test_award_application_keeps_an_existing_fundraise(self):
-        """An existing proposal fundraise is not replaced when applying."""
+    def test_award_application_zeroes_an_existing_goal(self):
+        """Linking a proposal to an award grant sets its fundraise goal to 0."""
         # Arrange
         award_grant = self._open_grant(Grant.AWARD, "award-existing")
         existing = FundraiseService().create_fundraise_with_escrow(
@@ -458,6 +458,7 @@ class GrantViewTests(APITestCase):
             unified_document=self.preregistration_post.unified_document,
             goal_amount=Decimal(500),
         )
+        original_end_date = existing.end_date
         self.client.force_authenticate(self.regular_user)
 
         # Act
@@ -468,13 +469,51 @@ class GrantViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            GrantApplication.objects.filter(
+                grant=award_grant,
+                preregistration_post=self.preregistration_post,
+            ).exists()
+        )
         existing.refresh_from_db()
-        self.assertEqual(existing.goal_amount, Decimal(500))
+        self.assertEqual(existing.goal_amount, Decimal(0))
+        self.assertEqual(existing.end_date, original_end_date)
+
+    def test_funding_proposal_cannot_apply_to_award_grant(self):
+        """A proposal already on a funding grant cannot join an award grant."""
+        # Arrange
+        funding_grant = self._open_grant(Grant.FUNDING, "funding-first")
+        award_grant = self._open_grant(Grant.AWARD, "award-second")
+        GrantApplication.objects.create(
+            grant=funding_grant,
+            preregistration_post=self.preregistration_post,
+            applicant=self.regular_user,
+        )
+        self.client.force_authenticate(self.regular_user)
+
+        # Act
+        response = self.client.post(
+            f"/api/grant/{award_grant.id}/application/",
+            {"preregistration_post_id": self.preregistration_post.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
+            response.data["error"],
+            "This proposal is linked to a funding grant and "
+            "cannot apply to an award grant.",
+        )
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                grant=award_grant,
+                preregistration_post=self.preregistration_post,
+            ).exists()
+        )
+        self.assertFalse(
             Fundraise.objects.filter(
                 unified_document=self.preregistration_post.unified_document
-            ).count(),
-            1,
+            ).exists()
         )
 
     def test_apply_to_grant_unauthenticated(self):

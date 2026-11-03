@@ -236,6 +236,9 @@ class FundraiseService:
             .first()
         )
         if existing is not None:
+            if existing.goal_amount != 0:
+                existing.goal_amount = Decimal(0)
+                existing.save(update_fields=["goal_amount", "updated_date"])
             return existing
 
         fundraise_data = {

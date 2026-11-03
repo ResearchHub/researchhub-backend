@@ -8,6 +8,9 @@ from researchhub_document.services.work_cover_service_for_email import build_wor
 AWARD_PROPOSAL_ON_FUNDING_GRANT = (
     "This proposal is linked to an award grant and cannot apply to a funding grant."
 )
+FUNDING_PROPOSAL_ON_AWARD_GRANT = (
+    "This proposal is linked to a funding grant and cannot apply to an award grant."
+)
 
 
 class GrantApplicationService:
@@ -20,8 +23,12 @@ class GrantApplicationService:
     def funding_application_error(
         self, grant: Grant, post: ResearchhubPost
     ) -> str | None:
-        """Reject a funding grant when the proposal is already on an award grant."""
+        """Reject a proposal that would mix award and funding on one fundraise."""
         if grant.funding_mechanism == Grant.AWARD:
+            if post.grant_applications.filter(
+                grant__funding_mechanism=Grant.FUNDING
+            ).exists():
+                return FUNDING_PROPOSAL_ON_AWARD_GRANT
             return None
         if post.grant_applications.filter(
             grant__funding_mechanism=Grant.AWARD

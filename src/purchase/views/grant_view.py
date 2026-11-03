@@ -294,10 +294,12 @@ class GrantViewSet(viewsets.ModelViewSet):
         if mismatch := self._visibility_mismatch(grant, post):
             return Response({"error": mismatch}, status=400)
 
-        if error := GrantApplicationService().funding_application_error(grant, post):
-            return Response({"error": error}, status=400)
-
         with transaction.atomic():
+            post = ResearchhubPost.objects.select_for_update().get(pk=post.pk)
+            if error := GrantApplicationService().funding_application_error(
+                grant, post
+            ):
+                return Response({"error": error}, status=400)
             FundraiseService().ensure_award_fundraise(grant, post)
             _, created = GrantApplication.objects.get_or_create(
                 grant=grant, preregistration_post=post, applicant=request.user

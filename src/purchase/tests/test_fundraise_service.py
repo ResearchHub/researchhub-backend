@@ -269,8 +269,8 @@ class TestFundraiseService(APITestCase):
         # Assert
         self.assertEqual(fundraise.end_date, end_date)
 
-    def test_existing_fundraise_is_kept(self):
-        """A proposal that already has a fundraise is not given a second one."""
+    def test_existing_fundraise_goal_becomes_zero(self):
+        """Linking an award grant zeroes an existing goal and keeps its end date."""
         # Arrange
         grant = self._grant(Grant.AWARD)
         proposal = self._proposal()
@@ -279,13 +279,15 @@ class TestFundraiseService(APITestCase):
             unified_document=proposal.unified_document,
             goal_amount=Decimal(500),
         )
+        original_end_date = existing.end_date
 
         # Act
         fundraise = self.service.ensure_award_fundraise(grant, proposal)
 
         # Assert
         self.assertEqual(fundraise.id, existing.id)
-        self.assertEqual(fundraise.goal_amount, Decimal(500))
+        self.assertEqual(fundraise.goal_amount, Decimal(0))
+        self.assertEqual(fundraise.end_date, original_end_date)
         fundraises = Fundraise.objects.filter(
             unified_document=proposal.unified_document
         )
