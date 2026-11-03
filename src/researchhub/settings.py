@@ -432,6 +432,40 @@ ORCID_CLIENT_SECRET = os.environ.get(
 ORCID_REDIRECT_URL = os.environ.get(
     "ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", "")
 )
+
+
+# OAuth 2.0 Authorization Server
+OAUTH_ENABLED = os.environ.get("OAUTH_ENABLED", "false").lower() == "true"
+if PRODUCTION:
+    OAUTH_ISSUER = "https://api.researchhub.com"
+elif STAGING:
+    OAUTH_ISSUER = "https://api.staging.researchhub.com"
+else:
+    OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "http://localhost:8000")
+
+OAUTH2_PROVIDER = {
+    "OIDC_ISS_ENDPOINT": OAUTH_ISSUER,
+    "SCOPES": {"read": "Read your own and shared ResearchHub data"},
+    "OAUTH2_GRANT_TYPES_SUPPORTED": [
+        "authorization_code",
+        "refresh_token",
+    ],
+    "OAUTH2_TOKEN_ENDPOINT_AUTH_METHODS_SUPPORTED": [
+        "none",
+        "client_secret_basic",
+    ],
+    # No implicit grants allowed:
+    "COMPLIANT_BCP_RFC9700_IMPLICIT_GRANT": True,
+    # No password grants allowed:
+    "COMPLIANT_BCP_RFC9700_PASSWORD_GRANT": True,
+    # S256 PKCE only:
+    "COMPLIANT_BCP_RFC9700_PKCE_METHOD": True,
+    # Bearer tokens only in headers:
+    "COMPLIANT_BCP_RFC9700_ACCESS_TOKEN_TRANSPORT": True,
+    # `iss` in authorization responses:
+    "COMPLIANT_BCP_RFC9700_AUTHZ_RESPONSE_ISS": True,
+}
+
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
