@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.db.models import Q, Sum
 from django.db.models.functions import Coalesce
@@ -7,7 +8,7 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
-from purchase.models import Fundraise
+from purchase.models import Fundraise, Purchase
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.usd_fundraise_contribution_model import (
     UsdFundraiseContribution,
@@ -269,3 +270,51 @@ class FundraiseNonprofitOrgTests(TestCase):
         # Assert
         nonprofit = self.fundraise.get_nonprofit_org()
         self.assertEqual(nonprofit, self.nonprofit)
+
+
+class RefundedRscContributionTests(TestCase):
+    def setUp(self):
+        self.user = create_random_authenticated_user("refund_owner", moderator=True)
+        self.contributor = create_random_authenticated_user("refund_contributor")
+        self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        self.fundraise = FundraiseService().create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=1000,
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        self.paid = self._create_purchase("100", Purchase.PAID)
+        self.refunded = self._create_purchase("40", Purchase.REFUNDED)
+
+    def _create_purchase(self, amount, paid_status):
+        return Purchase.objects.create(
+            user=self.contributor,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=self.fundraise.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=paid_status,
+            amount=amount,
+            rsc_usd_rate=0.5,
+        )
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
+    def test_contributors_summary_excludes_refunded_purchases(self, mock_exchange_rate):
+        # Arrange
+        mock_exchange_rate.return_value = 0.5
+
+        # Act
+        summary = self.fundraise.get_contributors_summary()
+
+        # Assert
+        self.assertEqual(summary.total, 1)
+        self.assertEqual(summary.top[0].total_rsc, 100)
+        self.assertEqual(len(summary.top[0].contributions), 1)
+
+    def test_funding_contributions_excludes_refunded_purchases(self):
+        # Act
+        contributions = Purchase.objects.funding_contributions()
+
+        # Assert
+        self.assertQuerySetEqual(contributions, [self.paid])

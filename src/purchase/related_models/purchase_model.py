@@ -27,12 +27,12 @@ class PurchaseQuerySet(models.QuerySet):
         return self.exclude(user_id=user_id)
 
     def funding_contributions(self):
-        """Filter for fundraise contribution purchases."""
+        """Filter for fundraise contribution purchases that were not refunded."""
         return self.filter(
             purchase_type="FUNDRAISE_CONTRIBUTION",
             content_type=ContentType.objects.get_for_model(Fundraise),
             funding_distribution__isnull=True,
-        )
+        ).exclude(paid_status=Purchase.REFUNDED)
 
     def funding_pool_contributions(self):
         """Filter for paid funding-pool (grant/RFP) contribution purchases."""
