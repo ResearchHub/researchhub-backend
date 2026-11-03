@@ -2,59 +2,8 @@
 Functional mappers for converting source records to UserInteractions.
 """
 
-from django.contrib.contenttypes.models import ContentType
-
-from analytics.constants.event_types import (
-    COMMENT_CREATED,
-    DOCUMENT_SAVED_TO_LIST,
-    PEER_REVIEW_CREATED,
-    UPVOTE,
-)
 from analytics.interactions.amplitude_event_parser import AmplitudeEvent
 from analytics.models import UserInteractions
-from discussion.models import Vote
-from researchhub_comment.constants.rh_comment_thread_types import COMMUNITY_REVIEW
-from researchhub_comment.models import RhCommentModel
-from user_lists.models import ListItem
-
-
-def map_from_upvote(vote: Vote) -> UserInteractions:
-    """
-    Map a Vote record (upvote) to a UserInteractions instance.
-
-    Args:
-        vote: Vote record with vote_type=UPVOTE
-
-    Returns:
-        UserInteractions instance (not saved to database)
-
-    Raises:
-        ValueError: If vote is missing required fields (user, unified_document)
-    """
-    # Validate required fields
-    if not vote.created_by_id:
-        raise ValueError(f"Vote {vote.id} has no created_by user")
-
-    # Get unified_document (this is a property that can raise exceptions)
-    try:
-        unified_doc = vote.unified_document
-    except Exception as e:
-        raise ValueError(f"Vote {vote.id} has no valid unified_document: {e!s}")
-
-    if not unified_doc:
-        raise ValueError(f"Vote {vote.id} has None unified_document")
-
-    return UserInteractions(
-        user=vote.created_by,
-        external_user_id=None,
-        event=UPVOTE,
-        unified_document=unified_doc,
-        content_type=vote.content_type,
-        object_id=vote.object_id,
-        event_timestamp=vote.created_date,
-        is_synced_with_personalize=False,
-        personalize_rec_id=None,
-    )
 
 
 def map_from_amplitude_event(amplitude_event: AmplitudeEvent) -> UserInteractions:
@@ -75,57 +24,4 @@ def map_from_amplitude_event(amplitude_event: AmplitudeEvent) -> UserInteraction
         content_type=amplitude_event.content_type,
         object_id=amplitude_event.object_id,
         event_timestamp=amplitude_event.event_timestamp,
-        is_synced_with_personalize=False,
-        personalize_rec_id=amplitude_event.personalize_rec_id,
-        impression=amplitude_event.impression,
-    )
-
-
-def map_from_comment(
-    comment, content_type: ContentType | None = None
-) -> UserInteractions:
-    """
-    Map a RhCommentModel record to a UserInteractions instance (not saved to database).
-    """
-    if content_type is None:
-        content_type = ContentType.objects.get_for_model(RhCommentModel)
-
-    event_type = (
-        PEER_REVIEW_CREATED
-        if comment.comment_type == COMMUNITY_REVIEW
-        else COMMENT_CREATED
-    )
-
-    return UserInteractions(
-        user=comment.created_by,
-        external_user_id=None,
-        event=event_type,
-        unified_document=comment.unified_document,
-        content_type=content_type,
-        object_id=comment.id,
-        event_timestamp=comment.created_date,
-        is_synced_with_personalize=False,
-        personalize_rec_id=None,
-    )
-
-
-def map_from_list_item(
-    list_item: ListItem, content_type: ContentType | None = None
-) -> UserInteractions:
-    """
-    Map a ListItem record (saved to list) to a UserInteractions instance
-    """
-    if content_type is None:
-        content_type = ContentType.objects.get_for_model(ListItem)
-
-    return UserInteractions(
-        user=list_item.created_by,
-        external_user_id=None,
-        event=DOCUMENT_SAVED_TO_LIST,
-        unified_document=list_item.unified_document,
-        content_type=content_type,
-        object_id=list_item.id,
-        event_timestamp=list_item.created_date,
-        is_synced_with_personalize=False,
-        personalize_rec_id=None,
     )
