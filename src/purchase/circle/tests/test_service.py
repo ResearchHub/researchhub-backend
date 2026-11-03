@@ -21,6 +21,7 @@ from purchase.circle.service import (
     CircleWalletService,
     CircleZeroBalanceError,
     get_network_to_blockchain,
+    is_sweep_awaiting_transfer_id,
     process_circle_deposit,
 )
 from purchase.models import Balance, Wallet
@@ -500,6 +501,82 @@ class TestExecuteSweep(TestCase):
 
         self.deposit.refresh_from_db()
         self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_PENDING)
+
+
+class TestIsSweepAwaitingTransferId(TestCase):
+    """Tests for detecting an outbound webhook that raced execute_sweep."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="awaitingsweepuser")
+        Wallet.objects.create(
+            user=self.user,
+            circle_wallet_id="wallet-await",
+            circle_base_wallet_id="wallet-await-base",
+            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
+            address="0xAwaitSweepAddress",
+        )
+        self.deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_transaction_id="notif-await-1",
+            sweep_status=Deposit.SWEEP_PENDING,
+        )
+
+    def test_true_when_wallet_has_pending_sweep(self):
+        # Act
+        result = is_sweep_awaiting_transfer_id(
+            "sweep-tx-await", "wallet-await-base", "BASE"
+        )
+
+        # Assert
+        self.assertTrue(result)
+
+    def test_false_when_transfer_id_already_saved(self):
+        # Arrange
+        self.deposit.sweep_status = Deposit.SWEEP_INITIATED
+        self.deposit.sweep_transfer_id = "sweep-tx-await"
+        self.deposit.save(update_fields=["sweep_status", "sweep_transfer_id"])
+        Deposit.objects.create(
+            user=self.user,
+            amount="50",
+            network="BASE",
+            from_address="",
+            circle_transaction_id="notif-await-2",
+            sweep_status=Deposit.SWEEP_PENDING,
+        )
+
+        # Act
+        result = is_sweep_awaiting_transfer_id(
+            "sweep-tx-await", "wallet-await-base", "BASE"
+        )
+
+        # Assert
+        self.assertFalse(result)
+
+    def test_false_when_no_sweep_pending(self):
+        # Arrange
+        self.deposit.sweep_status = Deposit.SWEEP_COMPLETED
+        self.deposit.save(update_fields=["sweep_status"])
+
+        # Act
+        result = is_sweep_awaiting_transfer_id(
+            "sweep-tx-await", "wallet-await-base", "BASE"
+        )
+
+        # Assert
+        self.assertFalse(result)
+
+    def test_false_for_unknown_wallet_or_blockchain(self):
+        # Act / Assert
+        self.assertFalse(
+            is_sweep_awaiting_transfer_id("sweep-tx-await", "unknown-wallet", "BASE")
+        )
+        self.assertFalse(
+            is_sweep_awaiting_transfer_id("sweep-tx-await", "wallet-await-base", "SOL")
+        )
+        self.assertFalse(is_sweep_awaiting_transfer_id("sweep-tx-await", "", "BASE"))
 
 
 class TestProcessCircleDepositConcurrency(TransactionTestCase):

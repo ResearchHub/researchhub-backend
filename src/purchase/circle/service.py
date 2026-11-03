@@ -152,6 +152,34 @@ def process_circle_deposit(
     return deposit, credited
 
 
+def is_sweep_awaiting_transfer_id(
+    transfer_id: str, circle_wallet_id: str, blockchain: str
+) -> bool:
+    """
+    Whether an outbound transfer may belong to a sweep whose transfer id is not
+    saved yet.
+
+    ``execute_sweep`` saves the transfer id only after Circle returns it, so a
+    fast outbound webhook can arrive first. That is the case when no Deposit
+    has this transfer id yet and the wallet has a dispatched sweep still in
+    ``SWEEP_PENDING``.
+    """
+    if Deposit.objects.filter(sweep_transfer_id=transfer_id).exists():
+        return False
+    network = BLOCKCHAIN_TO_NETWORK.get(blockchain)
+    if not circle_wallet_id or network is None:
+        return False
+    try:
+        wallet = Wallet.get_by_circle_wallet_id(circle_wallet_id, network=network)
+    except Wallet.DoesNotExist:
+        return False
+    return Deposit.objects.filter(
+        user=wallet.user,
+        network=network,
+        sweep_status=Deposit.SWEEP_PENDING,
+    ).exists()
+
+
 # Sweeps worth this amount or more (in USD) go to the multisig;
 # smaller sweeps go to the hot wallet.
 SWEEP_MULTISIG_THRESHOLD_USD = 10_000
