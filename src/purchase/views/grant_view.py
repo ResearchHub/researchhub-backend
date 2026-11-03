@@ -292,6 +292,22 @@ class GrantViewSet(viewsets.ModelViewSet):
         if mismatch := self._visibility_mismatch(grant, post):
             return Response({"error": mismatch}, status=400)
 
+        if (
+            grant.funding_mechanism != Grant.AWARD
+            and post.grant_applications.filter(
+                grant__funding_mechanism=Grant.AWARD
+            ).exists()
+        ):
+            return Response(
+                {
+                    "error": (
+                        "This proposal is linked to an award grant and "
+                        "cannot apply to a funding grant."
+                    )
+                },
+                status=400,
+            )
+
         _, created = GrantApplication.objects.get_or_create(
             grant=grant, preregistration_post=post, applicant=request.user
         )

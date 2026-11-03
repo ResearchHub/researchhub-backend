@@ -376,6 +376,51 @@ class GrantViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["message"], "Already applied")
 
+    def test_award_proposal_cannot_apply_to_funding_grant(self):
+        """A proposal already on an award grant cannot join a funding grant."""
+        # Arrange
+        award_grant = self._open_grant(Grant.AWARD, "award")
+        funding_grant = self._open_grant(Grant.FUNDING, "funding")
+        GrantApplication.objects.create(
+            grant=award_grant,
+            preregistration_post=self.preregistration_post,
+            applicant=self.regular_user,
+        )
+        self.client.force_authenticate(self.regular_user)
+
+        # Act
+        response = self.client.post(
+            f"/api/grant/{funding_grant.id}/application/",
+            {"preregistration_post_id": self.preregistration_post.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["error"],
+            "This proposal is linked to an award grant and "
+            "cannot apply to a funding grant.",
+        )
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                grant=funding_grant,
+                preregistration_post=self.preregistration_post,
+            ).exists()
+        )
+
+    def _open_grant(self, mechanism, suffix):
+        post = create_post(created_by=self.moderator, document_type=GRANT)
+        return Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=post.unified_document,
+            amount=Decimal(1000),
+            currency="USD",
+            organization=f"Org {suffix}",
+            description="Another grant",
+            status=Grant.OPEN,
+            funding_mechanism=mechanism,
+        )
+
     def test_apply_to_grant_unauthenticated(self):
         """Test that unauthenticated users cannot apply to grants"""
         apply_data = {"preregistration_post_id": self.preregistration_post.id}
