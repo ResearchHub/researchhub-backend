@@ -104,6 +104,30 @@ class CommentSignalsTests(AWSMockTestCase):
         )
 
     @patch("feed.signals.comment_signals.refresh_feed_entries_for_objects")
+    @patch(
+        "feed.signals.comment_signals.transaction.on_commit",
+        side_effect=lambda fn: fn(),
+    )
+    def test_refreshes_feed_entries_when_comment_is_edited(
+        self, mock_on_commit, mock_refresh_feed_entries_for_objects
+    ):
+        """
+        Editing a comment refreshes its feed entries so the edit reaches the feed.
+        """
+        # Arrange
+        self.comment.comment_content_json = {"ops": [{"insert": "edited comment"}]}
+
+        # Act
+        self.comment.save()
+
+        # Assert
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        mock_refresh_feed_entries_for_objects.apply_async.assert_any_call(
+            args=(self.comment.id, comment_ct.id),
+            priority=1,
+        )
+
+    @patch("feed.signals.comment_signals.refresh_feed_entries_for_objects")
     def test_handle_comment_update_metrics(self, mock_refresh_feed_entries_for_objects):
         """
         Test that feed metrics are updated when a comment is updated.
