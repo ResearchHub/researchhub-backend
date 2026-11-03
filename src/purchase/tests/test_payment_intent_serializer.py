@@ -3,15 +3,21 @@ from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from rest_framework.test import APIRequestFactory
 
 from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.serializers.payment_intent_serializer import PaymentIntentSerializer
+from purchase.services.fundraise_service import AWARD_PROPOSAL_CONTRIBUTION_DENIED
 from reputation.models import Escrow
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC,
+)
+from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -255,3 +261,83 @@ class PaymentIntentSerializerTest(TestCase):
         # Assert
         self.assertFalse(serializer.is_valid())
         self.assertIn("mutually exclusive", str(serializer.errors))
+
+    def test_award_fundraise_rejects_community_and_allows_grant_creator(self):
+        """Payment intents for an award proposal are limited to the grant creator."""
+        # Arrange
+        grant_creator = create_user(email="award-grant-creator@example.com")
+        applicant = create_user(email="award-applicant@example.com")
+        fundraise = self._award_proposal_fundraise(grant_creator, applicant)
+        data = {"amount": 100, "fundraise_id": fundraise.id}
+
+        # Act
+        community = PaymentIntentSerializer(
+            data=data, context={"request": self._request(self.user)}
+        )
+        creator = PaymentIntentSerializer(
+            data=data, context={"request": self._request(grant_creator)}
+        )
+        missing_user = PaymentIntentSerializer(data=data)
+
+        # Assert
+        self.assertFalse(community.is_valid())
+        self.assertIn(
+            AWARD_PROPOSAL_CONTRIBUTION_DENIED, str(community.errors["fundraise_id"])
+        )
+        self.assertFalse(missing_user.is_valid())
+        self.assertIn(
+            AWARD_PROPOSAL_CONTRIBUTION_DENIED,
+            str(missing_user.errors["fundraise_id"]),
+        )
+        self.assertTrue(creator.is_valid())
+        self.assertEqual(creator.validated_data["fundraise_id"], fundraise.id)
+
+    def test_funding_grant_fundraise_stays_open_to_community_payment_intents(self):
+        """A funding-mechanism proposal still accepts a community payment intent."""
+        # Arrange
+        grant_creator = create_user(email="funding-grant-creator@example.com")
+        applicant = create_user(email="funding-applicant@example.com")
+        fundraise = self._award_proposal_fundraise(
+            grant_creator, applicant, mechanism=Grant.FUNDING
+        )
+        data = {"amount": 100, "fundraise_id": fundraise.id}
+
+        # Act
+        serializer = PaymentIntentSerializer(
+            data=data, context={"request": self._request(self.user)}
+        )
+
+        # Assert
+        self.assertTrue(serializer.is_valid())
+
+    def _request(self, user):
+        request = APIRequestFactory().post("/api/payment_intent/")
+        request.user = user
+        return request
+
+    def _award_proposal_fundraise(
+        self, grant_creator, applicant, mechanism=Grant.AWARD
+    ):
+        proposal = create_post(created_by=applicant, document_type=PREREGISTRATION)
+        grant_post = create_post(created_by=grant_creator, document_type=GRANT_DOC)
+        grant = Grant.objects.create(
+            created_by=grant_creator,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Org",
+            description="Desc",
+            status=Grant.OPEN,
+            funding_mechanism=mechanism,
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=proposal,
+            applicant=applicant,
+        )
+        return Fundraise.objects.create(
+            created_by=applicant,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal("0") if mechanism == Grant.AWARD else Decimal("1000"),
+            status=Fundraise.OPEN,
+        )

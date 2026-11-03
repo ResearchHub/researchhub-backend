@@ -513,7 +513,15 @@ class ResearchhubPostViewSet(
                     )
 
                 fundraise = None
-                if goal_amount := data.get("fundraise_goal_amount"):
+                is_award_proposal = (
+                    target_grant is not None
+                    and target_grant.funding_mechanism == Grant.AWARD
+                )
+                if is_award_proposal:
+                    goal_amount = 0
+                else:
+                    goal_amount = data.get("fundraise_goal_amount")
+                if goal_amount or is_award_proposal:
                     fundraise_data = {
                         "goal_amount": goal_amount,
                         "goal_currency": data.get("fundraise_goal_currency") or USD,
@@ -525,7 +533,10 @@ class ResearchhubPostViewSet(
                     ) is not None:
                         fundraise_data["end_date"] = fundraise_end_date
 
-                    serializer = FundraiseCreateSerializer(data=fundraise_data)
+                    serializer = FundraiseCreateSerializer(
+                        data=fundraise_data,
+                        context={"allow_zero_goal": is_award_proposal},
+                    )
                     serializer.is_valid(raise_exception=True)
 
                     fundraise_service = FundraiseService()

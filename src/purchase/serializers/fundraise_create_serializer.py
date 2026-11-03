@@ -38,7 +38,11 @@ class FundraiseCreateSerializer(serializers.ModelSerializer):
         # Validate goal amount
         try:
             goal_amount = Decimal(data["goal_amount"])
-            if goal_amount <= 0:
+            # Award proposals may open with a goal of 0. Every other fundraise
+            # still requires a goal above 0.
+            if goal_amount < 0 or (
+                goal_amount == 0 and not self.context.get("allow_zero_goal")
+            ):
                 raise serializers.ValidationError("goal_amount must be greater than 0")
         except TypeError, ValueError, InvalidOperation:
             raise serializers.ValidationError("Invalid goal_amount")

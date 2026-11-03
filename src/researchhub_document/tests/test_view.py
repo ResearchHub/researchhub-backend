@@ -12,7 +12,7 @@ from ai_peer_review.serializers import ProposalReviewSerializer
 from note.models import GrantSettings
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
-from purchase.models import Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
@@ -1887,6 +1887,9 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
                 applicant=self.user,
             ).exists()
         )
+        # Default mechanism is FUNDING, so publish does not open a zero-goal fundraise.
+        self.assertIsNone(response.data["fundraise"])
+        self.assertEqual(self.grant.funding_mechanism, Grant.FUNDING)
 
     def test_create_auto_approved_preregistration_creates_journey(self) -> None:
         """Verify trusted preregistration creation creates a journey anchor."""
@@ -1963,6 +1966,84 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 200)
         self.assertFalse(GrantApplication.objects.exists())
+
+    def test_award_publish_allows_zero_goal(self):
+        """An award proposal can open a fundraise with a goal of 0."""
+        # Arrange
+        self.grant.funding_mechanism = Grant.AWARD
+        self.grant.save(update_fields=["funding_mechanism"])
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency="USD")
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(
+            extra_data={
+                "grant_id": self.grant.id,
+                "fundraise_goal_amount": 0,
+            }
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        fundraise = Fundraise.objects.get(
+            unified_document__posts__id=response.data["id"]
+        )
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+        self.assertEqual(fundraise.goal_amount, Decimal("0"))
+        self.assertAlmostEqual(
+            fundraise.end_date.timestamp(),
+            (datetime.now(UTC) + timedelta(days=30)).timestamp(),
+            delta=60,
+        )
+        self.assertIsNotNone(fundraise.escrow)
+        self.assertEqual(response.data["fundraise"]["id"], fundraise.id)
+        self.assertTrue(
+            GrantApplication.objects.filter(
+                grant=self.grant,
+                preregistration_post_id=response.data["id"],
+            ).exists()
+        )
+
+    def test_award_publish_without_a_goal_opens_a_zero_goal_fundraise(self):
+        """An award proposal with no goal still opens a fundraise at 0."""
+        # Arrange
+        self.grant.funding_mechanism = Grant.AWARD
+        self.grant.save(update_fields=["funding_mechanism"])
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency="USD")
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(extra_data={"grant_id": self.grant.id})
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        fundraise = Fundraise.objects.get(
+            unified_document__posts__id=response.data["id"]
+        )
+        self.assertEqual(fundraise.goal_amount, Decimal("0"))
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+
+    def test_zero_goal_does_not_create_fundraise_for_funding_grant(self):
+        """A client goal of 0 still counts as missing for a normal fundraise."""
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(
+            extra_data={
+                "grant_id": self.grant.id,
+                "fundraise_goal_amount": 0,
+            }
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["fundraise"])
+        self.assertFalse(
+            Fundraise.objects.filter(
+                unified_document__posts__id=response.data["id"]
+            ).exists()
+        )
 
 
 class PreregistrationGrantsPayloadTests(APITestCase):

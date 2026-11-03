@@ -15,6 +15,7 @@ from purchase.models import (
     FundingDistribution,
     FundingPool,
     Fundraise,
+    Grant,
     Purchase,
     RscExchangeRate,
     UsdFundraiseContribution,
@@ -62,6 +63,10 @@ USD_CONTRIBUTION_CSV_HEADERS = [
 
 logger = logging.getLogger(__name__)
 
+AWARD_PROPOSAL_CONTRIBUTION_DENIED = (
+    "Only the grant creator can contribute to an award proposal"
+)
+
 
 class FundraiseService:
     """Service for managing fundraise-related operations."""
@@ -93,6 +98,9 @@ class FundraiseService:
 
         Returns:
             Tuple of (is_valid, error_message). If valid, error_message is None.
+
+        Award proposals accept a payment only from the grant creator. That
+        check runs even when ``check_self_contribution`` is False.
         """
         if fundraise.status != Fundraise.OPEN:
             return False, "Fundraise is not open"
@@ -100,12 +108,35 @@ class FundraiseService:
         if fundraise.is_expired():
             return False, "Fundraise is expired"
 
+        award_error = self.award_proposal_contribution_error(fundraise, user)
+        if award_error:
+            return False, award_error
+
         if check_self_contribution and fundraise.created_by.id == user.id:
             nonprofit_org = fundraise.get_nonprofit_org()
             if not nonprofit_org:
                 return False, "Cannot contribute to your own fundraise"
 
         return True, None
+
+    @staticmethod
+    def award_proposal_contribution_error(
+        fundraise: Fundraise, user: User | None
+    ) -> str | None:
+        """Return an error when ``user`` cannot pay an award proposal."""
+        creator_ids = set(
+            Grant.objects.filter(
+                funding_mechanism=Grant.AWARD,
+                applications__preregistration_post__unified_document_id=(
+                    fundraise.unified_document_id
+                ),
+            ).values_list("created_by_id", flat=True)
+        )
+        if not creator_ids:
+            return None
+        if user is not None and getattr(user, "id", None) in creator_ids:
+            return None
+        return AWARD_PROPOSAL_CONTRIBUTION_DENIED
 
     def create_contribution(
         self,
@@ -127,7 +158,8 @@ class FundraiseService:
             amount: The contribution amount (RSC as Decimal, USD in cents as int)
             currency: The currency type (RSC or USD)
             check_self_contribution: Whether to check if user is contributing to own
-                fundraise
+                fundraise. Award proposals still reject everyone except the grant
+                creator when this is False.
             origin_fund_id: The Endaoment fund (DAF) ID of the doner for USD grants
             use_credits: For RSC contributions, which balance pool pays for
                 ``amount + fee``. When True, pay entirely from funding credits.

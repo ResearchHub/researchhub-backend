@@ -167,6 +167,70 @@ class FundraiseTasksTest(TestCase):
         self.assertEqual(fundraise.escrow.amount_holding, Decimal("200.00"))
         self.assertEqual(fundraise.escrow.amount_paid, Decimal("0.00"))
 
+    def test_complete_eligible_fundraises_includes_award_goal_of_zero(self):
+        """Award fundraises stay in the daily job and pay out once they are old enough.
+
+        A goal of 0 is met whenever the escrow holds RSC. An empty escrow stays
+        open, a fundraise younger than 7 days stays open, and a normal fundraise
+        that met its goal still completes in the same run.
+        """
+        # Arrange
+        funded_award = self._open_fundraise(
+            goal=Decimal("0"),
+            holding=Decimal("50.00"),
+            days_old=8,
+        )
+        empty_award = self._open_fundraise(
+            goal=Decimal("0"),
+            holding=Decimal("0"),
+            days_old=8,
+        )
+        recent_award = self._open_fundraise(
+            goal=Decimal("0"),
+            holding=Decimal("50.00"),
+            days_old=0,
+        )
+        funded_normal = self._open_fundraise(
+            goal=Decimal("100.00"),
+            holding=Decimal("200.00"),
+            days_old=8,
+        )
+
+        # Act
+        result = complete_eligible_fundraises()
+
+        # Assert
+        self.assertEqual(result["completed_count"], 2)
+        self.assertEqual(result["error_count"], 0)
+        funded_award.refresh_from_db()
+        empty_award.refresh_from_db()
+        recent_award.refresh_from_db()
+        funded_normal.refresh_from_db()
+        self.assertEqual(funded_award.status, Fundraise.COMPLETED)
+        self.assertEqual(funded_award.escrow.amount_holding, Decimal("0.00"))
+        self.assertEqual(funded_award.escrow.amount_paid, Decimal("50.00"))
+        self.assertEqual(empty_award.status, Fundraise.OPEN)
+        self.assertEqual(recent_award.status, Fundraise.OPEN)
+        self.assertEqual(recent_award.escrow.amount_holding, Decimal("50.00"))
+        self.assertEqual(funded_normal.status, Fundraise.COMPLETED)
+
+    def _open_fundraise(self, *, goal, holding, days_old):
+        """Create an open fundraise on its own preregistration (default end date)."""
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=post.unified_document,
+            goal_amount=goal,
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        if days_old:
+            fundraise.start_date = datetime.now(UTC) - timedelta(days=days_old)
+            fundraise.save(update_fields=["start_date"])
+        fundraise.escrow.amount_holding = holding
+        fundraise.escrow.save(update_fields=["amount_holding"])
+        return fundraise
+
 
 class SweepDepositTaskTest(TestCase):
     def setUp(self):
