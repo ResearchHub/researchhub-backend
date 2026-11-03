@@ -549,6 +549,41 @@ class GrantViewTests(APITestCase):
         self.assertEqual(existing.status, Fundraise.COMPLETED)
         self.assertEqual(existing.goal_amount, Decimal(500))
 
+    def test_expired_fundraise_cannot_apply_to_award_grant(self):
+        """An expired fundraise cannot be used for an award grant."""
+        # Arrange
+        award_grant = self._open_grant(Grant.AWARD, "award-expired")
+        existing = FundraiseService().create_fundraise_with_escrow(
+            user=self.regular_user,
+            unified_document=self.preregistration_post.unified_document,
+            goal_amount=Decimal(500),
+        )
+        existing.end_date = datetime.now(UTC) - timedelta(days=1)
+        existing.save(update_fields=["end_date"])
+        self.client.force_authenticate(self.regular_user)
+
+        # Act
+        response = self.client.post(
+            f"/api/grant/{award_grant.id}/application/",
+            {"preregistration_post_id": self.preregistration_post.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["error"],
+            "This proposal's fundraise has expired and cannot apply to an award grant.",
+        )
+        self.assertFalse(
+            GrantApplication.objects.filter(
+                grant=award_grant,
+                preregistration_post=self.preregistration_post,
+            ).exists()
+        )
+        existing.refresh_from_db()
+        self.assertEqual(existing.goal_amount, Decimal(500))
+        self.assertTrue(existing.is_expired())
+
     def test_funding_proposal_cannot_apply_to_award_grant(self):
         """A proposal already on a funding grant cannot join an award grant."""
         # Arrange

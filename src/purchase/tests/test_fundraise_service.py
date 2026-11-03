@@ -313,6 +313,27 @@ class TestFundraiseService(APITestCase):
         self.assertEqual(fundraise.id, existing.id)
         self.assertEqual(fundraise.goal_amount, Decimal(500))
 
+    def test_expired_fundraise_is_not_converted(self):
+        """An expired open fundraise keeps its goal."""
+        # Arrange
+        grant = self._grant(Grant.AWARD)
+        proposal = self._proposal()
+        existing = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal(500),
+        )
+        existing.end_date = datetime.now(UTC) - timedelta(days=1)
+        existing.save(update_fields=["end_date"])
+
+        # Act
+        fundraise = self.service.ensure_award_fundraise(grant, proposal)
+
+        # Assert
+        self.assertEqual(fundraise.id, existing.id)
+        self.assertEqual(fundraise.goal_amount, Decimal(500))
+        self.assertTrue(fundraise.is_expired())
+
     def test_closed_fundraise_is_not_reused(self):
         """A closed fundraise is not rewritten and no second fundraise is opened."""
         # Arrange

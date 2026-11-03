@@ -17,6 +17,9 @@ FUNDED_PROPOSAL_ON_AWARD_GRANT = (
 CLOSED_FUNDRAISE_ON_AWARD_GRANT = (
     "This proposal's fundraise is not open and cannot apply to an award grant."
 )
+EXPIRED_FUNDRAISE_ON_AWARD_GRANT = (
+    "This proposal's fundraise has expired and cannot apply to an award grant."
+)
 
 
 class GrantApplicationService:
@@ -59,6 +62,8 @@ class GrantApplicationService:
             return None
         if open_fundraise.has_received_funding():
             return FUNDED_PROPOSAL_ON_AWARD_GRANT
+        if open_fundraise.is_expired():
+            return EXPIRED_FUNDRAISE_ON_AWARD_GRANT
         return None
 
     def send_application_email(self, application_id: int) -> None:

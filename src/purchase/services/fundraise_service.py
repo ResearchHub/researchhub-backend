@@ -243,7 +243,7 @@ class FundraiseService:
             if fundraises.exists():
                 return fundraises.order_by("-created_date").first()
         else:
-            if existing.has_received_funding():
+            if existing.has_received_funding() or existing.is_expired():
                 return existing
             if existing.goal_amount != 0:
                 existing.goal_amount = Decimal(0)
