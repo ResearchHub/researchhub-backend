@@ -27,7 +27,7 @@ def backfill_refunded_contributions(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
-        ("purchase", "0063_delete_support"),
+        ("purchase", "0064_grant_funding_mechanism"),
     ]
 
     operations = [

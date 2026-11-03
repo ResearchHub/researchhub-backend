@@ -1348,10 +1348,10 @@ class CloseFundraiseTests(TestCase):
         self.assertEqual(self.fundraise.get_amount_raised(currency=USD), 0)
 
     def test_backfill_marks_contributions_on_closed_fundraises_refunded(self):
-        """The 0064 backfill flags contributions already refunded by a close."""
+        """The 0065 backfill flags contributions already refunded by a close."""
         # Arrange
         migration = importlib.import_module(
-            "purchase.migrations.0064_purchase_paid_status_refunded"
+            "purchase.migrations.0065_purchase_paid_status_refunded"
         )
         contributor = create_random_authenticated_user("fundraise_contributor")
         open_purchase = self._create_rsc_contribution(self.fundraise, contributor)
