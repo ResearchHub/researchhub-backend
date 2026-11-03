@@ -7,6 +7,7 @@ from research_ai.views.agent_file_views import (
     AgentFileLimitsView,
     AgentFileListCreateView,
 )
+from research_ai.views.artifact_views import ArtifactDetailView
 from research_ai.views.assistant_chat_views import (
     AssistantChatCancelView,
     AssistantChatDetailView,
@@ -175,4 +176,5 @@ urlpatterns = [
     path("files/<int:file_id>/", AgentFileDetailView.as_view()),
     path("files/<int:file_id>/complete/", AgentFileCompleteView.as_view()),
     path("files/<int:file_id>/download/", AgentFileDownloadView.as_view()),
+    path("artifacts/<int:artifact_id>/", ArtifactDetailView.as_view()),
 ]

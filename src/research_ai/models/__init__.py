@@ -7,6 +7,7 @@ from .agent import (
     NoteAgentConversation,
 )
 from .agent_file import AgentFile
+from .artifact import Artifact, ArtifactVersion
 from .cover_image_generation import CoverImageGeneration, NoteCoverLogo
 from .email_template import EmailTemplate
 from .expert import Expert
@@ -25,6 +26,8 @@ __all__ = [
     "AgentExecutionMessage",
     "AgentFile",
     "AgentMessageScreening",
+    "Artifact",
+    "ArtifactVersion",
     "CoverImageGeneration",
     "EmailTemplate",
     "Expert",
