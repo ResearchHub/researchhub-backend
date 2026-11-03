@@ -94,11 +94,9 @@ class FundraiseService:
         Returns:
             Tuple of (is_valid, error_message). If valid, error_message is None.
         """
-        if fundraise.status != Fundraise.OPEN:
-            return False, "Fundraise is not open"
-
-        if fundraise.is_expired():
-            return False, "Fundraise is expired"
+        error = self._contribution_block_reason(fundraise)
+        if error:
+            return False, error
 
         if check_self_contribution and fundraise.created_by.id == user.id:
             nonprofit_org = fundraise.get_nonprofit_org()
@@ -266,10 +264,9 @@ class FundraiseService:
             # Serialize contributions with close/complete/reopen so a stale
             # OPEN fundraise cannot accept a debit after its escrow is settled.
             fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
-            if fundraise.status != Fundraise.OPEN:
-                return None, "Fundraise is not open"
-            if fundraise.is_expired():
-                return None, "Fundraise is expired"
+            error = self._contribution_block_reason(fundraise)
+            if error:
+                return None, error
             if not fundraise.escrow_id:
                 return None, "Fundraise escrow is not set"
 
@@ -491,9 +488,7 @@ class FundraiseService:
 
         # Fail fast on a fundraise closed since the caller loaded it, before any
         # money moves. Re-checked under the row lock below.
-        error = self._usd_contribution_block_reason(
-            Fundraise.objects.get(id=fundraise.id)
-        )
+        error = self._contribution_block_reason(Fundraise.objects.get(id=fundraise.id))
         if error:
             return None, error
 
@@ -534,8 +529,8 @@ class FundraiseService:
         return contribution, error
 
     @staticmethod
-    def _usd_contribution_block_reason(fundraise: Fundraise) -> str | None:
-        """Return why the fundraise cannot take a USD contribution, if anything."""
+    def _contribution_block_reason(fundraise: Fundraise) -> str | None:
+        """Return why the fundraise cannot take a contribution, if anything."""
         if fundraise.status != Fundraise.OPEN:
             return "Fundraise is not open"
         if fundraise.is_expired():
@@ -570,7 +565,7 @@ class FundraiseService:
                 endaoment_transfer_id=endaoment_transfer_id,
             )
 
-            error = self._usd_contribution_block_reason(fundraise)
+            error = self._contribution_block_reason(fundraise)
             if error:
                 # The money already moved; keep the record so it is refunded.
                 logger.error(
