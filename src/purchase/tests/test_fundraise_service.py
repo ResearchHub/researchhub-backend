@@ -5,7 +5,6 @@ from unittest.mock import Mock, patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
-from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
