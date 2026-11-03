@@ -338,6 +338,6 @@ class PaymentIntentSerializerTest(TestCase):
         return Fundraise.objects.create(
             created_by=applicant,
             unified_document=proposal.unified_document,
-            goal_amount=Decimal("0") if mechanism == Grant.AWARD else Decimal("1000"),
+            goal_amount=Decimal(0) if mechanism == Grant.AWARD else Decimal(1000),
             status=Fundraise.OPEN,
         )

@@ -84,8 +84,8 @@ class AwardProposalFundingTests(APITestCase):
         does not open the proposal to the community.
         """
         # Arrange
-        self._give_available_balance(self.community_user, Decimal("1000"))
-        self._give_available_balance(self.grant_creator, Decimal("1000"))
+        self._give_available_balance(self.community_user, Decimal(1000))
+        self._give_available_balance(self.grant_creator, Decimal(1000))
         balance_before = self.community_user.get_available_balance()
 
         # Act
@@ -93,7 +93,7 @@ class AwardProposalFundingTests(APITestCase):
             purchase, error = self.fundraise_service.create_contribution(
                 user=user,
                 fundraise=self.fundraise,
-                amount=Decimal("10"),
+                amount=Decimal(10),
                 currency=RSC,
                 use_credits=False,
             )
@@ -113,7 +113,7 @@ class AwardProposalFundingTests(APITestCase):
         webhook_purchase, webhook_error = self.fundraise_service.create_contribution(
             user=self.community_user,
             fundraise=self.fundraise,
-            amount=Decimal("10"),
+            amount=Decimal(10),
             currency=RSC,
             check_self_contribution=False,
             use_credits=False,
@@ -128,7 +128,7 @@ class AwardProposalFundingTests(APITestCase):
         creator_purchase, creator_error = self.fundraise_service.create_contribution(
             user=self.grant_creator,
             fundraise=self.fundraise,
-            amount=Decimal("20"),
+            amount=Decimal(20),
             currency=RSC,
             use_credits=False,
         )
@@ -143,7 +143,7 @@ class AwardProposalFundingTests(APITestCase):
         self.assertIsNone(creator_error)
         self._refresh_fundraise(self.fundraise)
         self.assertEqual(self.fundraise.status, Fundraise.OPEN)
-        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("20"))
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal(20))
         self.assertEqual(self.fundraise.get_amount_raised(currency=RSC), 20.0)
         self.assertEqual(creator_purchase.object_id, self.fundraise.id)
 
@@ -164,13 +164,13 @@ class AwardProposalFundingTests(APITestCase):
             funding_mechanism=Grant.FUNDING,
         )
         _applicant, _application, fundraise = self._create_proposal(grant=funding_grant)
-        self._give_available_balance(self.community_user, Decimal("1000"))
+        self._give_available_balance(self.community_user, Decimal(1000))
 
         # Act
         purchase, error = self.fundraise_service.create_contribution(
             user=self.community_user,
             fundraise=fundraise,
-            amount=Decimal("15"),
+            amount=Decimal(15),
             currency=RSC,
             use_credits=False,
         )
@@ -179,43 +179,43 @@ class AwardProposalFundingTests(APITestCase):
         self.assertIsNone(error)
         self._refresh_fundraise(fundraise)
         self.assertEqual(fundraise.status, Fundraise.OPEN)
-        self.assertEqual(fundraise.escrow.amount_holding, Decimal("15"))
-        self.assertEqual(purchase.amount, Decimal("15"))
+        self.assertEqual(fundraise.escrow.amount_holding, Decimal(15))
+        self.assertEqual(purchase.amount, Decimal(15))
 
     def test_award_pool_still_accepts_community_contributions(self):
         """Community crowdfunding stays on the RFP pool."""
         # Arrange
-        self._give_available_balance(self.community_user, Decimal("1000"))
+        self._give_available_balance(self.community_user, Decimal(1000))
 
         # Act
         purchase = self.pool_service.create_contribution(
             user=self.community_user,
             pool=self.pool,
-            amount=Decimal("25"),
+            amount=Decimal(25),
             use_credits=False,
         )
 
         # Assert
         self.pool.refresh_from_db()
         self.assertEqual(purchase.object_id, self.pool.id)
-        self.assertEqual(self.pool.amount_holding, Decimal("25"))
+        self.assertEqual(self.pool.amount_holding, Decimal(25))
         self.assertEqual(self.fundraise.status, Fundraise.OPEN)
-        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("0"))
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal(0))
 
     def test_allocation_and_creator_payment_stay_open(self):
         """Pool RSC and the creator's payment both sit in escrow and count as raised."""
         # Arrange
-        self._seed_pool(Decimal("100"))
-        self._give_available_balance(self.grant_creator, Decimal("1000"))
+        self._seed_pool(Decimal(100))
+        self._give_available_balance(self.grant_creator, Decimal(1000))
 
         # Act
         self.pool_service.distribute(
-            self.pool, self.grant_creator, Decimal("30"), self.application.id
+            self.pool, self.grant_creator, Decimal(30), self.application.id
         )
         _purchase, error = self.fundraise_service.create_contribution(
             user=self.grant_creator,
             fundraise=self.fundraise,
-            amount=Decimal("20"),
+            amount=Decimal(20),
             currency=RSC,
             use_credits=False,
         )
@@ -225,11 +225,11 @@ class AwardProposalFundingTests(APITestCase):
         self._refresh_fundraise(self.fundraise)
         self.pool.refresh_from_db()
         self.assertEqual(self.fundraise.status, Fundraise.OPEN)
-        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("50"))
-        self.assertEqual(self.fundraise.escrow.amount_paid, Decimal("0"))
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal(50))
+        self.assertEqual(self.fundraise.escrow.amount_paid, Decimal(0))
         self.assertEqual(self.fundraise.get_amount_raised(currency=RSC), 50.0)
-        self.assertEqual(self.pool.amount_holding, Decimal("70"))
-        self.assertEqual(self.pool.amount_distributed, Decimal("30"))
+        self.assertEqual(self.pool.amount_holding, Decimal(70))
+        self.assertEqual(self.pool.amount_distributed, Decimal(30))
 
     def test_daily_job_pays_author_and_rejects_later_allocation(self):
         """The daily job pays an award escrow once the proposal is a week old.
@@ -239,15 +239,15 @@ class AwardProposalFundingTests(APITestCase):
         take more pool RSC, and a proposal that is still open can.
         """
         # Arrange
-        self._seed_pool(Decimal("100"))
-        self._give_available_balance(self.grant_creator, Decimal("1000"))
+        self._seed_pool(Decimal(100))
+        self._give_available_balance(self.grant_creator, Decimal(1000))
         self.pool_service.distribute(
-            self.pool, self.grant_creator, Decimal("30"), self.application.id
+            self.pool, self.grant_creator, Decimal(30), self.application.id
         )
         _purchase, error = self.fundraise_service.create_contribution(
             user=self.grant_creator,
             fundraise=self.fundraise,
-            amount=Decimal("20"),
+            amount=Decimal(20),
             currency=RSC,
             use_credits=False,
         )
@@ -281,7 +281,7 @@ class AwardProposalFundingTests(APITestCase):
         self.assertEqual(early_result["completed_count"], 1)
         self.assertEqual(early_result["error_count"], 0)
         self.assertEqual(self.fundraise.status, Fundraise.OPEN)
-        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("50"))
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal(50))
         self.assertEqual(empty_fundraise.status, Fundraise.OPEN)
         self.assertEqual(normal_fundraise.status, Fundraise.COMPLETED)
 
@@ -295,23 +295,23 @@ class AwardProposalFundingTests(APITestCase):
         self.assertEqual(payout_result["completed_count"], 1)
         self.assertEqual(payout_result["error_count"], 0)
         self.assertEqual(self.fundraise.status, Fundraise.COMPLETED)
-        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("0"))
-        self.assertEqual(self.fundraise.escrow.amount_paid, Decimal("50"))
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal(0))
+        self.assertEqual(self.fundraise.escrow.amount_paid, Decimal(50))
         self.assertEqual(self.fundraise.get_amount_raised(currency=RSC), 50.0)
         self.assertEqual(
             self.applicant.get_available_balance(),
-            author_balance_before + Decimal("50"),
+            author_balance_before + Decimal(50),
         )
         self.assertEqual(empty_fundraise.status, Fundraise.OPEN)
         self.assertEqual(empty_applicant.id, empty_fundraise.created_by_id)
 
-        # Act — a later allocation is rejected; another open proposal can still receive RSC
+        # Later allocation is rejected. Another open proposal can still receive RSC.
         with self.assertRaises(ValueError) as rejected:
             self.pool_service.distribute(
-                self.pool, self.grant_creator, Decimal("10"), self.application.id
+                self.pool, self.grant_creator, Decimal(10), self.application.id
             )
         self.pool_service.distribute(
-            self.pool, self.moderator, Decimal("10"), other_application.id
+            self.pool, self.moderator, Decimal(10), other_application.id
         )
 
         # Assert
@@ -320,18 +320,18 @@ class AwardProposalFundingTests(APITestCase):
         self.pool.refresh_from_db()
         self.assertEqual(str(rejected.exception), "Fundraise is not open")
         self.assertEqual(self.fundraise.status, Fundraise.COMPLETED)
-        self.assertEqual(self.fundraise.escrow.amount_paid, Decimal("50"))
+        self.assertEqual(self.fundraise.escrow.amount_paid, Decimal(50))
         self.assertEqual(other_fundraise.status, Fundraise.OPEN)
-        self.assertEqual(other_fundraise.escrow.amount_holding, Decimal("10"))
-        self.assertEqual(self.pool.amount_holding, Decimal("60"))
-        self.assertEqual(self.pool.amount_distributed, Decimal("40"))
+        self.assertEqual(other_fundraise.escrow.amount_holding, Decimal(10))
+        self.assertEqual(self.pool.amount_holding, Decimal(60))
+        self.assertEqual(self.pool.amount_distributed, Decimal(40))
 
     def test_completing_grant_leaves_proposal_escrow_untouched(self):
         """Completing the RFP does not pay or close proposal fundraises."""
         # Arrange
-        self._seed_pool(Decimal("100"))
+        self._seed_pool(Decimal(100))
         self.pool_service.distribute(
-            self.pool, self.grant_creator, Decimal("40"), self.application.id
+            self.pool, self.grant_creator, Decimal(40), self.application.id
         )
         self._refresh_fundraise(self.fundraise)
         self.pool.refresh_from_db()
@@ -371,7 +371,7 @@ class AwardProposalFundingTests(APITestCase):
         fundraise = self.fundraise_service.create_fundraise_with_escrow(
             user=applicant,
             unified_document=proposal.unified_document,
-            goal_amount=Decimal("0"),
+            goal_amount=Decimal(0),
             goal_currency=USD,
             status=Fundraise.OPEN,
         )
@@ -383,7 +383,7 @@ class AwardProposalFundingTests(APITestCase):
 
     def _seed_pool(self, amount):
         contributor = create_random_authenticated_user("award_pool_backer")
-        self._give_available_balance(contributor, Decimal("10000"))
+        self._give_available_balance(contributor, Decimal(10000))
         self.pool_service.create_contribution(
             user=contributor,
             pool=self.pool,

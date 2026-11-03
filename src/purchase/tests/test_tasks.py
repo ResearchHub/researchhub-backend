@@ -176,17 +176,17 @@ class FundraiseTasksTest(TestCase):
         """
         # Arrange
         funded_award = self._open_fundraise(
-            goal=Decimal("0"),
+            goal=Decimal(0),
             holding=Decimal("50.00"),
             days_old=8,
         )
         empty_award = self._open_fundraise(
-            goal=Decimal("0"),
-            holding=Decimal("0"),
+            goal=Decimal(0),
+            holding=Decimal(0),
             days_old=8,
         )
         recent_award = self._open_fundraise(
-            goal=Decimal("0"),
+            goal=Decimal(0),
             holding=Decimal("50.00"),
             days_old=0,
         )

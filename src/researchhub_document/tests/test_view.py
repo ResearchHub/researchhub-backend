@@ -1989,7 +1989,7 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
             unified_document__posts__id=response.data["id"]
         )
         self.assertEqual(fundraise.status, Fundraise.OPEN)
-        self.assertEqual(fundraise.goal_amount, Decimal("0"))
+        self.assertEqual(fundraise.goal_amount, Decimal(0))
         self.assertAlmostEqual(
             fundraise.end_date.timestamp(),
             (datetime.now(UTC) + timedelta(days=30)).timestamp(),
@@ -2020,7 +2020,7 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
         fundraise = Fundraise.objects.get(
             unified_document__posts__id=response.data["id"]
         )
-        self.assertEqual(fundraise.goal_amount, Decimal("0"))
+        self.assertEqual(fundraise.goal_amount, Decimal(0))
         self.assertEqual(fundraise.status, Fundraise.OPEN)
 
     def test_zero_goal_does_not_create_fundraise_for_funding_grant(self):

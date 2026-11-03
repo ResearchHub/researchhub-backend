@@ -335,7 +335,7 @@ class PaymentIntentViewTest(APITestCase):
         return Fundraise.objects.create(
             created_by=applicant,
             unified_document=proposal.unified_document,
-            goal_amount=Decimal("0"),
+            goal_amount=Decimal(0),
             status=Fundraise.OPEN,
         )
 
