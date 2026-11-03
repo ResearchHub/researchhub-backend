@@ -1,3 +1,5 @@
+from functools import wraps
+
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from dj_rest_auth.registration.views import SocialLoginView
 from django.conf import settings
@@ -27,15 +29,25 @@ class XLogin(SocialLoginView):
         return response
 
 
+def oauth_enabled(view):
+    """
+    Hides an OAuth endpoint while `OAUTH_ENABLED` is off.
+    """
+
+    # wraps() keeps view attributes such as DOT's `csrf_exempt`
+    @wraps(view)
+    def wrapped_view(request, *args, **kwargs):
+        if not settings.OAUTH_ENABLED:
+            raise Http404
+        return view(request, *args, **kwargs)
+
+    return wrapped_view
+
+
 class AuthorizationServerMetadataView(OAuthServerMetadataView):
     """
     Returns OAuth 2.0 authorization server metadata (RFC 8414).
     """
-
-    def dispatch(self, request, *args, **kwargs):
-        if not settings.OAUTH_ENABLED:
-            raise Http404
-        return super().dispatch(request, *args, **kwargs)
 
     def _get_endpoint_url(self, request, view_name, required=False):
         if view_name == "authorize":

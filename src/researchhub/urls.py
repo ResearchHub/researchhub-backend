@@ -317,12 +317,8 @@ urlpatterns = [
         name="asset_upload",
     ),
     path("robots.txt", researchhub.views.robots_txt, name="robots_txt"),
-    # OAuth 2.0 authorization server metadata
-    path(
-        ".well-known/oauth-authorization-server",
-        oauth.views.AuthorizationServerMetadataView.as_view(),
-        name="oauth_authorization_server_metadata",
-    ),
+    # OAuth 2.0 authorization server
+    path("", include("oauth.urls")),
     #
     # Webhooks
     #
