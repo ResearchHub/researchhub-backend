@@ -24,11 +24,6 @@ def backfill_refunded_contributions(apps, schema_editor):
     ).update(paid_status="REFUNDED")
 
 
-def reverse_backfill(apps, schema_editor):
-    Purchase = apps.get_model("purchase", "Purchase")
-    Purchase.objects.filter(paid_status="REFUNDED").update(paid_status="PAID")
-
-
 class Migration(migrations.Migration):
     dependencies = [
         ("contenttypes", "0002_remove_content_type_name"),
@@ -66,5 +61,10 @@ class Migration(migrations.Migration):
                 null=True,
             ),
         ),
-        migrations.RunPython(backfill_refunded_contributions, reverse_backfill),
+        # Leave REFUNDED in place on rollback: the reverse cannot tell backfilled
+        # rows from later refunds, and marking either PAID again would count
+        # refunded contributions as paid.
+        migrations.RunPython(
+            backfill_refunded_contributions, migrations.RunPython.noop
+        ),
     ]
