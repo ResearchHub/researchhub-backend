@@ -356,6 +356,32 @@ class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):
         self.assertIsNone(withdrawal.transaction_hash)
         self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.PENDING)
 
+    @override_settings(
+        WEB3_WALLET_ADDRESS=TEST_WEB3_WALLET_ADDRESS,
+        WEB3_KEYSTORE_SECRET_ID="mock-secret-id",
+    )
+    @mock.patch("reputation.lib.RSC_CONTRACT_ADDRESS", TEST_RSC_CONTRACT_ADDRESS)
+    @mock.patch("reputation.lib.get_private_key", return_value="mock-key")
+    @mock.patch("reputation.lib.get_nonce", return_value=7)
+    @mock.patch("reputation.lib.execute_erc20_transfer", return_value="0xabc")
+    def test_recovered_pending_withdrawal_without_nonce_is_broadcast(
+        self, mock_transfer, mock_nonce, mock_get_private_key
+    ):
+        # Arrange: PENDING with no hash or nonce, as re-enqueued by recovery.
+        withdrawal = self._create_withdrawal_with_balance(
+            paid_status=PaidStatusModelMixin.PENDING
+        )
+
+        # Act
+        self.assertTrue(broadcast_withdrawal(withdrawal.id))
+
+        # Assert
+        mock_transfer.assert_called_once()
+        self.assertEqual(mock_transfer.call_args.kwargs["nonce"], 7)
+        withdrawal.refresh_from_db()
+        self.assertEqual(withdrawal.transaction_hash, "0xabc")
+        self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.PENDING)
+
 
 @override_settings(WEB3_WALLET_ADDRESS=TEST_WEB3_WALLET_ADDRESS)
 class ReserveWithdrawalNonceTests(AWSMockTransactionTestCase):
