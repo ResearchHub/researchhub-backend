@@ -1,7 +1,11 @@
 from django.urls import path
 from oauth2_provider.views import RevokeTokenView, TokenView
 
-from oauth.views import AuthorizationServerMetadataView, oauth_enabled
+from oauth.views import (
+    AuthorizationServerMetadataView,
+    OAuthAuthorizeView,
+    oauth_enabled,
+)
 
 # DOT's metadata view finds endpoints by reversing names in its own namespace
 app_name = "oauth2_provider"
@@ -21,5 +25,10 @@ urlpatterns = [
         "oauth/revoke/",
         oauth_enabled(RevokeTokenView.as_view()),
         name="revoke-token",
+    ),
+    path(
+        "api/oauth/authorize/",
+        oauth_enabled(OAuthAuthorizeView.as_view()),
+        name="consent",
     ),
 ]
