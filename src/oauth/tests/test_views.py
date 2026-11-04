@@ -221,6 +221,7 @@ class OAuthEndpointTests(TestCase):
             "/.well-known/oauth-authorization-server",
             "/oauth/token/",
             "/oauth/revoke/",
+            "/api/oauth/authorize/",
         ]
         for url in urls:
             with self.subTest(url=url):
