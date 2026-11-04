@@ -5,7 +5,6 @@ from rest_framework import serializers
 
 from ai_peer_review.serializers import ProposalKeyInsightSerializer
 from purchase.models import Grant
-from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -219,22 +218,9 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         if not fundraises:
             return None
         fundraise = fundraises[0]
-
-        is_award = grant.funding_mechanism == Grant.AWARD
-        goal_amount = None
-        if not is_award:
-            usd_goal = float(fundraise.goal_amount)
-            try:
-                rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
-            except AttributeError:
-                rsc_goal = None
-            goal_amount = {"usd": usd_goal, "rsc": rsc_goal}
-
+        goal_amount = cls._application_goal_amount(fundraise, grant)
         aggregated = fundraise.get_contributors_summary()
-        amount_raised = {
-            "usd": fundraise.get_amount_raised(currency=USD),
-            "rsc": fundraise.get_amount_raised(currency=RSC),
-        }
+        amount_raised = fundraise.get_raised_totals()
 
         contributors = []
         for entry in aggregated.top:
@@ -303,6 +289,18 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             "review_metrics": review_metrics,
             "reviews": reviews,
         }
+
+    @staticmethod
+    def _application_goal_amount(fundraise, grant):
+        """Return the proposal goal, omitted for an award."""
+        if grant.funding_mechanism == Grant.AWARD:
+            return None
+        usd_goal = float(fundraise.goal_amount)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            rsc_goal = None
+        return {"usd": usd_goal, "rsc": rsc_goal}
 
     @staticmethod
     def _serialize_review_author(review):
