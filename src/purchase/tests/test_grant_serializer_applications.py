@@ -1,10 +1,16 @@
+from decimal import Decimal
+from unittest.mock import patch
+
 from django.contrib.auth.models import AnonymousUser
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APIRequestFactory
 
+from purchase.models import Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.serializers import DynamicGrantSerializer
+from purchase.services.fundraise_service import FundraiseService
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
     GRANT,
@@ -130,3 +136,81 @@ class GrantApplicationVisibilityTests(AWSMockTestCase):
             with self.subTest(viewer=getattr(viewer, "username", "anonymous")):
                 ids = self._visible_post_ids(viewer)
                 self.assertNotIn(pending_post.id, ids)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
+    def test_application_amount_raised_counts_escrow_once(self, mock_exchange_rate):
+        """An award payment in escrow is not added again on top of the purchase."""
+        # Arrange
+        mock_exchange_rate.return_value = 1
+        fundraise = FundraiseService().create_fundraise_with_escrow(
+            user=self.owner,
+            unified_document=self.public_post.unified_document,
+            goal_amount=Decimal(0),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+        fundraise.escrow.amount_holding = Decimal(500)
+        fundraise.escrow.save(update_fields=["amount_holding"])
+        Purchase.objects.create(
+            user=self.owner,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=fundraise.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount="500",
+        )
+        request = self.factory.get("/")
+        request.user = self.owner
+        serializer = DynamicGrantSerializer(
+            self.grant,
+            _include_fields=["applications"],
+            context={"request": request},
+        )
+
+        # Act
+        applications = serializer.data["applications"]
+        awarded = next(
+            app
+            for app in applications
+            if app["preregistration_post_id"] == self.public_post.id
+        )
+
+        # Assert
+        self.assertEqual(awarded["fundraise"]["amount_raised"]["rsc"], 500)
+        self.assertEqual(awarded["fundraise"]["amount_raised"]["usd"], 500)
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
+    def test_application_amount_raised_stays_after_payout(self, mock_exchange_rate):
+        """Payout moves RSC to amount_paid. The grant total keeps that amount."""
+        # Arrange
+        mock_exchange_rate.return_value = 1
+        fundraise = FundraiseService().create_fundraise_with_escrow(
+            user=self.owner,
+            unified_document=self.public_post.unified_document,
+            goal_amount=Decimal(0),
+            goal_currency=USD,
+            status=Fundraise.COMPLETED,
+        )
+        fundraise.escrow.amount_holding = Decimal(0)
+        fundraise.escrow.amount_paid = Decimal(500)
+        fundraise.escrow.save(update_fields=["amount_holding", "amount_paid"])
+        request = self.factory.get("/")
+        request.user = self.owner
+        serializer = DynamicGrantSerializer(
+            self.grant,
+            _include_fields=["applications"],
+            context={"request": request},
+        )
+
+        # Act
+        applications = serializer.data["applications"]
+        awarded = next(
+            app
+            for app in applications
+            if app["preregistration_post_id"] == self.public_post.id
+        )
+
+        # Assert
+        self.assertEqual(awarded["fundraise"]["amount_raised"]["rsc"], 500)
+        self.assertEqual(awarded["fundraise"]["amount_raised"]["usd"], 500)

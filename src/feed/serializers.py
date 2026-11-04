@@ -1080,6 +1080,7 @@ class RelatedWorkSerializer(serializers.Serializer):
     authors = serializers.SerializerMethodField()
     grant = serializers.SerializerMethodField()
     fundraise = serializers.SerializerMethodField()
+    funding_mechanism = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
     review_metrics = serializers.SerializerMethodField()
     assessed_reviews = serializers.SerializerMethodField()
@@ -1088,6 +1089,7 @@ class RelatedWorkSerializer(serializers.Serializer):
         "authors",
         "grant",
         "fundraise",
+        "funding_mechanism",
         "review_metrics",
         "assessed_reviews",
     )
@@ -1279,6 +1281,18 @@ class RelatedWorkSerializer(serializers.Serializer):
             "start_date": fundraise.start_date,
             "end_date": fundraise.end_date,
         }
+
+    def get_funding_mechanism(self, unified_document):
+        """The RFP type for a proposal, from its first grant application."""
+        if unified_document.document_type != PREREGISTRATION:
+            return None
+        post = self._get_content(unified_document)
+        if post is None:
+            return None
+        application = self._first_prefetched(post.grant_applications)
+        if application is None:
+            return None
+        return application.grant.funding_mechanism
 
     def to_representation(self, unified_document):
         if self._get_content(unified_document) is None:
@@ -1536,6 +1550,7 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
                     "currency": app.grant.currency,
                     "description": app.grant.description,
                     "status": app.grant.status,
+                    "funding_mechanism": app.grant.funding_mechanism,
                     "image": self._get_grant_image(app.grant),
                     "num_applicants": num_applicants,
                 }
