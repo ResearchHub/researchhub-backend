@@ -34,7 +34,9 @@ class PaymentIntentView(APIView):
 
     def post(self, request, *args, **kwargs):
         user_id = request.user.id
-        serializer = PaymentIntentSerializer(data=request.data)
+        serializer = PaymentIntentSerializer(
+            data=request.data, context={"request": request}
+        )
         serializer.is_valid(raise_exception=True)
 
         data = serializer.validated_data

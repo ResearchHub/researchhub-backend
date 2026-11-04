@@ -287,6 +287,75 @@ class ActivityFeedRelatedWorkTests(ActivityFeedRelatedWorkBaseTests):
         self.assertIn("start_date", related_work["fundraise"])
         self.assertIn("end_date", related_work["fundraise"])
 
+    def test_prereg_related_work_includes_award_funding_mechanism(self):
+        """A proposal applied to an award RFP exposes that mechanism."""
+        # Arrange
+        entry = self._proposal_entry_for_grant(Grant.AWARD, "award-feed")
+
+        # Act
+        related_work = self._get_entry(entry.id)["related_work"]
+
+        # Assert
+        self.assertEqual(related_work["funding_mechanism"], Grant.AWARD)
+        self.assertNotIn("grant", related_work)
+
+    def test_prereg_related_work_includes_funding_mechanism(self):
+        """A proposal applied to a funding RFP exposes that mechanism."""
+        # Arrange
+        entry = self._proposal_entry_for_grant(Grant.FUNDING, "funding-feed")
+
+        # Act
+        related_work = self._get_entry(entry.id)["related_work"]
+
+        # Assert
+        self.assertEqual(related_work["funding_mechanism"], Grant.FUNDING)
+
+    def test_prereg_related_work_omits_funding_mechanism_without_application(self):
+        """A proposal with no grant application leaves the mechanism off."""
+        # Act
+        related_work = self._get_entry(self.prereg_comment_entry.id)["related_work"]
+
+        # Assert
+        self.assertNotIn("funding_mechanism", related_work)
+
+    def _proposal_entry_for_grant(self, mechanism, suffix):
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        ResearchhubPost.objects.create(
+            title=f"RFP {suffix}",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=grant_doc,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=1000,
+            currency="USD",
+            status=Grant.OPEN,
+            organization=f"Org {suffix}",
+            funding_mechanism=mechanism,
+        )
+        prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION,
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            title=f"Proposal {suffix}",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=prereg_doc,
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=prereg_post,
+            applicant=self.user,
+        )
+        return _make_feed_entry(
+            RhCommentModel,
+            object_id=20000 + grant.id,
+            unified_document=prereg_doc,
+            user=self.user,
+        )
+
     def test_related_work_includes_document_metrics(self):
         # Arrange
         self.prereg_post.score = 12

@@ -325,7 +325,13 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                             queryset=ResearchhubPostAuthor.objects.select_related(
                                 "author__user__userverification"
                             ),
-                        )
+                        ),
+                        Prefetch(
+                            "grant_applications",
+                            queryset=GrantApplication.objects.select_related(
+                                "grant"
+                            ).order_by("id"),
+                        ),
                     ),
                 ),
                 Prefetch(

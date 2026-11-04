@@ -2299,6 +2299,7 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
         self.assertEqual(grants[0]["amount"], "10000.00")
         self.assertEqual(grants[0]["currency"], USD)
         self.assertEqual(grants[0]["status"], Grant.OPEN)
+        self.assertEqual(grants[0]["funding_mechanism"], Grant.FUNDING)
         self.assertIsNone(grants[0]["image"])
         self.assertEqual(grants[0]["num_applicants"], 1)
 
@@ -2417,11 +2418,78 @@ class FundingFeedEntrySerializerTests(AWSMockTestCase):
             for app in grant_data["applications"]
             if app["preregistration_post_id"] == prereg_post.id
         )
-        reviews = application["fundraise"]["reviews"]
+        fundraise_data = application["fundraise"]
+        reviews = fundraise_data["reviews"]
         self.assertEqual(len(reviews), 1)
         self.assertEqual(reviews[0]["score"], 8.0)
         self.assertFalse(reviews[0]["is_assessed"])
         self.assertIsNotNone(reviews[0]["author"])
+        self.assertEqual(fundraise_data["goal_amount"]["usd"], 5000.0)
+        self.assertIn("amount_raised", fundraise_data)
+
+    def test_award_application_fundraise_omits_goal_and_keeps_amount_raised(self):
+        """An award proposal fundraise exposes amount_raised and no goal."""
+        # Arrange
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant_post = ResearchhubPost.objects.create(
+            title="Award Grant Post",
+            created_by=self.user,
+            document_type=GRANT,
+            renderable_text="Grant post",
+            unified_document=grant_doc,
+        )
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=Decimal("10000.00"),
+            currency=USD,
+            organization="Test Foundation",
+            short_title="Award Grant",
+            description="An award grant",
+            status=Grant.OPEN,
+            funding_mechanism=Grant.AWARD,
+        )
+        prereg_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        prereg_post = ResearchhubPost.objects.create(
+            title="Award Proposal",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            renderable_text="Proposal",
+            unified_document=prereg_doc,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=prereg_doc,
+            goal_amount=Decimal(0),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+            end_date=None,
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=prereg_post, applicant=self.user
+        )
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=grant_post.id,
+            user=self.user,
+            action="PUBLISH",
+            action_date=grant_post.created_date,
+            unified_document=grant_doc,
+        )
+
+        # Act
+        data = GrantFeedEntrySerializer(feed_entry).data
+
+        # Assert
+        application = next(
+            app
+            for app in data["content_object"]["grant"]["applications"]
+            if app["preregistration_post_id"] == prereg_post.id
+        )
+        self.assertNotIn("goal_amount", application["fundraise"])
+        self.assertIn("amount_raised", application["fundraise"])
 
 
 class FundraiseContributionContentSerializerTests(AWSMockTestCase):

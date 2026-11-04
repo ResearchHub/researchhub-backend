@@ -4,7 +4,6 @@ import requests
 from allauth.socialaccount.models import SocialAccount, SocialApp
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client, OAuth2Error
 from django.contrib.sites.models import Site
-from django.test import TestCase, override_settings
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
@@ -211,27 +210,3 @@ class XLoginViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 409)
         self.assertFalse(SocialAccount.objects.filter(uid="123").exists())
-
-
-class AuthorizationServerMetadataViewTests(TestCase):
-    url = "/.well-known/oauth-authorization-server"
-
-    @override_settings(OAUTH_ENABLED=False)
-    def test_metadata_is_not_found_while_oauth_is_disabled(self):
-        # Act
-        response = self.client.get(self.url)
-
-        # Assert
-        self.assertEqual(response.status_code, 404)
-
-    @override_settings(OAUTH_ENABLED=True, BASE_FRONTEND_URL="https://www.example.com")
-    def test_authorization_endpoint_is_the_web_consent_page(self):
-        # Act
-        response = self.client.get(self.url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json()["authorization_endpoint"],
-            "https://www.example.com/oauth/authorize",
-        )

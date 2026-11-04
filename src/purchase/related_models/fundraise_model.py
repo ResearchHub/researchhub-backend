@@ -292,6 +292,39 @@ class Fundraise(DefaultModel):
 
         raise ValueError("Invalid currency")
 
+    def get_raised_totals(self) -> dict[str, float]:
+        """Return RSC and USD raised from one USD-contribution total.
+
+        A missing exchange rate keeps the escrow RSC and skips converting
+        that RSC into USD.
+        """
+        rsc_amount = 0.0
+        if self.escrow:
+            rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
+
+        annotated_usd_cents = getattr(self, "annotated_usd_contributions_cents", None)
+        if annotated_usd_cents is None:
+            annotated_usd_cents = self.usd_contributions.filter(
+                is_refunded=False
+            ).aggregate(total=Coalesce(Sum("amount_cents"), 0))["total"]
+        usd_from_contributions = annotated_usd_cents / 100.0
+
+        usd_from_rsc = 0.0
+        rsc_from_usd = 0.0
+        try:
+            if rsc_amount > 0:
+                usd_from_rsc = RscExchangeRate.rsc_to_usd(rsc_amount)
+            if usd_from_contributions > 0:
+                rsc_from_usd = RscExchangeRate.usd_to_rsc(usd_from_contributions)
+        except AttributeError:
+            usd_from_rsc = 0.0
+            rsc_from_usd = 0.0
+
+        return {
+            "usd": usd_from_rsc + usd_from_contributions,
+            "rsc": rsc_amount + rsc_from_usd,
+        }
+
     def get_recipient(self):
         """
         Get the appropriate recipient for fundraise funds.

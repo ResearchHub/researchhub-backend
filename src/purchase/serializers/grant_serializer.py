@@ -19,6 +19,7 @@ class GrantSerializer(serializers.ModelSerializer):
             "created_date",
             "updated_date",
             "start_date",
+            "funding_mechanism",
         ]
 
 
@@ -36,6 +37,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = Grant
         fields = "__all__"
+        read_only_fields = ("funding_mechanism",)
 
     def get_created_by(self, grant):
         context = self.context
@@ -172,7 +174,9 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
                         if application.preregistration_post
                         else None
                     ),
-                    "fundraise": self._serialize_application_fundraise(application),
+                    "fundraise": self._serialize_application_fundraise(
+                        application, grant
+                    ),
                     "key_insight": self._serialize_application_key_insight(
                         application, review_by_ud
                     ),
@@ -197,7 +201,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         return ProposalKeyInsightSerializer(ki).data
 
     @classmethod
-    def _serialize_application_fundraise(cls, application):
+    def _serialize_application_fundraise(cls, application, grant):
         post = application.preregistration_post
         if (
             not post
@@ -214,33 +218,9 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         if not fundraises:
             return None
         fundraise = fundraises[0]
-
-        usd_goal = float(fundraise.goal_amount)
-        try:
-            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
-        except AttributeError:
-            rsc_goal = None
-
+        goal_amount = cls._application_goal_amount(fundraise, grant)
         aggregated = fundraise.get_contributors_summary()
-
-        rsc_raised = sum(c.total_rsc for c in aggregated.top)
-        usd_raised = sum(c.total_usd for c in aggregated.top)
-        if fundraise.escrow:
-            escrow_rsc = float(
-                fundraise.escrow.amount_holding + fundraise.escrow.amount_paid
-            )
-            rsc_raised += escrow_rsc
-
-        try:
-            total_usd = usd_raised + (
-                RscExchangeRate.rsc_to_usd(rsc_raised) if rsc_raised > 0 else 0
-            )
-            total_rsc = rsc_raised + (
-                RscExchangeRate.usd_to_rsc(usd_raised) if usd_raised > 0 else 0
-            )
-        except AttributeError:
-            total_usd = usd_raised
-            total_rsc = rsc_raised
+        amount_raised = fundraise.get_raised_totals()
 
         contributors = []
         for entry in aggregated.top:
@@ -299,11 +279,8 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             "id": fundraise.id,
             "title": post.title,
             "status": fundraise.status,
-            "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
-            "amount_raised": {
-                "usd": total_usd,
-                "rsc": total_rsc,
-            },
+            **({} if goal_amount is None else {"goal_amount": goal_amount}),
+            "amount_raised": amount_raised,
             "contributors": {
                 "total": aggregated.total,
                 "top": contributors,
@@ -312,6 +289,18 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             "review_metrics": review_metrics,
             "reviews": reviews,
         }
+
+    @staticmethod
+    def _application_goal_amount(fundraise, grant):
+        """Return the proposal goal, omitted for an award."""
+        if grant.funding_mechanism == Grant.AWARD:
+            return None
+        usd_goal = float(fundraise.goal_amount)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            rsc_goal = None
+        return {"usd": usd_goal, "rsc": rsc_goal}
 
     @staticmethod
     def _serialize_review_author(review):

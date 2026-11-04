@@ -12,7 +12,7 @@ from ai_peer_review.serializers import ProposalReviewSerializer
 from note.models import GrantSettings
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
-from purchase.models import Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
@@ -997,8 +997,8 @@ class ViewTests(APITestCase):
             updated_response.data["grant"]["description"], "Grant to be preserved"
         )
 
-    def test_grant_funding_mechanism_updates_without_grant_amount(self):
-        """Mechanism can be updated on an existing grant without re-sending amount."""
+    def test_grant_funding_mechanism_is_ignored_on_update(self):
+        """A later mechanism value does not change the mechanism set at creation."""
         # Arrange
         author = create_random_default_user("mechanism_update_author", moderator=True)
         make_user_verified(author)
@@ -1021,7 +1021,6 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 200)
         grant_id = doc_response.data["grant"]["id"]
         self.assertEqual(doc_response.data["grant"]["funding_mechanism"], Grant.FUNDING)
-        original_updated_date = Grant.objects.get(id=grant_id).updated_date
 
         # Act
         updated_response = self.client.post(
@@ -1042,15 +1041,15 @@ class ViewTests(APITestCase):
         self.assertEqual(updated_response.status_code, 200)
         self.assertEqual(updated_response.data["grant"]["id"], grant_id)
         self.assertEqual(
-            updated_response.data["grant"]["funding_mechanism"], Grant.AWARD
+            updated_response.data["grant"]["funding_mechanism"], Grant.FUNDING
         )
         self.assertEqual(updated_response.data["grant"]["amount"]["usd"], 40000.0)
         grant = Grant.objects.get(id=grant_id)
-        self.assertEqual(grant.funding_mechanism, Grant.AWARD)
-        self.assertGreater(grant.updated_date, original_updated_date)
+        self.assertEqual(grant.funding_mechanism, Grant.FUNDING)
+        self.assertEqual(grant.amount, Decimal("40000.00"))
 
-    def test_grant_funding_mechanism_update_rejects_invalid_value(self):
-        """Invalid/empty mechanism is rejected before the post is mutated."""
+    def test_invalid_grant_funding_mechanism_is_ignored_on_update(self):
+        """An invalid mechanism does not block the update or change the grant."""
         # Arrange
         author = create_random_default_user("bad_mechanism_author", moderator=True)
         make_user_verified(author)
@@ -1101,12 +1100,14 @@ class ViewTests(APITestCase):
                 updated_response = self.client.post("/api/researchhubpost/", payload)
 
                 # Assert
-                self.assertEqual(updated_response.status_code, 400)
-                post = ResearchhubPost.objects.get(id=post_id)
-                self.assertEqual(post.title, original_title)
+                self.assertEqual(updated_response.status_code, 200)
                 grant = Grant.objects.get(id=grant_id)
                 self.assertEqual(grant.funding_mechanism, Grant.FUNDING)
-                self.assertEqual(grant.amount, Decimal("40000.00"))
+                if with_amount:
+                    expected_amount = Decimal("45000.00")
+                else:
+                    expected_amount = Decimal("40000.00")
+                self.assertEqual(grant.amount, expected_amount)
 
     def test_grant_update_with_end_date(self):
         """Test that grant end date can be updated"""
@@ -1647,6 +1648,9 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
                 applicant=self.user,
             ).exists()
         )
+        # Default mechanism is FUNDING, so publish does not open a zero-goal fundraise.
+        self.assertIsNone(response.data["fundraise"])
+        self.assertEqual(self.grant.funding_mechanism, Grant.FUNDING)
 
     def test_create_auto_approved_preregistration_creates_journey(self) -> None:
         """Verify trusted preregistration creation creates a journey anchor."""
@@ -1723,6 +1727,84 @@ class PreregistrationGrantAutoAttachTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 200)
         self.assertFalse(GrantApplication.objects.exists())
+
+    def test_award_publish_allows_zero_goal(self):
+        """An award proposal can open a fundraise with a goal of 0."""
+        # Arrange
+        self.grant.funding_mechanism = Grant.AWARD
+        self.grant.save(update_fields=["funding_mechanism"])
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency="USD")
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(
+            extra_data={
+                "grant_id": self.grant.id,
+                "fundraise_goal_amount": 0,
+            }
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        fundraise = Fundraise.objects.get(
+            unified_document__posts__id=response.data["id"]
+        )
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+        self.assertEqual(fundraise.goal_amount, Decimal(0))
+        self.assertAlmostEqual(
+            fundraise.end_date.timestamp(),
+            (datetime.now(UTC) + timedelta(days=30)).timestamp(),
+            delta=60,
+        )
+        self.assertIsNotNone(fundraise.escrow)
+        self.assertEqual(response.data["fundraise"]["id"], fundraise.id)
+        self.assertTrue(
+            GrantApplication.objects.filter(
+                grant=self.grant,
+                preregistration_post_id=response.data["id"],
+            ).exists()
+        )
+
+    def test_award_publish_without_a_goal_opens_a_zero_goal_fundraise(self):
+        """An award proposal with no goal still opens a fundraise at 0."""
+        # Arrange
+        self.grant.funding_mechanism = Grant.AWARD
+        self.grant.save(update_fields=["funding_mechanism"])
+        RscExchangeRate.objects.create(rate=0.5, real_rate=0.5, target_currency="USD")
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(extra_data={"grant_id": self.grant.id})
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        fundraise = Fundraise.objects.get(
+            unified_document__posts__id=response.data["id"]
+        )
+        self.assertEqual(fundraise.goal_amount, Decimal(0))
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+
+    def test_zero_goal_does_not_create_fundraise_for_funding_grant(self):
+        """A client goal of 0 still counts as missing for a normal fundraise."""
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        # Act
+        response = self._create_post(
+            extra_data={
+                "grant_id": self.grant.id,
+                "fundraise_goal_amount": 0,
+            }
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["fundraise"])
+        self.assertFalse(
+            Fundraise.objects.filter(
+                unified_document__posts__id=response.data["id"]
+            ).exists()
+        )
 
 
 class PreregistrationGrantsPayloadTests(APITestCase):

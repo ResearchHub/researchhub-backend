@@ -1598,6 +1598,8 @@ class NoteTests(APITestCase):
         # Arrange
         first_grant = self._create_grant()
         second_grant = self._create_grant()
+        second_grant.funding_mechanism = Grant.AWARD
+        second_grant.save(update_fields=["funding_mechanism"])
         grant_post = first_grant.unified_document.posts.get()
         grant_post.title = "Kindness Research RFP"
         grant_post.image = "grant-cover.png"
@@ -1634,16 +1636,22 @@ class NoteTests(APITestCase):
         selected_grant_details = add_response.data["selected_grant_details"]
         self.assertEqual(selected_grant_details["short_title"], "Kindness RFP")
         self.assertEqual(selected_grant_details["title"], "Kindness Research RFP")
+        self.assertEqual(selected_grant_details["funding_mechanism"], Grant.FUNDING)
         self.assertIn(
             "grant-cover.png",
             selected_grant_details["image_url"],
         )
         self.assertEqual(replace_response.status_code, 200)
         self.assertEqual(replace_response.data["selected_grant"], second_grant.id)
+        self.assertEqual(
+            replace_response.data["selected_grant_details"]["funding_mechanism"],
+            Grant.AWARD,
+        )
         self.assertEqual(retain_response.status_code, 400)
         self.assertEqual(remove_response.status_code, 200)
         self.assertEqual(remove_response.data["document_type"], DISCUSSION)
         self.assertIsNone(remove_response.data["selected_grant"])
+        self.assertIsNone(remove_response.data["selected_grant_details"])
 
     def test_rejects_invalid_selected_grant_changes(self) -> None:
         """Selections reject invalid note, grant, and publication states."""
