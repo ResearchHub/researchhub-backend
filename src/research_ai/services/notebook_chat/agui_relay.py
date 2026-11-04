@@ -185,6 +185,7 @@ class ChatRelay:
         last_frame_at = self._clock()
 
         while True:
+            chat = None
             now = self._clock()
             if dirty_since is not None:
                 wait = 0.0 if force else self._debounce_seconds - (now - dirty_since)
@@ -218,15 +219,21 @@ class ChatRelay:
                 if not force and self._clock() - dirty_since < self._debounce_seconds:
                     continue
             elif dirty_since is None and answer_deadline is None:
-                yield KEEPALIVE
-                last_frame_at = self._clock()
-                continue
+                # Quiet. Channel-layer delivery is best-effort, so check the
+                # durable state in case the turn's terminal event was lost.
+                chat = await self._load(ACTIVITY_LIVE)
+                execution = _find(chat, target)
+                if execution is not None and execution["status"] in ACTIVE_STATUSES:
+                    yield KEEPALIVE
+                    last_frame_at = self._clock()
+                    continue
             elif dirty_since is None:
                 # Polling for an answer that is still publishing.
                 force = True
 
             # Refresh from durable state.
-            chat = await self._load(ACTIVITY_LIVE)
+            if chat is None:
+                chat = await self._load(ACTIVITY_LIVE)
             dirty_since = None
             force = False
             for event in preview.close():
@@ -257,7 +264,9 @@ class ChatRelay:
         return chat
 
     def _finish(self, execution: dict | None) -> BaseEvent:
-        status = execution["status"] if execution is not None else None
+        if execution is None:
+            return RunFinishedEvent(thread_id=self.thread_id, run_id=self.run_id)
+        status = execution["status"]
         if status == AgentExecution.Status.CANCELLED:
             return RunFinishedEvent(
                 thread_id=self.thread_id,
@@ -275,13 +284,20 @@ class ChatRelay:
 
 async def _receive(layer, channel: str, timeout: float) -> dict | None:
     try:
-        return await asyncio.wait_for(layer.receive(channel), timeout)
+        async with asyncio.timeout(timeout):
+            return await layer.receive(channel)
     except TimeoutError:
         return None
 
 
 def _active_id(chat: dict) -> int | None:
-    active = [e for e in chat["executions"] if e["status"] in ACTIVE_STATUSES]
+    """The turn a connect should follow: one running, or one whose answer is
+    still publishing."""
+    active = [
+        e
+        for e in chat["executions"]
+        if e["status"] in ACTIVE_STATUSES or e["assistant_message_pending"]
+    ]
     return active[-1]["id"] if active else None
 
 

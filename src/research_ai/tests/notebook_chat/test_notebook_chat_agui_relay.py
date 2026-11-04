@@ -1,9 +1,9 @@
 import asyncio
 import copy
 import json
-from unittest import IsolatedAsyncioTestCase
 
 from channels.layers import InMemoryChannelLayer
+from django.test import SimpleTestCase
 
 from research_ai.services.notebook_chat.agui_relay import KEEPALIVE, ChatRelay
 from research_ai.services.notebook_chat.events import (
@@ -77,11 +77,14 @@ class FakeChat:
 def _parse(frame):
     if frame == KEEPALIVE:
         return {"type": "KEEPALIVE"}
-    assert frame.startswith("data: ") and frame.endswith("\n\n"), frame
+    assert frame.startswith("data: "), frame
+    assert frame.endswith("\n\n"), frame
     return json.loads(frame[len("data: ") : -2])
 
 
-class ChatRelayTests(IsolatedAsyncioTestCase):
+# Django runs async test methods in their own event loop; unlike
+# IsolatedAsyncioTestCase, its test cases pickle for the parallel runner.
+class ChatRelayTests(SimpleTestCase):
     def setUp(self):
         self.layer = InMemoryChannelLayer()
 
@@ -118,14 +121,14 @@ class ChatRelayTests(IsolatedAsyncioTestCase):
             # Appended as they arrive: scripts watch the list mid-stream.
             async for frame in relay.stream(execution_id):
                 events.append(_parse(frame))  # noqa: PERF401
+            return events
 
         async with asyncio.timeout(5):
             task = asyncio.create_task(collect())
             if script is not None:
                 await fake.loaded.wait()
                 await script(events)
-            await task
-        return events
+            return await task
 
     async def _until(self, events, event_type):
         while not any(event["type"] == event_type for event in events):
@@ -373,3 +376,41 @@ class ChatRelayTests(IsolatedAsyncioTestCase):
 
         # Assert
         self.assertEqual(events[-1]["type"], "RUN_FINISHED")
+
+    async def test_a_lost_terminal_event_is_caught_on_a_quiet_check(self):
+        # Arrange
+        fake = FakeChat(_chat(_execution()))
+        relay = self._relay(fake, keepalive_seconds=0.01)
+
+        async def script(events):
+            await self._until(events, "KEEPALIVE")
+            # The turn settles without its event reaching the relay.
+            fake.chat = _chat(_execution(status="SUCCEEDED"), _answer("Quietly."))
+
+        # Act
+        events = await self._run(relay, fake, script)
+
+        # Assert
+        self.assertEqual(events[-1]["type"], "RUN_FINISHED")
+        final = [e for e in events if e["type"] == "MESSAGES_SNAPSHOT"][-1]
+        self.assertEqual(final["messages"][-1]["content"], "Quietly.")
+
+    async def test_connect_follows_an_answer_that_is_still_publishing(self):
+        # Arrange
+        fake = FakeChat(
+            _chat(_execution(status="SUCCEEDED", assistant_message_pending=True))
+        )
+        relay = self._relay(fake, answer_poll_seconds=0.01)
+
+        async def script(events):
+            while len(fake.scopes) < 2:
+                await asyncio.sleep(0.005)
+            fake.chat = _chat(_execution(status="SUCCEEDED"), _answer("Published."))
+
+        # Act
+        events = await self._run(relay, fake, script, execution_id=None)
+
+        # Assert
+        self.assertEqual(events[-1]["type"], "RUN_FINISHED")
+        final = [e for e in events if e["type"] == "MESSAGES_SNAPSHOT"][-1]
+        self.assertEqual(final["messages"][-1]["content"], "Published.")

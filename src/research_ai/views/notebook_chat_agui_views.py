@@ -26,6 +26,7 @@ binding asks.
 
 from ag_ui.core import RunAgentInput, UserMessage
 from asgiref.sync import sync_to_async
+from django.db import close_old_connections
 from django.http import StreamingHttpResponse
 from pydantic import ValidationError
 from rest_framework import status
@@ -138,6 +139,11 @@ def _message_text(message: UserMessage) -> str:
 
 def _chat_loader(service: NotebookChatService, conversation: AgentConversation):
     def load(scope: str) -> dict:
-        return service.representation(conversation, activity_scope=scope)
+        try:
+            return service.representation(conversation, activity_scope=scope)
+        finally:
+            # The stream outlives the request cycle, whose end is what
+            # normally returns the connection; don't hold it between loads.
+            close_old_connections()
 
     return sync_to_async(load)

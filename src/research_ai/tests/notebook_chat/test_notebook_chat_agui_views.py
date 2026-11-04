@@ -72,7 +72,7 @@ class NotebookChatAguiViewTests(APITestCase):
             password="password",
             email="other@researchhub_test.com",
         )
-        self.note, _content = create_note(self.owner, organization=None)
+        self.note = create_note(self.owner, organization=None)[0]
         Permission.objects.create(
             access_type=ADMIN,
             content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
