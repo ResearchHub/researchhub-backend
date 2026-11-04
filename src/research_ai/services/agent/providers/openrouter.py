@@ -4,7 +4,8 @@ OpenRouter fronts many model families behind the OpenAI Chat Completions wire
 format, so this one adapter unlocks any OpenRouter-routable model for the
 generator and the judge roster alike. It reuses the already-installed
 ``openai`` client pointed at the OpenRouter base URL and renders the neutral
-agent types to/from the Chat Completions shape.
+agent types to/from the Chat Completions shape. Agent turns
+(``complete_with_events``) are streamed; one-shot ``complete`` calls are not.
 """
 
 import base64
@@ -15,9 +16,11 @@ from collections.abc import Callable
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import Any
 
+import httpx
 import openai
 from django.conf import settings
 from openai import OpenAI
+from openai.types.chat import ChatCompletion
 
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.images import (
@@ -33,11 +36,17 @@ from research_ai.services.agent.types import (
     Block,
     ImageBlock,
     Message,
+    ProviderStreamEvent,
     StopReason,
+    StreamReset,
     TextBlock,
+    TextStreamDelta,
     ThinkingBlock,
+    ThinkingStreamDelta,
+    ToolInputStreamDelta,
     ToolResultBlock,
     ToolUseBlock,
+    ToolUseStreamStart,
     TurnUsage,
 )
 from research_ai.services.llm_models import OPENROUTER_AGENT
@@ -52,11 +61,11 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 MODEL_ID = OPENROUTER_AGENT.model_id
 
 # What ``max_tokens=None`` resolves to: a spend budget, not a model limit.
-# Deliberately below every routed model's ceiling because the completion is not
+# Deliberately below every routed model's ceiling because ``complete`` is not
 # streamed, so a longer emission would outlive the client read timeout and die
-# whole. Raise only after moving to streaming. The model's own ceiling
-# (``ModelCapabilities.max_output_tokens``) clamps this and anything a caller
-# asks for.
+# whole. Agent turns stream; raise only once ``complete`` does too. The model's
+# own ceiling (``ModelCapabilities.max_output_tokens``) clamps this and anything
+# a caller asks for.
 MAX_OUTPUT_TOKENS = 32_768
 
 # How much the model may deliberate and spend per turn. OpenRouter normalizes
@@ -95,6 +104,21 @@ def _is_retryable_error(error: Exception) -> bool:
         status = error.status_code
         return status in _RETRYABLE_STATUS_CODES or status >= 500
     return False
+
+
+def _stream_error_body(error: Exception) -> dict | None:
+    """The error body OpenRouter sent mid-stream, or ``None``.
+
+    Once a stream has started its status is a 200, so OpenRouter reports a
+    later failure as a chunk holding an ``error`` object, which the SDK raises
+    as a bare ``APIError`` carrying that object. It is the streamed form of a
+    200 whose body holds an error, and is classified the same way.
+    """
+    if not isinstance(error, openai.APIError) or isinstance(
+        error, openai.APIStatusError | openai.APIConnectionError
+    ):
+        return None
+    return error.body if isinstance(error.body, dict) else None
 
 
 # 403 ``error_type``s for a request the model or a content filter declined.
@@ -199,6 +223,172 @@ def _plain_dict(value: Any) -> dict:
     return dict(value) if isinstance(value, dict) else {}
 
 
+# Reasoning-detail fields a stream splits across chunks of the same detail.
+_CONCATENATED_DETAIL_FIELDS = frozenset({"text", "summary", "data"})
+
+# Reasoning-detail types a person can read; others (``reasoning.encrypted``)
+# are opaque continuation state and are never shown.
+_READABLE_DETAIL_FIELDS = {"reasoning.text": "text", "reasoning.summary": "summary"}
+
+
+def _readable_reasoning(detail: dict) -> str:
+    """The text of a reasoning-detail fragment that may be shown, or ``""``."""
+    value = detail.get(_READABLE_DETAIL_FIELDS.get(detail.get("type"), ""))
+    return value if isinstance(value, str) else ""
+
+
+class _StreamedCompletion:
+    """Folds a Chat Completions stream back into the completion it streamed.
+
+    The result has the shape a non-streamed request returns, so a streamed turn
+    is parsed, billed and classified by the same code as one from ``complete``.
+    Chunks are reported to ``on_event`` as they arrive. Chat Completions deltas
+    carry no content-block index, so each block -- the reasoning, the text, and
+    every tool call -- gets one when it first appears.
+    """
+
+    def __init__(self, on_event: Callable[[ProviderStreamEvent], None] | None):
+        self._on_event = on_event
+        self._body: dict = {}
+        self._choice: dict | None = None
+        self._content: list[str] = []
+        self._reasoning: list[str] = []
+        self._details: dict[Any, dict] = {}
+        self._tool_calls: dict[int, dict] = {}
+        self._started_tools: set[int] = set()
+        self._block_indices: dict[Any, int] = {}
+
+    def add(self, chunk: Any) -> None:
+        data = _plain_dict(chunk)
+        for key in ("id", "created", "model", "provider", "system_fingerprint"):
+            if key in data:
+                self._body[key] = data[key]
+        if data.get("usage"):
+            # Sent on the last chunk, which carries no choice.
+            self._body["usage"] = data["usage"]
+        for choice in data.get("choices") or []:
+            if choice.get("index", 0) != 0:
+                continue
+            if self._choice is None:
+                self._choice = {"index": 0, "finish_reason": None}
+            if choice.get("finish_reason"):
+                self._choice["finish_reason"] = choice["finish_reason"]
+            self._add_delta(choice.get("delta") or {})
+
+    def completion(self) -> ChatCompletion:
+        body: dict = {
+            "id": "",
+            "created": 0,
+            "model": "",
+            **self._body,
+            "object": "chat.completion",
+            "choices": [],
+        }
+        if self._choice is not None:
+            message: dict = {
+                "role": "assistant",
+                "content": "".join(self._content) or None,
+            }
+            if self._reasoning:
+                message["reasoning"] = "".join(self._reasoning)
+            if self._details:
+                message["reasoning_details"] = list(self._details.values())
+            if self._tool_calls:
+                message["tool_calls"] = [
+                    call for _, call in sorted(self._tool_calls.items())
+                ]
+            body["choices"] = [{**self._choice, "message": message}]
+        # ``construct`` builds the nested SDK models without validating, as the
+        # SDK does for a response, so OpenRouter's extra fields survive.
+        return ChatCompletion.construct(**body)
+
+    def _add_delta(self, delta: dict) -> None:
+        content = delta.get("content")
+        if isinstance(content, str) and content:
+            self._content.append(content)
+            self._emit(TextStreamDelta(block_index=self._index("text"), text=content))
+
+        reasoning = delta.get("reasoning")
+        reasoning = reasoning if isinstance(reasoning, str) else ""
+        if reasoning:
+            self._reasoning.append(reasoning)
+        details = [
+            detail
+            for detail in delta.get("reasoning_details") or []
+            if isinstance(detail, dict)
+        ]
+        for detail in details:
+            self._add_detail(detail)
+        readable = "".join(map(_readable_reasoning, details)) or reasoning
+        if readable:
+            self._emit(
+                ThinkingStreamDelta(block_index=self._index("thinking"), text=readable)
+            )
+
+        for call in delta.get("tool_calls") or []:
+            if isinstance(call, dict):
+                self._add_tool_call(call)
+
+    def _add_detail(self, detail: dict) -> None:
+        """Merge one reasoning-detail fragment into the detail it continues."""
+        key = detail.get("index")
+        if not isinstance(key, int):
+            key = ("unindexed", len(self._details))
+        merged = self._details.setdefault(key, {})
+        for field, value in detail.items():
+            previous = merged.get(field)
+            if (
+                field in _CONCATENATED_DETAIL_FIELDS
+                and isinstance(previous, str)
+                and isinstance(value, str)
+            ):
+                merged[field] = previous + value
+            else:
+                merged[field] = value
+
+    def _add_tool_call(self, call: dict) -> None:
+        index = call.get("index")
+        if not isinstance(index, int):
+            index = len(self._tool_calls)
+        entry = self._tool_calls.setdefault(
+            index,
+            {"id": None, "type": "function", "function": {"name": "", "arguments": ""}},
+        )
+        if call.get("id"):
+            entry["id"] = call["id"]
+        function = call.get("function") or {}
+        name = function.get("name")
+        if isinstance(name, str) and name:
+            entry["function"]["name"] = name
+        arguments = function.get("arguments")
+        arguments = arguments if isinstance(arguments, str) else ""
+        entry["function"]["arguments"] += arguments
+
+        block_index = self._index(("tool", index))
+        if index not in self._started_tools:
+            if not entry["function"]["name"]:
+                # Arguments before the name are kept and shown once it arrives.
+                return
+            self._started_tools.add(index)
+            self._emit(
+                ToolUseStreamStart(
+                    block_index=block_index, name=entry["function"]["name"]
+                )
+            )
+            arguments = entry["function"]["arguments"]
+        if arguments:
+            self._emit(
+                ToolInputStreamDelta(block_index=block_index, partial_json=arguments)
+            )
+
+    def _index(self, block: Any) -> int:
+        return self._block_indices.setdefault(block, len(self._block_indices))
+
+    def _emit(self, event: ProviderStreamEvent) -> None:
+        if self._on_event is not None:
+            self._on_event(event)
+
+
 class OpenRouterProvider(LLMProvider):
     """Adapts the neutral agent types to OpenRouter's Chat Completions API."""
 
@@ -258,10 +448,7 @@ class OpenRouterProvider(LLMProvider):
         before_retry: Callable[[], None] | None = None,
         on_usage: Callable[[TurnUsage], None] | None = None,
     ) -> AssistantTurn:
-        if self._client is None:
-            raise ProviderError(
-                "OPENROUTER_API_KEY is not configured; cannot call OpenRouter."
-            )
+        self._require_client()
         kwargs = self._request_kwargs(
             system_prompt=system_prompt,
             messages=messages,
@@ -269,9 +456,65 @@ class OpenRouterProvider(LLMProvider):
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        return self._retrying_empty(
+            lambda: self._request_turn(kwargs, on_usage), before_retry
+        )
+
+    def complete_with_events(
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        rendered_tools: Any,
+        max_tokens: int | None,
+        temperature: float,
+        on_event: Callable[[ProviderStreamEvent], None] | None = None,
+        before_retry: Callable[[], None] | None = None,
+        on_usage: Callable[[TurnUsage], None] | None = None,
+    ) -> AssistantTurn:
+        """Run one turn streamed, reporting its output as it is written.
+
+        Streamed so the reader sees the answer while the model writes it, and
+        so a long emission is bounded by the gaps between chunks rather than
+        by one whole-response read. The chunks fold back into the completion a
+        non-streamed request returns, so the turn parses as ``complete``'s does.
+        """
+        self._require_client()
+        kwargs = {
+            **self._request_kwargs(
+                system_prompt=system_prompt,
+                messages=messages,
+                rendered_tools=rendered_tools,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            ),
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        return self._retrying_empty(
+            lambda: self._stream_turn(kwargs, on_event, on_usage),
+            before_retry,
+            on_event,
+        )
+
+    # -- private helpers --------------------------------------------------
+
+    def _require_client(self) -> None:
+        if self._client is None:
+            raise ProviderError(
+                "OPENROUTER_API_KEY is not configured; cannot call OpenRouter."
+            )
+
+    def _retrying_empty(
+        self,
+        request: Callable[[], AssistantTurn],
+        before_retry: Callable[[], None] | None,
+        on_event: Callable[[ProviderStreamEvent], None] | None = None,
+    ) -> AssistantTurn:
+        """Run ``request``, repeating it once after a transient empty response."""
         for attempt in range(1 + _EMPTY_RESPONSE_RETRIES):
             try:
-                return self._request_turn(kwargs, on_usage)
+                return request()
             except _EmptyResponseError as e:
                 # The SDK does not retry a 200, so a response that arrived
                 # empty for a transient reason gets its repeat here or not at
@@ -284,8 +527,11 @@ class OpenRouterProvider(LLMProvider):
                 )
                 if before_retry is not None:
                     before_retry()
-
-    # -- private helpers --------------------------------------------------
+                if on_event is not None:
+                    # A stream that failed partway may have shown part of an
+                    # answer the retry replaces.
+                    on_event(StreamReset())
+        raise AssertionError("unreachable")  # pragma: no cover
 
     def _request_kwargs(
         self,
@@ -340,28 +586,73 @@ class OpenRouterProvider(LLMProvider):
         try:
             response = self._client.chat.completions.create(**kwargs)
         except Exception as e:
-            refusal = _refusal_error(e)
-            if refusal is not None:
-                # The same outcome as a refusal the model writes, so it is
-                # reported the same way.
-                logger.warning(
-                    "openrouter: request refused (model=%s, error=%r)",
-                    self.model_id,
-                    refusal,
-                )
-                return AssistantTurn(
-                    text_blocks=[],
-                    tool_calls=[],
-                    stop_reason=StopReason.CONTENT_FILTERED,
-                    stop_details=refusal,
-                )
-            logger.exception("OpenRouter complete failed")
-            raise ProviderError(
-                f"OpenRouter complete failed: {e}",
-                retryable=_is_retryable_error(e),
-            ) from e
-        latency_ms = int((time.perf_counter() - started) * 1000)
+            return self._failed_request(e)
+        return self._finished_turn(response, started, on_usage)
 
+    def _stream_turn(
+        self,
+        kwargs: dict,
+        on_event: Callable[[ProviderStreamEvent], None] | None,
+        on_usage: Callable[[TurnUsage], None] | None,
+    ) -> AssistantTurn:
+        """Stream one Chat Completions request and parse its turn."""
+        started = time.perf_counter()
+        try:
+            stream = self._client.chat.completions.create(**kwargs)
+        except Exception as e:
+            return self._failed_request(e)
+        streamed = _StreamedCompletion(on_event)
+        try:
+            for chunk in stream:
+                streamed.add(chunk)
+        except Exception as e:
+            body = _stream_error_body(e)
+            if body is not None:
+                return self._no_message_turn({"error": body})
+            logger.exception("OpenRouter stream failed")
+            raise ProviderError(
+                f"OpenRouter stream failed: {e}",
+                # A connection dropped mid-emission is as transient as one
+                # that failed to open.
+                retryable=_is_retryable_error(e) or isinstance(e, httpx.TransportError),
+            ) from e
+        finally:
+            close = getattr(stream, "close", None)
+            if callable(close):
+                close()
+        return self._finished_turn(streamed.completion(), started, on_usage)
+
+    def _failed_request(self, error: Exception) -> AssistantTurn:
+        """A refusal turn for a refused request; any other failure raises."""
+        refusal = _refusal_error(error)
+        if refusal is not None:
+            # The same outcome as a refusal the model writes, so it is
+            # reported the same way.
+            logger.warning(
+                "openrouter: request refused (model=%s, error=%r)",
+                self.model_id,
+                refusal,
+            )
+            return AssistantTurn(
+                text_blocks=[],
+                tool_calls=[],
+                stop_reason=StopReason.CONTENT_FILTERED,
+                stop_details=refusal,
+            )
+        logger.exception("OpenRouter complete failed")
+        raise ProviderError(
+            f"OpenRouter complete failed: {error}",
+            retryable=_is_retryable_error(error),
+        ) from error
+
+    def _finished_turn(
+        self,
+        response: Any,
+        started: float,
+        on_usage: Callable[[TurnUsage], None] | None,
+    ) -> AssistantTurn:
+        """Report a completed response's usage, then parse its turn."""
+        latency_ms = int((time.perf_counter() - started) * 1000)
         self._log_usage(response)
         usage = self._parse_usage(response)
         if usage is not None and on_usage is not None:
