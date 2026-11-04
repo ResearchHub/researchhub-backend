@@ -140,6 +140,21 @@ class OAuthAuthorizeViewTests(APITestCase):
         self.assertEqual(query["error"], ["access_denied"])
         self.assertEqual(query["iss"], [settings.OAUTH_ISSUER])
 
+    def test_post_rejects_a_non_loopback_http_redirect_uri(self):
+        # Arrange
+        redirect_uri = "http://client.example.com/callback"
+        self.application.redirect_uris = redirect_uri
+        self.application.save()
+        self.params["redirect_uri"] = redirect_uri
+
+        # Act
+        response = self._post(allow=True)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("redirect_url", response.data)
+        self.assertFalse(Grant.objects.exists())
+
     def test_requires_sign_in(self):
         # Arrange
         self.client.credentials()

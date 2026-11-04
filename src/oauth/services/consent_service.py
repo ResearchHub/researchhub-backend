@@ -8,7 +8,7 @@ from oauth2_provider.oauth2_backends import _add_iss_to_redirect, get_oauthlib_c
 from oauth2_provider.scopes import get_scopes_backend
 from oauth2_provider.settings import oauth2_settings
 from oauthlib.oauth2 import AccessDeniedError
-from oauthlib.oauth2.rfc6749.errors import CustomOAuth2Error
+from oauthlib.oauth2.rfc6749.errors import CustomOAuth2Error, InvalidRedirectURIError
 
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
@@ -83,6 +83,15 @@ class OAuthConsentService:
             scopes, credentials = self.core.validate_authorization_request(request)
         except OAuthToolkitError as error:
             raise self._authorization_error(request, error) from error
+
+        # Only loopback hosts may use plain http for the redirect URI.
+        uri = urlparse(credentials["redirect_uri"])
+        if uri.scheme == "http" and uri.hostname not in LOOPBACK_HOSTS:
+            error = InvalidRedirectURIError(
+                description="Redirect URIs must use https unless they are loopback.",
+                request=credentials["request"],
+            )
+            raise AuthorizationError(error)
 
         # Clients may only request the MCP server, so every token is bound to that
         # audience:
