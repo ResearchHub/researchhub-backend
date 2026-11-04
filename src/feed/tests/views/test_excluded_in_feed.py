@@ -10,7 +10,6 @@ from rest_framework.test import APIClient
 from feed.models import FeedEntry, HiddenFeedEntry
 from hub.models import Hub
 from paper.models import Paper
-from paper.tests.helpers import add_to_journal
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
@@ -144,9 +143,6 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
             self.assertNotIn(self.hidden_paper_doc.id, ids, params)
 
     def test_hidden_paper_remains_directly_retrievable(self):
-        # Arrange
-        add_to_journal(self.hidden_paper)
-
         # Act
         paper_response = self.client.get(f"/api/paper/{self.hidden_paper.id}/")
         metadata_response = self.client.get(
