@@ -158,7 +158,8 @@ class ChatRelay:
         self, layer, channel: str, execution_id: int | None, encoder: EventEncoder
     ) -> AsyncIterator[str]:
         chat = await self._load(ACTIVITY_ALL)
-        yield encoder.encode(messages_snapshot(chat))
+        sent = messages_snapshot(chat)
+        yield encoder.encode(sent)
         target = execution_id if execution_id is not None else _active_id(chat)
         execution = _find(chat, target)
         # Nothing running (or a turn that settled before we subscribed): the
@@ -220,10 +221,15 @@ class ChatRelay:
                     continue
             elif dirty_since is None and answer_deadline is None:
                 # Quiet. Channel-layer delivery is best-effort, so check the
-                # durable state in case the turn's terminal event was lost.
+                # durable state in case an event was lost: send what changed,
+                # or finish a turn that settled.
                 chat = await self._load(ACTIVITY_LIVE)
                 execution = _find(chat, target)
-                if execution is not None and execution["status"] in ACTIVE_STATUSES:
+                if (
+                    execution is not None
+                    and execution["status"] in ACTIVE_STATUSES
+                    and messages_snapshot(chat) == sent
+                ):
                     yield KEEPALIVE
                     last_frame_at = self._clock()
                     continue
@@ -238,7 +244,8 @@ class ChatRelay:
             force = False
             for event in preview.close():
                 yield encoder.encode(event)
-            yield encoder.encode(messages_snapshot(chat))
+            sent = messages_snapshot(chat)
+            yield encoder.encode(sent)
             last_frame_at = self._clock()
             execution = _find(chat, target)
             if execution is not None and execution["status"] in ACTIVE_STATUSES:

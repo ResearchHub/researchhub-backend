@@ -414,3 +414,26 @@ class ChatRelayTests(SimpleTestCase):
         self.assertEqual(events[-1]["type"], "RUN_FINISHED")
         final = [e for e in events if e["type"] == "MESSAGES_SNAPSHOT"][-1]
         self.assertEqual(final["messages"][-1]["content"], "Published.")
+
+    async def test_a_lost_progress_event_is_caught_on_a_quiet_check(self):
+        # Arrange
+        fake = FakeChat(_chat(_execution()))
+        relay = self._relay(fake, keepalive_seconds=0.01)
+        call = {"type": "tool_call", "tool": "read_note", "status": "in_progress"}
+
+        async def script(events):
+            await self._until(events, "KEEPALIVE")
+            # Progress lands without its event reaching the relay.
+            fake.chat = _chat(_execution(activity=[call]))
+            while sum(e["type"] == "MESSAGES_SNAPSHOT" for e in events) < 2:
+                await asyncio.sleep(0.005)
+            fake.chat = _chat(_execution(status="SUCCEEDED"), _answer())
+            await self._publish(TURN_FINISHED)
+
+        # Act
+        events = await self._run(relay, fake, script)
+
+        # Assert
+        snapshots = [e for e in events if e["type"] == "MESSAGES_SNAPSHOT"]
+        tool_calls = [m for m in snapshots[1]["messages"] if m.get("toolCalls")]
+        self.assertEqual(tool_calls[0]["toolCalls"][0]["function"]["name"], "read_note")
