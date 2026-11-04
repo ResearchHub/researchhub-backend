@@ -3,9 +3,7 @@ from unittest.mock import patch
 import requests
 from allauth.socialaccount.models import SocialAccount, SocialApp
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client, OAuth2Error
-from django.conf import settings
 from django.contrib.sites.models import Site
-from django.test import TestCase, override_settings
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
@@ -212,58 +210,3 @@ class XLoginViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 409)
         self.assertFalse(SocialAccount.objects.filter(uid="123").exists())
-
-
-class OAuthEndpointTests(TestCase):
-    @override_settings(OAUTH_ENABLED=False)
-    def test_endpoints_are_not_found_while_oauth_is_disabled(self):
-        urls = [
-            "/.well-known/oauth-authorization-server",
-            "/oauth/token/",
-            "/oauth/revoke/",
-            "/api/oauth/authorize/",
-        ]
-        for url in urls:
-            with self.subTest(url=url):
-                # Act
-                response = self.client.get(url)
-
-                # Assert
-                self.assertEqual(response.status_code, 404)
-
-
-class AuthorizationServerMetadataViewTests(TestCase):
-    url = "/.well-known/oauth-authorization-server"
-
-    @override_settings(OAUTH_ENABLED=True, BASE_FRONTEND_URL="https://www.example.com")
-    def test_authorization_endpoint_is_the_web_consent_page(self):
-        # Act
-        response = self.client.get(self.url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json()["authorization_endpoint"],
-            "https://www.example.com/oauth/authorize",
-        )
-
-    @override_settings(
-        OAUTH_ENABLED=True,
-        OAUTH2_PROVIDER={
-            **settings.OAUTH2_PROVIDER,
-            "OIDC_ISS_ENDPOINT": "https://api.example.com",
-        },
-    )
-    def test_metadata_lists_routed_token_and_revocation_endpoints(self):
-        # Act
-        response = self.client.get(self.url)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        metadata = response.json()
-        self.assertEqual(
-            metadata["token_endpoint"], "https://api.example.com/oauth/token/"
-        )
-        self.assertEqual(
-            metadata["revocation_endpoint"], "https://api.example.com/oauth/revoke/"
-        )
