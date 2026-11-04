@@ -125,6 +125,21 @@ class OAuthAuthorizeViewTests(APITestCase):
         self.assertEqual(query["iss"], [settings.OAUTH_ISSUER])
         self.assertFalse(Grant.objects.exists())
 
+    def test_post_denial_replaces_an_issuer_in_the_redirect_uri(self):
+        # Arrange
+        redirect_uri = f"{REDIRECT_URI}?iss=https://attacker.example.com"
+        self.application.redirect_uris = redirect_uri
+        self.application.save()
+        self.params["redirect_uri"] = redirect_uri
+
+        # Act
+        response = self._post(allow=False)
+
+        # Assert
+        query = self._redirect_query(response)
+        self.assertEqual(query["error"], ["access_denied"])
+        self.assertEqual(query["iss"], [settings.OAUTH_ISSUER])
+
     def test_requires_sign_in(self):
         # Arrange
         self.client.credentials()

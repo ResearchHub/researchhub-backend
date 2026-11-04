@@ -4,10 +4,9 @@ from urllib.parse import urlparse
 from django.conf import settings
 from oauth2_provider.exceptions import FatalClientError, OAuthToolkitError
 from oauth2_provider.models import get_application_model
-from oauth2_provider.oauth2_backends import get_oauthlib_core
+from oauth2_provider.oauth2_backends import _add_iss_to_redirect, get_oauthlib_core
 from oauth2_provider.scopes import get_scopes_backend
 from oauth2_provider.settings import oauth2_settings
-from oauthlib.common import add_params_to_uri
 from oauthlib.oauth2 import AccessDeniedError
 from oauthlib.oauth2.rfc6749.errors import CustomOAuth2Error
 
@@ -107,9 +106,8 @@ class OAuthConsentService:
         )
 
     def _error_redirect(self, request, oauthlib_error):
-        # Add `iss` parameter to the redirect URI (DOT doesn't add this by default)
+        # DOT adds `iss` only to successful redirects, so reuse its helper here to
+        # replace any `iss` already in the redirect URI the same way
         uri = oauthlib_error.in_uri(oauthlib_error.redirect_uri)
         issuer = oauth2_settings.oauth2_authorization_server_issuer(request)
-        return add_params_to_uri(
-            uri, [("iss", issuer)], fragment=bool(urlparse(uri).fragment)
-        )
+        return _add_iss_to_redirect(uri, issuer)
