@@ -84,9 +84,7 @@ class OAuthConsentService:
         except OAuthToolkitError as error:
             raise self._authorization_error(request, error) from error
 
-        # Only loopback hosts may use plain http for the redirect URI.
-        uri = urlparse(credentials["redirect_uri"])
-        if uri.scheme == "http" and uri.hostname not in LOOPBACK_HOSTS:
+        if not self._is_secure_redirect_uri(credentials["redirect_uri"]):
             error = InvalidRedirectURIError(
                 description="Redirect URIs must use https unless they are loopback.",
                 request=credentials["request"],
@@ -108,7 +106,12 @@ class OAuthConsentService:
 
     def _authorization_error(self, request, error):
         oauthlib_error = error.oauthlib_error
-        if isinstance(error, FatalClientError) or not oauthlib_error.redirect_uri:
+        redirect_uri = oauthlib_error.redirect_uri
+        if (
+            isinstance(error, FatalClientError)
+            or not redirect_uri
+            or not self._is_secure_redirect_uri(redirect_uri)
+        ):
             return AuthorizationError(oauthlib_error)
         return AuthorizationError(
             oauthlib_error, self._error_redirect(request, oauthlib_error)
@@ -120,3 +123,9 @@ class OAuthConsentService:
         uri = oauthlib_error.in_uri(oauthlib_error.redirect_uri)
         issuer = oauth2_settings.oauth2_authorization_server_issuer(request)
         return _add_iss_to_redirect(uri, issuer)
+
+    @staticmethod
+    def _is_secure_redirect_uri(redirect_uri):
+        # Only loopback hosts may use plain http for the redirect URI.
+        uri = urlparse(redirect_uri)
+        return uri.scheme != "http" or uri.hostname in LOOPBACK_HOSTS

@@ -155,6 +155,20 @@ class OAuthAuthorizeViewTests(APITestCase):
         self.assertNotIn("redirect_url", response.data)
         self.assertFalse(Grant.objects.exists())
 
+    def test_get_does_not_redirect_an_error_to_a_non_loopback_http_redirect_uri(self):
+        # Arrange
+        redirect_uri = "http://client.example.com/callback"
+        self.application.redirect_uris = redirect_uri
+        self.application.save()
+        params = {**self.params, "redirect_uri": redirect_uri, "scope": "unknown"}
+
+        # Act
+        response = self.client.get(self.url, params)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("redirect_url", response.data)
+
     def test_requires_sign_in(self):
         # Arrange
         self.client.credentials()
