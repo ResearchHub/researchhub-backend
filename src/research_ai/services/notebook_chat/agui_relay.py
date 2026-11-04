@@ -221,14 +221,15 @@ class ChatRelay:
                     continue
             elif dirty_since is None and answer_deadline is None:
                 # Quiet. Channel-layer delivery is best-effort, so check the
-                # durable state in case an event was lost: send what changed,
-                # or finish a turn that settled.
+                # durable state and cached stream in case an event was lost:
+                # send what changed, or finish a turn that settled.
                 chat = await self._load(ACTIVITY_LIVE)
                 execution = _find(chat, target)
                 if (
                     execution is not None
                     and execution["status"] in ACTIVE_STATUSES
                     and messages_snapshot(chat) == sent
+                    and preview.matches(execution.get("stream"))
                 ):
                     yield KEEPALIVE
                     last_frame_at = self._clock()

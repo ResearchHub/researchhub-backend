@@ -300,6 +300,15 @@ class StreamPreview:
                 events.append(self._draft_state(item, snapshot["blocks"]))
         return events
 
+    def matches(self, stream: dict | None) -> bool:
+        """Whether this preview already shows the cached ``stream``."""
+        if not stream:
+            return self.stream_id is None
+        return (
+            stream.get("id") == self.stream_id
+            and (stream.get("sequence") or 0) == self.sequence
+        )
+
     def apply(self, data: dict) -> list[BaseEvent] | None:
         """Events for one batch, ``[]`` for a stale one, ``None`` to repair."""
         stream_id = data.get("stream_id")

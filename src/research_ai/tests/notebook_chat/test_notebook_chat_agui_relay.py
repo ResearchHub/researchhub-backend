@@ -437,3 +437,32 @@ class ChatRelayTests(SimpleTestCase):
         snapshots = [e for e in events if e["type"] == "MESSAGES_SNAPSHOT"]
         tool_calls = [m for m in snapshots[1]["messages"] if m.get("toolCalls")]
         self.assertEqual(tool_calls[0]["toolCalls"][0]["function"]["name"], "read_note")
+
+    async def test_a_lost_stream_delta_is_caught_on_a_quiet_check(self):
+        # Arrange
+        def stream(text, sequence):
+            return {
+                "id": "10:1",
+                "sequence": sequence,
+                "iteration": 1,
+                "items": [{"id": "n", "type": "narration", "text": text}],
+            }
+
+        fake = FakeChat(_chat(_execution(stream=stream("Wor", 1))))
+        relay = self._relay(fake, keepalive_seconds=0.01)
+
+        async def script(events):
+            await self._until(events, "KEEPALIVE")
+            # The stream advances without its delta reaching the relay.
+            fake.chat = _chat(_execution(stream=stream("Working", 2)))
+            while not any(e.get("delta") == "Working" for e in events):
+                await asyncio.sleep(0.005)
+            fake.chat = _chat(_execution(status="SUCCEEDED"), _answer())
+            await self._publish(TURN_FINISHED)
+
+        # Act
+        events = await self._run(relay, fake, script)
+
+        # Assert
+        self.assertIn("Working", [e.get("delta") for e in events])
+        self.assertEqual(events[-1]["type"], "RUN_FINISHED")
