@@ -8,7 +8,7 @@ from rest_framework.test import APIClient, APITestCase, APITransactionTestCase
 
 from mailing_list.services import EmailService
 from notification.services import NotificationService
-from paper.tests.helpers import create_paper
+from paper.tests.helpers import add_to_journal, create_paper
 from purchase.models import Balance
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
@@ -43,7 +43,7 @@ class CommentBountyBalanceConcurrencyTests(APITransactionTestCase):
         self.bank_user = create_user(email="bank@researchhub.com")
         self.foundation = create_user(email=FOUNDATION_EMAIL)
         self.paper_uploader = create_random_default_user("bounty_race_uploader")
-        self.paper = create_paper(uploaded_by=self.paper_uploader)
+        self.paper = add_to_journal(create_paper(uploaded_by=self.paper_uploader))
         self.paper_content_type = ContentType.objects.get_for_model(self.paper)
         BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
         Balance.objects.create(
@@ -140,7 +140,7 @@ class CommentViewTests(APITestCase):
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
         self.foundation = create_user(email=FOUNDATION_EMAIL)
         BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
-        self.paper = create_paper(uploaded_by=self.paper_uploader)
+        self.paper = add_to_journal(create_paper(uploaded_by=self.paper_uploader))
         self.verified_user = create_random_default_user("verified_user")
         make_user_verified(self.verified_user)
 
