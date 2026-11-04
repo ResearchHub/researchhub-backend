@@ -435,7 +435,13 @@ ORCID_REDIRECT_URL = os.environ.get(
 
 
 # OAuth 2.0 Authorization Server
-OAUTH_ENABLED = os.environ.get("OAUTH_ENABLED", "false").lower() == "true"
+OAUTH_ENABLED = (
+    os.environ.get(
+        "OAUTH_ENABLED",
+        getattr(keys, "OAUTH_ENABLED", "false"),
+    ).lower()
+    == "true"
+)
 if PRODUCTION:
     OAUTH_ISSUER = "https://api.researchhub.com"
 elif STAGING:
