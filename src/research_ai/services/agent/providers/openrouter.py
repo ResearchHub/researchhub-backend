@@ -132,7 +132,7 @@ _EMPTY_RESPONSE_RETRIES = 1
 
 
 class _EmptyResponseError(ProviderError):
-    """A 200 that carried no usable choice.
+    """A 200 that carried no usable choice, or a stream cut off before its end.
 
     Its own type so ``complete`` can repeat the request the SDK will not,
     while every caller outside this adapter still sees a ``ProviderError``.
@@ -275,6 +275,15 @@ class _StreamedCompletion:
                 self._choice["finish_reason"] = choice["finish_reason"]
             self._add_delta(choice.get("delta") or {})
 
+    @property
+    def finished(self) -> bool:
+        """Whether the choice, if any arrived, reached a finish reason.
+
+        A stream with no choice at all is the streamed form of an empty 200
+        and is reported as one by the parser, so only a started choice counts.
+        """
+        return self._choice is None or self._choice["finish_reason"] is not None
+
     def completion(self) -> ChatCompletion:
         body: dict = {
             "id": "",
@@ -354,15 +363,22 @@ class _StreamedCompletion:
             index,
             {"id": None, "type": "function", "function": {"name": "", "arguments": ""}},
         )
-        if call.get("id"):
-            entry["id"] = call["id"]
+        # A route may split the id and the name across deltas too, so every
+        # string field is concatenated, as the SDK's own accumulator does.
+        call_id = call.get("id")
+        if isinstance(call_id, str) and call_id:
+            entry["id"] = (entry["id"] or "") + call_id
         function = call.get("function") or {}
         name = function.get("name")
         if isinstance(name, str) and name:
-            entry["function"]["name"] = name
+            entry["function"]["name"] += name
         arguments = function.get("arguments")
         arguments = arguments if isinstance(arguments, str) else ""
         entry["function"]["arguments"] += arguments
+        if not arguments:
+            # The name may still be arriving, so the draft opens with the
+            # first fragment of its arguments.
+            return
 
         block_index = self._index(("tool", index))
         if index not in self._started_tools:
@@ -620,7 +636,20 @@ class OpenRouterProvider(LLMProvider):
             close = getattr(stream, "close", None)
             if callable(close):
                 close()
-        return self._finished_turn(streamed.completion(), started, on_usage)
+        response = streamed.completion()
+        if not streamed.finished:
+            # A connection closed cleanly before the last chunk leaves the SDK
+            # nothing to raise. What arrived is a fragment -- possibly a tool
+            # call with half its arguments -- so it is never parsed as a turn.
+            self._report_usage(response, on_usage)
+            logger.warning(
+                "openrouter: stream ended before a finish reason (model=%s)",
+                self.model_id,
+            )
+            raise _EmptyResponseError(
+                "OpenRouter stream ended before the turn finished", retryable=True
+            )
+        return self._finished_turn(response, started, on_usage)
 
     def _failed_request(self, error: Exception) -> AssistantTurn:
         """A refusal turn for a refused request; any other failure raises."""
@@ -653,11 +682,16 @@ class OpenRouterProvider(LLMProvider):
     ) -> AssistantTurn:
         """Report a completed response's usage, then parse its turn."""
         latency_ms = int((time.perf_counter() - started) * 1000)
+        self._report_usage(response, on_usage)
+        return self._parse_turn(response, latency_ms=latency_ms)
+
+    def _report_usage(
+        self, response: Any, on_usage: Callable[[TurnUsage], None] | None
+    ) -> None:
         self._log_usage(response)
         usage = self._parse_usage(response)
         if usage is not None and on_usage is not None:
             on_usage(usage)
-        return self._parse_turn(response, latency_ms=latency_ms)
 
     def _reasoning(self) -> dict:
         """OpenRouter's ``reasoning`` option for this provider's settings."""

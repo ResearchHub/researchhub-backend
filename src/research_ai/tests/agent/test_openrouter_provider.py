@@ -1238,3 +1238,106 @@ class StreamedTurnTests(SimpleTestCase):
         # Assert
         self.assertEqual(turn.stop_reason, StopReason.CONTENT_FILTERED)
         self.assertEqual(events, [])
+
+    def test_tool_name_and_id_split_across_fragments_are_joined(self):
+        # Arrange
+        provider = _build_provider(
+            [
+                FakeStream(
+                    [
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "call-",
+                                        "function": {"name": "search"},
+                                    }
+                                ]
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "1",
+                                        "function": {"name": "_works"},
+                                    }
+                                ]
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {"index": 0, "function": {"arguments": '{"q": 1}'}}
+                                ]
+                            },
+                            finish_reason="tool_calls",
+                        ),
+                    ]
+                )
+            ]
+        )
+        events = []
+
+        # Act
+        turn = _stream(provider, events)
+
+        # Assert: the draft opens once the whole name has arrived.
+        self.assertEqual(
+            events,
+            [
+                ToolUseStreamStart(block_index=0, name="search_works"),
+                ToolInputStreamDelta(block_index=0, partial_json='{"q": 1}'),
+            ],
+        )
+        self.assertEqual(
+            turn.tool_calls,
+            [ToolUseBlock(id="call-1", name="search_works", input={"q": 1})],
+        )
+
+    def test_stream_cut_off_before_its_finish_reason_is_retried_after_a_reset(self):
+        # Arrange: the first stream closes cleanly mid tool call.
+        cut_off = FakeStream(
+            [
+                _chunk(
+                    {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call-1",
+                                "function": {"name": "search", "arguments": '{"q": '},
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        retried = FakeStream([_chunk({"content": "done"}, finish_reason="stop")])
+        provider = _build_provider([cut_off, retried])
+        events, charged = [], []
+
+        # Act
+        turn = _stream(provider, events, before_retry=lambda: charged.append(1))
+
+        # Assert: the half-written call is never returned to run.
+        self.assertEqual(turn.tool_calls, [])
+        self.assertEqual([block.text for block in turn.text_blocks], ["done"])
+        self.assertIn(StreamReset(), events)
+        self.assertEqual(charged, [1])
+
+    def test_stream_cut_off_twice_is_a_retryable_failure(self):
+        # Arrange
+        provider = _build_provider(
+            [
+                FakeStream([_chunk({"content": "par"})]),
+                FakeStream([_chunk({"content": "par"})]),
+            ]
+        )
+
+        # Act / Assert
+        with self.assertRaises(ProviderError) as raised:
+            _stream(provider, [])
+        self.assertTrue(raised.exception.retryable)
+        self.assertEqual(len(provider._client.calls), 2)
