@@ -375,23 +375,22 @@ class _StreamedCompletion:
         arguments = function.get("arguments")
         arguments = arguments if isinstance(arguments, str) else ""
         entry["function"]["arguments"] += arguments
-        if not arguments:
-            # The name may still be arriving, so the draft opens with the
-            # first fragment of its arguments.
-            return
 
-        block_index = self._index(("tool", index))
         if index not in self._started_tools:
-            if not entry["function"]["name"]:
-                # Arguments before the name are kept and shown once it arrives.
+            if not entry["function"]["name"] or not entry["function"]["arguments"]:
+                # The name may still be arriving, so the draft opens once the
+                # call has both a name and arguments, whichever came first.
+                # Arguments that arrived earlier are shown when it opens.
                 return
             self._started_tools.add(index)
             self._emit(
                 ToolUseStreamStart(
-                    block_index=block_index, name=entry["function"]["name"]
+                    block_index=self._index(("tool", index)),
+                    name=entry["function"]["name"],
                 )
             )
             arguments = entry["function"]["arguments"]
+        block_index = self._index(("tool", index))
         if arguments:
             self._emit(
                 ToolInputStreamDelta(block_index=block_index, partial_json=arguments)

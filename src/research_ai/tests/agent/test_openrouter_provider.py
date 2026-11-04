@@ -1341,3 +1341,49 @@ class StreamedTurnTests(SimpleTestCase):
             _stream(provider, [])
         self.assertTrue(raised.exception.retryable)
         self.assertEqual(len(provider._client.calls), 2)
+
+    def test_draft_opens_when_a_name_follows_buffered_arguments(self):
+        # Arrange: the arguments arrive first, then a name-only delta.
+        provider = _build_provider(
+            [
+                FakeStream(
+                    [
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "call-1",
+                                        "function": {"arguments": '{"q": 1}'},
+                                    }
+                                ]
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {"index": 0, "function": {"name": "search"}}
+                                ]
+                            },
+                            finish_reason="tool_calls",
+                        ),
+                    ]
+                )
+            ]
+        )
+        events = []
+
+        # Act
+        turn = _stream(provider, events)
+
+        # Assert
+        self.assertEqual(
+            events,
+            [
+                ToolUseStreamStart(block_index=0, name="search"),
+                ToolInputStreamDelta(block_index=0, partial_json='{"q": 1}'),
+            ],
+        )
+        self.assertEqual(
+            turn.tool_calls, [ToolUseBlock(id="call-1", name="search", input={"q": 1})]
+        )
