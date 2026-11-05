@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, call, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.test import TransactionTestCase
 
 from feed.models import FeedEntry
 from hub.models import Hub
@@ -15,7 +16,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from user.models import User
-from utils.test_helpers import AWSMockTestCase, AWSMockTransactionTestCase
+from utils.test_helpers import AWSMockTestCase
 
 
 class CommentSignalsTests(AWSMockTestCase):
@@ -145,9 +146,9 @@ class CommentSignalsTests(AWSMockTestCase):
         )
 
 
-class CommentUpdateFeedRefreshTests(AWSMockTransactionTestCase):
+class CommentUpdateFeedRefreshTests(TransactionTestCase):
     """
-    Uses AWSMockTransactionTestCase so the real transaction.on_commit() hook runs.
+    Uses TransactionTestCase so the real transaction.on_commit() hook runs.
     TestCase never commits, which would skip the refresh scheduled when a comment
     is edited.
     """
