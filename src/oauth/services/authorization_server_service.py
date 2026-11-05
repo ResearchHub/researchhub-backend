@@ -1,9 +1,10 @@
+import hashlib
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
 from django.conf import settings
 from oauth2_provider.exceptions import FatalClientError, OAuthToolkitError
-from oauth2_provider.models import get_application_model
+from oauth2_provider.models import get_access_token_model, get_application_model
 from oauth2_provider.oauth2_backends import _add_iss_to_redirect, get_oauthlib_core
 from oauth2_provider.scopes import get_scopes_backend
 from oauth2_provider.settings import oauth2_settings
@@ -33,10 +34,10 @@ class ConsentRequest:
     scopes: list[dict]
 
 
-class OAuthConsentService:
+class OAuthAuthorizationServerService:
     """
-    Validates OAuth authorization requests for the consent page and turns the
-    signed-in user's decision into the redirect back to the client.
+    Handles OAuth 2.0 authorization requests, validates them, facilitates the consent
+    process for the user, and provides token introspection capabilities.
     """
 
     def __init__(self, oauthlib_core=None):
@@ -77,6 +78,34 @@ class OAuthConsentService:
         except OAuthToolkitError as error:
             raise self._authorization_error(request, error) from error
         return uri
+
+    def introspect(self, token_value: str) -> dict:
+        """
+        Returns the introspection response for an access token.
+        """
+        checksum = hashlib.sha256(token_value.encode()).hexdigest()
+        token = (
+            get_access_token_model()
+            .objects.select_related("user", "application")
+            .filter(token_checksum=checksum)
+            .first()
+        )
+        if token is None or not token.is_valid():
+            return {"active": False}
+        # Only accept tokens of active users:
+        if token.user is None or not token.user.is_active:
+            return {"active": False}
+
+        response = {
+            "active": True,
+            "sub": str(token.user.id),
+            "client_id": token.application.client_id,
+            "scope": token.scope,
+            "exp": int(token.expires.timestamp()),
+        }
+        if token.resource:
+            response["aud"] = token.resource
+        return response
 
     def _validate(self, request):
         try:

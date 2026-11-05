@@ -7,8 +7,10 @@ from oauth2_provider.views import IntrospectTokenView, OAuthServerMetadataView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from oauth.services.consent_service import AuthorizationError, OAuthConsentService
-from oauth.services.introspection_service import OAuthIntrospectionService
+from oauth.services.authorization_server_service import (
+    AuthorizationError,
+    OAuthAuthorizationServerService,
+)
 
 
 def oauth_enabled(view):
@@ -58,7 +60,7 @@ class IntrospectionView(IntrospectTokenView):
                 status=400,
             )
 
-        return JsonResponse(OAuthIntrospectionService().introspect(token_value))
+        return JsonResponse(OAuthAuthorizationServerService().introspect(token_value))
 
 
 class OAuthAuthorizeView(APIView):
@@ -69,7 +71,7 @@ class OAuthAuthorizeView(APIView):
 
     def get(self, request):
         try:
-            consent_request = OAuthConsentService().get_consent_request(
+            consent_request = OAuthAuthorizationServerService().get_consent_request(
                 request._request
             )
         except AuthorizationError as error:
@@ -79,7 +81,9 @@ class OAuthAuthorizeView(APIView):
     def post(self, request):
         allow = request.data.get("allow") is True
         try:
-            redirect_url = OAuthConsentService().decide(request._request, allow)
+            redirect_url = OAuthAuthorizationServerService().decide(
+                request._request, allow
+            )
         except AuthorizationError as error:
             return self._error_response(error)
         return Response({"redirect_url": redirect_url})
