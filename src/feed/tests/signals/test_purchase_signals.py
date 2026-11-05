@@ -651,6 +651,69 @@ class TestPurchaseSignals(AWSMockTestCase):
     @patch("feed.signals.purchase_signals.create_feed_entry")
     @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
     @patch("feed.signals.purchase_signals.transaction")
+    def test_award_proposal_contribution_does_not_create_fully_funded_entry(
+        self, mock_transaction, mock_refresh, mock_create
+    ):
+        """Award proposals have a goal of 0 and must not emit a fully-funded entry."""
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
+
+        grant_post = create_post(created_by=self.user, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="Award Org",
+            description="Award RFP",
+            status=Grant.OPEN,
+            funding_mechanism=Grant.AWARD,
+        )
+        proposal = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            unified_document=proposal.unified_document,
+            created_by=self.user,
+            goal_amount=Decimal("0"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=proposal,
+            applicant=self.user,
+        )
+        contributor = create_random_authenticated_user("award_creator_pay")
+
+        # Act
+        contribution = UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=10000,
+            fee_cents=900,
+            origin_fund_id="origin",
+            destination_org_id="destination",
+        )
+
+        # Assert — contribution entry only; goal 0 must not count as fully funded
+        mock_create.apply_async.assert_called_once()
+        usd_ct = ContentType.objects.get_for_model(UsdFundraiseContribution)
+        create_args = mock_create.apply_async.call_args
+        self.assertEqual(
+            create_args.kwargs.get("args") or create_args[1].get("args"),
+            (
+                contribution.id,
+                usd_ct.id,
+                FeedEntry.PUBLISH,
+                list(proposal.unified_document.hubs.values_list("id", flat=True)),
+                contributor.id,
+            ),
+        )
+
+    @patch("feed.signals.purchase_signals.create_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
+    @patch("feed.signals.purchase_signals.transaction")
     def test_usd_contribution_below_goal_does_not_create_fully_funded_entry(
         self, mock_transaction, mock_refresh, mock_create
     ):

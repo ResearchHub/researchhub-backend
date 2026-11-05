@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry, refresh_feed_entry_by_id
-from purchase.models import FundingPool, Fundraise
+from purchase.models import FundingPool, Fundraise, Grant
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.purchase_model import Purchase
@@ -144,9 +144,26 @@ def handle_usd_contribution_feed_entry(sender, instance, created, **kwargs):
         )
 
 
+def _is_award_proposal_fundraise(fundraise: Fundraise) -> bool:
+    """Return whether this fundraise belongs to an award-grant proposal.
+
+    Award proposals use a goal of 0 and are paid by the grant creator, so a
+    contribution must not be treated as the proposal reaching its goal.
+    """
+    return Grant.objects.filter(
+        funding_mechanism=Grant.AWARD,
+        applications__preregistration_post__unified_document_id=(
+            fundraise.unified_document_id
+        ),
+    ).exists()
+
+
 def _maybe_create_fully_funded_feed_entry(fundraise_id: int) -> None:
     """
     Create a Fundraise feed entry when a contribution pushes raised >= goal.
+
+    Award proposals are excluded. Their goal is 0, so any creator payment
+    would otherwise look fully funded.
     """
 
     def _create_if_fully_funded():
@@ -162,6 +179,9 @@ def _maybe_create_fully_funded_feed_entry(fundraise_id: int) -> None:
             return
 
         if fundraise.status != Fundraise.OPEN:
+            return
+
+        if _is_award_proposal_fundraise(fundraise):
             return
 
         amount_raised = fundraise.get_amount_raised(currency=USD)
