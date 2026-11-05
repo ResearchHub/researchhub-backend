@@ -405,6 +405,7 @@ class ResearchhubPostViewSet(
         try:
             with transaction.atomic():
                 created_by = request.user
+                note = None
                 if note_id is not None and document_type != REGISTERED_REPORT:
                     note = NotePublicationService().get_note_for_publication(
                         note_id, created_by
@@ -512,7 +513,18 @@ class ResearchhubPostViewSet(
                     )
 
                 fundraise = None
-                if goal_amount := data.get("fundraise_goal_amount"):
+                is_award_proposal = (
+                    target_grant is not None
+                    and target_grant.funding_mechanism == Grant.AWARD
+                )
+                if is_award_proposal:
+                    fundraise = FundraiseService().ensure_award_fundraise(
+                        target_grant,
+                        rh_post,
+                        goal_currency=data.get("fundraise_goal_currency") or USD,
+                        end_date=data.get("fundraise_end_date"),
+                    )
+                elif goal_amount := data.get("fundraise_goal_amount"):
                     fundraise_data = {
                         "goal_amount": goal_amount,
                         "goal_currency": data.get("fundraise_goal_currency") or USD,
@@ -559,6 +571,17 @@ class ResearchhubPostViewSet(
                         "grant_application_visibility"
                     ):
                         grant_data["application_visibility"] = application_visibility
+
+                    if "grant_funding_mechanism" in data:
+                        grant_data["funding_mechanism"] = data.get(
+                            "grant_funding_mechanism"
+                        )
+                    elif note is not None:
+                        draft_settings = getattr(note, "grant_settings", None)
+                        if draft_settings is not None:
+                            grant_data["funding_mechanism"] = (
+                                draft_settings.funding_mechanism
+                            )
 
                     grant_serializer = GrantCreateSerializer(data=grant_data)
                     grant_serializer.is_valid(raise_exception=True)
@@ -646,6 +669,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_mechanism",
                         "funding_pool",
                     ],
                 ).data
@@ -837,6 +861,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "funding_mechanism",
                         "funding_pool",
                     ],
                 ).data

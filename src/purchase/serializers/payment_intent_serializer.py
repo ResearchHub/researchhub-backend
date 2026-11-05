@@ -3,6 +3,7 @@ from rest_framework import serializers
 from purchase.related_models.constants import MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
 from purchase.related_models.funding_pool_model import FundingPool
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.services.fundraise_service import FundraiseService
 
 
 class PaymentIntentSerializer(serializers.Serializer):
@@ -46,6 +47,14 @@ class PaymentIntentSerializer(serializers.Serializer):
 
         if fundraise.is_expired():
             raise serializers.ValidationError("Fundraise has expired.")
+
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        award_error = FundraiseService.award_proposal_contribution_error(
+            fundraise, user
+        )
+        if award_error:
+            raise serializers.ValidationError(award_error)
 
         return value
 

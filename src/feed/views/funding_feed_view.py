@@ -144,7 +144,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
 
         grant_applications_prefetch = Prefetch(
             "grant_applications",
-            queryset=GrantApplication.objects.prefetch_related(
+            queryset=GrantApplication.objects.order_by("id").prefetch_related(
                 Prefetch("grant", queryset=annotated_grants)
             ),
         )

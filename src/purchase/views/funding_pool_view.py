@@ -96,7 +96,7 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
             return error_response
 
         try:
-            self.funding_pool_service.create_contribution(
+            purchase = self.funding_pool_service.create_contribution(
                 user=request.user,
                 pool=pool,
                 amount=validated["amount"],
@@ -119,7 +119,9 @@ class FundingPoolViewSet(viewsets.ReadOnlyModelViewSet):
         pool.refresh_from_db()
         context = self.get_serializer_context()
         serializer = self.get_serializer(pool, context=context)
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        response.amplitude_data = {"purchase_id": purchase.id}
+        return response
 
     @track_event
     @action(

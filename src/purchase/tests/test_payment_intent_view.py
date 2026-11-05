@@ -6,12 +6,22 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.grant_application_model import GrantApplication
+from purchase.related_models.grant_model import Grant
 from purchase.related_models.payment_model import (
     Payment,
     PaymentProcessor,
     PaymentPurpose,
 )
+from purchase.services.fundraise_service import AWARD_PROPOSAL_CONTRIBUTION_DENIED
 from reputation.models import Escrow
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import (
+    GRANT as GRANT_DOC,
+)
+from researchhub_document.related_models.constants.document_type import (
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -251,6 +261,83 @@ class PaymentIntentViewTest(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.data["message"], "Failed to create payment intent")
+
+    def test_award_proposal_rejects_community_payment_intent(self):
+        """A community RSC purchase cannot target an award proposal."""
+        # Arrange
+        grant_creator = create_user(email="award-creator-view@example.com")
+        applicant = create_user(email="award-applicant-view@example.com")
+        fundraise = self._award_proposal_fundraise(grant_creator, applicant)
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {"amount": 100, "fundraise_id": fundraise.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(AWARD_PROPOSAL_CONTRIBUTION_DENIED, str(response.data))
+
+    @patch("purchase.views.payment_intent_view.PaymentService")
+    def test_award_proposal_allows_grant_creator_payment_intent(
+        self, mock_payment_service_class
+    ):
+        """The grant creator can start an RSC purchase for an award proposal."""
+        # Arrange
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+        mock_payment_service.create_payment_intent.return_value = {
+            "client_secret": "pi_secret_award",
+            "payment_intent_id": "pi_award_123",
+            "locked_rsc_amount": 100,
+            "stripe_amount_cents": 500,
+        }
+        grant_creator = create_user(email="award-creator-pay@example.com")
+        applicant = create_user(email="award-applicant-pay@example.com")
+        fundraise = self._award_proposal_fundraise(grant_creator, applicant)
+        self.client.force_authenticate(user=grant_creator)
+
+        # Act
+        response = self.client.post(
+            self.url,
+            {"amount": 100, "fundraise_id": fundraise.id},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        mock_payment_service.create_payment_intent.assert_called_once_with(
+            user_id=grant_creator.id,
+            rsc_amount=Decimal(100),
+            fundraise_id=fundraise.id,
+            funding_pool_id=None,
+        )
+
+    def _award_proposal_fundraise(self, grant_creator, applicant):
+        proposal = create_post(created_by=applicant, document_type=PREREGISTRATION)
+        grant_post = create_post(created_by=grant_creator, document_type=GRANT_DOC)
+        grant = Grant.objects.create(
+            created_by=grant_creator,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("10000.00"),
+            currency="USD",
+            organization="Org",
+            description="Desc",
+            status=Grant.OPEN,
+            funding_mechanism=Grant.AWARD,
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=proposal,
+            applicant=applicant,
+        )
+        return Fundraise.objects.create(
+            created_by=applicant,
+            unified_document=proposal.unified_document,
+            goal_amount=Decimal(0),
+            status=Fundraise.OPEN,
+        )
 
 
 class PaymentIntentStatusViewTest(APITestCase):

@@ -10,6 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from oauth.adapters import XOAuth2Adapter
+from oauth.services.x_connect_service import XConnectService
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ class XLoginSerializer(SocialLoginSerializer):
     redirect_uri = serializers.URLField()
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        """Exchange an X authorization code for this application's access token."""
+        """Exchange an X code, then connect X to the signed-in user or sign in."""
         request = self._get_request()
         adapter = XOAuth2Adapter(request)
         app = adapter.get_provider().app
@@ -83,4 +84,8 @@ class XLoginSerializer(SocialLoginSerializer):
                 {"code": "Failed to exchange X authorization code."}
             ) from exc
         attrs["access_token"] = tokens["access_token"]
-        return super().validate(attrs)
+        if not request.user.is_authenticated:
+            return super().validate(attrs)
+        XConnectService().connect_account(request, request.user, attrs["access_token"])
+        attrs["user"] = request.user
+        return attrs

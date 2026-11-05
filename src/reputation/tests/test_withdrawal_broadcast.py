@@ -6,6 +6,7 @@ from celery.exceptions import Retry
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
+from web3.exceptions import TransactionNotFound
 
 from purchase.models import Balance, RscExchangeRate
 from reputation.lib import (
@@ -34,13 +35,11 @@ class EvaluateTransactionHashTests(AWSMockTransactionTestCase):
 
         self.assertEqual(paid_status, PaidStatusModelMixin.PENDING)
         self.assertIsNone(paid_date)
-        mock_provider.ethereum.eth.wait_for_transaction_receipt.assert_not_called()
+        mock_provider.ethereum.eth.get_transaction_receipt.assert_not_called()
 
     @mock.patch("reputation.lib.web3_provider")
     def test_reverted_receipt_returns_failed(self, mock_provider):
-        mock_provider.ethereum.eth.wait_for_transaction_receipt.return_value = {
-            "status": 0
-        }
+        mock_provider.ethereum.eth.get_transaction_receipt.return_value = {"status": 0}
 
         paid_status, paid_date = evaluate_transaction_hash(
             "0xfailed", network="ETHEREUM"
@@ -48,6 +47,57 @@ class EvaluateTransactionHashTests(AWSMockTransactionTestCase):
 
         self.assertEqual(paid_status, PaidStatusModelMixin.FAILED)
         self.assertIsNone(paid_date)
+
+    @mock.patch("reputation.lib.web3_provider")
+    def test_successful_receipt_on_base_returns_paid(self, mock_provider):
+        # Arrange
+        mock_provider.base.eth.get_transaction_receipt.return_value = {"status": 1}
+
+        # Act
+        paid_status, paid_date = evaluate_transaction_hash("0xpaid", network="BASE")
+
+        # Assert
+        self.assertEqual(paid_status, PaidStatusModelMixin.PAID)
+        self.assertIsNotNone(paid_date)
+        mock_provider.ethereum.eth.get_transaction_receipt.assert_not_called()
+
+    @mock.patch("reputation.lib.logger")
+    @mock.patch("reputation.lib.web3_provider")
+    def test_unmined_transaction_stays_pending_without_error_log(
+        self, mock_provider, mock_logger
+    ):
+        # Arrange
+        mock_provider.base.eth.get_transaction_receipt.side_effect = (
+            TransactionNotFound("not found")
+        )
+
+        # Act
+        paid_status, paid_date = evaluate_transaction_hash("0xpending", network="BASE")
+
+        # Assert
+        self.assertEqual(paid_status, PaidStatusModelMixin.PENDING)
+        self.assertIsNone(paid_date)
+        mock_logger.exception.assert_not_called()
+
+    @mock.patch("reputation.lib.logger")
+    @mock.patch("reputation.lib.web3_provider")
+    def test_rpc_error_stays_pending_and_logs_exception(
+        self, mock_provider, mock_logger
+    ):
+        # Arrange
+        mock_provider.ethereum.eth.get_transaction_receipt.side_effect = (
+            ConnectionError("rpc down")
+        )
+
+        # Act
+        paid_status, paid_date = evaluate_transaction_hash(
+            "0xrpcerror", network="ETHEREUM"
+        )
+
+        # Assert
+        self.assertEqual(paid_status, PaidStatusModelMixin.PENDING)
+        self.assertIsNone(paid_date)
+        mock_logger.exception.assert_called_once()
 
 
 class BroadcastWithdrawalTransferTests(AWSMockTransactionTestCase):

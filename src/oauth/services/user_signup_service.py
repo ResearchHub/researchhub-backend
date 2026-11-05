@@ -99,9 +99,9 @@ class UserSignupService:
             author_profile.save(update_fields=["profile_image"])
 
     def set_x_profile_link(self, user: User) -> None:
-        """Set the author's X profile link from their X account if not already set."""
+        """Set the author's X profile link from their connected X account."""
         author_profile = getattr(user, "author_profile", None)
-        if not author_profile or author_profile.twitter:
+        if not author_profile:
             return
 
         try:

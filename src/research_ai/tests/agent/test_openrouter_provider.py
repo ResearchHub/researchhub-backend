@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import httpx
 import openai
 from django.test import SimpleTestCase, override_settings
+from openai.types.chat import ChatCompletionChunk
 
 from research_ai.services.agent.errors import ProviderError
 from research_ai.services.agent.providers import openrouter
@@ -17,10 +18,15 @@ from research_ai.services.agent.types import (
     ImageBlock,
     Message,
     StopReason,
+    StreamReset,
     TextBlock,
+    TextStreamDelta,
     ThinkingBlock,
+    ThinkingStreamDelta,
+    ToolInputStreamDelta,
     ToolResultBlock,
     ToolUseBlock,
+    ToolUseStreamStart,
 )
 from research_ai.tests.agent.image_test_helpers import JPEG, PNG
 
@@ -50,6 +56,18 @@ def _response(
     message = SimpleNamespace(content=content, tool_calls=tool_calls)
     choice = SimpleNamespace(message=message, finish_reason=finish_reason)
     return SimpleNamespace(choices=[choice], usage=usage)
+
+
+def _empty_response(error=None):
+    """A 200-shaped response carrying no choices, as an upstream failure does."""
+    body = {"id": "gen-1"}
+    if error is not None:
+        body["error"] = error
+    return SimpleNamespace(
+        choices=[],
+        usage=None,
+        model_dump=lambda mode=None, exclude_none=None: body,
+    )
 
 
 def _tool_call(call_id="call-1", name="search", arguments='{"q": 1}'):
@@ -651,8 +669,9 @@ class ParseTurnTests(SimpleTestCase):
         self.assertEqual(assistant["reasoning_details"], [detail])
 
     def test_missing_message_raises_provider_error(self):
-        # Arrange
-        provider = _build_provider([SimpleNamespace(choices=[], usage=None)])
+        # Arrange: a response with no choices, repeated once before it fails.
+        empty = [SimpleNamespace(choices=[], usage=None) for _ in range(2)]
+        provider = _build_provider(empty)
 
         # Act / Assert
         with self.assertRaises(ProviderError):
@@ -748,6 +767,87 @@ class ErrorTests(SimpleTestCase):
         # Assert
         self.assertTrue(ctx.exception.retryable)
 
+    def test_empty_response_is_retried_and_can_then_succeed(self):
+        # Arrange: a 200 with no choices, as an upstream failure arrives.
+        provider = _build_provider(
+            [_empty_response(), _response(content="hello", finish_reason="stop")]
+        )
+        charged = []
+
+        # Act
+        turn = provider.complete(
+            system_prompt="sys",
+            messages=[Message(role="user", content=[TextBlock(text="hi")])],
+            rendered_tools=[],
+            max_tokens=100,
+            temperature=0.5,
+            before_retry=lambda: charged.append(1),
+        )
+
+        # Assert
+        self.assertEqual(turn.text, "hello")
+        self.assertEqual(len(provider._client.calls), 2)
+        self.assertEqual(charged, [1])
+
+    def test_empty_responses_fail_as_retryable_after_the_repeat(self):
+        # Arrange
+        provider = _build_provider([_empty_response(), _empty_response()])
+
+        # Act
+        with self.assertRaises(ProviderError) as ctx:
+            _complete(provider)
+
+        # Assert
+        self.assertTrue(ctx.exception.retryable)
+        self.assertEqual(len(provider._client.calls), 2)
+
+    def test_permanent_error_in_body_is_reported_without_a_repeat(self):
+        # Arrange: a request the upstream rejected outright, passed through
+        # as a 200 body.
+        error = {"code": 400, "message": "context length exceeded"}
+        provider = _build_provider([_empty_response(error)])
+
+        # Act
+        with self.assertRaises(ProviderError) as ctx:
+            _complete(provider)
+
+        # Assert
+        self.assertFalse(ctx.exception.retryable)
+        self.assertEqual(len(provider._client.calls), 1)
+
+    def test_empty_response_failure_carries_the_body_error(self):
+        # Arrange
+        error = {"code": 502, "message": "upstream provider is unavailable"}
+        provider = _build_provider([_empty_response(error), _empty_response(error)])
+
+        # Act
+        with self.assertRaises(ProviderError) as ctx:
+            _complete(provider)
+
+        # Assert: the body is the only account of the failure, so it is kept.
+        self.assertIn("502", str(ctx.exception))
+        self.assertIn("upstream provider is unavailable", str(ctx.exception))
+
+    def test_refusals_reported_in_the_body_are_refused_turns(self):
+        # Arrange
+        cases = {
+            "model refusal": {"error_type": "refusal"},
+            "moderation": {"reasons": ["violence"], "flagged_input": "..."},
+        }
+        for case, metadata in cases.items():
+            with self.subTest(case):
+                provider = _build_provider(
+                    [_empty_response({"code": 403, "metadata": metadata})],
+                    model_id="openai/gpt-6.1-sol",
+                )
+
+                # Act
+                turn = _complete(provider)
+
+                # Assert: refused, and not repeated at cost.
+                self.assertEqual(turn.stop_reason, StopReason.CONTENT_FILTERED)
+                self.assertEqual(len(provider._client.calls), 1)
+
     def test_refusals_reported_as_errors_are_refused_turns(self):
         # Arrange
         cases = {
@@ -811,3 +911,479 @@ class DefaultsTests(SimpleTestCase):
         arguments = sent[1]["tool_calls"][0]["function"]["arguments"]
         self.assertEqual(json.loads(arguments), tool_input)
         self.assertEqual(sent[2]["tool_call_id"], "t9")
+
+
+def _chunk(delta=None, *, finish_reason=None, usage=None):
+    """An SDK stream chunk; ``delta=None`` gives the choice-less usage chunk."""
+    body = {
+        "id": "gen-1",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "google/gemini-3.8-flash",
+        "choices": [],
+    }
+    if delta is not None:
+        body["choices"] = [{"index": 0, "delta": delta, "finish_reason": finish_reason}]
+    if usage is not None:
+        body["usage"] = usage
+    return ChatCompletionChunk.construct(**body)
+
+
+class FakeStream:
+    """Yields ``chunks``, then raises ``error`` when given; records closing."""
+
+    def __init__(self, chunks, error=None):
+        self._chunks = chunks
+        self._error = error
+        self.closed = False
+
+    def __iter__(self):
+        yield from self._chunks
+        if self._error is not None:
+            raise self._error
+
+    def close(self):
+        self.closed = True
+
+
+def _stream_error(body):
+    """The bare ``APIError`` the SDK raises for an error chunk mid-stream."""
+    request = httpx.Request("POST", "https://openrouter.test/v1/chat")
+    return openai.APIError(body.get("message", "error"), request=request, body=body)
+
+
+def _stream(provider, events, *, before_retry=None, on_usage=None):
+    return provider.complete_with_events(
+        system_prompt="sys",
+        messages=[Message(role="user", content=[TextBlock(text="hi")])],
+        rendered_tools=[],
+        max_tokens=100,
+        temperature=0.5,
+        on_event=events.append,
+        before_retry=before_retry,
+        on_usage=on_usage,
+    )
+
+
+class StreamedTurnTests(SimpleTestCase):
+    def test_request_asks_for_a_stream_that_reports_usage(self):
+        # Arrange
+        provider = _build_provider(
+            [FakeStream([_chunk({"content": "ok"}, finish_reason="stop")])]
+        )
+
+        # Act
+        _stream(provider, [])
+
+        # Assert
+        sent = provider._client.calls[0]
+        self.assertIs(sent["stream"], True)
+        self.assertEqual(sent["stream_options"], {"include_usage": True})
+
+    def test_text_is_reported_as_it_arrives_and_parsed_into_the_turn(self):
+        # Arrange
+        stream = FakeStream(
+            [
+                _chunk({"role": "assistant", "content": "Hel"}),
+                _chunk({"content": "lo"}, finish_reason="stop"),
+                _chunk(
+                    usage={
+                        "prompt_tokens": 10,
+                        "completion_tokens": 2,
+                        "total_tokens": 12,
+                        "cost": 0.0001,
+                    }
+                ),
+            ]
+        )
+        provider = _build_provider([stream])
+        events, usages = [], []
+
+        # Act
+        turn = _stream(provider, events, on_usage=usages.append)
+
+        # Assert
+        self.assertEqual(
+            events,
+            [
+                TextStreamDelta(block_index=0, text="Hel"),
+                TextStreamDelta(block_index=0, text="lo"),
+            ],
+        )
+        self.assertEqual([block.text for block in turn.text_blocks], ["Hello"])
+        self.assertEqual(turn.stop_reason, StopReason.END_TURN)
+        self.assertEqual(len(usages), 1)
+        self.assertEqual(usages[0].output_tokens, 2)
+        self.assertEqual(usages[0].provider_cost_microusd, 100)
+        self.assertEqual(turn.usage, usages[0])
+        self.assertTrue(stream.closed)
+
+    def test_tool_call_fragments_stream_as_a_draft_and_parse_into_one_call(self):
+        # Arrange
+        provider = _build_provider(
+            [
+                FakeStream(
+                    [
+                        _chunk({"content": "Searching."}),
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "call-1",
+                                        "type": "function",
+                                        "function": {"name": "search", "arguments": ""},
+                                    }
+                                ]
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {"index": 0, "function": {"arguments": '{"q": '}}
+                                ]
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {"index": 0, "function": {"arguments": "1}"}}
+                                ]
+                            },
+                            finish_reason="tool_calls",
+                        ),
+                    ]
+                )
+            ]
+        )
+        events = []
+
+        # Act
+        turn = _stream(provider, events)
+
+        # Assert: the text and the call are separate blocks of the preview.
+        self.assertEqual(
+            events,
+            [
+                TextStreamDelta(block_index=0, text="Searching."),
+                ToolUseStreamStart(block_index=1, name="search"),
+                ToolInputStreamDelta(block_index=1, partial_json='{"q": '),
+                ToolInputStreamDelta(block_index=1, partial_json="1}"),
+            ],
+        )
+        self.assertEqual(
+            turn.tool_calls, [ToolUseBlock(id="call-1", name="search", input={"q": 1})]
+        )
+        self.assertEqual(turn.stop_reason, StopReason.TOOL_USE)
+
+    def test_reasoning_fragments_merge_into_details_that_replay_unchanged(self):
+        # Arrange
+        provider = _build_provider(
+            [
+                FakeStream(
+                    [
+                        _chunk(
+                            {
+                                "reasoning": "Think",
+                                "reasoning_details": [
+                                    {
+                                        "type": "reasoning.text",
+                                        "text": "Think",
+                                        "index": 0,
+                                        "format": "f",
+                                    }
+                                ],
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "reasoning": "ing",
+                                "reasoning_details": [
+                                    {
+                                        "type": "reasoning.text",
+                                        "text": "ing",
+                                        "index": 0,
+                                        "format": "f",
+                                        "signature": "sig",
+                                    }
+                                ],
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "reasoning_details": [
+                                    {
+                                        "type": "reasoning.encrypted",
+                                        "data": "opaque",
+                                        "index": 1,
+                                    }
+                                ]
+                            }
+                        ),
+                        _chunk({"content": "Done"}, finish_reason="stop"),
+                    ]
+                )
+            ]
+        )
+        events = []
+
+        # Act
+        turn = _stream(provider, events)
+
+        # Assert: only readable reasoning is shown; encrypted state is kept.
+        self.assertEqual(
+            [event for event in events if isinstance(event, ThinkingStreamDelta)],
+            [
+                ThinkingStreamDelta(block_index=0, text="Think"),
+                ThinkingStreamDelta(block_index=0, text="ing"),
+            ],
+        )
+        self.assertEqual(
+            [block.data for block in turn.thinking_blocks],
+            [
+                {
+                    "type": "reasoning.text",
+                    "text": "Thinking",
+                    "index": 0,
+                    "format": "f",
+                    "signature": "sig",
+                },
+                {"type": "reasoning.encrypted", "data": "opaque", "index": 1},
+            ],
+        )
+        self.assertEqual([block.text for block in turn.text_blocks], ["Done"])
+
+    def test_refusal_sent_mid_stream_is_a_content_filtered_turn(self):
+        # Arrange
+        refusal = {
+            "code": 403,
+            "message": "flagged",
+            "metadata": {"error_type": "refusal"},
+        }
+        provider = _build_provider(
+            [FakeStream([_chunk({"content": "Sure"})], error=_stream_error(refusal))]
+        )
+
+        # Act
+        turn = _stream(provider, [])
+
+        # Assert
+        self.assertEqual(turn.stop_reason, StopReason.CONTENT_FILTERED)
+        self.assertEqual(turn.stop_details, refusal)
+
+    def test_unexplained_mid_stream_error_is_retried_once_after_a_reset(self):
+        # Arrange
+        failed = FakeStream(
+            [_chunk({"content": "par"})],
+            error=_stream_error({"code": 502, "message": "upstream"}),
+        )
+        retried = FakeStream([_chunk({"content": "full"}, finish_reason="stop")])
+        provider = _build_provider([failed, retried])
+        events, charged = [], []
+
+        # Act
+        turn = _stream(provider, events, before_retry=lambda: charged.append(1))
+
+        # Assert: the partial preview is withdrawn before the retry streams.
+        self.assertEqual(
+            events,
+            [
+                TextStreamDelta(block_index=0, text="par"),
+                StreamReset(),
+                TextStreamDelta(block_index=0, text="full"),
+            ],
+        )
+        self.assertEqual(charged, [1])
+        self.assertEqual([block.text for block in turn.text_blocks], ["full"])
+        self.assertTrue(failed.closed)
+
+    def test_mid_stream_error_reporting_a_bad_request_is_not_retried(self):
+        # Arrange
+        provider = _build_provider(
+            [FakeStream([], error=_stream_error({"code": 400, "message": "bad"}))]
+        )
+
+        # Act / Assert
+        with self.assertRaises(ProviderError) as raised:
+            _stream(provider, [])
+        self.assertFalse(raised.exception.retryable)
+        self.assertEqual(len(provider._client.calls), 1)
+
+    def test_connection_dropped_mid_stream_is_a_retryable_failure(self):
+        # Arrange
+        stream = FakeStream(
+            [_chunk({"content": "par"})],
+            error=httpx.RemoteProtocolError("peer closed connection"),
+        )
+        provider = _build_provider([stream])
+
+        # Act / Assert
+        with self.assertRaises(ProviderError) as raised:
+            _stream(provider, [])
+        self.assertTrue(raised.exception.retryable)
+        self.assertTrue(stream.closed)
+
+    def test_refused_request_is_a_content_filtered_turn_without_streaming(self):
+        # Arrange
+        metadata = {"error_type": "refusal"}
+        provider = OpenRouterProvider(
+            client=_raising_client(_forbidden(metadata)),
+            model_id="google/gemini-3.8-flash",
+        )
+        events = []
+
+        # Act
+        turn = _stream(provider, events)
+
+        # Assert
+        self.assertEqual(turn.stop_reason, StopReason.CONTENT_FILTERED)
+        self.assertEqual(events, [])
+
+    def test_tool_name_and_id_split_across_fragments_are_joined(self):
+        # Arrange
+        provider = _build_provider(
+            [
+                FakeStream(
+                    [
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "call-",
+                                        "function": {"name": "search"},
+                                    }
+                                ]
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "1",
+                                        "function": {"name": "_works"},
+                                    }
+                                ]
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {"index": 0, "function": {"arguments": '{"q": 1}'}}
+                                ]
+                            },
+                            finish_reason="tool_calls",
+                        ),
+                    ]
+                )
+            ]
+        )
+        events = []
+
+        # Act
+        turn = _stream(provider, events)
+
+        # Assert: the draft opens once the whole name has arrived.
+        self.assertEqual(
+            events,
+            [
+                ToolUseStreamStart(block_index=0, name="search_works"),
+                ToolInputStreamDelta(block_index=0, partial_json='{"q": 1}'),
+            ],
+        )
+        self.assertEqual(
+            turn.tool_calls,
+            [ToolUseBlock(id="call-1", name="search_works", input={"q": 1})],
+        )
+
+    def test_stream_cut_off_before_its_finish_reason_is_retried_after_a_reset(self):
+        # Arrange: the first stream closes cleanly mid tool call.
+        cut_off = FakeStream(
+            [
+                _chunk(
+                    {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call-1",
+                                "function": {"name": "search", "arguments": '{"q": '},
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        retried = FakeStream([_chunk({"content": "done"}, finish_reason="stop")])
+        provider = _build_provider([cut_off, retried])
+        events, charged = [], []
+
+        # Act
+        turn = _stream(provider, events, before_retry=lambda: charged.append(1))
+
+        # Assert: the half-written call is never returned to run.
+        self.assertEqual(turn.tool_calls, [])
+        self.assertEqual([block.text for block in turn.text_blocks], ["done"])
+        self.assertIn(StreamReset(), events)
+        self.assertEqual(charged, [1])
+
+    def test_stream_cut_off_twice_is_a_retryable_failure(self):
+        # Arrange
+        provider = _build_provider(
+            [
+                FakeStream([_chunk({"content": "par"})]),
+                FakeStream([_chunk({"content": "par"})]),
+            ]
+        )
+
+        # Act / Assert
+        with self.assertRaises(ProviderError) as raised:
+            _stream(provider, [])
+        self.assertTrue(raised.exception.retryable)
+        self.assertEqual(len(provider._client.calls), 2)
+
+    def test_draft_opens_when_a_name_follows_buffered_arguments(self):
+        # Arrange: the arguments arrive first, then a name-only delta.
+        provider = _build_provider(
+            [
+                FakeStream(
+                    [
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {
+                                        "index": 0,
+                                        "id": "call-1",
+                                        "function": {"arguments": '{"q": 1}'},
+                                    }
+                                ]
+                            }
+                        ),
+                        _chunk(
+                            {
+                                "tool_calls": [
+                                    {"index": 0, "function": {"name": "search"}}
+                                ]
+                            },
+                            finish_reason="tool_calls",
+                        ),
+                    ]
+                )
+            ]
+        )
+        events = []
+
+        # Act
+        turn = _stream(provider, events)
+
+        # Assert
+        self.assertEqual(
+            events,
+            [
+                ToolUseStreamStart(block_index=0, name="search"),
+                ToolInputStreamDelta(block_index=0, partial_json='{"q": 1}'),
+            ],
+        )
+        self.assertEqual(
+            turn.tool_calls, [ToolUseBlock(id="call-1", name="search", input={"q": 1})]
+        )

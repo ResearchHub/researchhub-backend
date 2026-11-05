@@ -31,6 +31,10 @@ def rsc_exchange_rate_record_tasks():
             target_currency=USD,
         )
         return gecko_result
+    except requests.RequestException:
+        # Transient CoinGecko failures are retried by the calling task.
+        logger.warning("CoinGecko request failed while recording RSC exchange rate")
+        raise
     except Exception:
         logger.exception("Failed to record RSC exchange rate")
 
@@ -41,6 +45,7 @@ def get_rsc_price_from_coin_gecko():
     request_result = requests.get(
         _coin_gecko_lookup_uri(USD), headers=headers, timeout=10
     )
+    request_result.raise_for_status()
     rate = request_result.json()[RSC_COIN_GECKO_ID]["usd"]
     return {"rate": rate, "real_rate": rate, "target_currency": USD}
 

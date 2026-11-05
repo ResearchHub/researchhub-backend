@@ -27,6 +27,7 @@ from research_ai.services.author_context import build_author_context_snippet
 from research_ai.services.researcher_external_context import (
     build_researcher_external_context,
 )
+from research_ai.services.tracing_service import trace_operation
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 
@@ -77,6 +78,16 @@ def validate_grant_application(grant_id: int, unified_document_id: int) -> None:
 
 
 def run_proposal_review(review_id: int) -> None:
+    # One trace per run, so Braintrust totals the cost of its LLM calls.
+    with trace_operation(
+        "ai_peer_review.proposal_review",
+        span_type="task",
+        metadata={"review_id": review_id},
+    ):
+        _run_proposal_review(review_id)
+
+
+def _run_proposal_review(review_id: int) -> None:
     review = ProposalReview.objects.select_related(
         "unified_document", "grant", "created_by"
     ).get(pk=review_id)
