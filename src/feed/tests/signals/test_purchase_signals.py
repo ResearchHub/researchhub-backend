@@ -675,7 +675,7 @@ class TestPurchaseSignals(AWSMockTestCase):
         fundraise = Fundraise.objects.create(
             unified_document=proposal.unified_document,
             created_by=self.user,
-            goal_amount=Decimal("0"),
+            goal_amount=Decimal(0),
             goal_currency="USD",
             status=Fundraise.OPEN,
         )
