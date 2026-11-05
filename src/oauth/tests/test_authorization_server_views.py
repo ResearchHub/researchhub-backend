@@ -1,13 +1,21 @@
+import base64
+from datetime import timedelta
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from django.conf import settings
 from django.test import TestCase, override_settings
-from oauth2_provider.models import get_application_model, get_grant_model
+from django.utils import timezone
+from oauth2_provider.models import (
+    get_access_token_model,
+    get_application_model,
+    get_grant_model,
+)
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from user.tests.helpers import create_random_default_user
 
+AccessToken = get_access_token_model()
 Application = get_application_model()
 Grant = get_grant_model()
 
@@ -22,6 +30,7 @@ class OAuthEndpointTests(TestCase):
             "/.well-known/oauth-authorization-server",
             "/oauth/token/",
             "/oauth/revoke/",
+            "/oauth/introspect/",
             "/api/oauth/authorize/",
         ]
         for url in urls:
@@ -55,7 +64,7 @@ class AuthorizationServerMetadataViewTests(TestCase):
             "OIDC_ISS_ENDPOINT": "https://api.example.com",
         },
     )
-    def test_metadata_lists_routed_token_and_revocation_endpoints(self):
+    def test_metadata_lists_token_and_revocation_but_not_introspection(self):
         # Act
         response = self.client.get(self.url)
 
@@ -68,6 +77,7 @@ class AuthorizationServerMetadataViewTests(TestCase):
         self.assertEqual(
             metadata["revocation_endpoint"], "https://api.example.com/oauth/revoke/"
         )
+        self.assertNotIn("introspection_endpoint", metadata)
 
 
 @override_settings(OAUTH_ENABLED=True, OAUTH_MCP_RESOURCE=MCP_RESOURCE)
@@ -233,3 +243,111 @@ class OAuthAuthorizeViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 401)
+
+
+@override_settings(OAUTH_ENABLED=True)
+class IntrospectionViewTests(TestCase):
+    url = "/oauth/introspect/"
+
+    def setUp(self):
+        self.user = create_random_default_user("oauth_introspection")
+        self.mcp_client = Application.objects.create(
+            name="MCP",
+            client_type=Application.CLIENT_CONFIDENTIAL,
+            authorization_grant_type=Application.GRANT_CLIENT_CREDENTIALS,
+            client_secret="mcp-secret",
+        )
+        credentials = f"{self.mcp_client.client_id}:mcp-secret".encode()
+        self.client_auth = f"Basic {base64.b64encode(credentials).decode()}"
+        self.application = Application.objects.create(
+            name="AIApp1",
+            client_type=Application.CLIENT_PUBLIC,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            redirect_uris=REDIRECT_URI,
+        )
+
+    def _create_token(self, token, user=None, expires_in=timedelta(hours=1)):
+        return AccessToken.objects.create(
+            user=user or self.user,
+            application=self.application,
+            token=token,
+            expires=timezone.now() + expires_in,
+            scope="read",
+            resource=[MCP_RESOURCE],
+        )
+
+    def _introspect(self, token, **headers):
+        return self.client.post(self.url, {"token": token}, **headers)
+
+    def test_active_token_describes_user_client_scope_and_audience(self):
+        # Arrange
+        access_token = self._create_token("active-token")
+
+        # Act
+        response = self._introspect("active-token", HTTP_AUTHORIZATION=self.client_auth)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "active": True,
+                "sub": str(self.user.id),
+                "client_id": self.application.client_id,
+                "scope": "read",
+                "exp": int(access_token.expires.timestamp()),
+                "aud": [MCP_RESOURCE],
+            },
+        )
+
+    def test_token_is_inactive(self):
+        # Arrange
+        self._create_token("expired-token", expires_in=timedelta(seconds=-1))
+        inactive_user = create_random_default_user("oauth_inactive")
+        inactive_user.is_active = False
+        inactive_user.save()
+        self._create_token("inactive-user-token", user=inactive_user)
+
+        cases = {
+            "expired": "expired-token",
+            "deactivated user": "inactive-user-token",
+            "unknown": "unknown-token",
+        }
+        for case, token in cases.items():
+            with self.subTest(case=case):
+                # Act
+                response = self._introspect(token, HTTP_AUTHORIZATION=self.client_auth)
+
+                # Assert
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json(), {"active": False})
+
+    def test_rejects_callers_without_client_credentials(self):
+        # Arrange
+        self._create_token("active-token")
+
+        cases = {
+            "no credentials": {},
+            "access token": {"HTTP_AUTHORIZATION": "Bearer active-token"},
+        }
+        for case, headers in cases.items():
+            with self.subTest(case=case):
+                # Act
+                response = self._introspect("active-token", **headers)
+
+                # Assert
+                self.assertEqual(response.status_code, 403)
+
+    def test_get_is_not_allowed(self):
+        # Arrange
+        self._create_token("active-token")
+
+        # Act
+        response = self.client.get(
+            self.url,
+            {"token": "active-token"},
+            HTTP_AUTHORIZATION=self.client_auth,
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 405)
