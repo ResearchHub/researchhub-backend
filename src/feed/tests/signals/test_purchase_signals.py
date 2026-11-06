@@ -829,20 +829,21 @@ class TestPurchaseSignals(AWSMockTestCase):
         mock_refresh.apply_async = MagicMock()
         mock_create.apply_async = MagicMock()
         post = create_post(created_by=self.user, document_type=PREREGISTRATION)
-        fundraise = Fundraise.objects.create(
+        fundraise = FundraiseService().create_fundraise_with_escrow(
+            user=self.user,
             unified_document=post.unified_document,
-            created_by=self.user,
             goal_amount=Decimal("100.00"),
             goal_currency="USD",
             status=Fundraise.OPEN,
         )
+        fundraise.escrow.amount_holding = Decimal(10)
+        fundraise.escrow.save(update_fields=["amount_holding"])
         contributor = create_random_authenticated_user("missing_rate_usd")
 
         # Act
         with (
-            patch.object(
-                Fundraise,
-                "get_amount_raised",
+            patch(
+                "purchase.related_models.fundraise_model.RscExchangeRate.get_latest",
                 side_effect=AttributeError("'NoneType' object has no attribute 'rate'"),
             ),
             self.captureOnCommitCallbacks(execute=True),
