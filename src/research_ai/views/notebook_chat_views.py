@@ -23,7 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from note.related_models.note_model import Note
-from research_ai.models import AgentConversation
+from research_ai.models import AgentConversation, AgentExecution
 from research_ai.permissions import ResearchAIBudgetPermission
 from research_ai.serializers import (
     NotebookChatCreateSerializer,
@@ -66,6 +66,49 @@ def _get_conversation_or_404(
     if conversation is None:
         raise Http404
     return conversation
+
+
+def submit_message(
+    service: NotebookChatService,
+    note: Note,
+    conversation: AgentConversation,
+    validated: dict,
+) -> AgentExecution | Response:
+    """Start a turn from a validated message body, or the error response."""
+    try:
+        return service.submit_message(
+            note,
+            conversation,
+            validated["message"],
+            model_ref=validated["model"] or None,
+            effort=validated.get("effort"),
+            thinking=validated.get("thinking"),
+            temperature=validated.get("temperature"),
+            file_ids=validated["file_ids"],
+        )
+    except AgentConversationBusyError:
+        return Response(
+            {"detail": "The assistant is still working on a previous message."},
+            status=status.HTTP_409_CONFLICT,
+        )
+    except UsageWorkInProgressError as error:
+        return Response(
+            {"detail": str(error), "code": error.code},
+            status=status.HTTP_409_CONFLICT,
+        )
+    except UsageLimitExceededError as error:
+        return Response(
+            {"code": error.code, **error.status.as_dict()},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+    except ValueError as error:
+        return Response(
+            {
+                "detail": str(error),
+                **({"code": error.code} if getattr(error, "code", None) else {}),
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 class NotebookChatListCreateView(APIView):
@@ -165,40 +208,11 @@ class NotebookChatMessageView(APIView):
         conversation = _get_conversation_or_404(
             service, note, request.user, conversation_id
         )
-        try:
-            execution = service.submit_message(
-                note,
-                conversation,
-                serializer.validated_data["message"],
-                model_ref=serializer.validated_data["model"] or None,
-                effort=serializer.validated_data.get("effort"),
-                thinking=serializer.validated_data.get("thinking"),
-                temperature=serializer.validated_data.get("temperature"),
-                file_ids=serializer.validated_data["file_ids"],
-            )
-        except AgentConversationBusyError:
-            return Response(
-                {"detail": "The assistant is still working on a previous message."},
-                status=status.HTTP_409_CONFLICT,
-            )
-        except UsageWorkInProgressError as error:
-            return Response(
-                {"detail": str(error), "code": error.code},
-                status=status.HTTP_409_CONFLICT,
-            )
-        except UsageLimitExceededError as error:
-            return Response(
-                {"code": error.code, **error.status.as_dict()},
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
-        except ValueError as error:
-            return Response(
-                {
-                    "detail": str(error),
-                    **({"code": error.code} if getattr(error, "code", None) else {}),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        execution = submit_message(
+            service, note, conversation, serializer.validated_data
+        )
+        if isinstance(execution, Response):
+            return execution
         return Response(
             {
                 "conversation_id": execution.conversation_id,
