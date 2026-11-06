@@ -256,6 +256,7 @@ urlpatterns = [
     path("api/search/", include(search.urls)),
     path("api/research_ai/", include("research_ai.urls")),
     path("api/ai_peer_review/", include("ai_peer_review.urls")),
+    path("api/pour_review/", include("pour_review.urls")),
     # Referral endpoints
     path("api/referral/", include("referral.urls")),
     # Organization endpoints

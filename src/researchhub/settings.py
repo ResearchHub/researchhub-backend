@@ -252,6 +252,7 @@ INSTALLED_APPS = [
     "user_lists",
     "research_ai",
     "ai_peer_review",
+    "pour_review",
     # Health checks
     "health_check",
 ]
