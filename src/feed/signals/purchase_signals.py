@@ -5,10 +5,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry, refresh_feed_entry_by_id
-from purchase.models import FundingPool, Fundraise
+from purchase.models import FundingPool, Fundraise, Grant
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.usd_fundraise_contribution_model import (
@@ -89,6 +90,8 @@ def handle_purchase_feed_entry(sender, instance, created, **kwargs):
 
             if created:
                 _create_contribution_feed_entry(instance, unified_document)
+                if instance.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION:
+                    _maybe_create_fully_funded_feed_entry(instance.object_id)
 
             _refresh_document_feed_entries(unified_document)
         else:
@@ -131,12 +134,99 @@ def handle_usd_contribution_feed_entry(sender, instance, created, **kwargs):
             return
 
         _create_contribution_feed_entry(instance, unified_document)
+        _maybe_create_fully_funded_feed_entry(fundraise.id)
         _refresh_document_feed_entries(unified_document)
 
     except Exception:
         logger.exception(
             "Error handling feed entry for USD contribution %s", instance.id
         )
+
+
+def _is_award_proposal_fundraise(fundraise: Fundraise) -> bool:
+    """Return whether this fundraise belongs to an award-grant proposal.
+
+    Award proposals use a goal of 0 and are paid by the grant creator, so a
+    contribution must not be treated as the proposal reaching its goal.
+    """
+    return Grant.objects.filter(
+        funding_mechanism=Grant.AWARD,
+        applications__preregistration_post__unified_document_id=(
+            fundraise.unified_document_id
+        ),
+    ).exists()
+
+
+def _maybe_create_fully_funded_feed_entry(fundraise_id: int) -> None:
+    """
+    Create a Fundraise feed entry when a contribution pushes raised >= goal.
+
+    Award proposals are excluded. Their goal is 0, so any creator payment
+    would otherwise look fully funded.
+    """
+
+    def _create_fully_funded_feed_entry():
+        try:
+            fundraise = Fundraise.objects.select_related(
+                "escrow", "unified_document"
+            ).get(id=fundraise_id)
+        except Fundraise.DoesNotExist:
+            logger.warning(
+                "Fundraise %s not found for fully-funded feed entry",
+                fundraise_id,
+            )
+            return
+
+        if fundraise.status != Fundraise.OPEN:
+            return
+
+        if _is_award_proposal_fundraise(fundraise):
+            return
+
+        if not fundraise.has_met_goal():
+            return
+
+        unified_document = fundraise.unified_document
+        if not unified_document:
+            logger.warning(
+                "No unified document for fully-funded fundraise %s",
+                fundraise.id,
+            )
+            return
+
+        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+        if FeedEntry.objects.filter(
+            content_type=fundraise_ct,
+            object_id=fundraise.id,
+            action=FeedEntry.PUBLISH,
+        ).exists():
+            return
+
+        # Bump updated_date so create_feed_entry action_date reflects "now".
+        Fundraise.objects.filter(pk=fundraise.id).update(updated_date=timezone.now())
+
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
+        create_feed_entry.apply_async(
+            args=(
+                fundraise.id,
+                fundraise_ct.id,
+                FeedEntry.PUBLISH,
+                hub_ids,
+                fundraise.created_by_id,
+            ),
+            priority=1,
+        )
+
+    def _create_if_fully_funded():
+        try:
+            _create_fully_funded_feed_entry()
+        except Exception:
+            logger.exception(
+                "Error creating fully-funded feed entry for fundraise %s",
+                fundraise_id,
+            )
+
+    transaction.on_commit(_create_if_fully_funded)
 
 
 def _create_contribution_feed_entry(instance, unified_document):

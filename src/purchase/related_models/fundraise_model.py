@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from django.conf import settings
@@ -245,52 +246,74 @@ class Fundraise(DefaultModel):
         Get the net amount raised from both RSC (via escrow) and USD contributions.
         RSC amounts are calculated from escrow holdings. USD amounts are calculated
         live from UsdFundraiseContribution records.
-        """
-        # Calculate RSC amount from escrow
-        rsc_amount = 0.0
-        if self.escrow:
-            rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
 
-        # Calculate USD amount from contributions (in cents), excluding refunded ones
-        annotated_usd_cents = getattr(self, "annotated_usd_contributions_cents", None)
-        if annotated_usd_cents is not None:
-            usd_cents = annotated_usd_cents
-        else:
-            usd_cents = self.usd_contributions.filter(is_refunded=False).aggregate(
-                total=Coalesce(Sum("amount_cents"), 0)
-            )["total"]
-        usd_from_contributions = usd_cents / 100.0
+        The returned value is a float for existing API callers. Goal decisions
+        use has_met_goal, which compares the Decimal total.
+        """
+        rsc_amount, usd_from_contributions = self._contribution_totals()
 
         if currency == USD:
-            usd_from_rsc = (
-                RscExchangeRate.rsc_to_usd(rsc_amount) if rsc_amount > 0 else 0
-            )
-            return usd_from_rsc + usd_from_contributions
+            return float(self._usd_total(rsc_amount, usd_from_contributions))
 
         if currency == RSC:
-            rsc_from_usd = (
-                RscExchangeRate.usd_to_rsc(usd_from_contributions)
-                if usd_from_contributions > 0
-                else 0
-            )
-            return rsc_amount + rsc_from_usd
+            return float(self._rsc_total(rsc_amount, usd_from_contributions))
 
         if currency == ETHER:
-            # Convert both RSC and USD to ETH
-            eth_from_rsc = (
-                RscExchangeRate.rsc_to_eth(rsc_amount) if rsc_amount > 0 else 0
-            )
-            rsc_from_usd = (
-                RscExchangeRate.usd_to_rsc(usd_from_contributions)
-                if usd_from_contributions > 0
-                else 0
-            )
-            eth_from_usd = (
-                RscExchangeRate.rsc_to_eth(rsc_from_usd) if rsc_from_usd > 0 else 0
-            )
-            return eth_from_rsc + eth_from_usd
+            return self._eth_total(rsc_amount, usd_from_contributions)
 
         raise ValueError("Invalid currency")
+
+    def has_met_goal(self) -> bool:
+        """Return whether the USD raised total is at least the USD goal."""
+        rsc_amount, usd_from_contributions = self._contribution_totals()
+        return self._usd_total(rsc_amount, usd_from_contributions) >= self.goal_amount
+
+    def _contribution_totals(self) -> tuple[Decimal, Decimal]:
+        """Return escrow RSC and non-refunded USD contributions."""
+        rsc_amount = Decimal(0)
+        if self.escrow:
+            rsc_amount = self.escrow.amount_holding + self.escrow.amount_paid
+
+        annotated_usd_cents = getattr(self, "annotated_usd_contributions_cents", None)
+        if annotated_usd_cents is None:
+            annotated_usd_cents = self.usd_contributions.filter(
+                is_refunded=False
+            ).aggregate(total=Coalesce(Sum("amount_cents"), 0))["total"]
+        return rsc_amount, Decimal(annotated_usd_cents) / Decimal(100)
+
+    def _usd_per_rsc(self) -> Decimal:
+        """Convert the stored float rate once, then keep later math in Decimal."""
+        return Decimal(str(RscExchangeRate.get_latest()))
+
+    def _usd_total(
+        self, rsc_amount: Decimal, usd_from_contributions: Decimal
+    ) -> Decimal:
+        usd_from_rsc = Decimal(0)
+        if rsc_amount > 0:
+            usd_from_rsc = rsc_amount * self._usd_per_rsc()
+        return usd_from_rsc + usd_from_contributions
+
+    def _rsc_total(
+        self, rsc_amount: Decimal, usd_from_contributions: Decimal
+    ) -> Decimal:
+        rsc_from_usd = Decimal(0)
+        if usd_from_contributions > 0:
+            rsc_from_usd = usd_from_contributions / self._usd_per_rsc()
+        return rsc_amount + rsc_from_usd
+
+    def _eth_total(self, rsc_amount: Decimal, usd_from_contributions: Decimal) -> float:
+        eth_from_rsc = (
+            RscExchangeRate.rsc_to_eth(float(rsc_amount)) if rsc_amount > 0 else 0
+        )
+        rsc_from_usd = (
+            usd_from_contributions / self._usd_per_rsc()
+            if usd_from_contributions > 0
+            else Decimal(0)
+        )
+        eth_from_usd = (
+            RscExchangeRate.rsc_to_eth(float(rsc_from_usd)) if rsc_from_usd > 0 else 0
+        )
+        return eth_from_rsc + eth_from_usd
 
     def get_raised_totals(self) -> dict[str, float]:
         """Return RSC and USD raised from one USD-contribution total.
@@ -298,32 +321,15 @@ class Fundraise(DefaultModel):
         A missing exchange rate keeps the escrow RSC and skips converting
         that RSC into USD.
         """
-        rsc_amount = 0.0
-        if self.escrow:
-            rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
-
-        annotated_usd_cents = getattr(self, "annotated_usd_contributions_cents", None)
-        if annotated_usd_cents is None:
-            annotated_usd_cents = self.usd_contributions.filter(
-                is_refunded=False
-            ).aggregate(total=Coalesce(Sum("amount_cents"), 0))["total"]
-        usd_from_contributions = annotated_usd_cents / 100.0
-
-        usd_from_rsc = 0.0
-        rsc_from_usd = 0.0
+        rsc_amount, usd_from_contributions = self._contribution_totals()
         try:
-            if rsc_amount > 0:
-                usd_from_rsc = RscExchangeRate.rsc_to_usd(rsc_amount)
-            if usd_from_contributions > 0:
-                rsc_from_usd = RscExchangeRate.usd_to_rsc(usd_from_contributions)
+            usd_total = self._usd_total(rsc_amount, usd_from_contributions)
+            rsc_total = self._rsc_total(rsc_amount, usd_from_contributions)
         except AttributeError:
-            usd_from_rsc = 0.0
-            rsc_from_usd = 0.0
+            usd_total = usd_from_contributions
+            rsc_total = rsc_amount
 
-        return {
-            "usd": usd_from_rsc + usd_from_contributions,
-            "rsc": rsc_amount + rsc_from_usd,
-        }
+        return {"usd": float(usd_total), "rsc": float(rsc_total)}
 
     def get_recipient(self):
         """
