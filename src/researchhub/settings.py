@@ -465,6 +465,7 @@ OAUTH2_PROVIDER = {
         "none",
         "client_secret_basic",
     ],
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 60 * 60,  # in seconds
     # No implicit grants allowed:
     "COMPLIANT_BCP_RFC9700_IMPLICIT_GRANT": True,
     # No password grants allowed:

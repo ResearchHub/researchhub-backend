@@ -3,6 +3,7 @@ from oauth2_provider.views import RevokeTokenView, TokenView
 
 from oauth.views import (
     AuthorizationServerMetadataView,
+    IntrospectionView,
     OAuthAuthorizeView,
     oauth_enabled,
 )
@@ -25,6 +26,13 @@ urlpatterns = [
         "oauth/revoke/",
         oauth_enabled(RevokeTokenView.as_view()),
         name="revoke-token",
+    ),
+    path(
+        "oauth/introspect/",
+        oauth_enabled(IntrospectionView.as_view()),
+        # Not DOT's `introspect`, so the metadata doesn't advertise this internal
+        # endpoint to clients
+        name="token-introspection",
     ),
     path(
         "api/oauth/authorize/",
