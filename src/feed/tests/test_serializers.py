@@ -1,11 +1,12 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import FileSystemStorage, default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import SimpleTestCase
 
 from ai_peer_review.models import (
     KeyInsightItemType,
@@ -20,6 +21,7 @@ from feed.serializers import (
     ContentObjectSerializer,
     FeedEntrySerializer,
     FundingFeedEntrySerializer,
+    FundraiseCompletedContentSerializer,
     FundraiseContributionContentSerializer,
     GrantFeedEntrySerializer,
     PaperSerializer,
@@ -42,7 +44,7 @@ from purchase.models import (
     Purchase,
     UsdFundraiseContribution,
 )
-from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Bounty, Escrow
 from researchhub_access_group.models import Permission
@@ -2872,3 +2874,43 @@ class FundraiseContributionContentSerializerTests(AWSMockTestCase):
         self.assertEqual(data["proposal_title"], "Test Grant RFP")
         self.assertEqual(data["proposal_slug"], grant_post.slug)
         self.assertEqual(data["unified_document_id"], grant_doc.id)
+
+
+class FundraiseCompletedContentSerializerAmountTests(SimpleTestCase):
+    def test_usd_amount_is_none_when_exchange_rate_unavailable(self):
+        """A missing RSC exchange rate must not break the feed item."""
+        # Arrange
+        fundraise = MagicMock()
+
+        def get_amount_raised(currency):
+            if currency == USD:
+                raise AttributeError("'NoneType' object has no attribute 'rate'")
+            return 42.0
+
+        fundraise.get_amount_raised.side_effect = get_amount_raised
+        serializer = FundraiseCompletedContentSerializer()
+
+        # Act
+        amount = serializer.get_amount_raised(fundraise)
+
+        # Assert
+        self.assertEqual(amount, {"usd": None, "rsc": 42.0})
+
+    def test_rsc_amount_is_none_when_exchange_rate_unavailable(self):
+        """Existing RSC fallback still applies when the USD amount is available."""
+        # Arrange
+        fundraise = MagicMock()
+
+        def get_amount_raised(currency):
+            if currency == RSC:
+                raise AttributeError("'NoneType' object has no attribute 'rate'")
+            return 10.0
+
+        fundraise.get_amount_raised.side_effect = get_amount_raised
+        serializer = FundraiseCompletedContentSerializer()
+
+        # Act
+        amount = serializer.get_amount_raised(fundraise)
+
+        # Assert
+        self.assertEqual(amount, {"usd": 10.0, "rsc": None})

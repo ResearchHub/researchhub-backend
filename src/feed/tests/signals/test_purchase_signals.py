@@ -815,6 +815,52 @@ class TestPurchaseSignals(AWSMockTestCase):
             ),
         )
 
+    @patch("feed.signals.purchase_signals.logger")
+    @patch("feed.signals.purchase_signals.create_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
+    def test_missing_exchange_rate_in_post_commit_check_does_not_raise(
+        self, mock_refresh, mock_create, mock_logger
+    ):
+        """
+        A missing RSC exchange rate in the post-commit fully-funded check is
+        logged and does not raise out of the commit callbacks.
+        """
+        # Arrange
+        mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            unified_document=post.unified_document,
+            created_by=self.user,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        contributor = create_random_authenticated_user("missing_rate_usd")
+
+        # Act
+        with (
+            patch.object(
+                Fundraise,
+                "get_amount_raised",
+                side_effect=AttributeError("'NoneType' object has no attribute 'rate'"),
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            UsdFundraiseContribution.objects.create(
+                user=contributor,
+                fundraise=fundraise,
+                amount_cents=10000,
+                fee_cents=900,
+                origin_fund_id="origin",
+                destination_org_id="destination",
+            )
+
+        # Assert
+        mock_logger.exception.assert_called_once()
+        # Only the contribution entry is created; the fully-funded entry is skipped.
+        self.assertEqual(mock_create.apply_async.call_count, 1)
+
     @patch("feed.signals.purchase_signals.create_feed_entry")
     @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
     @patch("feed.signals.purchase_signals.transaction")

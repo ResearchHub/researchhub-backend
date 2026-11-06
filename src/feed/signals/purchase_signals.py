@@ -166,7 +166,7 @@ def _maybe_create_fully_funded_feed_entry(fundraise_id: int) -> None:
     would otherwise look fully funded.
     """
 
-    def _create_if_fully_funded():
+    def _create_fully_funded_feed_entry():
         try:
             fundraise = Fundraise.objects.select_related(
                 "escrow", "unified_document"
@@ -218,6 +218,15 @@ def _maybe_create_fully_funded_feed_entry(fundraise_id: int) -> None:
             ),
             priority=1,
         )
+
+    def _create_if_fully_funded():
+        try:
+            _create_fully_funded_feed_entry()
+        except Exception:
+            logger.exception(
+                "Error creating fully-funded feed entry for fundraise %s",
+                fundraise_id,
+            )
 
     transaction.on_commit(_create_if_fully_funded)
 
