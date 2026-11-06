@@ -77,3 +77,13 @@ class UsdFundraiseContribution(DefaultModel):
             models.Index(fields=["fundraise"]),
             models.Index(fields=["user"]),
         ]
+
+    def mark_refunded(self) -> None:
+        """
+        Mark the contribution as refunded. `is_refunded` and the CANCELLED status
+        always move together; the refund itself happens externally via Endaoment,
+        so it is final and is not reversed if the fundraise is reopened.
+        """
+        self.is_refunded = True
+        self.status = self.Status.CANCELLED
+        self.save(update_fields=["is_refunded", "status", "updated_date"])

@@ -3,11 +3,12 @@ from datetime import UTC, datetime, timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 
 from notification.models import Notification
 from notification.services import NotificationService
 from purchase.circle.service import CircleWalletService
-from purchase.models import Fundraise
+from purchase.models import Fundraise, UsdFundraiseContribution
 from purchase.services.funding_credits_reminder_service import (
     FundingCreditsReminderService,
 )
@@ -26,20 +27,27 @@ def complete_eligible_fundraises():
     This task checks for OPEN fundraises that:
     1. Have raised funds equal to or greater than their goal amount
     2. Are at least 7 days old (based on start_date)
-    3. Have escrow funds available to payout
+    3. Have escrow funds or non-refunded USD contributions to payout
     """
     logger.info("Starting complete_eligible_fundraises task")
 
     # Calculate the cutoff date (7 days ago)
     cutoff_date = datetime.now(UTC) - timedelta(days=7)
 
+    has_usd_contributions = Exists(
+        UsdFundraiseContribution.objects.not_refunded().filter(fundraise=OuterRef("pk"))
+    )
+
     # Get all open fundraises that are at least a week old
-    eligible_fundraises = Fundraise.objects.filter(
-        status=Fundraise.OPEN,
-        start_date__lte=cutoff_date,
-        escrow__isnull=False,
-        escrow__amount_holding__gt=0,
-    ).select_related("escrow")
+    eligible_fundraises = (
+        Fundraise.objects.filter(
+            status=Fundraise.OPEN,
+            start_date__lte=cutoff_date,
+            escrow__isnull=False,
+        )
+        .filter(Q(escrow__amount_holding__gt=0) | has_usd_contributions)
+        .select_related("escrow")
+    )
 
     fundraise_service = FundraiseService()
     completed_count = 0

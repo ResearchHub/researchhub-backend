@@ -104,11 +104,9 @@ class FundraiseService:
         Award proposals accept a payment only from the grant creator. That
         check runs even when ``check_self_contribution`` is False.
         """
-        if fundraise.status != Fundraise.OPEN:
-            return False, "Fundraise is not open"
-
-        if fundraise.is_expired():
-            return False, "Fundraise is expired"
+        error = self._contribution_block_reason(fundraise)
+        if error:
+            return False, error
 
         award_error = self.award_proposal_contribution_error(fundraise, user)
         if award_error:
@@ -354,10 +352,9 @@ class FundraiseService:
             # Serialize contributions with close/complete/reopen so a stale
             # OPEN fundraise cannot accept a debit after its escrow is settled.
             fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
-            if fundraise.status != Fundraise.OPEN:
-                return None, "Fundraise is not open"
-            if fundraise.is_expired():
-                return None, "Fundraise is expired"
+            error = self._contribution_block_reason(fundraise)
+            if error:
+                return None, error
             if not fundraise.escrow_id:
                 return None, "Fundraise escrow is not set"
 
@@ -547,6 +544,11 @@ class FundraiseService:
         """
         Creates a USD contribution to a fundraise.
 
+        The Endaoment transfer runs outside any DB transaction, so a rollback
+        cannot discard the record of money that has already moved. The fundraise
+        is then locked and re-checked; a transfer that raced a close is recorded
+        as refunded so it shows up for the manual Endaoment refund.
+
         Args:
             user: The user making the contribution
             fundraise: The fundraise to contribute to
@@ -562,39 +564,84 @@ class FundraiseService:
         fee_cents = (amount_cents * USD_FUNDRAISE_FEE_PERCENT) // 100
         total_amount_cents = amount_cents + fee_cents
         origin_fund_id = origin_fund_id or None
-        endaoment_transfer_id = None
-        destination_org_id = None
 
+        if not origin_fund_id:
+            return None, "origin_fund_id is required for USD contributions"
+
+        # Store intended nonprofit org ID for later manual transfer/refund.
+        nonprofit_org = fundraise.get_nonprofit_org()
+        destination_org_id = nonprofit_org.endaoment_org_id if nonprofit_org else None
+        if not destination_org_id:
+            return None, "Fundraise nonprofit org is not set"
+
+        # Fail fast on a fundraise closed since the caller loaded it, before any
+        # money moves. Re-checked under the row lock below.
+        error = self._contribution_block_reason(Fundraise.objects.get(id=fundraise.id))
+        if error:
+            return None, error
+
+        try:
+            # Note: The destination fund is ResearchHub's fund.
+            # The actual transfer to the nonprofit org is handled manually.
+            transfer_result = self.endaoment_service.transfer_to_researchhub_fund(
+                user=user,
+                origin_fund_id=origin_fund_id,
+                amount_cents=total_amount_cents,
+            )
+            endaoment_transfer_id = transfer_result.get("id")
+        except EndaomentAccount.DoesNotExist:
+            return None, "Endaoment account not connected"
+        except Exception:
+            logger.exception("Failed to create Endaoment grant")
+            return None, "Failed to submit Endaoment grant"
+
+        try:
+            contribution, error = self._record_usd_contribution(
+                user=user,
+                fundraise=fundraise,
+                amount_cents=amount_cents,
+                fee_cents=fee_cents,
+                origin_fund_id=origin_fund_id,
+                destination_org_id=destination_org_id,
+                endaoment_transfer_id=endaoment_transfer_id,
+            )
+        except Exception:
+            logger.exception(
+                "Endaoment transfer %s for fundraise %s succeeded but the "
+                "contribution was not recorded",
+                endaoment_transfer_id,
+                fundraise.id,
+            )
+            raise
+
+        return contribution, error
+
+    @staticmethod
+    def _contribution_block_reason(fundraise: Fundraise) -> str | None:
+        """Return why the fundraise cannot take a contribution, if anything."""
+        if fundraise.status != Fundraise.OPEN:
+            return "Fundraise is not open"
+        if fundraise.is_expired():
+            return "Fundraise is expired"
+        return None
+
+    def _record_usd_contribution(
+        self,
+        user: User,
+        fundraise: Fundraise,
+        amount_cents: int,
+        fee_cents: int,
+        origin_fund_id: str,
+        destination_org_id: str,
+        endaoment_transfer_id: str | None,
+    ) -> tuple[UsdFundraiseContribution | None, str | None]:
+        """Record a completed Endaoment transfer against the locked fundraise."""
         with transaction.atomic():
+            # Serialize with close/complete/reopen so a closing fundraise cannot
+            # gain a contribution that its refund pass has already missed.
+            fundraise = Fundraise.objects.select_for_update().get(id=fundraise.id)
             user = User.objects.select_for_update().get(id=user.id)
 
-            if not origin_fund_id:
-                return None, "origin_fund_id is required for USD contributions"
-
-            # Store intended nonprofit org ID for later manual transfer/refund.
-            nonprofit_org = fundraise.get_nonprofit_org()
-            destination_org_id = (
-                nonprofit_org.endaoment_org_id if nonprofit_org else None
-            )
-            if not destination_org_id:
-                return None, "Fundraise nonprofit org is not set"
-
-            try:
-                # Note: The destination fund is ResearchHub's fund.
-                # The actual transfer to the nonprofit org is handled manually.
-                transfer_result = self.endaoment_service.transfer_to_researchhub_fund(
-                    user=user,
-                    origin_fund_id=origin_fund_id,
-                    amount_cents=total_amount_cents,
-                )
-                endaoment_transfer_id = transfer_result.get("id")
-            except EndaomentAccount.DoesNotExist:
-                return None, "Endaoment account not connected"
-            except Exception:
-                logger.exception("Failed to create Endaoment grant")
-                return None, "Failed to submit Endaoment grant"
-
-            # Create the contribution record
             contribution = UsdFundraiseContribution.objects.create(
                 user=user,
                 fundraise=fundraise,
@@ -605,6 +652,19 @@ class FundraiseService:
                 destination_org_id=destination_org_id,
                 endaoment_transfer_id=endaoment_transfer_id,
             )
+
+            error = self._contribution_block_reason(fundraise)
+            if error:
+                # The money already moved; keep the record so it is refunded.
+                logger.error(
+                    "Endaoment transfer %s landed on fundraise %s after it "
+                    "stopped accepting contributions (%s); marked refunded",
+                    endaoment_transfer_id,
+                    fundraise.id,
+                    error,
+                )
+                contribution.mark_refunded()
+                return None, error
 
             # Track in Amplitude
             fee_dollars = fee_cents / 100.0
@@ -765,12 +825,14 @@ class FundraiseService:
         Refund all RSC contributions from escrow back to contributors.
         Also refunds the fees that were deducted when creating contributions.
         Preserves the locked/unlocked status of the original funds.
+        Each refunded contribution moves from PAID to REFUNDED, so contributions
+        refunded by an earlier close are skipped after a reopen.
         Returns True if all refunds successful, False if any fail.
         """
         purchase_ct = ContentType.objects.get_for_model(Purchase)
         bounty_fee_ct = ContentType.objects.get_for_model(BountyFee)
 
-        for contribution in fundraise.purchases.all():
+        for contribution in fundraise.purchases.filter(paid_status=Purchase.PAID):
             pool_distribution = (
                 FundingDistribution.objects.filter(
                     fundraise_purchase=contribution,
@@ -784,13 +846,15 @@ class FundraiseService:
                     fundraise, pool_distribution
                 ):
                     return False
-                continue
+            else:
+                for debit in Balance.objects.filter(purchase=contribution):
+                    if not self._refund_contribution_debit(
+                        fundraise, contribution.user, debit, purchase_ct, bounty_fee_ct
+                    ):
+                        return False
 
-            for debit in Balance.objects.filter(purchase=contribution):
-                if not self._refund_contribution_debit(
-                    fundraise, contribution.user, debit, purchase_ct, bounty_fee_ct
-                ):
-                    return False
+            contribution.paid_status = Purchase.REFUNDED
+            contribution.save(update_fields=["paid_status", "updated_date"])
 
         return True
 
@@ -800,16 +864,16 @@ class FundraiseService:
         Actual refunds are handled externally via Endaoment.
         """
         for usd_contribution in fundraise.usd_contributions.filter(is_refunded=False):
-            usd_contribution.is_refunded = True
-            usd_contribution.status = UsdFundraiseContribution.Status.CANCELLED
-            usd_contribution.save(update_fields=["is_refunded", "status"])
+            usd_contribution.mark_refunded()
 
         return True
 
     def complete_fundraise(self, fundraise: Fundraise) -> None:
         """
         Complete a fundraise and payout funds to the recipient.
-        Only works if the fundraise is in OPEN status and has escrow funds.
+        Only works if the fundraise is in OPEN status and has escrow funds or
+        non-refunded USD contributions. USD is transferred to the nonprofit
+        outside this flow, so a USD-only fundraise just settles its empty escrow.
         Marks any APPLIED FundingDistribution rows as SETTLED after payout.
 
         Args:
@@ -828,11 +892,20 @@ class FundraiseService:
             if fundraise.status != Fundraise.OPEN:
                 raise ValueError("Fundraise is not open")
 
-            if not fundraise.escrow or fundraise.escrow.amount_holding <= 0:
+            if not fundraise.escrow_id:
                 raise ValueError("Fundraise has no funds to payout")
 
-            if not fundraise.payout_funds():
-                raise RuntimeError("Failed to payout funds")
+            escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
+            if escrow.amount_holding > 0:
+                if not fundraise.payout_funds():
+                    raise RuntimeError("Failed to payout funds")
+            elif fundraise.usd_contributions.not_refunded().exists():
+                # Settle the empty escrow so payout activity is recorded for the
+                # USD contributions, as it is for mixed fundraises.
+                escrow.status = Escrow.PAID
+                escrow.save(update_fields=["status", "updated_date"])
+            else:
+                raise ValueError("Fundraise has no funds to payout")
 
             FundingDistribution.objects.filter(
                 target_fundraise=fundraise,
@@ -882,9 +955,10 @@ class FundraiseService:
             fundraise.status = Fundraise.CLOSED
             fundraise.save()
 
-            escrow = fundraise.escrow
-            escrow.status = Escrow.CANCELLED
-            escrow.save(update_fields=["status"])
+            if fundraise.escrow_id:
+                escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
+                escrow.status = Escrow.CANCELLED
+                escrow.save(update_fields=["status", "updated_date"])
 
             return True
 
@@ -892,6 +966,9 @@ class FundraiseService:
         """
         Reopen a fundraise and set its end date `duration_days` days from now.
         Rejects COMPLETED fundraises because funds have already been paid out.
+        Contributions refunded by an earlier close stay refunded (RSC purchases
+        stay REFUNDED, USD contributions stay is_refunded/CANCELLED) because that
+        money has already gone back to the contributors.
 
         Raises:
             ValueError: If fundraise is completed or duration_days is not a
@@ -911,8 +988,11 @@ class FundraiseService:
             fundraise.end_date = timezone.now() + timedelta(days=duration_days)
             fundraise.save()
 
-            if fundraise.escrow and fundraise.escrow.status == Escrow.CANCELLED:
-                fundraise.escrow.set_pending_status()
+            if fundraise.escrow_id:
+                escrow = Escrow.objects.select_for_update().get(id=fundraise.escrow_id)
+                if escrow.status == Escrow.CANCELLED:
+                    escrow.status = Escrow.PENDING
+                    escrow.save(update_fields=["status", "updated_date"])
 
     def export_usd_contributions(self, fundraise: Fundraise) -> list[list]:
         """

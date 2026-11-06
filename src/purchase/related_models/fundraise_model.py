@@ -14,7 +14,7 @@ from django.db.models.functions import Coalesce
 
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from utils.models import DefaultModel
+from utils.models import DefaultModel, PaidStatusModelMixin
 
 if TYPE_CHECKING:
     from user.models import User
@@ -161,8 +161,10 @@ class Fundraise(DefaultModel):
         """
         rsc_contributions = getattr(self, "prefetched_purchases", None)
         if rsc_contributions is None:
-            rsc_contributions = self.purchases.select_related("user").order_by(
-                "-created_date"
+            rsc_contributions = (
+                self.purchases.select_related("user")
+                .exclude(paid_status=PaidStatusModelMixin.REFUNDED)
+                .order_by("-created_date")
             )
 
         usd_contributions = getattr(self, "prefetched_usd_contributions", None)

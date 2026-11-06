@@ -140,10 +140,14 @@ class PaidStatusModelMixin(models.Model):
     INITIATED = "INITIATED"
     PAID = "PAID"
     PENDING = "PENDING"
+    # Set when a fundraise contribution is returned to its contributor (or pool)
+    # because the fundraise was closed. Only PAID purchases may move to it.
+    REFUNDED = "REFUNDED"
     PAID_STATUS_CHOICES = [
         (FAILED, FAILED),
         (PAID, PAID),
         (PENDING, PENDING),
+        (REFUNDED, REFUNDED),
     ]
 
     paid_date = models.DateTimeField(default=None, null=True)
