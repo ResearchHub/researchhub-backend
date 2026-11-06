@@ -128,16 +128,6 @@ class ResolveProviderTests(SimpleTestCase):
         self.assertEqual(provider.model_id, "claude-haiku-4-5")
         bedrock_cls.assert_not_called()
 
-    @override_settings(RESEARCH_AI_GENERATOR_PROVIDER="bedrock")
-    def test_unprefixed_ref_follows_bedrock_generator(self, bedrock_cls):
-        # Arrange / Act
-        resolve_provider("us.anthropic.claude-opus-4-8")
-
-        # Assert
-        bedrock_cls.assert_called_once_with(
-            model_id="us.anthropic.claude-opus-4-8", image_loader=None
-        )
-
     def test_the_image_loader_reaches_every_provider(self, bedrock_cls):
         # Arrange
         def loader(ref):

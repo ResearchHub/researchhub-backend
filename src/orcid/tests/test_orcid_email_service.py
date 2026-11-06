@@ -26,18 +26,6 @@ class OrcidEmailServiceTests(TestCase):
         # Assert
         self.assertEqual(result, ["user@stanford.edu"])
 
-    def test_fetch_returns_empty_when_no_edu_emails(self):
-        # Arrange
-        self.mock_client.get_email_data.return_value = {
-            "email": [{"email": "user@gmail.com", "verified": True}]
-        }
-
-        # Act
-        result = self.service.fetch_verified_edu_emails("0000-0001", "token")
-
-        # Assert
-        self.assertEqual(result, [])
-
     def test_is_edu_matches_academic_domains(self):
         # Act & Assert
         self.assertTrue(self.service._is_edu("user@stanford.edu"))

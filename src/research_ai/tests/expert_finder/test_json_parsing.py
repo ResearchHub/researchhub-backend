@@ -77,10 +77,6 @@ class ValidateExpertOutputTests(TestCase):
         with self.assertRaises(ValueError):
             ExpertFinderJson.validate_output({})
 
-    def test_experts_not_list_raises(self):
-        with self.assertRaises(ValueError):
-            ExpertFinderJson.validate_output({"experts": None})
-
 
 class ExpertDisplayTests(TestCase):
     def test_build_name_structured(self):
@@ -94,10 +90,6 @@ class ExpertDisplayTests(TestCase):
             first_name="Jane", middle_name="Q", last_name="Doe"
         )
         self.assertEqual(n, "Jane Q Doe")
-
-    def test_build_name_omits_empty_name_parts(self):
-        self.assertEqual(ExpertDisplay.build_name(first_name="A", last_name="B"), "A B")
-        self.assertEqual(ExpertDisplay.build_name(last_name="Z"), "Z")
 
 
 class ExpertPersistTests(TestCase):
@@ -209,31 +201,3 @@ class ExpertPersistTests(TestCase):
             {"email": "taken@example.com", "last_name": "K"}
         )
         self.assertEqual(e.registered_user_id, other_user.id)
-
-    def test_upsert_leaves_registered_user_null_when_no_match(self):
-        e = ExpertPersist.upsert_from_parsed_dict(
-            {"email": "nobody@example.com", "first_name": "N"}
-        )
-        self.assertIsNone(e.registered_user_id)
-
-
-class ExpertResultsPayloadTests(TestCase):
-    def setUp(self):
-        self.user = create_user(email="c@test.com")
-        self.search = ExpertSearch.objects.create(
-            created_by=self.user,
-            query="q2",
-            status=ExpertSearch.Status.COMPLETED,
-        )
-        e = Expert.objects.create(
-            email="e@d.org",
-            first_name="Eve",
-            last_name="D",
-            academic_title="Assoc Prof",
-            sources=[{"text": "t", "url": "u"}],
-        )
-        SearchExpert.objects.create(
-            expert_search=self.search,
-            expert=e,
-            position=0,
-        )

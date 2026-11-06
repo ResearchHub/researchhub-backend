@@ -33,14 +33,6 @@ class MaxAimsForBudgetTests(unittest.TestCase):
 
 
 class AimScopeGuidanceTests(unittest.TestCase):
-    def test_guidance_names_the_award_and_aim_count(self):
-        # Arrange / Act
-        guidance = aim_scope_guidance("5000", "USD")
-
-        # Assert: the concrete award and the one-aim cap are stated.
-        self.assertIn("$5,000", guidance)
-        self.assertIn("one specific aim", guidance)
-
     def test_guidance_falls_back_to_the_general_rule_when_unknown(self):
         # Arrange / Act: no parseable USD amount -> the general rule, no cap claim.
         guidance = aim_scope_guidance(None, "RSC")

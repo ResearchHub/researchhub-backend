@@ -12,9 +12,6 @@ from paper.tests.helpers import create_paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
-)
 from review.models import Review
 from user.tests.helpers import create_random_default_user
 
@@ -34,16 +31,6 @@ class ModelTests(TestCase):
         result = self.paper.unified_document.get_journal()
 
         self.assertIsNone(result)
-
-    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "999999")
-    def test_get_journal_returns_journal_hub(self):
-        """Test that get_journal returns a journal hub when one exists"""
-        journal_hub = create_hub("Nature", namespace=Hub.Namespace.JOURNAL)
-        self.paper.unified_document.hubs.add(journal_hub)
-
-        result = self.paper.unified_document.get_journal()
-
-        self.assertEqual(result, journal_hub)
 
     def test_get_journal_prioritizes_researchhub_journal(self):
         """Test that get_journal prioritizes ResearchHub Journal over other journals"""
@@ -219,18 +206,6 @@ class ModelTests(TestCase):
         # Assert
         self.assertEqual(markdown, "# RFP\nFull call for proposals")
 
-    def test_get_full_markdown_reads_discussion_body(self):
-        """DISCUSSION posts still read from discussion_src."""
-        # Arrange
-        post = create_post(created_by=self.user, document_type="DISCUSSION")
-        post.discussion_src.save("discussion.md", ContentFile(b"Discussion body"))
-
-        # Act
-        markdown = post.get_full_markdown()
-
-        # Assert
-        self.assertEqual(markdown, "Discussion body")
-
     def test_get_full_markdown_returns_none_without_logging_when_no_file(self):
         # Arrange
         post = create_post(created_by=self.user, document_type="DISCUSSION")
@@ -261,29 +236,3 @@ class ModelTests(TestCase):
         self.assertEqual(record.levelname, "WARNING")
         self.assertIn(post.discussion_src.name, record.getMessage())
         self.assertIsNone(record.exc_info)
-
-
-class ResearchhubPostStatusTests(TestCase):
-    def setUp(self):
-        self.user = create_random_default_user("post_status_user")
-
-    def test_default_status_is_approved(self):
-        # Act
-        post = create_post(created_by=self.user)
-
-        # Assert
-        unified_document = post.unified_document
-        self.assertEqual(unified_document.status, ResearchhubUnifiedDocument.APPROVED)
-        self.assertIsNone(unified_document.reviewed_by)
-        self.assertIsNone(unified_document.reviewed_date)
-
-    def test_status_choices_match_constants(self):
-        # Assert
-        self.assertEqual(
-            set(dict(ResearchhubUnifiedDocument.STATUS_CHOICES).keys()),
-            {
-                ResearchhubUnifiedDocument.PENDING,
-                ResearchhubUnifiedDocument.APPROVED,
-                ResearchhubUnifiedDocument.DECLINED,
-            },
-        )

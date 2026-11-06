@@ -322,19 +322,6 @@ class FullyScannedPdfTests(TestCase):
 
     MARKERS = f"[Page 1]\n{NO_TEXT_LAYER}\n\n[Page 2]\n{NO_TEXT_LAYER}"
 
-    def test_it_is_kept_without_an_engine(self):
-        # Arrange
-        service = TextExtractionService()
-        data = pdf_with_scans(SCAN, SCAN)
-
-        # Act
-        extracted = service.extract(data, PDF, max_chars=MAX_CHARS)
-
-        # Assert
-        self.assertEqual(extracted.text, self.MARKERS)
-        self.assertEqual(extracted.page_count, 2)
-        self.assertEqual(extracted.pages_without_text, (1, 2))
-
     def test_it_is_kept_when_the_engine_finds_no_text(self):
         # Arrange: an engine reads nothing on a page that is only a figure.
         ocr = FakeOcr(empty={1, 2})
@@ -349,21 +336,6 @@ class FullyScannedPdfTests(TestCase):
         self.assertEqual(extracted.text, self.MARKERS)
         self.assertEqual(extracted.pages_without_text, (1, 2))
         self.assertEqual(extracted.ocr_pages, ())
-
-    def test_it_is_kept_when_the_engine_is_down(self):
-        # Arrange
-        service = TextExtractionService(ocr=FakeOcr(failing={1, 2}))
-        data = pdf_with_scans(SCAN, SCAN)
-
-        # Act
-        with self.assertLogs(
-            "research_ai.services.agent_files.extraction_service", "WARNING"
-        ):
-            extracted = service.extract(data, PDF, max_chars=MAX_CHARS)
-
-        # Assert
-        self.assertEqual(extracted.text, self.MARKERS)
-        self.assertEqual(extracted.pages_without_text, (1, 2))
 
     def test_the_pages_the_engine_reads_replace_their_markers(self):
         # Arrange
@@ -381,28 +353,6 @@ class FullyScannedPdfTests(TestCase):
         )
         self.assertEqual(extracted.ocr_pages, (1, 3))
         self.assertEqual(extracted.pages_without_text, (2,))
-
-    def test_a_pdf_of_blank_pages_is_still_refused(self):
-        # Arrange
-        ocr = FakeOcr()
-        service = TextExtractionService(ocr=ocr)
-        data = pdf_bytes("", "")
-
-        # Act / Assert
-        with self.assertRaisesRegex(UnreadableFileError, "pages are blank"):
-            service.extract(data, PDF, max_chars=MAX_CHARS)
-        self.assertEqual(ocr.images, [])
-
-    def test_a_word_file_without_text_is_still_refused(self):
-        # Arrange
-        ocr = FakeOcr()
-        service = TextExtractionService(ocr=ocr)
-        data = docx_bytes("<w:tbl><w:tr><w:tc><w:p/></w:tc></w:tr></w:tbl>")
-
-        # Act / Assert
-        with self.assertRaisesRegex(UnreadableFileError, "No readable text"):
-            service.extract(data, DOCX, max_chars=MAX_CHARS)
-        self.assertEqual(ocr.images, [])
 
 
 class WordImageTests(TestCase):

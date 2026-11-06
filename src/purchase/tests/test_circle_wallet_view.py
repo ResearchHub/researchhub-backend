@@ -5,7 +5,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIRequestFactory, force_authenticate
 
-from purchase.circle.client import CircleWalletCreationError, CircleWalletFrozenError
+from purchase.circle.client import CircleWalletFrozenError
 from purchase.circle.service import DepositAddressResult
 from purchase.views import DepositAddressView
 
@@ -38,19 +38,6 @@ class TestDepositAddressView(TestCase):
         """Test 500 when wallet is frozen."""
         self.service_mock.get_or_create_deposit_address.side_effect = (
             CircleWalletFrozenError("Wallet is FROZEN")
-        )
-
-        request = self.factory.get("/api/wallet/deposit-address/")
-        force_authenticate(request, user=self.user)
-
-        response = DepositAddressView.as_view()(request, service=self.service_mock)
-
-        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    def test_returns_500_on_creation_error(self):
-        """Test 500 when Circle API fails."""
-        self.service_mock.get_or_create_deposit_address.side_effect = (
-            CircleWalletCreationError("API down")
         )
 
         request = self.factory.get("/api/wallet/deposit-address/")

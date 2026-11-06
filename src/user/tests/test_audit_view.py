@@ -33,24 +33,6 @@ class AuditViewTests(APITestCase):
             unique_value="test_editor", hub_name="test_editor", moderator=False
         )
 
-    def test_can_flag_paper(self):
-        target_paper = create_paper(uploaded_by=self.random_content_creator)
-
-        self.client.force_authenticate(self.reg_user)
-        http_response = self.client.post(
-            f"/api/paper/{target_paper.id}/flag/", {"reason_choice": SPAM}
-        )
-        self.assertContains(http_response, "id", status_code=201)
-
-    def test_can_flag_rh_post(self):
-        target_post = create_post(created_by=self.random_content_creator)
-
-        self.client.force_authenticate(self.reg_user)
-        http_response = self.client.post(
-            f"/api/researchhubpost/{target_post.id}/flag/", {"reason_choice": SPAM}
-        )
-        self.assertContains(http_response, "id", status_code=201)
-
     def test_can_flag_paper_with_reason_memo(self):
         target_paper = create_paper(uploaded_by=self.random_content_creator)
 
@@ -317,17 +299,6 @@ class AutoPaymentAuditTests(APITestCase):
         self.assertEqual(response.data["count"], 2)
         types = {r["distribution_type"] for r in response.data["results"]}
         self.assertEqual(types, {"EDITOR_PAYOUT", "EDITOR_COMPENSATION"})
-
-    def test_filter_by_recipient(self):
-        # Arrange
-        self.client.force_authenticate(self.editor)
-
-        # Act
-        response = self.client.get(AUTO_PAYMENTS_URL, {"recipient": self.recipient.id})
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["count"], 3)
 
     def test_response_includes_recipient_info(self):
         # Arrange

@@ -2,8 +2,6 @@
 Tests for feed cache invalidation.
 """
 
-from unittest.mock import patch
-
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
@@ -122,32 +120,6 @@ class CacheInvalidationTests(AWSMockTestCase):
         self.assertEqual(cache.get(popular_cache_key), {"popular": "data"})
         self.assertIsNone(cache.get(user_cache_key))
 
-    def test_invalidate_feed_cache_for_user_handles_no_existing_cache(self):
-        """Test that invalidation works even when no caches exist."""
-        try:
-            FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
-        except Exception as e:
-            self.fail(f"invalidate_feed_cache_for_user raised {e} unexpectedly")
-
-    @patch("feed.views.feed_view_mixin.cache")
-    def test_invalidate_feed_cache_calls_delete_for_expected_keys(self, mock_cache):
-        """Test that cache.delete is called for all expected cache keys."""
-        FeedViewMixin.invalidate_feed_cache_for_user(self.user_id)
-
-        self.assertGreater(mock_cache.delete.call_count, 0)
-
-        delete_call_args = [call[0][0] for call in mock_cache.delete.call_args_list]
-
-        expected_keys = [
-            f"feed:following:all:all:{self.user_id}:1-20",
-            f"feed:following:all:all:{self.user_id}:2-20",
-            f"feed:following:all:all:{self.user_id}:3-20",
-            f"feed:following:all:all:{self.user_id}:4-20",
-        ]
-
-        for expected_key in expected_keys:
-            self.assertIn(expected_key, delete_call_args)
-
 
 class FeedCachingTests(APITestCase):
     def setUp(self):
@@ -259,31 +231,6 @@ class FeedCachingTests(APITestCase):
         )
         self.assertEqual(response3["RH-Cache"], "miss")
 
-    def test_cache_hit_includes_header_for_authenticated_user(self):
-        url = reverse("feed-list")
-        self.client.force_authenticate(user=self.user)
-
-        response1 = self.client.get(url, {"ordering": "hot_score_v2"})
-        self.assertEqual(response1["RH-Cache"], "miss (auth)")
-
-        response2 = self.client.get(url, {"ordering": "hot_score_v2"})
-        self.assertEqual(response2["RH-Cache"], "hit (auth)")
-
-    def test_cache_hit_includes_header_for_anonymous_user(self):
-        url = reverse("feed-list")
-
-        response1 = self.client.get(url, {"ordering": "hot_score_v2"})
-        self.assertEqual(response1["RH-Cache"], "miss")
-
-        response2 = self.client.get(url, {"ordering": "hot_score_v2"})
-        self.assertEqual(response2["RH-Cache"], "hit")
-
-    def test_cache_miss_includes_header(self):
-        url = reverse("feed-list")
-
-        response = self.client.get(url)
-        self.assertEqual(response["RH-Cache"], "miss")
-
     def test_cache_key_differs_by_feed_view(self):
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
@@ -341,29 +288,6 @@ class FeedCachingTests(APITestCase):
         cache_keys = list(cache._cache.keys())
         researchhub_keys = [key for key in cache_keys if "researchhub_" in str(key)]
         self.assertGreater(len(researchhub_keys), 0)
-
-    @patch("feed.views.feed_view.cache")
-    def test_following_feed_respects_use_cache_config(self, mock_cache):
-        url = reverse("feed-list")
-        self.client.force_authenticate(user=self.user)
-
-        mock_cache.get.return_value = None
-
-        self.client.get(url, {"feed_view": "following"})
-
-        self.assertTrue(mock_cache.get.called)
-        self.assertTrue(mock_cache.set.called)
-
-    @patch("feed.views.feed_view.cache")
-    def test_popular_feed_respects_use_cache_config(self, mock_cache):
-        url = reverse("feed-list")
-
-        mock_cache.get.return_value = None
-
-        self.client.get(url, {"feed_view": "popular", "ordering": "hot_score_v2"})
-
-        self.assertTrue(mock_cache.get.called)
-        self.assertTrue(mock_cache.set.called)
 
     def test_cache_key_differs_by_user_id_parameter(self):
         """

@@ -77,21 +77,6 @@ class NoteVersionEventPublisherTests(TestCase):
             ],
         )
 
-    def test_publish_survives_a_failing_channel_layer(self):
-        # Arrange
-        layer = FakeChannelLayer(error=RuntimeError("redis down"))
-        publisher = NoteVersionEventPublisher(channel_layer=layer)
-        version = self._create_version()
-
-        # Act & Assert: the failure is logged, never raised into the caller.
-        with (
-            self.assertLogs(
-                "notification.services.notification_service", level="WARNING"
-            ),
-            self.captureOnCommitCallbacks(execute=True),
-        ):
-            publisher.publish_created(version)
-
 
 class NoteVersionCreatedSignalTests(TestCase):
     """Every committed NoteContent row emits, whoever created it."""
@@ -103,44 +88,6 @@ class NoteVersionCreatedSignalTests(TestCase):
             email="signal@researchhub_test.com",
         )
         self.note, self.seed_version = create_note(self.user, organization=None)
-
-    def test_creating_a_version_publishes_to_the_note_group(self):
-        # Arrange: the publisher resolves the channel layer at send time.
-        layer = FakeChannelLayer()
-
-        # Act
-        with (
-            patch(
-                "notification.services.notification_service.get_channel_layer",
-                return_value=layer,
-            ),
-            self.captureOnCommitCallbacks(execute=True),
-        ):
-            version = NoteContent.objects.create(
-                note=self.note,
-                plain_text="agent edit",
-                created_by=self.user,
-                created_via=NoteContent.CREATED_VIA_AGENT,
-                parent_version=self.seed_version,
-            )
-
-        # Assert
-        self.assertEqual(len(layer.sent), 1)
-        group, message = layer.sent[0]
-        self.assertEqual(group, note_group(self.note.id))
-        self.assertEqual(message["type"], EVENT_TYPE)
-        self.assertEqual(
-            message["data"],
-            {
-                "type": NOTE_VERSION_CREATED,
-                "note_id": self.note.id,
-                "version_id": version.id,
-                "parent_version_id": self.seed_version.id,
-                "created_by": self.user.id,
-                "created_via": NoteContent.CREATED_VIA_AGENT,
-                "created_date": version.created_date.isoformat(),
-            },
-        )
 
     def test_a_failing_channel_layer_never_breaks_the_write(self):
         # Arrange

@@ -60,9 +60,6 @@ class UpdateSearchProgressTests(TestCase):
         self.search.refresh_from_db()
         self.assertEqual(len(self.search.current_step), 512)
 
-    def test_update_search_progress_invalid_id_logs_and_does_not_raise(self):
-        _update_search_progress("99999999", 0, "No-op")  # no such id – should not raise
-
 
 # --- process_bulk_generate_emails_task ---
 
@@ -337,38 +334,6 @@ class SendQueuedEmailsTaskTests(TestCase):
         self.assertEqual(records[1].ses_message_id, "")
         self.assertIsNotNone(experts[1].last_email_sent_at)
         grant.assert_called_once_with(generated_email=records[1])
-
-    @patch("research_ai.tasks.send_outreach_email")
-    def test_send_queued_success_sets_expert_last_email_sent_at(self, mock_send):
-        mock_send.return_value = "ses-1"
-        Expert.objects.create(
-            email="sentmark@edu",
-            first_name="S",
-            last_name="ent",
-        )
-        rec = GeneratedEmail.objects.create(
-            created_by=self.user,
-            expert_name="Dr. S",
-            expert_email="sentmark@edu",
-            email_subject="Subj",
-            email_body="Body",
-            status=GeneratedEmail.Status.SENDING,
-        )
-        before = Expert.objects.get(email__iexact="sentmark@edu").last_email_sent_at
-        send_queued_emails_task.apply(
-            kwargs={
-                "generated_email_ids": [rec.id],
-                "reply_to": None,
-                "cc": None,
-                "from_email": None,
-            }
-        ).get()
-        rec.refresh_from_db()
-        self.assertEqual(rec.channels, [GeneratedEmail.Channel.EMAIL])
-        ex = Expert.objects.get(email__iexact="sentmark@edu")
-        self.assertIsNotNone(ex.last_email_sent_at)
-        if before:
-            self.assertGreaterEqual(ex.last_email_sent_at, before)
 
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)

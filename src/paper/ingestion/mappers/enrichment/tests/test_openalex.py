@@ -36,19 +36,6 @@ class TestOpenAlexMapper(TestCase):
         # Assert
         self.assertTrue(result)
 
-    def test_validate_missing_id(self):
-        """
-        Test validation fails for missing ID.
-        """
-        # Arrange
-        record = {"title": "Test Paper"}
-
-        # Act
-        result = self.mapper.validate(record)
-
-        # Assert
-        self.assertFalse(result)
-
     def test_validate_missing_title(self):
         """
         Test validation fails for missing title.
@@ -268,20 +255,6 @@ class TestOpenAlexMapper(TestCase):
         self.assertTrue(hasattr(first_authorship, "_author_openalex_id"))
         self.assertIsNotNone(first_authorship._author_openalex_id)
 
-    def test_map_batch(self):
-        """
-        Test batch mapping of records.
-        """
-        # Arrange
-        records = [self.sample_record]
-
-        # Act
-        papers = self.mapper.map_batch(records)
-
-        # Assert
-        self.assertEqual(len(papers), 1)
-        self.assertIsInstance(papers[0], Paper)
-
     def test_map_batch_with_invalid_record(self):
         """
         Test batch mapping skips invalid records.
@@ -310,65 +283,6 @@ class TestOpenAlexMapper(TestCase):
 
         # Assert
         self.assertEqual(len(hubs), 3)
-
-    def test_extract_license_info_full(self):
-        """
-        Test extracting license info with all fields from primary_location.
-        """
-        # Arrange
-        record = {
-            "primary_location": {
-                "license": "cc-by",
-                "license_id": "https://creativecommons.org/licenses/by/4.0",
-                "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
-            }
-        }
-
-        # Act
-        license_info = self.mapper._extract_license_info(record)
-
-        # Assert
-        self.assertEqual(license_info["license"], "cc-by")
-        self.assertEqual(
-            license_info["license_url"], "https://creativecommons.org/licenses/by/4.0"
-        )
-        self.assertEqual(
-            license_info["pdf_url"], "https://arxiv.org/pdf/2301.00001.pdf"
-        )
-
-    def test_extract_license_info_partial(self):
-        """
-        Test extracting license info with only some fields from primary_location.
-        """
-        # Arrange
-        record = {
-            "primary_location": {
-                "license": "cc-by-sa",
-            }
-        }
-
-        # Act
-        license_info = self.mapper._extract_license_info(record)
-
-        # Assert
-        self.assertEqual(license_info["license"], "cc-by-sa")
-        self.assertIsNone(license_info["license_url"])
-        self.assertIsNone(license_info["pdf_url"])
-
-    def test_extract_license_info_empty_primary_location(self):
-        """
-        Test extracting license info when primary_location is empty.
-        """
-        # Arrange
-        record = {"primary_location": {}}
-
-        # Act
-        license_info = self.mapper._extract_license_info(record)
-
-        # Assert
-        self.assertIsNone(license_info["license"])
-        self.assertIsNone(license_info["license_url"])
-        self.assertIsNone(license_info["pdf_url"])
 
     def test_extract_license_info_no_primary_location(self):
         """

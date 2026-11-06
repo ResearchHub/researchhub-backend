@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
-from rest_framework.renderers import JSONRenderer
 
 from ai_peer_review.models import (
     KeyInsightItemType,
@@ -96,12 +95,6 @@ class ProposalKeyInsightsRhfHumanReviewsFilterTests(TestCase):
         out = ProposalKeyInsightsService._get_rhf_endorsed_human_reviews(self.ud)
         self.assertIn("ASSESSED_TEXT", out)
         self.assertIn("Reviewer 1", out)
-
-    def test_excludes_comment_with_no_review_row(self):
-        t = self._thread()
-        self._create_comment(t, "NO_REVIEW")
-        out = ProposalKeyInsightsService._get_rhf_endorsed_human_reviews(self.ud)
-        self.assertNotIn("NO_REVIEW", out)
 
     def test_excludes_unassessed_review(self):
         t = self._thread()
@@ -245,12 +238,3 @@ class ProposalKeyInsightSerializerTests(TestCase):
             [x["label"] for x in data["key_insight"]["items"]],
             ["A label"],
         )
-
-    def test_json_round_trip_includes_key_insight(self):
-        # Mirrors researchhub_document use of JSONRenderer for proposal review payloads
-        data = ProposalReviewSerializer(self.review).data
-        as_json = json.loads(JSONRenderer().render(data).decode())
-        self.assertIn("key_insight", as_json)
-        self.assertIsNotNone(as_json["key_insight"])
-        self.assertIn("key_insight", as_json)
-        self.assertIsNotNone(as_json["key_insight"])

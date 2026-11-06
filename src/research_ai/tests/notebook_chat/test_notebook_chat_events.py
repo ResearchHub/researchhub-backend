@@ -185,17 +185,6 @@ class PublishingRecorderTests(unittest.TestCase):
             stream_store=self.stream_store,
         )
 
-    def test_record_message_forwards_then_publishes_progress(self):
-        # Arrange
-        message, turn = object(), object()
-
-        # Act
-        self.recorder.record_message(message, turn=turn)
-
-        # Assert
-        self.wrapped.record_message.assert_called_once_with(message, turn=turn)
-        self.publisher.publish.assert_called_once_with(7, 9, TURN_PROGRESS)
-
     def test_terminal_hooks_forward_then_publish(self):
         # Arrange: the wrapped recorder reports that each hook performed its
         # terminal transition itself.

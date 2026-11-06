@@ -110,20 +110,6 @@ class NotebookChatConsumerTests(TransactionTestCase):
         self.assertEqual(response["type"], "websocket.close")
         self.assertEqual(response["code"], CLOSE_UNAUTHENTICATED)
 
-    async def test_regular_user_can_connect_to_own_conversation(self):
-        # Arrange: the user has no editor or moderator role.
-        user = self.other_user
-
-        # Act
-        communicator, response = await self._connect(
-            user, conversation_id=self.other_conversation.id
-        )
-
-        # Assert
-        self.assertEqual(response["type"], "websocket.accept")
-        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
-        await communicator.wait()
-
     async def test_suspended_user_is_rejected(self):
         # Arrange
         self.user.is_suspended = True

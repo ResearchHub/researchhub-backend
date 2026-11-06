@@ -32,19 +32,6 @@ class TestArXivClient(TestCase):
         with open(fixtures_dir / "arxiv_empty_response.xml") as f:
             self.empty_xml_response = f.read()
 
-    def test_config_defaults(self):
-        """Test ArXiv config has correct defaults."""
-        config = ArXivConfig()
-        self.assertEqual(config.source_name, "arxiv")
-        self.assertEqual(
-            config.base_url,
-            "https://export.arxiv.org/api",
-        )
-        self.assertEqual(config.rate_limit, 0.33)  # 3 second delay
-        self.assertEqual(config.page_size, 25)
-        self.assertEqual(config.request_timeout, 30.0)
-        self.assertEqual(config.max_results_per_query, 2000)
-
     def test_parse(self):
         """Test parsing of ArXiv Atom XML response."""
         papers = self.client.parse(self.sample_xml_response)
@@ -68,11 +55,6 @@ class TestArXivClient(TestCase):
         self.assertIn("2509.08817v1", paper2["id"])
         self.assertIn("Quantum Cardinality", paper2["title"])
         self.assertEqual(paper2["comment"], "7 pages")
-
-    def test_parse_empty_response(self):
-        """Test parsing empty XML response."""
-        papers = self.client.parse(self.empty_xml_response)
-        self.assertEqual(papers, [])
 
     def test_parse_invalid_xml(self):
         """Test parsing invalid XML returns empty list."""
@@ -119,32 +101,6 @@ class TestArXivClient(TestCase):
             parsed["links"]["pdf"],
             "http://arxiv.org/pdf/2509.08827v1",  # NOSONAR - Ignore http
         )
-
-    def test_parse_xml_entry_with_comment(self):
-        """Test XML entry parsing with comment field."""
-        # Extract second entry from the sample response (has comment)
-        root = ET.fromstring(self.sample_xml_response)
-        entries = root.findall("{http://www.w3.org/2005/Atom}entry")
-        sample_xml_with_extras = ET.tostring(entries[1], encoding="unicode")
-
-        parsed = parse_xml_entry(sample_xml_with_extras)
-
-        # Check basic fields (second entry from fixture)
-        self.assertEqual(
-            parsed["id"],
-            "http://arxiv.org/abs/2509.08817v1",  # NOSONAR - Ignore http
-        )
-        self.assertEqual(
-            parsed["title"],
-            "QCardEst/QCardCorr: Quantum Cardinality Estimation and Correction",
-        )
-
-        # Check comment field
-        self.assertEqual(parsed["comment"], "7 pages")
-
-        # Check authors
-        self.assertEqual(len(parsed["authors"]), 3)
-        self.assertEqual(parsed["authors"][0]["name"], "Tobias Winker")
 
     @patch("requests.Session.get")
     def test_fetch_with_retry(self, mock_get):

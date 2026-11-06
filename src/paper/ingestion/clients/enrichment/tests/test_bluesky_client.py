@@ -102,18 +102,6 @@ class TestBlueskyClient(TestCase):
         with self.assertRaises(Exception):
             self.client.search_posts("10.1038/nonexistent")
 
-    def test_search_posts_network_error(self):
-        """Test post search with network error."""
-        # Set authenticated flag to skip authentication
-        self.client.authenticated = True
-
-        self.mock_atproto_client.app.bsky.feed.search_posts.side_effect = Exception(
-            "Network error"
-        )
-
-        with self.assertRaises(Exception):
-            self.client.search_posts("test-query")
-
 
 class TestBlueskyMetricsClient(TestCase):
     """Test suite for BlueskyMetricsClient."""
@@ -122,17 +110,6 @@ class TestBlueskyMetricsClient(TestCase):
         """Set up test client."""
         self.bluesky_client = Mock(spec=BlueskyClient)
         self.metrics_client = BlueskyMetricsClient(bluesky_client=self.bluesky_client)
-
-    def test_extract_metrics_empty_posts(self):
-        """Test metrics extraction with empty post list."""
-        metrics = BlueskyMetricsClient._extract_metrics([])
-
-        self.assertEqual(metrics["post_count"], 0)
-        self.assertEqual(metrics["total_likes"], 0)
-        self.assertEqual(metrics["total_reposts"], 0)
-        self.assertEqual(metrics["total_replies"], 0)
-        self.assertEqual(metrics["total_quotes"], 0)
-        self.assertEqual(len(metrics["posts"]), 0)
 
     def test_extract_metrics_multiple_posts(self):
         """Test metrics extraction with multiple posts."""

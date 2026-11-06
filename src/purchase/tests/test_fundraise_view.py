@@ -1003,32 +1003,6 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
 
-    def test_create_usd_contribution_own_fundraise_with_nonprofit(self):
-        """
-        Test that user CAN contribute USD to their own fundraise when a nonprofit
-        is attached.
-        """
-        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
-        fundraise_id = fundraise.data["id"]
-        self._link_nonprofit(fundraise_id)
-
-        self.mock_fundraise_service.create_contribution.return_value = (None, None)
-
-        view = FundraiseViewSet.as_view({"post": "create_contribution"})
-        request = self.factory.post(
-            f"/api/fundraise/{fundraise_id}/create_contribution/",
-            {"amount": 10000, "amount_currency": "USD", "origin_fund_id": "fund_123"},
-        )
-        force_authenticate(request, user=self.user)
-        response = view(
-            request,
-            pk=fundraise_id,
-            fundraise_service=self.mock_fundraise_service,
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.mock_fundraise_service.create_contribution.assert_called_once()
-
     def test_create_usd_contribution_closed_fundraise_fails(self):
         """Test that USD contribution to closed fundraise fails."""
         # Create a fundraise

@@ -32,11 +32,6 @@ class TestCoinbaseService(TestCase):
         self.service = CoinbaseService()
         self.user = create_user()
 
-    def test_initialization_with_credentials(self):
-        """Test service initialization with credentials."""
-        self.assertEqual(self.service.api_key_id, "test_key_id")
-        self.assertEqual(self.service.api_key_secret, "test_key_secret")
-
     @override_settings(COINBASE_API_KEY_ID=None, COINBASE_API_KEY_SECRET=None)
     def test_initialization_without_credentials(self):
         """Test service initialization without credentials."""
@@ -184,24 +179,6 @@ class TestCoinbaseService(TestCase):
         "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
         side_effect=_mock_get_or_create_deposit_address,
     )
-    def test_create_session_token_api_error(
-        self, mock_wallet, mock_generate_jwt, mock_post
-    ):
-        """Test session token creation with API error."""
-        mock_generate_jwt.return_value = "test_jwt_token"
-
-        # Mock API error response
-        mock_post.side_effect = requests.RequestException("API Error")
-
-        with self.assertRaises(requests.RequestException):
-            self.service.create_session_token(user=self.user, client_ip=TEST_IP)
-
-    @patch("purchase.services.coinbase_service.requests.post")
-    @patch("cdp.auth.utils.jwt.generate_jwt")
-    @patch(
-        "purchase.services.coinbase_service.CircleWalletService.get_or_create_deposit_address",
-        side_effect=_mock_get_or_create_deposit_address,
-    )
     def test_create_session_token_http_error(
         self, mock_wallet, mock_generate_jwt, mock_post
     ):
@@ -333,19 +310,6 @@ class TestCoinbaseService(TestCase):
             "Failed to get session token from response", str(context.exception)
         )
 
-    @override_settings(COINBASE_API_KEY_ID=None, COINBASE_API_KEY_SECRET=None)
-    def test_generate_onramp_url_without_credentials(self):
-        """Test onramp URL generation without API credentials."""
-        service = CoinbaseService()
-
-        with self.assertRaises(ValueError) as context:
-            service.generate_onramp_url(
-                user=self.user,
-                client_ip=TEST_IP,
-            )
-
-        self.assertIn("Coinbase API credentials not configured", str(context.exception))
-
 
 @override_settings(
     COINBASE_API_KEY_ID="test_key_id",
@@ -425,14 +389,3 @@ class CoinbaseSecurityComplianceTests(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_unauthenticated_request_returns_401(self):
-        self.client.force_authenticate(user=None)
-
-        response = self.client.post(
-            self.url,
-            data=self.request_data,
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

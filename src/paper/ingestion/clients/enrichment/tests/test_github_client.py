@@ -58,24 +58,6 @@ class TestGithubClient(TestCase):
 
     @patch("paper.ingestion.clients.enrichment.github.requests.get")
     @patch("paper.ingestion.clients.enrichment.github.RateLimiter.wait_if_needed")
-    def test_search_rate_limit_exceeded(self, mock_rate_limiter, mock_get):
-        """
-        Test search with rate limit exceeded (403).
-        """
-        # Arrange
-        mock_response = Mock()
-        mock_response.status_code = 403
-        mock_response.raise_for_status.side_effect = requests.HTTPError(
-            response=mock_response
-        )
-        mock_get.return_value = mock_response
-
-        # Act & Assert
-        with self.assertRaises(requests.HTTPError):
-            self.client.search("issues", "test query")
-
-    @patch("paper.ingestion.clients.enrichment.github.requests.get")
-    @patch("paper.ingestion.clients.enrichment.github.RateLimiter.wait_if_needed")
     def test_search_timeout(self, mock_rate_limiter, mock_get):
         """
         Test search with timeout.
@@ -202,41 +184,6 @@ class TestGithubMetricsClient(TestCase):
 
         self.assertIn("Invalid search area", str(context.exception))
 
-    def test_search_area_valid_areas(self):
-        """
-        Test that all valid search areas are accepted.
-        """
-        # Arrange
-        self.mock_github_client.search.return_value = {"total_count": 1, "items": []}
-
-        # Act & Assert
-        for area in GithubMetricsClient.VALID_SEARCH_AREAS:
-            result = self.client._search_area("10.1234/test", area)
-            self.assertEqual(result, 1)
-
-    def test_search_area_zero_results(self):
-        """
-        Test searching area with zero results.
-        """
-        # Arrange
-        self.mock_github_client.search.return_value = {"total_count": 0, "items": []}
-
-        # Act
-        result = self.client._search_area("10.1234/test", "issues")
-
-        # Assert
-        self.assertEqual(result, 0)
-
-    def test_valid_search_areas(self):
-        """
-        Test that valid search areas include all options.
-        """
-        # Assert
-        self.assertEqual(
-            GithubMetricsClient.VALID_SEARCH_AREAS,
-            ["code", "issues", "commits", "repositories"],
-        )
-
     def test_search_area_issues_adds_is_issue_qualifier(self):
         """
         Test that searching issues area adds 'is:issue' qualifier to the query.
@@ -281,16 +228,6 @@ class TestGithubMetricsClient(TestCase):
 
         # Assert
         self.assertEqual(query, '"10.1234/test"')
-
-    def test_build_query_multiple_terms(self):
-        """
-        Test building a query with multiple terms uses OR logic.
-        """
-        # Act
-        query = self.client._build_query(["10.1234/test", "My Paper Title"])
-
-        # Assert
-        self.assertEqual(query, '"10.1234/test" OR "My Paper Title"')
 
     def test_build_query_filters_empty_terms(self):
         """

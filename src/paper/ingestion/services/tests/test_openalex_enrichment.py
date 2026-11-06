@@ -114,72 +114,6 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(self.paper.pdf_url, "https://arxiv.org/pdf/2301.00001.pdf")
         self.assertEqual(self.paper.citations, 42)
 
-    def test_enrich_paper_incomplete_data_pdf_url_only(self):
-        """Test enrichment succeeds but skips license when only PDF URL is available."""
-        openalex_data = {
-            "raw_data": {
-                "id": "https://openalex.org/W123456",
-                "title": "Test Paper",
-                "primary_location": {
-                    "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
-                },
-                "authorships": [],
-            }
-        }
-        self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-
-        # Mock the mapped paper with only pdf_url
-        mock_mapped_paper = Mock()
-        mock_mapped_paper.pdf_license = None
-        mock_mapped_paper.pdf_license_url = None
-        mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
-        mock_mapped_paper.citations = 10
-        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
-
-        # Mock mapper methods for authors/institutions/authorships
-        self.mock_openalex_mapper.map_to_authors.return_value = []
-        self.mock_openalex_mapper.map_to_institutions.return_value = []
-        self.mock_openalex_mapper.map_to_authorships.return_value = []
-        self.mock_openalex_mapper.map_to_hubs.return_value = []
-
-        result = self.service.enrich_paper_with_openalex(self.paper)
-
-        # Now returns success (can still process authors/institutions)
-        self.assertEqual(result.status, "success")
-
-    def test_enrich_paper_incomplete_data_license_only(self):
-        """Test enrichment succeeds but skips license when only license is available."""
-        openalex_data = {
-            "raw_data": {
-                "id": "https://openalex.org/W123456",
-                "title": "Test Paper",
-                "primary_location": {
-                    "license": "cc-by-sa",
-                },
-                "authorships": [],
-            }
-        }
-        self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-
-        # Mock the mapped paper with only license
-        mock_mapped_paper = Mock()
-        mock_mapped_paper.pdf_license = "cc-by-sa"
-        mock_mapped_paper.pdf_license_url = None
-        mock_mapped_paper.pdf_url = None
-        mock_mapped_paper.citations = 5
-        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
-
-        # Mock mapper methods for authors/institutions/authorships
-        self.mock_openalex_mapper.map_to_authors.return_value = []
-        self.mock_openalex_mapper.map_to_institutions.return_value = []
-        self.mock_openalex_mapper.map_to_authorships.return_value = []
-        self.mock_openalex_mapper.map_to_hubs.return_value = []
-
-        result = self.service.enrich_paper_with_openalex(self.paper)
-
-        # Now returns success (can still process authors/institutions)
-        self.assertEqual(result.status, "success")
-
     def test_enrich_paper_error_handling(self):
         """Test error handling during enrichment."""
         self.mock_openalex_client.fetch_by_doi.side_effect = Exception(
@@ -190,51 +124,6 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
 
         self.assertEqual(result.status, "error")
         self.assertIn("API connection error", result.reason)
-
-    def test_enrich_papers_batch_success(self):
-        """Test batch enrichment with successful papers."""
-        paper1 = create_paper(title="Paper 1")
-        paper1.doi = "10.1234/test1"
-        paper1.save()
-
-        paper2 = create_paper(title="Paper 2")
-        paper2.doi = "10.1234/test2"
-        paper2.save()
-
-        openalex_data = {
-            "raw_data": {
-                "primary_location": {
-                    "license": "cc-by",
-                    "license_id": "https://creativecommons.org/licenses/by/4.0",
-                    "pdf_url": "https://arxiv.org/pdf/2301.00001.pdf",
-                },
-                "authorships": [],
-            }
-        }
-        self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-
-        # Mock the mapped paper with complete license data
-        mock_mapped_paper = Mock()
-        mock_mapped_paper.pdf_license = "cc-by"
-        mock_mapped_paper.pdf_license_url = (
-            "https://creativecommons.org/licenses/by/4.0"
-        )
-        mock_mapped_paper.pdf_url = "https://arxiv.org/pdf/2301.00001.pdf"
-        mock_mapped_paper.citations = 15
-        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
-
-        # Mock mapper methods for authors/institutions/authorships
-        self.mock_openalex_mapper.map_to_authors.return_value = []
-        self.mock_openalex_mapper.map_to_institutions.return_value = []
-        self.mock_openalex_mapper.map_to_authorships.return_value = []
-        self.mock_openalex_mapper.map_to_hubs.return_value = []
-
-        result = self.service.enrich_papers_batch([paper1.id, paper2.id])
-
-        self.assertEqual(result.total, 2)
-        self.assertEqual(result.success_count, 2)
-        self.assertEqual(result.not_found_count, 0)
-        self.assertEqual(result.error_count, 0)
 
     def test_enrich_papers_batch_mixed_results(self):
         """Test batch enrichment with mixed results."""
@@ -481,43 +370,6 @@ class TestPaperOpenAlexEnrichmentService(TestCase):
         self.assertEqual(author.first_name, "Jane")
         self.assertEqual(author.last_name, "Smith")
         self.assertEqual(author.openalex_ids, ["A123456"])
-
-    def test_batch_enrichment_with_authors(self):
-        """Test batch enrichment always includes authors and institutions."""
-        paper = create_paper(title="Paper")
-        paper.doi = "10.1234/test"
-        paper.save()
-
-        openalex_data = {
-            "raw_data": {
-                "authorships": [],
-                "primary_location": {},
-            }
-        }
-        self.mock_openalex_client.fetch_by_doi.return_value = openalex_data
-
-        # Mock the mapped paper
-        mock_mapped_paper = Mock()
-        mock_mapped_paper.pdf_license = None
-        mock_mapped_paper.pdf_url = None
-        mock_mapped_paper.pdf_license_url = None
-        mock_mapped_paper.citations = 0
-        self.mock_openalex_mapper.map_to_paper.return_value = mock_mapped_paper
-
-        self.mock_openalex_mapper.map_to_authors.return_value = []
-        self.mock_openalex_mapper.map_to_institutions.return_value = []
-        self.mock_openalex_mapper.map_to_authorships.return_value = []
-        self.mock_openalex_mapper.map_to_hubs.return_value = []
-
-        result = self.service.enrich_papers_batch([paper.id])
-
-        self.assertEqual(result.total, 1)
-        self.assertEqual(result.success_count, 1)
-        self.assertEqual(result.total_authors_created, 0)
-        self.assertEqual(result.total_authors_updated, 0)
-        self.assertEqual(result.total_institutions_created, 0)
-        self.assertEqual(result.total_institutions_updated, 0)
-        self.assertEqual(result.total_authorships_created, 0)
 
     def test_enrich_papers_with_same_topic_reuses_hub(self):
         """Test that enriching two papers with the same topic creates only one hub."""

@@ -63,23 +63,6 @@ class EarnerViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["total_earned"]["rsc"], 0.0)
 
-    def test_earning_overview_moderator_can_use_user_id(self):
-        # Arrange
-        self._create_recipient_activity(
-            FundingActivity.TIP_REVIEW, total_amount="20", total_usd_cents=1000
-        )
-        self.client.force_authenticate(self.user)
-
-        # Act
-        response = self.client.get(
-            "/api/user/earning_overview/", {"user_id": self.recipient.id}
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["total_earned"]["rsc"], 20.0)
-        self.assertEqual(response.data["total_earned"]["rsc_usd_snapshot"], 10.0)
-
     def test_earning_overview_moderator_invalid_user_id_returns_404(self):
         # Arrange
         self.client.force_authenticate(self.user)

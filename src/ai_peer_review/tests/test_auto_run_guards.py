@@ -73,6 +73,7 @@ class AutoRunProposalReviewGuardsTests(TestCase):
         skip2, _ = AutoRunGuardsService.should_skip_proposal_review(pr, force=False)
         self.assertFalse(skip2)
 
+    @override_settings(AUTO_PR_DAILY_CAP_PER_GRANT=1)
     def test_force_bypasses_rate_limits(self):
         pr = ProposalReview.objects.create(
             unified_document=self.ud,

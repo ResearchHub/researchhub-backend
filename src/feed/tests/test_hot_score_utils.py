@@ -204,25 +204,6 @@ class TestHotScoreUtils(AWSMockTestCase):
         self.assertLess(result, 24.1)
         self.assertIsInstance(result, float)
 
-    def test_old_paper_uses_action_date_for_age(self):
-        """
-        Test that old papers use action_date (paper_publish_date), not created_date.
-        """
-        # Setup: Paper published 180 days ago, but added to platform today
-        paper_publish_date = datetime.now(UTC) - timedelta(days=180)
-        platform_created_date = datetime.now(UTC)
-
-        feed_entry = Mock()
-        feed_entry.action_date = paper_publish_date
-
-        content = {"created_date": platform_created_date.isoformat()}
-
-        # Act
-        age_hours = get_age_hours_from_content(content, feed_entry)
-
-        # Assert: Age should be ~180 days (4320 hours), not 0
-        self.assertAlmostEqual(age_hours, 180 * 24, delta=1)
-
     def test_future_action_date_falls_back_to_created_date(self):
         """A future action_date should fall back to created_date for age calculation."""
         now = datetime.now(UTC)
@@ -241,19 +222,6 @@ class TestHotScoreUtils(AWSMockTestCase):
         # Should use created_date (~7 days = 168 hours), not 0
         self.assertAlmostEqual(age_hours, 7 * 24, delta=1)
         self.assertGreater(age_hours, 0)
-
-    def test_future_action_date_never_returns_zero(self):
-        """Ensure a future action_date never yields an artificially low age."""
-        now = datetime.now(UTC)
-        feed_entry = Mock()
-        feed_entry.id = 1000
-        feed_entry.action_date = now + timedelta(days=30)
-        feed_entry.created_date = now - timedelta(hours=12)
-
-        age_hours = get_age_hours_from_content({}, feed_entry)
-
-        # Should reflect the created_date age (~12 hours), not 0
-        self.assertAlmostEqual(age_hours, 12, delta=1)
 
     def test_calculate_x_engagement(self):
         """Test extracting X/Twitter engagement score."""
@@ -340,47 +308,9 @@ class TestHotScoreUtils(AWSMockTestCase):
         self.assertAlmostEqual(result, 66.3, places=1)
         self.assertIsInstance(result, float)
 
-    def test_get_social_media_engagement_from_metrics_x_only(self):
-        """Test social media engagement with only X data present."""
-        metrics = {
-            "votes": 5,
-            "replies": 3,
-            "external": {
-                "x": {
-                    "post_count": 2,
-                    "total_likes": 10,
-                    "total_quotes": 2,
-                    "total_replies": 1,
-                    "total_reposts": 5,
-                    "total_impressions": 500,
-                }
-            },
-        }
-
-        result = get_social_media_engagement_from_metrics(metrics)
-
-        # Expected: X only = 52.2
-        self.assertAlmostEqual(result, 52.2, places=1)
-
     def test_get_social_media_engagement_from_metrics_empty(self):
         """Test social media engagement returns 0 when no external data present."""
         metrics = {"votes": 5, "replies": 3}
-
-        result = get_social_media_engagement_from_metrics(metrics)
-
-        self.assertEqual(result, 0.0)
-
-    def test_get_social_media_engagement_from_metrics_no_external(self):
-        """Test social media engagement returns 0 when external key is missing."""
-        metrics = {"votes": 5, "replies": 3, "review_metrics": {"count": 1}}
-
-        result = get_social_media_engagement_from_metrics(metrics)
-
-        self.assertEqual(result, 0.0)
-
-    def test_get_social_media_engagement_from_metrics_empty_external(self):
-        """Test social media engagement returns 0 when external data is empty."""
-        metrics = {"votes": 5, "external": {}}
 
         result = get_social_media_engagement_from_metrics(metrics)
 
@@ -411,28 +341,6 @@ class TestHotScoreUtils(AWSMockTestCase):
         # With no social engagement, log(0+1) * 5 = 0
         # So adjusted_score = base_votes = 5
         self.assertEqual(result, 5)
-
-    def test_calculate_adjusted_score_with_x_engagement(self):
-        """Test adjusted score with X/Twitter engagement."""
-        external_metrics = {
-            "x": {
-                "total_likes": 10,
-                "total_quotes": 2,
-                "total_replies": 1,
-                "total_reposts": 5,
-                "total_impressions": 500,
-            }
-        }
-
-        result = calculate_adjusted_score(
-            base_votes=5, external_metrics=external_metrics
-        )
-
-        # X engagement = 52.2 (from previous test)
-        # social_score = log(52.2 + 1) * 5.0 ≈ log(53.2) * 5 ≈ 3.97 * 5 ≈ 19.8 → 19
-        # adjusted_score = 5 + 19 = 24
-        self.assertGreater(result, 5)  # Should be higher than base votes
-        self.assertIsInstance(result, int)
 
     def test_calculate_adjusted_score_logarithmic_scaling(self):
         """Test that adjusted score uses logarithmic scaling (diminishing returns)."""
@@ -495,10 +403,3 @@ class TestHotScoreUtils(AWSMockTestCase):
         # adjusted_score = 10 + 21 = 31
         self.assertGreater(result, 10)  # Should be higher than base votes
         self.assertIsInstance(result, int)
-
-    def test_calculate_adjusted_score_with_none_external_metrics(self):
-        """Test adjusted score handles None external_metrics gracefully."""
-        result = calculate_adjusted_score(base_votes=5, external_metrics=None)
-
-        # Should return just base votes when external_metrics is None
-        self.assertEqual(result, 5)

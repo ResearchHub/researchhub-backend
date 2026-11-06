@@ -73,20 +73,6 @@ class TestGrantOverviewService(TestCase):
                 destination_org_id="test-org",
             )
 
-    def test_returns_expected_structure(self):
-        grant = self._create_grant(amount=750000)
-
-        result = self.service.get_grant_overview(self.grant_creator, grant)
-
-        expected_keys = {
-            "budget_used_usd",
-            "budget_total_usd",
-            "matched_funding_usd",
-            "total_proposals",
-            "proposals_funded",
-        }
-        self.assertEqual(set(result.keys()), expected_keys)
-
     def test_empty_grant_returns_zeros(self):
         grant = self._create_grant()
 

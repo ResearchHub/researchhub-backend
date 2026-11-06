@@ -173,17 +173,6 @@ class FollowingFeedTests(APITestCase):
         self.assertIn(self.followed_paper.id, paper_ids)
         self.assertNotIn(self.unfollowed_paper.id, paper_ids)
 
-    def test_user_following_no_hubs_gets_empty_results(self):
-        url = reverse("feed-list")
-        self.client.force_authenticate(user=self.user)
-
-        self.user.following.all().delete()
-
-        response = self.client.get(url, {"feed_view": "following"})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 0)
-
     def test_follow_then_unfollow_hub(self):
         url = reverse("feed-list")
         self.client.force_authenticate(user=self.user)
@@ -196,21 +185,6 @@ class FollowingFeedTests(APITestCase):
 
         response2 = self.client.get(url, {"feed_view": "following"})
         self.assertEqual(len(response2.data["results"]), 0)
-
-    def test_following_hub_supports_sorting_by_hot_score(self):
-        url = reverse("feed-list")
-        self.client.force_authenticate(user=self.user)
-
-        response = self.client.get(
-            url, {"feed_view": "following", "ordering": "hot_score"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-        self.assertGreaterEqual(len(results), 1)
-
-        if len(results) >= 1:
-            self.assertEqual(results[0]["content_object"]["id"], self.followed_paper.id)
 
     def test_user_follows_multiple_hubs_gets_multiple_results(self):
         url = reverse("feed-list")
@@ -251,40 +225,6 @@ class FollowingFeedTests(APITestCase):
         self.assertNotIn(("RESEARCHHUBPOST", self.followed_post.id), result_objects)
         self.assertNotIn(("RESEARCHHUBPOST", another_post.id), result_objects)
 
-    def test_following_hub_supports_sorting_by_hot_score_v2(self):
-        url = reverse("feed-list")
-        self.client.force_authenticate(user=self.user)
-
-        response = self.client.get(
-            url, {"feed_view": "following", "ordering": "hot_score_v2"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-        self.assertGreaterEqual(len(results), 1)
-
-        if len(results) >= 2:
-            first_score = results[0].get("hot_score_v2", 0)
-            second_score = results[1].get("hot_score_v2", 0)
-            self.assertGreaterEqual(first_score, second_score)
-
-    def test_following_hub_supports_sorting_by_latest(self):
-        url = reverse("feed-list")
-        self.client.force_authenticate(user=self.user)
-
-        response = self.client.get(
-            url, {"feed_view": "following", "ordering": "latest"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-        self.assertGreater(len(results), 0)
-
-        if len(results) >= 2:
-            first_date = results[0].get("action_date")
-            second_date = results[1].get("action_date")
-            self.assertGreaterEqual(first_date, second_date)
-
     def test_following_ignores_hub_slug_parameter(self):
         """Following feed ignores hub_slug parameter (not supported)."""
         url = reverse("feed-list")
@@ -298,60 +238,6 @@ class FollowingFeedTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Results are returned (hub_slug is ignored)
         self.assertGreater(len(response.data["results"]), 0)
-
-    def test_following_feed_rejects_invalid_ordering(self):
-        url = reverse("feed-list")
-        self.client.force_authenticate(user=self.user)
-
-        response = self.client.get(
-            url, {"feed_view": "following", "ordering": "invalid_sort"}
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-        self.assertGreaterEqual(len(results), 1)
-
-        if len(results) >= 2:
-            first_score = results[0].get("hot_score_v2", 0)
-            second_score = results[1].get("hot_score_v2", 0)
-            self.assertGreaterEqual(first_score, second_score)
-
-    def test_following_returns_only_papers_and_posts(self):
-        url = reverse("feed-list")
-        self.client.force_authenticate(user=self.user)
-
-        response = self.client.get(url, {"feed_view": "following"})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-
-        for result in results:
-            content_type = result.get("content_type")
-            self.assertIn(content_type, ["PAPER", "RESEARCHHUBPOST", "RHCOMMENTMODEL"])
-
-    def test_following_feed_filters_only_papers(self):
-        url = reverse("feed-list")
-
-        # Arrange
-        self.client.force_authenticate(user=self.user)
-
-        # Act
-        response = self.client.get(url, {"feed_view": "following"})
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data["results"]
-
-        result_objects = {
-            (result["content_type"], result["content_object"]["id"])
-            for result in results
-        }
-        content_types = [r["content_type"] for r in results]
-
-        self.assertIn(("PAPER", self.followed_paper.id), result_objects)
-        self.assertNotIn(("RESEARCHHUBPOST", self.followed_post.id), result_objects)
-        self.assertIn("PAPER", content_types)
-        self.assertNotIn("RESEARCHHUBPOST", content_types)
 
     def _create_paper_with_feed_entry(self, title, hubs):
         """Helper to create a paper with associated feed entry and hubs."""

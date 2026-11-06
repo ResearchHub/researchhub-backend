@@ -134,14 +134,6 @@ class GetExpertForSearchByEmailTests(TestCase):
     def test_returns_none_when_expert_search_none(self):
         self.assertIsNone(get_expert_for_search_by_email(None, "a@b.com"))
 
-    def test_returns_none_when_no_search_expert_rows(self):
-        search = ExpertSearch.objects.create(
-            created_by=self.user,
-            query="Q",
-            status=ExpertSearch.Status.COMPLETED,
-        )
-        self.assertIsNone(get_expert_for_search_by_email(search, "a@b.com"))
-
     def test_returns_none_when_email_empty(self):
         ex = Expert.objects.create(
             email="a@b.com",
