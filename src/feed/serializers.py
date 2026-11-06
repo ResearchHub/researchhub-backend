@@ -661,6 +661,62 @@ class FundraiseContributionContentSerializer(serializers.Serializer):
         return None
 
 
+class FundraiseCompletedContentSerializer(serializers.Serializer):
+    """Serializer for a fully funded fundraise feed item (goal met)."""
+
+    id = serializers.IntegerField()
+    status = serializers.CharField()
+    amount_raised = serializers.SerializerMethodField()
+    goal_amount = serializers.SerializerMethodField()
+    post_id = serializers.SerializerMethodField()
+    proposal_title = serializers.SerializerMethodField()
+    proposal_slug = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
+
+    def _get_post(self, obj):
+        ud = obj.unified_document
+        if ud and hasattr(ud, "posts"):
+            return ud.posts.first()
+        return None
+
+    def get_amount_raised(self, obj):
+        try:
+            usd_amount = obj.get_amount_raised(currency=USD)
+        except AttributeError:
+            usd_amount = None
+        try:
+            rsc_amount = obj.get_amount_raised(currency=RSC)
+        except AttributeError:
+            rsc_amount = None
+        return {
+            "usd": usd_amount,
+            "rsc": rsc_amount,
+        }
+
+    def get_goal_amount(self, obj):
+        usd_goal = float(obj.goal_amount)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            rsc_goal = None
+        return {"usd": usd_goal, "rsc": rsc_goal}
+
+    def get_post_id(self, obj):
+        post = self._get_post(obj)
+        return post.id if post else None
+
+    def get_proposal_title(self, obj):
+        post = self._get_post(obj)
+        return post.title if post else None
+
+    def get_proposal_slug(self, obj):
+        post = self._get_post(obj)
+        return post.slug if post else None
+
+    def get_unified_document_id(self, obj):
+        return obj.unified_document_id
+
+
 class FundingActivityRecipientSerializer(serializers.Serializer):
     recipient_user = serializers.SerializerMethodField()
     amount = serializers.DecimalField(max_digits=19, decimal_places=8)
@@ -1080,6 +1136,7 @@ class RelatedWorkSerializer(serializers.Serializer):
     authors = serializers.SerializerMethodField()
     grant = serializers.SerializerMethodField()
     fundraise = serializers.SerializerMethodField()
+    funding_mechanism = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
     review_metrics = serializers.SerializerMethodField()
     assessed_reviews = serializers.SerializerMethodField()
@@ -1088,6 +1145,7 @@ class RelatedWorkSerializer(serializers.Serializer):
         "authors",
         "grant",
         "fundraise",
+        "funding_mechanism",
         "review_metrics",
         "assessed_reviews",
     )
@@ -1279,6 +1337,18 @@ class RelatedWorkSerializer(serializers.Serializer):
             "start_date": fundraise.start_date,
             "end_date": fundraise.end_date,
         }
+
+    def get_funding_mechanism(self, unified_document):
+        """The RFP type for a proposal, from its first grant application."""
+        if unified_document.document_type != PREREGISTRATION:
+            return None
+        post = self._get_content(unified_document)
+        if post is None:
+            return None
+        application = self._first_prefetched(post.grant_applications)
+        if application is None:
+            return None
+        return application.grant.funding_mechanism
 
     def to_representation(self, unified_document):
         if self._get_content(unified_document) is None:
@@ -1492,6 +1562,8 @@ def serialize_feed_item(feed_item, item_content_type):
             return FundraiseContributionContentSerializer(feed_item).data
         case "fundingactivity":
             return FundingActivityContentSerializer(feed_item).data
+        case "fundraise":
+            return FundraiseCompletedContentSerializer(feed_item).data
         case _:
             return None
 
@@ -1536,6 +1608,7 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
                     "currency": app.grant.currency,
                     "description": app.grant.description,
                     "status": app.grant.status,
+                    "funding_mechanism": app.grant.funding_mechanism,
                     "image": self._get_grant_image(app.grant),
                     "num_applicants": num_applicants,
                 }

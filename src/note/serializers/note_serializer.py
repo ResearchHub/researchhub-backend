@@ -185,6 +185,7 @@ class NoteSerializer(ModelSerializer):
         _include_fields=[
             "amount",
             "application_visibility",
+            "funding_mechanism",
             "id",
             "image_url",
             "organization",

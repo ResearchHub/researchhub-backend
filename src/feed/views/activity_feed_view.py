@@ -97,8 +97,8 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
         every preregistration that applied to any grant.
         "peer_reviews" returns only peer review comments.
         "financial" returns fundraise / funding-pool contribution activity
-        (RSC and USD contributions), approved grant post
-        feed entries, bounty payouts, and review tips.
+        (RSC and USD contributions), fully funded proposals, approved grant
+        post feed entries, bounty payouts, and review tips.
       - document_type: PREREGISTRATION, GRANT, etc.
       - grant_id: all activity on a grant and its applied preregistrations
       - content_type: RHCOMMENTMODEL, RESEARCHHUBPOST, PAPER, etc.
@@ -325,7 +325,13 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                             queryset=ResearchhubPostAuthor.objects.select_related(
                                 "author__user__userverification"
                             ),
-                        )
+                        ),
+                        Prefetch(
+                            "grant_applications",
+                            queryset=GrantApplication.objects.select_related(
+                                "grant"
+                            ).order_by("id"),
+                        ),
                     ),
                 ),
                 Prefetch(
@@ -578,12 +584,14 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
     def _filter_financial_activities(queryset):
         """
         Return feed entries for fundraise / funding-pool contributions,
-        grant post publications, bounty payouts, and review tips.
+        fully funded proposals, grant post publications, bounty payouts,
+        and review tips.
         """
         purchase_type = ContentType.objects.get_for_model(Purchase)
         usd_contribution_type = ContentType.objects.get_for_model(
             UsdFundraiseContribution
         )
+        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
         post_ct = ContentType.objects.get_for_model(ResearchhubPost)
         fa_ct = ContentType.objects.get_for_model(FundingActivity)
         contribution_purchase_ids = Purchase.objects.filter(
@@ -606,6 +614,7 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                 object_id__in=contribution_purchase_ids,
             )
             | Q(content_type=usd_contribution_type)
+            | Q(content_type=fundraise_ct)
             | Q(
                 content_type=post_ct,
                 unified_document__document_type=GRANT,

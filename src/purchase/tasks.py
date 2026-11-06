@@ -9,7 +9,6 @@ from notification.models import Notification
 from notification.services import NotificationService
 from purchase.circle.service import CircleWalletService
 from purchase.models import Fundraise, UsdFundraiseContribution
-from purchase.related_models.constants.currency import USD
 from purchase.services.funding_credits_reminder_service import (
     FundingCreditsReminderService,
 )
@@ -56,11 +55,7 @@ def complete_eligible_fundraises():
 
     for fundraise in eligible_fundraises:
         try:
-            # Check if the fundraise has met its goal
-            amount_raised_usd = fundraise.get_amount_raised(currency=USD)
-            goal_amount_usd = float(fundraise.goal_amount)
-
-            if amount_raised_usd >= goal_amount_usd:
+            if fundraise.has_met_goal():
                 fundraise_service.complete_fundraise(fundraise)
                 completed_count += 1
                 logger.info("Successfully completed fundraise %s", fundraise.id)

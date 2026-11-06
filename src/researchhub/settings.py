@@ -435,13 +435,24 @@ ORCID_REDIRECT_URL = os.environ.get(
 
 
 # OAuth 2.0 Authorization Server
-OAUTH_ENABLED = os.environ.get("OAUTH_ENABLED", "false").lower() == "true"
+OAUTH_ENABLED = (
+    os.environ.get(
+        "OAUTH_ENABLED",
+        getattr(keys, "OAUTH_ENABLED", "false"),
+    ).lower()
+    == "true"
+)
 if PRODUCTION:
     OAUTH_ISSUER = "https://api.researchhub.com"
+    OAUTH_MCP_RESOURCE = "https://mcp.researchhub.com/v1/mcp"
 elif STAGING:
     OAUTH_ISSUER = "https://api.staging.researchhub.com"
+    OAUTH_MCP_RESOURCE = "https://mcp.staging.researchhub.com/v1/mcp"
 else:
     OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "http://localhost:8000")
+    OAUTH_MCP_RESOURCE = os.environ.get(
+        "OAUTH_MCP_RESOURCE", "http://localhost:8080/v1/mcp"
+    )
 
 OAUTH2_PROVIDER = {
     "OIDC_ISS_ENDPOINT": OAUTH_ISSUER,

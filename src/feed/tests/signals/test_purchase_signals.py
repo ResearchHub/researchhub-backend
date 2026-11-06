@@ -8,6 +8,9 @@ from django.test import override_settings
 from feed.models import FeedEntry
 from purchase.models import FundingPool, Fundraise, Grant, GrantApplication
 from purchase.related_models.purchase_model import Purchase
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from purchase.services.fundraise_service import FundraiseService
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants import document_type
@@ -580,3 +583,330 @@ class TestPurchaseSignals(AWSMockTestCase):
         except Exception as e:
             msg = f"Signal should handle missing funding pool gracefully: {e}"
             self.fail(msg)
+
+    @patch("feed.signals.purchase_signals.create_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_usd_contribution_meeting_goal_creates_fully_funded_entry(
+        self, mock_transaction, mock_refresh, mock_create
+    ):
+        """USD contribution that meets the goal also creates a Fundraise feed entry."""
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
+
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            unified_document=post.unified_document,
+            created_by=self.user,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        contributor = create_random_authenticated_user("fully_funded_usd")
+        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+
+        # Act
+        contribution = UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=10000,
+            fee_cents=900,
+            origin_fund_id="origin",
+            destination_org_id="destination",
+        )
+
+        # Assert — contribution entry + fully-funded fundraise entry
+        purchase_calls = mock_create.apply_async.call_args_list
+        self.assertEqual(len(purchase_calls), 2)
+
+        usd_ct = ContentType.objects.get_for_model(UsdFundraiseContribution)
+        call_arg_lists = [
+            (c.kwargs.get("args") or c[1].get("args")) for c in purchase_calls
+        ]
+        self.assertIn(
+            (
+                contribution.id,
+                usd_ct.id,
+                FeedEntry.PUBLISH,
+                list(post.unified_document.hubs.values_list("id", flat=True)),
+                contributor.id,
+            ),
+            call_arg_lists,
+        )
+        self.assertIn(
+            (
+                fundraise.id,
+                fundraise_ct.id,
+                FeedEntry.PUBLISH,
+                list(post.unified_document.hubs.values_list("id", flat=True)),
+                self.user.id,
+            ),
+            call_arg_lists,
+        )
+        fundraise.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+
+    @patch("feed.signals.purchase_signals.create_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_award_proposal_contribution_does_not_create_fully_funded_entry(
+        self, mock_transaction, mock_refresh, mock_create
+    ):
+        """Award proposals have a goal of 0 and must not emit a fully-funded entry."""
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
+
+        grant_post = create_post(created_by=self.user, document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_post.unified_document,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="Award Org",
+            description="Award RFP",
+            status=Grant.OPEN,
+            funding_mechanism=Grant.AWARD,
+        )
+        proposal = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            unified_document=proposal.unified_document,
+            created_by=self.user,
+            goal_amount=Decimal(0),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=proposal,
+            applicant=self.user,
+        )
+        contributor = create_random_authenticated_user("award_creator_pay")
+
+        # Act
+        contribution = UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=10000,
+            fee_cents=900,
+            origin_fund_id="origin",
+            destination_org_id="destination",
+        )
+
+        # Assert — contribution entry only; goal 0 must not count as fully funded
+        mock_create.apply_async.assert_called_once()
+        usd_ct = ContentType.objects.get_for_model(UsdFundraiseContribution)
+        create_args = mock_create.apply_async.call_args
+        self.assertEqual(
+            create_args.kwargs.get("args") or create_args[1].get("args"),
+            (
+                contribution.id,
+                usd_ct.id,
+                FeedEntry.PUBLISH,
+                list(proposal.unified_document.hubs.values_list("id", flat=True)),
+                contributor.id,
+            ),
+        )
+
+    @patch("feed.signals.purchase_signals.create_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_usd_contribution_below_goal_does_not_create_fully_funded_entry(
+        self, mock_transaction, mock_refresh, mock_create
+    ):
+        """USD contribution below the goal only creates the contribution feed entry."""
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
+
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            unified_document=post.unified_document,
+            created_by=self.user,
+            goal_amount=Decimal("1000.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        contributor = create_random_authenticated_user("below_goal_usd")
+
+        # Act
+        contribution = UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=1000,
+            fee_cents=90,
+            origin_fund_id="origin",
+            destination_org_id="destination",
+        )
+
+        # Assert
+        mock_create.apply_async.assert_called_once()
+        usd_ct = ContentType.objects.get_for_model(UsdFundraiseContribution)
+        create_args = mock_create.apply_async.call_args
+        self.assertEqual(
+            create_args.kwargs.get("args") or create_args[1].get("args"),
+            (
+                contribution.id,
+                usd_ct.id,
+                FeedEntry.PUBLISH,
+                list(post.unified_document.hubs.values_list("id", flat=True)),
+                contributor.id,
+            ),
+        )
+
+    @patch("feed.signals.purchase_signals.create_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_fully_funded_entry_not_duplicated_on_later_contribution(
+        self, mock_transaction, mock_refresh, mock_create
+    ):
+        """Later contributions do not create another Fundraise feed entry."""
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
+
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            unified_document=post.unified_document,
+            created_by=self.user,
+            goal_amount=Decimal("50.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        fundraise_ct = ContentType.objects.get_for_model(Fundraise)
+        FeedEntry.objects.create(
+            content_type=fundraise_ct,
+            object_id=fundraise.id,
+            unified_document=post.unified_document,
+            action=FeedEntry.PUBLISH,
+            action_date=datetime.now(UTC),
+            content={},
+            user=self.user,
+        )
+        contributor = create_random_authenticated_user("already_funded_usd")
+
+        # Act
+        contribution = UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=5000,
+            fee_cents=450,
+            origin_fund_id="origin",
+            destination_org_id="destination",
+        )
+
+        # Assert — only the contribution entry is created
+        mock_create.apply_async.assert_called_once()
+        usd_ct = ContentType.objects.get_for_model(UsdFundraiseContribution)
+        create_args = mock_create.apply_async.call_args
+        self.assertEqual(
+            create_args.kwargs.get("args") or create_args[1].get("args"),
+            (
+                contribution.id,
+                usd_ct.id,
+                FeedEntry.PUBLISH,
+                list(post.unified_document.hubs.values_list("id", flat=True)),
+                contributor.id,
+            ),
+        )
+
+    @patch("feed.signals.purchase_signals.logger")
+    @patch("feed.signals.purchase_signals.create_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
+    def test_missing_exchange_rate_in_post_commit_check_does_not_raise(
+        self, mock_refresh, mock_create, mock_logger
+    ):
+        """
+        A missing RSC exchange rate in the post-commit fully-funded check is
+        logged and does not raise out of the commit callbacks.
+        """
+        # Arrange
+        mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        fundraise = FundraiseService().create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=post.unified_document,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        fundraise.escrow.amount_holding = Decimal(10)
+        fundraise.escrow.save(update_fields=["amount_holding"])
+        contributor = create_random_authenticated_user("missing_rate_usd")
+
+        # Act
+        with (
+            patch(
+                "purchase.related_models.fundraise_model.RscExchangeRate.get_latest",
+                side_effect=AttributeError("'NoneType' object has no attribute 'rate'"),
+            ),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            UsdFundraiseContribution.objects.create(
+                user=contributor,
+                fundraise=fundraise,
+                amount_cents=10000,
+                fee_cents=900,
+                origin_fund_id="origin",
+                destination_org_id="destination",
+            )
+
+        # Assert
+        mock_logger.exception.assert_called_once()
+        # Only the contribution entry is created; the fully-funded entry is skipped.
+        self.assertEqual(mock_create.apply_async.call_count, 1)
+
+    @patch("feed.signals.purchase_signals.create_feed_entry")
+    @patch("feed.signals.purchase_signals.refresh_feed_entry_by_id")
+    @patch("feed.signals.purchase_signals.transaction")
+    def test_completed_fundraise_contribution_skips_fully_funded_entry(
+        self, mock_transaction, mock_refresh, mock_create
+    ):
+        """COMPLETED fundraises skip the fully-funded Fundraise feed entry."""
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh.apply_async = MagicMock()
+        mock_create.apply_async = MagicMock()
+
+        post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        fundraise = Fundraise.objects.create(
+            unified_document=post.unified_document,
+            created_by=self.user,
+            goal_amount=Decimal("50.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        Fundraise.objects.filter(pk=fundraise.pk).update(status=Fundraise.COMPLETED)
+        fundraise.refresh_from_db()
+        contributor = create_random_authenticated_user("completed_fr_usd")
+
+        # Act
+        contribution = UsdFundraiseContribution.objects.create(
+            user=contributor,
+            fundraise=fundraise,
+            amount_cents=5000,
+            fee_cents=450,
+            origin_fund_id="origin",
+            destination_org_id="destination",
+        )
+
+        # Assert
+        mock_create.apply_async.assert_called_once()
+        usd_ct = ContentType.objects.get_for_model(UsdFundraiseContribution)
+        create_args = mock_create.apply_async.call_args
+        self.assertEqual(
+            create_args.kwargs.get("args") or create_args[1].get("args"),
+            (
+                contribution.id,
+                usd_ct.id,
+                FeedEntry.PUBLISH,
+                list(post.unified_document.hubs.values_list("id", flat=True)),
+                contributor.id,
+            ),
+        )

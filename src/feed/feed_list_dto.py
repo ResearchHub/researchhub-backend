@@ -14,7 +14,7 @@ from feed.serializers import (
     SlimAuthorSerializer,
     _grant_amount,
 )
-from purchase.models import Fundraise
+from purchase.models import Fundraise, Grant
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_document.related_models.constants.document_type import (
@@ -153,7 +153,7 @@ def _serialize_slim_nonprofit(
     return {"id": nonprofit.id, "name": nonprofit.name}
 
 
-def _serialize_slim_application_fundraise(application):
+def _serialize_slim_application_fundraise(application, grant):
     post = application.preregistration_post
     if not post or not hasattr(post, "unified_document") or not post.unified_document:
         return None
@@ -167,23 +167,23 @@ def _serialize_slim_application_fundraise(application):
         return None
     fundraise = fundraises[0]
 
-    usd_goal = float(fundraise.goal_amount)
-    try:
-        rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
-    except AttributeError:
-        rsc_goal = None
-
     reviews = [
         SlimReviewSerializer(r).data for r in _assessed_reviews(ud.reviews.all())
     ]
-
-    return {
+    data = {
         "id": fundraise.id,
         "title": post.title,
-        "goal_amount": {"usd": usd_goal, "rsc": rsc_goal},
         "nonprofit": _serialize_slim_nonprofit(fundraise),
         "reviews": reviews,
     }
+    if grant.funding_mechanism != Grant.AWARD:
+        usd_goal = float(fundraise.goal_amount)
+        try:
+            rsc_goal = RscExchangeRate.usd_to_rsc(usd_goal)
+        except AttributeError:
+            rsc_goal = None
+        data["goal_amount"] = {"usd": usd_goal, "rsc": rsc_goal}
+    return data
 
 
 def _serialize_application_key_insight(application, review_by_ud):
@@ -246,7 +246,7 @@ def serialize_slim_grant_applications(grant, context):
                 if application.preregistration_post
                 else None
             ),
-            "fundraise": _serialize_slim_application_fundraise(application),
+            "fundraise": _serialize_slim_application_fundraise(application, grant),
         }
         if include_key_insights:
             entry["key_insight"] = _serialize_application_key_insight(
@@ -284,6 +284,7 @@ def _serialize_slim_grant(grant, context):
         "short_title": grant.short_title,
         "is_expired": grant.is_expired(),
         "is_active": grant.is_active(),
+        "funding_mechanism": grant.funding_mechanism,
     }
 
     all_applications = serialize_slim_grant_applications(grant, context)
@@ -391,6 +392,10 @@ class FundingFeedPostSerializer(serializers.Serializer):
         ):
             fundraise = post.unified_document.fundraises.first()
             data["fundraise"] = _serialize_slim_fundraise(fundraise, self.context)
+
+        applications = list(post.grant_applications.all())
+        if applications:
+            data["funding_mechanism"] = applications[0].grant.funding_mechanism
 
         return data
 
@@ -627,6 +632,7 @@ class FundingFeedListEntrySerializer(FundFeedListEntrySerializer):
                     "currency": grant.currency,
                     "description": grant.description,
                     "status": grant.status,
+                    "funding_mechanism": grant.funding_mechanism,
                     "image": self._get_grant_image(grant),
                     "num_applicants": num_applicants,
                 }
