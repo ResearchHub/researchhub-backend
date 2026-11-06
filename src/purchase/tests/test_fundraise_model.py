@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.db import connection
@@ -218,6 +219,34 @@ class GetAmountRaisedTests(TestCase):
                 for q in ctx.captured_queries
             )
         )
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
+    def test_has_met_goal_when_float_product_is_short_of_the_goal(
+        self, mock_exchange_rate
+    ):
+        """0.70 RSC at $0.10 is $0.07. The float product is just under 0.07."""
+        # Arrange
+        mock_exchange_rate.return_value = 0.1
+        self.fundraise.goal_amount = Decimal("0.07")
+        self.fundraise.save(update_fields=["goal_amount"])
+        self.fundraise.escrow.amount_holding = Decimal("0.70")
+        self.fundraise.escrow.save(update_fields=["amount_holding"])
+
+        # Act / Assert
+        self.assertLess(float(Decimal("0.70")) * 0.1, float(Decimal("0.07")))
+        self.assertTrue(self.fundraise.has_met_goal())
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.get_latest")
+    def test_has_met_goal_is_false_below_goal(self, mock_exchange_rate):
+        # Arrange
+        mock_exchange_rate.return_value = 0.1
+        self.fundraise.goal_amount = Decimal("0.07")
+        self.fundraise.save(update_fields=["goal_amount"])
+        self.fundraise.escrow.amount_holding = Decimal("0.60")
+        self.fundraise.escrow.save(update_fields=["amount_holding"])
+
+        # Act / Assert
+        self.assertFalse(self.fundraise.has_met_goal())
 
 
 class FundraiseNonprofitOrgTests(TestCase):

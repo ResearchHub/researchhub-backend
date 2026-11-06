@@ -82,6 +82,8 @@ def create_feed_entry(
     action_date = item.created_date
     if item_content_type.model == "fundingactivity":
         action_date = item.activity_date
+    elif item_content_type.model == "fundraise":
+        action_date = item.updated_date
     elif (
         action == FeedEntry.PUBLISH
         and item_content_type.model == "paper"
@@ -226,7 +228,7 @@ def _get_unified_document(
         ResearchhubUnifiedDocument or None if item type isnot supported.
     """
     match item_content_type.model:
-        case "bounty" | "paper" | "researchhubpost":
+        case "bounty" | "paper" | "researchhubpost" | "fundraise":
             doc = item.unified_document
         case "rhcommentmodel":
             doc = item.thread.unified_document
