@@ -25,7 +25,9 @@ class BuildProposalUserPromptTests(unittest.TestCase):
         )
 
         # Act
-        prompt = build_proposal_user_prompt(expert, {"organization": "NSF"})
+        prompt = build_proposal_user_prompt(
+            expert, {"organization": "NSF"}, profile=expert.profile
+        )
 
         # Assert
         self.assertIn("Folding", prompt)
@@ -37,7 +39,7 @@ class BuildProposalUserPromptTests(unittest.TestCase):
         expert = _expert([{"title": "Big", "abstract": long_abstract}])
 
         # Act
-        prompt = build_proposal_user_prompt(expert, None)
+        prompt = build_proposal_user_prompt(expert, None, profile=expert.profile)
 
         # Assert: the seed truncates and marks it; full text stays behind the tool.
         self.assertIn("...", prompt)
@@ -51,7 +53,7 @@ class BuildProposalUserPromptTests(unittest.TestCase):
         expert = _expert([{"title": "No Abstract Work"}])
 
         # Act
-        prompt = build_proposal_user_prompt(expert, None)
+        prompt = build_proposal_user_prompt(expert, None, profile=expert.profile)
 
         # Assert
         self.assertIn("No Abstract Work", prompt)
@@ -72,7 +74,7 @@ class BuildProposalUserPromptTests(unittest.TestCase):
         )
 
         # Act
-        prompt = build_proposal_user_prompt(expert, None)
+        prompt = build_proposal_user_prompt(expert, None, profile=expert.profile)
 
         # Assert: the capability and its kind seed the draft's bounds.
         self.assertIn("Demonstrated lab capabilities", prompt)
@@ -84,7 +86,7 @@ class BuildProposalUserPromptTests(unittest.TestCase):
         expert = _expert([{"title": "Folding"}])
 
         # Act
-        prompt = build_proposal_user_prompt(expert, None)
+        prompt = build_proposal_user_prompt(expert, None, profile=expert.profile)
 
         # Assert
         self.assertNotIn("Demonstrated lab capabilities", prompt)

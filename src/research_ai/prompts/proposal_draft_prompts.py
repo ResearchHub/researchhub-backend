@@ -155,13 +155,15 @@ def _render_rfp_summary(rfp_ctx: dict | None) -> str:
     return "\n".join(lines)
 
 
-def build_proposal_user_prompt(expert, rfp_ctx: dict | None) -> str:
-    """Seed the run from the ``Expert`` profile and the RFP context.
+def build_proposal_user_prompt(
+    expert, rfp_ctx: dict | None, *, profile: dict | None = None
+) -> str:
+    """Seed the run from the researcher ``profile`` data and the RFP context.
 
     The agent still has ``get_researcher_profile`` / ``get_rfp_context`` for the
     full, authoritative data; this is the head start so it does not draft blind.
     """
-    profile_summary = _render_profile_summary(getattr(expert, "profile", None))
+    profile_summary = _render_profile_summary(profile)
     rfp_summary = _render_rfp_summary(rfp_ctx)
     name = (getattr(expert, "full_name", "") or "").strip() or "this researcher"
     return (

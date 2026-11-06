@@ -200,6 +200,15 @@ app.conf.beat_schedule = {
             "expires": 55,
         },
     },
+    "research-ai-sweep-researcher-profiles": {
+        "task": "research_ai.tasks.sweep_researcher_profiles",
+        "schedule": crontab(minute=40, hour=6),  # Daily at 6:40 AM UTC
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_AGENTS,
+            "expires": 60 * 60,
+        },
+    },
     "research-ai-purge-agent-files": {
         "task": "research_ai.tasks.purge_agent_files",
         "schedule": crontab(minute=20),
