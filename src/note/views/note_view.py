@@ -131,6 +131,7 @@ class NoteViewSet(ModelViewSet):
                 "document_type",
                 "id",
                 "organization",
+                "preview_img",
                 "title",
                 "updated_date",
             ],
