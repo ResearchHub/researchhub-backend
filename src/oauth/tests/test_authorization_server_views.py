@@ -1,10 +1,12 @@
 import base64
 from datetime import timedelta
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from django.conf import settings
 from django.test import TestCase, override_settings
 from django.utils import timezone
+from oauth2_provider.cimd import SafeMetadataFetcher
 from oauth2_provider.models import (
     get_access_token_model,
     get_application_model,
@@ -133,6 +135,29 @@ class OAuthAuthorizeViewTests(APITestCase):
                 ],
             },
         )
+
+    def test_get_names_a_cimd_client_by_its_host_not_its_claimed_name(self):
+        # Arrange
+        client_id = "https://client.example.com/oauth/metadata.json"
+        document = {
+            "client_id": client_id,
+            "client_name": "Claude",
+            "redirect_uris": ["https://client.example.com/callback"],
+            "token_endpoint_auth_method": "none",
+        }
+        params = {
+            **self.params,
+            "client_id": client_id,
+            "redirect_uri": "https://client.example.com/callback",
+        }
+
+        # Act
+        with patch.object(SafeMetadataFetcher, "fetch", return_value=(document, 300)):
+            response = self.client.get(self.url, params)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["client_name"], "client.example.com")
 
     def test_get_does_not_redirect_for_an_invalid_client_or_redirect_uri(self):
         cases = {
