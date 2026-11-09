@@ -55,7 +55,7 @@ class OAuthAuthorizationServerService:
         redirect_host = urlparse(credentials["redirect_uri"]).hostname
         all_scopes = get_scopes_backend().get_all_scopes()
         return ConsentRequest(
-            client_name=application.name,
+            client_name=self._client_name(application),
             redirect_host=redirect_host,
             loopback_redirect=redirect_host in LOOPBACK_HOSTS,
             scopes=[{"name": s, "description": all_scopes[s]} for s in scopes],
@@ -106,6 +106,15 @@ class OAuthAuthorizationServerService:
         if token.resource:
             response["aud"] = token.resource
         return response
+
+    @staticmethod
+    def _client_name(application):
+        # Use the hostname from the client_id URL as the client name for CIMD clients.
+        # This is because the client name can be easily spoofed.
+        if application.registration_source == application.RegistrationSource.CIMD:
+            return urlparse(application.client_id).hostname
+
+        return application.name
 
     def _validate(self, request):
         try:
