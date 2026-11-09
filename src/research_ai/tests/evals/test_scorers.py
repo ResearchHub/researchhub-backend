@@ -408,6 +408,48 @@ class NewCitationsTests(TestCase):
             new_citations(_case(), _run(_note([]), _note(["10.1000/a.1"])))
         )
 
+    def test_keeps_parentheses_inside_a_doi(self):
+        # Arrange: two DOIs that share everything up to "(19)".
+        after = _note(
+            [
+                "Smith (10.1016/S0165-0327(19)30001-1).",
+                "Doe, see 10.1016/S0165-0327(19)30002-2, p. 3",
+            ]
+        )
+
+        # Act
+        score = new_citations(_case(min_new_dois=2), _run(_note([]), after))
+
+        # Assert
+        self.assertEqual(score.value, 1.0)
+
+
+class DoiGroundingWithParenthesesTests(TestCase):
+    def test_a_doi_sharing_a_parenthesised_prefix_is_not_grounded(self):
+        # Arrange
+        run = _run(
+            before=_note([]),
+            after=_note(["10.1016/S0165-0327(19)30002-2"]),
+            turns=[
+                _turn(
+                    calls=[
+                        _call(
+                            "search_works",
+                            result='{"doi": "10.1016/S0165-0327(19)30001-1"}',
+                        )
+                    ]
+                )
+            ],
+        )
+
+        # Act
+        score = grounded_citations(_case(), run)
+
+        # Assert
+        self.assertEqual(
+            score.details, ["ungrounded DOI 10.1016/s0165-0327(19)30002-2"]
+        )
+
 
 class LinkFormatTests(TestCase):
     def test_flags_new_markdown_links_and_bare_urls(self):

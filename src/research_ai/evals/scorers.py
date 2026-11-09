@@ -36,7 +36,9 @@ class Score:
 
 Scorer = Callable[[EvalCase, CaseRun], Score | None]
 
-_DOI = re.compile(r"\b10\.\d{4,9}/[^\s\"'<>\]\)]+", re.IGNORECASE)
+# Parentheses can be part of a DOI (10.1016/S0165-0327(19)30001-1); _dois
+# trims only a closing one the DOI itself did not open.
+_DOI = re.compile(r"\b10\.\d{4,9}/[^\s\"'<>\]]+", re.IGNORECASE)
 _MARKDOWN_LINK = re.compile(r"\[[^\]\n]+\]\(\s*https?://[^)\s]+\s*\)")
 _BARE_URL = re.compile(r"https?://\S+")
 # proposal_writing.txt: what belongs in the reply, never in the note.
@@ -365,7 +367,19 @@ def _text(node) -> str:
 
 
 def _dois(text: str) -> set[str]:
-    return {match.rstrip(".,;:").lower() for match in _DOI.findall(text or "")}
+    return {_trim_doi(match).lower() for match in _DOI.findall(text or "")}
+
+
+def _trim_doi(doi: str) -> str:
+    """Drop trailing prose punctuation, and closing parentheses the DOI did
+    not open ("(see 10.1234/x.5)." -> "10.1234/x.5")."""
+    while True:
+        trimmed = doi.rstrip(".,;:")
+        if trimmed.endswith(")") and trimmed.count(")") > trimmed.count("("):
+            trimmed = trimmed[:-1]
+        if trimmed == doi:
+            return doi
+        doi = trimmed
 
 
 def _excerpt(text: str, match: re.Match, width: int = 40) -> str:
