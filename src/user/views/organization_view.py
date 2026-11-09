@@ -405,6 +405,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 "latest_chat_id",
                 "organization",
                 "post",
+                "preview_img",
                 "title",
                 "updated_date",
             ],
