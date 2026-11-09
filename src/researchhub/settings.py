@@ -466,6 +466,9 @@ OAUTH2_PROVIDER = {
         "client_secret_basic",
     ],
     "ACCESS_TOKEN_EXPIRE_SECONDS": 60 * 60,  # in seconds
+    # Let clients identify themselves through metadata at their client_id URL.
+    # See: https://django-oauth-toolkit.readthedocs.io/en/latest/cimd.html
+    "CIMD_ENABLED": True,
     # No implicit grants allowed:
     "COMPLIANT_BCP_RFC9700_IMPLICIT_GRANT": True,
     # No password grants allowed:
