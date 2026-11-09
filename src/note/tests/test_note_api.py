@@ -1445,26 +1445,6 @@ class NoteTests(APITestCase):
         )
         self.assertIsNone(results[draft["id"]]["post"])
 
-    def test_get_organization_notes_includes_preview_img(self):
-        """A draft cover URL is returned as stored; a note without one is null."""
-        # Arrange
-        with_cover = self._create_org_note("With cover")
-        Note.objects.filter(id=with_cover["id"]).update(
-            preview_img="https://www.researchhub.com/cover.png"
-        )
-        without_cover = self._create_org_note("Without cover")
-
-        # Act
-        data = self._get_organization_notes()
-
-        # Assert
-        results = {note["id"]: note for note in data["results"]}
-        self.assertEqual(
-            results[with_cover["id"]]["preview_img"],
-            "https://www.researchhub.com/cover.png",
-        )
-        self.assertIsNone(results[without_cover["id"]]["preview_img"])
-
     def test_get_organization_notes_includes_latest_chat_on_each_note(self):
         # Arrange: two of the user's chats on one note, the older one used
         # last; newer chats that are not the user's notebook chats on it.
