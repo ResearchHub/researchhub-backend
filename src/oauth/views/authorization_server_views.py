@@ -2,12 +2,15 @@ from dataclasses import asdict
 from functools import wraps
 
 from django.conf import settings
-from django.http import Http404
-from oauth2_provider.views import OAuthServerMetadataView
+from django.http import Http404, JsonResponse
+from oauth2_provider.views import IntrospectTokenView, OAuthServerMetadataView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from oauth.services.consent_service import AuthorizationError, OAuthConsentService
+from oauth.services.authorization_server_service import (
+    AuthorizationError,
+    OAuthAuthorizationServerService,
+)
 
 
 def oauth_enabled(view):
@@ -37,6 +40,29 @@ class AuthorizationServerMetadataView(OAuthServerMetadataView):
         return super()._get_endpoint_url(request, view_name, required)
 
 
+class IntrospectionView(IntrospectTokenView):
+    """
+    Describes an access token to the MCP server (RFC 7662), which authenticates
+    as a confidential client.
+    """
+
+    # Only allow POST, so tokens are not exposed in URLs or access logs
+    http_method_names = ["post"]
+
+    @staticmethod
+    def get_token_response(token_value=None):
+        if token_value is None:
+            return JsonResponse(
+                {
+                    "error": "invalid_request",
+                    "error_description": "Token parameter is missing.",
+                },
+                status=400,
+            )
+
+        return JsonResponse(OAuthAuthorizationServerService().introspect(token_value))
+
+
 class OAuthAuthorizeView(APIView):
     """
     Backs the web consent page. The page forwards the client's authorization
@@ -45,7 +71,7 @@ class OAuthAuthorizeView(APIView):
 
     def get(self, request):
         try:
-            consent_request = OAuthConsentService().get_consent_request(
+            consent_request = OAuthAuthorizationServerService().get_consent_request(
                 request._request
             )
         except AuthorizationError as error:
@@ -55,7 +81,9 @@ class OAuthAuthorizeView(APIView):
     def post(self, request):
         allow = request.data.get("allow") is True
         try:
-            redirect_url = OAuthConsentService().decide(request._request, allow)
+            redirect_url = OAuthAuthorizationServerService().decide(
+                request._request, allow
+            )
         except AuthorizationError as error:
             return self._error_response(error)
         return Response({"redirect_url": redirect_url})
