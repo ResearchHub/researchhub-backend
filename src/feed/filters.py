@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 from django.db.models import (
@@ -26,6 +27,10 @@ from rest_framework.request import Request
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import approved_proposal_filters
 from purchase.related_models.grant_model import Grant
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.related_models.usd_fundraise_contribution_model import (
+    UsdFundraiseContribution,
+)
 from review.models import Review
 
 
@@ -113,6 +118,8 @@ class FundOrderingFilter(OrderingFilter):
             return self._apply_amount_raised_sorting(
                 queryset, model_config["model_class"]
             )
+        elif ordering == "closest_to_goal":
+            return self._apply_closest_to_goal_sorting(queryset)
         else:
             # For any other ordering field, fall back to DRF's standard ordering
             return super().filter_queryset(request, queryset, view)
@@ -136,6 +143,7 @@ class FundOrderingFilter(OrderingFilter):
                     "upvotes",
                     "most_applicants",
                     "amount_raised",
+                    "closest_to_goal",
                 ]
                 if field_name in custom_fields:
                     return [field]
@@ -324,6 +332,37 @@ class FundOrderingFilter(OrderingFilter):
                     output_field=DecimalField(max_digits=19, decimal_places=10),
                 )
             ).order_by("-amount_raised", "-created_date")
+
+    def _apply_closest_to_goal_sorting(self, queryset: QuerySet) -> QuerySet:
+        """Sort by the share of the open fundraise's goal raised, highest first."""
+        amount = DecimalField(max_digits=19, decimal_places=10)
+        usd_cents = (
+            UsdFundraiseContribution.objects.filter(
+                fundraise_id=OuterRef("pk"), is_refunded=False
+            )
+            .values("fundraise_id")
+            .annotate(total=Sum("amount_cents"))
+            .values("total")
+        )
+        raised_usd = Coalesce(
+            F("escrow__amount_holding") + F("escrow__amount_paid"),
+            0,
+            output_field=amount,
+        ) * Value(Decimal(str(RscExchangeRate.get_latest()))) + Coalesce(
+            Subquery(usd_cents), 0
+        ) / Value(Decimal(100))
+        percent_funded = (
+            Fundraise.objects.filter(
+                unified_document_id=OuterRef("unified_document_id"),
+                status=Fundraise.OPEN,
+                goal_amount__gt=0,
+            )
+            .annotate(percent_funded=raised_usd / F("goal_amount"))
+            .values("percent_funded")[:1]
+        )
+        return queryset.annotate(
+            percent_funded=Subquery(percent_funded, output_field=amount)
+        ).order_by(F("percent_funded").desc(nulls_last=True), "-created_date")
 
 
 class JournalFeedOrderingFilter(FundOrderingFilter):

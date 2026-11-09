@@ -10,6 +10,7 @@ from feed.models import FeedEntry
 from feed.serializers import (
     BountyContributionSerializer,
     SimpleAuthorSerializer,
+    SimpleHubSerializer,
     SimpleReviewSerializer,
     SlimAuthorSerializer,
     _grant_amount,
@@ -370,6 +371,9 @@ class FundingFeedPostSerializer(serializers.Serializer):
             "image_url": post.get_image_url(),
             "institution": getattr(post, "institution", None),
             "unified_document_id": (post.unified_document_id or None),
+            "hubs": SimpleHubSerializer(
+                post.unified_document.hubs.all(), many=True
+            ).data,
             "authors": [],
             "reviews": [],
             "fundraise": None,

@@ -1691,6 +1691,45 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertTrue(low_amount_found)
         self.assertLess(high_amount_index, low_amount_index)
 
+    def test_closest_to_goal_orders_by_percent_funded(self):
+        """The open proposal nearest its goal is listed first."""
+        # Arrange
+        nearly_funded_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        ResearchhubPost.objects.create(
+            title="Nearly Funded Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=nearly_funded_doc,
+        )
+        escrow = Escrow.objects.create(
+            amount_holding=30,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=nearly_funded_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=nearly_funded_doc,
+            escrow=escrow,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+        )
+
+        # Act
+        response = self.client.get(
+            reverse("funding_feed-list"),
+            {"ordering": "closest_to_goal", "fundraise_status": "OPEN"},
+        )
+
+        # Assert
+        titles = [
+            result["content_object"]["title"] for result in response.data["results"]
+        ]
+        self.assertEqual(titles, ["Nearly Funded Post", "Test Preregistration"])
+
     def test_ordering_validation(self):
         """
         Test that FundOrderingFilter handles different ordering scenarios correctly.

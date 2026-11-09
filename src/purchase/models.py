@@ -4,6 +4,7 @@ from .related_models.endaoment_account_model import EndaomentAccount
 from .related_models.funding_distribution_model import FundingDistribution
 from .related_models.funding_pool_model import FundingPool
 from .related_models.fundraise_model import Fundraise
+from .related_models.giving_campaign_model import GivingCampaign, GivingChallenge
 from .related_models.grant_application_model import GrantApplication
 from .related_models.grant_model import Grant
 from .related_models.payment_model import Payment

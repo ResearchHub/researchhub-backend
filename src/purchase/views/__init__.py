@@ -13,6 +13,7 @@ from .endaoment_viewset import EndaomentViewSet
 from .funder_view import FunderViewSet
 from .funding_pool_view import FundingPoolViewSet
 from .fundraise_view import FundraiseViewSet
+from .giving_campaign_view import GivingCampaignViewSet
 from .grant_view import GrantViewSet
 from .payment_intent_view import PaymentIntentView
 from .purchase_view import PurchaseViewSet
@@ -32,6 +33,7 @@ __all__ = [
     "FunderViewSet",
     "FundingPoolViewSet",
     "FundraiseViewSet",
+    "GivingCampaignViewSet",
     "GrantViewSet",
     "PaymentIntentView",
     "PurchaseViewSet",

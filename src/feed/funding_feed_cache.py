@@ -23,6 +23,7 @@ FUNDING_FEED_WARM_SPECS: tuple[tuple[str | None, str | None], ...] = (
     (None, None),
     *((ordering, None) for ordering in FUNDING_FEED_WARM_ORDERINGS),
     (None, FUNDING_FEED_WARM_COMPLETED_STATUS),
+    ("closest_to_goal", "OPEN"),
 )
 
 
