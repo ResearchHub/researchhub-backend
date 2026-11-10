@@ -445,14 +445,23 @@ OAUTH_ENABLED = (
 if PRODUCTION:
     OAUTH_ISSUER = "https://api.researchhub.com"
     OAUTH_MCP_RESOURCE = "https://mcp.researchhub.com/v1/mcp"
+    OAUTH_API_RESOURCE = "https://api.researchhub.com"
 elif STAGING:
     OAUTH_ISSUER = "https://api.staging.researchhub.com"
     OAUTH_MCP_RESOURCE = "https://mcp.staging.researchhub.com/v1/mcp"
+    OAUTH_API_RESOURCE = "https://api.staging.researchhub.com"
 else:
     OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "http://localhost:8000")
     OAUTH_MCP_RESOURCE = os.environ.get(
         "OAUTH_MCP_RESOURCE", "http://localhost:8080/v1/mcp"
     )
+    OAUTH_API_RESOURCE = os.environ.get("OAUTH_API_RESOURCE", "http://localhost:8000")
+
+# The MCP server's confidential client, the only one allowed to exchange tokens
+OAUTH_MCP_CLIENT_ID = os.environ.get(
+    "OAUTH_MCP_CLIENT_ID", getattr(keys, "OAUTH_MCP_CLIENT_ID", "")
+)
+OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
 
 OAUTH2_PROVIDER = {
     "OIDC_ISS_ENDPOINT": OAUTH_ISSUER,
@@ -469,6 +478,8 @@ OAUTH2_PROVIDER = {
     # Let clients identify themselves through metadata at their client_id URL.
     # See: https://django-oauth-toolkit.readthedocs.io/en/latest/cimd.html
     "CIMD_ENABLED": True,
+    # Adds the token exchange grant for the MCP server:
+    "OAUTH2_SERVER_CLASS": "oauth.token_exchange.OAuthServer",
     # No implicit grants allowed:
     "COMPLIANT_BCP_RFC9700_IMPLICIT_GRANT": True,
     # No password grants allowed:
