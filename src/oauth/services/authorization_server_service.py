@@ -11,6 +11,8 @@ from oauth2_provider.settings import oauth2_settings
 from oauthlib.oauth2 import AccessDeniedError
 from oauthlib.oauth2.rfc6749.errors import CustomOAuth2Error, InvalidRedirectURIError
 
+from oauth.models import DelegatedAccessToken
+
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
@@ -83,17 +85,8 @@ class OAuthAuthorizationServerService:
         """
         Returns the introspection response for an access token.
         """
-        checksum = hashlib.sha256(token_value.encode()).hexdigest()
-        token = (
-            get_access_token_model()
-            .objects.select_related("user", "application")
-            .filter(token_checksum=checksum)
-            .first()
-        )
-        if token is None or not token.is_valid():
-            return {"active": False}
-        # Only accept tokens of active users:
-        if token.user is None or not token.user.is_active:
+        token = self.get_active_token(token_value)
+        if token is None:
             return {"active": False}
 
         response = {
@@ -106,6 +99,36 @@ class OAuthAuthorizationServerService:
         if token.resource:
             response["aud"] = token.resource
         return response
+
+    def get_active_token(self, token_value: str, for_update=False):
+        """
+        Returns the access token if it is unexpired and its user is active,
+        and `None` otherwise.
+        With `for_update`, the token stays locked until the transaction ends,
+        so it can't be revoked in the meantime.
+        """
+        tokens = get_access_token_model().objects.select_related("user", "application")
+        if for_update:
+            tokens = tokens.select_for_update(of=("self",))
+        checksum = hashlib.sha256(token_value.encode()).hexdigest()
+        token = tokens.filter(token_checksum=checksum).first()
+        if token is None or not token.is_valid():
+            return None
+        if token.user is None or not token.user.is_active:
+            return None
+
+        return token
+
+    def record_token_exchange(self, token_value: str, source_token):
+        """
+        Links an access token issued by a token exchange to the token it was
+        exchanged for.
+        """
+        checksum = hashlib.sha256(token_value.encode()).hexdigest()
+        access_token = get_access_token_model().objects.get(token_checksum=checksum)
+        DelegatedAccessToken.objects.create(
+            access_token=access_token, source_token=source_token
+        )
 
     @staticmethod
     def _client_name(application):
