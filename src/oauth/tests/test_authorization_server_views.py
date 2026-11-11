@@ -187,6 +187,30 @@ class OAuthAuthorizeViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["client_name"], "client.example.com")
 
+    def test_get_rejects_a_cimd_client_that_lists_a_non_string_grant_type(self):
+        # Arrange
+        client_id = "https://client.example.com/oauth/metadata.json"
+        document = {
+            "client_id": client_id,
+            "redirect_uris": ["https://client.example.com/callback"],
+            "grant_types": ["authorization_code", 42],
+            "token_endpoint_auth_method": "none",
+        }
+        params = {
+            **self.params,
+            "client_id": client_id,
+            "redirect_uri": "https://client.example.com/callback",
+        }
+
+        # Act
+        with patch.object(SafeMetadataFetcher, "fetch", return_value=(document, 300)):
+            response = self.client.get(self.url, params)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("redirect_url", response.data)
+        self.assertFalse(Application.objects.filter(client_id=client_id).exists())
+
     def test_get_does_not_redirect_for_an_invalid_client_or_redirect_uri(self):
         cases = {
             "unknown client": {"client_id": "unknown"},
