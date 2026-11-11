@@ -478,6 +478,7 @@ OAUTH2_PROVIDER = {
     # Let clients identify themselves through metadata at their client_id URL.
     # See: https://django-oauth-toolkit.readthedocs.io/en/latest/cimd.html
     "CIMD_ENABLED": True,
+    "CIMD_METADATA_FETCHER": "oauth.cimd.SupportedGrantsMetadataFetcher",
     # Adds the token exchange grant for the MCP server:
     "OAUTH2_SERVER_CLASS": "oauth.token_exchange.OAuthServer",
     # No implicit grants allowed:

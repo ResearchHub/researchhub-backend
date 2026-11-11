@@ -159,6 +159,34 @@ class OAuthAuthorizeViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["client_name"], "client.example.com")
 
+    def test_get_accepts_a_cimd_client_that_lists_unsupported_grant_types(self):
+        # Arrange
+        client_id = "https://client.example.com/oauth/metadata.json"
+        # Claude's document lists the JWT bearer grant as well
+        document = {
+            "client_id": client_id,
+            "redirect_uris": ["https://client.example.com/callback"],
+            "grant_types": [
+                "authorization_code",
+                "refresh_token",
+                "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            ],
+            "token_endpoint_auth_method": "none",
+        }
+        params = {
+            **self.params,
+            "client_id": client_id,
+            "redirect_uri": "https://client.example.com/callback",
+        }
+
+        # Act
+        with patch.object(SafeMetadataFetcher, "fetch", return_value=(document, 300)):
+            response = self.client.get(self.url, params)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["client_name"], "client.example.com")
+
     def test_get_does_not_redirect_for_an_invalid_client_or_redirect_uri(self):
         cases = {
             "unknown client": {"client_id": "unknown"},
