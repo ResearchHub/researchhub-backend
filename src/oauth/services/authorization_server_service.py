@@ -119,6 +119,20 @@ class OAuthAuthorizationServerService:
 
         return token
 
+    def get_api_token(self, token_value: str):
+        """
+        Returns the API token from a token exchange if it is active and still
+        linked to the MCP token it was exchanged for, and `None` otherwise.
+        """
+        token = self.get_active_token(token_value)
+        if token is None or token.resource != [settings.OAUTH_API_RESOURCE]:
+            return None
+        # Revoking the MCP token deletes the link:
+        if not DelegatedAccessToken.objects.filter(access_token=token).exists():
+            return None
+
+        return token
+
     def record_token_exchange(self, token_value: str, source_token):
         """
         Links an access token issued by a token exchange to the token it was
