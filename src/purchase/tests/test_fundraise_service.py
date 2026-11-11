@@ -423,6 +423,23 @@ class UpdateGoalAmountTests(TestCase):
         self.fundraise.refresh_from_db()
         self.assertEqual(self.fundraise.goal_amount, Decimal("1000.00"))
 
+    def test_rejects_a_goal_the_column_cannot_store(self):
+        # Arrange / Act / Assert
+        with self.assertRaises(ValidationError):
+            self.service.update_goal_amount(self.fundraise, goal_amount="1000000000")
+
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.goal_amount, Decimal("1000.00"))
+
+    def test_rejects_a_non_finite_goal(self):
+        # Arrange / Act / Assert
+        for goal_amount in ("NaN", "Infinity"):
+            with self.assertRaises(ValidationError):
+                self.service.update_goal_amount(self.fundraise, goal_amount=goal_amount)
+
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.goal_amount, Decimal("1000.00"))
+
     def test_rejects_completed_fundraise(self):
         # Arrange
         self.fundraise.status = Fundraise.COMPLETED

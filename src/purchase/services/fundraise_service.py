@@ -1,9 +1,10 @@
 import logging
 import time
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
@@ -308,6 +309,34 @@ class FundraiseService:
 
         return fundraise
 
+    def validate_goal_amount(
+        self, fundraise, goal_amount, goal_currency=USD
+    ) -> Decimal:
+        """Reject a goal change that the update would not apply."""
+        try:
+            goal_amount = Decimal(goal_amount)
+        except (InvalidOperation, TypeError, ValueError) as exc:
+            raise ValidationError("Invalid goal_amount") from exc
+
+        if not goal_amount.is_finite():
+            raise ValidationError("Invalid goal_amount")
+
+        if goal_amount <= 0:
+            raise ValidationError("goal_amount must be greater than 0")
+
+        try:
+            Fundraise._meta.get_field("goal_amount").run_validators(goal_amount)
+        except DjangoValidationError as exc:
+            raise ValidationError("goal_amount is out of range") from exc
+
+        if goal_currency != USD:
+            raise ValidationError("goal_currency must be USD")
+
+        if fundraise.status != Fundraise.OPEN:
+            raise ValidationError("Only OPEN fundraises can update their goal")
+
+        return goal_amount
+
     def update_goal_amount(
         self,
         fundraise: Fundraise,
@@ -315,16 +344,7 @@ class FundraiseService:
         goal_currency: str = USD,
     ) -> Fundraise:
         """Update an OPEN fundraise goal."""
-        try:
-            goal_amount = Decimal(goal_amount)
-        except Exception as exc:
-            raise ValidationError("Invalid goal_amount") from exc
-
-        if goal_amount <= 0:
-            raise ValidationError("goal_amount must be greater than 0")
-
-        if goal_currency != USD:
-            raise ValidationError("goal_currency must be USD")
+        goal_amount = self.validate_goal_amount(fundraise, goal_amount, goal_currency)
 
         with transaction.atomic():
             locked = Fundraise.objects.select_for_update().get(pk=fundraise.pk)

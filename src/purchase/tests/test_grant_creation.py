@@ -324,6 +324,20 @@ class GrantCreationTests(APITestCase):
         # Assert
         self.assertTrue(allowed)
 
+    def test_editing_permission_limits_hub_editors_to_proposals_and_rfps(self):
+        # Arrange
+        post = create_post(created_by=self.owner, document_type=DISCUSSION)
+        editor, _hub = create_hub_editor(
+            "grant_creation_discussion_editor", "Discussion Editor Hub"
+        )
+        permission = HasDocumentEditingPermission()
+
+        # Act
+        allowed = permission.can_edit_post(post, editor)
+
+        # Assert
+        self.assertFalse(allowed)
+
     def _create_note_backed_post(self):
         note = NoteCreationService().create_private_note(
             created_by=self.owner, title="Organization grant draft"
