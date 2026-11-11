@@ -270,20 +270,20 @@ class OAuthAuthorizeViewTests(APITestCase):
         self.assertEqual(response.status_code, 401)
 
 
-@override_settings(OAUTH_ENABLED=True)
+@override_settings(OAUTH_ENABLED=True, OAUTH_MCP_CLIENT_ID="mcp-client")
 class IntrospectionViewTests(TestCase):
     url = "/oauth/introspect/"
 
     def setUp(self):
         self.user = create_random_default_user("oauth_introspection")
         self.mcp_client = Application.objects.create(
+            client_id="mcp-client",
             name="MCP",
             client_type=Application.CLIENT_CONFIDENTIAL,
             authorization_grant_type=Application.GRANT_CLIENT_CREDENTIALS,
             client_secret="mcp-secret",
         )
-        credentials = f"{self.mcp_client.client_id}:mcp-secret".encode()
-        self.client_auth = f"Basic {base64.b64encode(credentials).decode()}"
+        self.client_auth = self._basic_auth("mcp-client", "mcp-secret")
         self.application = Application.objects.create(
             name="AIApp1",
             client_type=Application.CLIENT_PUBLIC,
@@ -300,6 +300,11 @@ class IntrospectionViewTests(TestCase):
             scope="read",
             resource=[MCP_RESOURCE],
         )
+
+    @staticmethod
+    def _basic_auth(client_id, secret):
+        credentials = base64.b64encode(f"{client_id}:{secret}".encode()).decode()
+        return f"Basic {credentials}"
 
     def _introspect(self, token, **headers):
         return self.client.post(self.url, {"token": token}, **headers)
@@ -347,13 +352,32 @@ class IntrospectionViewTests(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.json(), {"active": False})
 
-    def test_rejects_callers_without_client_credentials(self):
+    def test_rejects_callers_other_than_the_mcp_client(self):
         # Arrange
         self._create_token("active-token")
+        Application.objects.create(
+            client_id="other-client",
+            client_type=Application.CLIENT_CONFIDENTIAL,
+            authorization_grant_type=Application.GRANT_CLIENT_CREDENTIALS,
+            client_secret="other-secret",
+        )
+        Application.objects.create(
+            client_id="public-client",
+            client_type=Application.CLIENT_PUBLIC,
+            authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE,
+            redirect_uris=REDIRECT_URI,
+            client_secret="public-secret",
+        )
 
         cases = {
             "no credentials": {},
             "access token": {"HTTP_AUTHORIZATION": "Bearer active-token"},
+            "other confidential client": {
+                "HTTP_AUTHORIZATION": self._basic_auth("other-client", "other-secret")
+            },
+            "public client with its secret": {
+                "HTTP_AUTHORIZATION": self._basic_auth("public-client", "public-secret")
+            },
         }
         for case, headers in cases.items():
             with self.subTest(case=case):

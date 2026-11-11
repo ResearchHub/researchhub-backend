@@ -133,6 +133,16 @@ class OAuthAuthorizationServerService:
 
         return token
 
+    @staticmethod
+    def is_mcp_client(application) -> bool:
+        """
+        Returns whether the application is the MCP server's confidential client.
+        """
+        return (
+            application.client_id == settings.OAUTH_MCP_CLIENT_ID
+            and application.client_type == application.CLIENT_CONFIDENTIAL
+        )
+
     def record_token_exchange(self, token_value: str, source_token):
         """
         Links an access token issued by a token exchange to the token it was

@@ -4,6 +4,7 @@ from functools import wraps
 from django.conf import settings
 from django.http import Http404, JsonResponse
 from oauth2_provider.views import IntrospectTokenView, OAuthServerMetadataView
+from oauthlib.common import Request as OAuthLibRequest
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -48,6 +49,18 @@ class IntrospectionView(IntrospectTokenView):
 
     # Only allow POST, so tokens are not exposed in URLs or access logs
     http_method_names = ["post"]
+
+    def authenticate_client(self, request):
+        """
+        Overrides the default client authentication to only allow the MCP server's
+        confidential client.
+        """
+        core = self.get_oauthlib_core()
+        oauthlib_request = OAuthLibRequest(*core._extract_params(request))
+        if not core.server.request_validator.authenticate_client(oauthlib_request):
+            return False
+
+        return OAuthAuthorizationServerService.is_mcp_client(oauthlib_request.client)
 
     @staticmethod
     def get_token_response(token_value=None):

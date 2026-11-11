@@ -62,11 +62,7 @@ class TokenExchangeGrant(GrantTypeBase):
         if not self.request_validator.authenticate_client(request):
             raise errors.InvalidClientError(request=request)
 
-        client = request.client
-        if (
-            client.client_id != settings.OAUTH_MCP_CLIENT_ID
-            or client.client_type != client.CLIENT_CONFIDENTIAL
-        ):
+        if not OAuthAuthorizationServerService.is_mcp_client(request.client):
             raise errors.UnauthorizedClientError(request=request)
 
     def _validate_subject_token(self, request, service):
