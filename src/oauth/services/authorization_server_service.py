@@ -4,7 +4,12 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 from oauth2_provider.exceptions import FatalClientError, OAuthToolkitError
-from oauth2_provider.models import get_access_token_model, get_application_model
+from oauth2_provider.models import (
+    get_access_token_model,
+    get_application_model,
+    get_grant_model,
+    get_refresh_token_model,
+)
 from oauth2_provider.oauth2_backends import _add_iss_to_redirect, get_oauthlib_core
 from oauth2_provider.scopes import get_scopes_backend
 from oauth2_provider.settings import oauth2_settings
@@ -39,7 +44,7 @@ class ConsentRequest:
 class OAuthAuthorizationServerService:
     """
     Handles OAuth 2.0 authorization requests, validates them, facilitates the consent
-    process for the user, and provides token introspection capabilities.
+    process for the user, and introspects and revokes tokens.
     """
 
     def __init__(self, oauthlib_core=None):
@@ -132,6 +137,19 @@ class OAuthAuthorizationServerService:
             return None
 
         return token
+
+    def revoke_user_tokens(self, user) -> None:
+        """
+        Revokes all of a user's tokens and authorization codes.
+        """
+        refresh_tokens = get_refresh_token_model().objects.filter(
+            user=user, revoked__isnull=True
+        )
+        for refresh_token in refresh_tokens:
+            refresh_token.revoke()
+        # Includes the API tokens from token exchanges, which have no refresh token:
+        get_access_token_model().objects.filter(user=user).delete()
+        get_grant_model().objects.filter(user=user).delete()
 
     @staticmethod
     def is_mcp_client(application) -> bool:
