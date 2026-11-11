@@ -474,7 +474,9 @@ OAUTH2_PROVIDER = {
         "none",
         "client_secret_basic",
     ],
-    "ACCESS_TOKEN_EXPIRE_SECONDS": 60 * 60,  # in seconds
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 60 * 60,  # 1 hour
+    "REFRESH_TOKEN_EXPIRE_SECONDS": 180 * 24 * 60 * 60,  # 180 days
+    "REFRESH_TOKEN_REUSE_PROTECTION": True,
     # Let clients identify themselves through metadata at their client_id URL.
     # See: https://django-oauth-toolkit.readthedocs.io/en/latest/cimd.html
     "CIMD_ENABLED": True,
@@ -491,6 +493,10 @@ OAUTH2_PROVIDER = {
     "COMPLIANT_BCP_RFC9700_ACCESS_TOKEN_TRANSPORT": True,
     # `iss` in authorization responses:
     "COMPLIANT_BCP_RFC9700_AUTHZ_RESPONSE_ISS": True,
+    # Only hashes of tokens are stored:
+    "COMPLIANT_BCP_RFC9700_TOKEN_STORAGE": True,
+    # Fail deploy checks if refresh token reuse protection is ever turned off:
+    "COMPLIANT_BCP_RFC9700_REFRESH_TOKEN": True,
 }
 
 # Database
