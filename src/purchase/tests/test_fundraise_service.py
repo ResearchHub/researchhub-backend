@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
@@ -360,6 +361,78 @@ class TestFundraiseService(APITestCase):
             ).count(),
             1,
         )
+
+
+class UpdateGoalAmountTests(TestCase):
+    """Tests for FundraiseService.update_goal_amount()."""
+
+    def setUp(self):
+        self.service = FundraiseService()
+        self.user = create_random_authenticated_user("update_goal")
+        self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        self.fundraise = self.service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("1000.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+    def test_increases_goal(self):
+        # Arrange
+        self.fundraise.escrow.amount_holding = Decimal("100")
+        self.fundraise.escrow.save(update_fields=["amount_holding"])
+
+        # Act
+        updated = self.service.update_goal_amount(
+            self.fundraise, goal_amount=Decimal("2000.00")
+        )
+
+        # Assert
+        self.fundraise.refresh_from_db()
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(updated.goal_amount, Decimal("2000.00"))
+        self.assertEqual(self.fundraise.goal_amount, Decimal("2000.00"))
+        self.assertEqual(self.fundraise.status, Fundraise.OPEN)
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("100"))
+
+    def test_decreases_goal_below_raised_keeps_open(self):
+        # Arrange
+        RscExchangeRate.objects.create(rate=1.0)
+        self.fundraise.escrow.amount_holding = Decimal("100")
+        self.fundraise.escrow.save(update_fields=["amount_holding"])
+
+        # Act
+        updated = self.service.update_goal_amount(
+            self.fundraise, goal_amount=Decimal("50.00")
+        )
+
+        # Assert
+        self.fundraise.refresh_from_db()
+        self.fundraise.escrow.refresh_from_db()
+        self.assertEqual(updated.goal_amount, Decimal("50.00"))
+        self.assertEqual(self.fundraise.status, Fundraise.OPEN)
+        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("100"))
+        self.assertTrue(self.fundraise.has_met_goal())
+
+    def test_rejects_non_positive_goal(self):
+        # Arrange / Act / Assert
+        with self.assertRaises(ValidationError):
+            self.service.update_goal_amount(self.fundraise, goal_amount=Decimal("0"))
+
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.goal_amount, Decimal("1000.00"))
+
+    def test_rejects_completed_fundraise(self):
+        # Arrange
+        self.fundraise.status = Fundraise.COMPLETED
+        self.fundraise.save(update_fields=["status"])
+
+        # Act / Assert
+        with self.assertRaises(ValidationError):
+            self.service.update_goal_amount(
+                self.fundraise, goal_amount=Decimal("500.00")
+            )
 
 
 class CloseFundraiseTests(TestCase):

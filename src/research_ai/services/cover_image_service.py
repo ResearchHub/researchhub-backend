@@ -365,7 +365,9 @@ class CoverImageService:
             .filter(id=note_id, unified_document__is_removed=False)
             .first()
         )
-        return note if note is not None and note.permissions.has_user(user) else None
+        if note is None or not note.is_readable_by(user):
+            return None
+        return note
 
     def _logo_reference(self, file: AgentFile) -> str:
         """The logo as a PNG data URL, scaled down for the request.

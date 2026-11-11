@@ -20,7 +20,7 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from user.models import Organization
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_hub_editor, create_random_authenticated_user
 
 
 class GrantCreationTests(APITestCase):
@@ -309,6 +309,20 @@ class GrantCreationTests(APITestCase):
 
         # Assert
         self.assertFalse(allowed)
+
+    def test_editing_permission_allows_hub_editors(self):
+        # Arrange
+        post = create_post(created_by=self.owner, document_type=PREREGISTRATION)
+        editor, _hub = create_hub_editor(
+            "grant_creation_editor", "Grant Creation Editor Hub"
+        )
+        permission = HasDocumentEditingPermission()
+
+        # Act
+        allowed = permission.can_edit_post(post, editor)
+
+        # Assert
+        self.assertTrue(allowed)
 
     def _create_note_backed_post(self):
         note = NoteCreationService().create_private_note(

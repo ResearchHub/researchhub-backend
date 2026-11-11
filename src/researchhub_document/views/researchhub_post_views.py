@@ -1,5 +1,6 @@
 import logging
 
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import OuterRef, Prefetch, Subquery
@@ -23,7 +24,7 @@ from ai_peer_review.signals import preregistration_substantively_updated
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
-from purchase.models import Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.funding_pool_serializer import (
     FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
@@ -699,7 +700,11 @@ class ResearchhubPostViewSet(
                     status=status.HTTP_409_CONFLICT,
                 )
 
-            if authors and request.user.author_profile.id not in authors:
+            if (
+                authors
+                and not request.user.is_moderator_or_editor()
+                and request.user.author_profile.id not in authors
+            ):
                 return Response(
                     {"msg": "You must include yourself in the authors list"},
                     status=400,
@@ -808,9 +813,25 @@ class ResearchhubPostViewSet(
 
                 existing_grant.save()
                 grant = existing_grant
+                cache.delete("grant_available_funding")
+                GrantCacheMixin.invalidate_grant_feed_cache()
             else:
                 # No grant data provided or no existing grant, preserve existing grant
                 grant = existing_grant
+
+            fundraise = Fundraise.objects.filter(
+                unified_document=unified_document
+            ).first()
+            if goal_amount := data.get("fundraise_goal_amount"):
+                if fundraise is None:
+                    raise serializers.ValidationError(
+                        "Fundraise does not exist for this post"
+                    )
+                fundraise = FundraiseService().update_goal_amount(
+                    fundraise=fundraise,
+                    goal_amount=goal_amount,
+                    goal_currency=data.get("fundraise_goal_currency") or USD,
+                )
 
             response_data = serializer.data
             # Set up context for grant serialization including contacts
@@ -843,6 +864,9 @@ class ResearchhubPostViewSet(
                     )
                 },
             }
+            response_data["fundraise"] = (
+                DynamicFundraiseSerializer(fundraise).data if fundraise else None
+            )
             response_data["grant"] = (
                 DynamicGrantSerializer(
                     grant,

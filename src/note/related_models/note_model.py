@@ -73,6 +73,12 @@ class Note(DefaultModel):
     def __str__(self):
         return f"Id: {self.id}, Title: {self.title}"
 
+    def is_readable_by(self, user) -> bool:
+        """Permission holders, plus moderators and hub editors."""
+        if self.permissions.has_user(user):
+            return True
+        return user.is_moderator_or_editor()
+
     @property
     def ordered_authors(self) -> list[Author]:
         """Return credited authors in byline order, excluding removed ones."""

@@ -6,6 +6,7 @@ from decimal import Decimal
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 
 from analytics.tasks import track_revenue_event
 from purchase.endaoment import EndaomentService
@@ -306,6 +307,34 @@ class FundraiseService:
         fundraise.save()
 
         return fundraise
+
+    def update_goal_amount(
+        self,
+        fundraise: Fundraise,
+        goal_amount: Decimal,
+        goal_currency: str = USD,
+    ) -> Fundraise:
+        """Update an OPEN fundraise goal."""
+        try:
+            goal_amount = Decimal(goal_amount)
+        except Exception as exc:
+            raise ValidationError("Invalid goal_amount") from exc
+
+        if goal_amount <= 0:
+            raise ValidationError("goal_amount must be greater than 0")
+
+        if goal_currency != USD:
+            raise ValidationError("goal_currency must be USD")
+
+        with transaction.atomic():
+            locked = Fundraise.objects.select_for_update().get(pk=fundraise.pk)
+            if locked.status != Fundraise.OPEN:
+                raise ValidationError("Only OPEN fundraises can update their goal")
+
+            locked.goal_amount = goal_amount
+            locked.goal_currency = goal_currency
+            locked.save(update_fields=["goal_amount", "goal_currency", "updated_date"])
+            return locked
 
     def create_rsc_contribution(
         self,

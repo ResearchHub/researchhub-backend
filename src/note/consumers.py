@@ -67,11 +67,12 @@ def _note_rejection(user, note_id: int) -> int | None:
 
     Admission matches the note's read permissions exactly (the
     ``HasAccessPermission`` predicate): any non-NO_ACCESS user- or org-level
-    permission on the unified document. An invisible note closes with the
-    same code as a missing one so nothing about its existence leaks.
+    permission on the unified document. Moderators and hub editors may open
+    any note. An invisible note closes with the same code as a missing one so
+    nothing about its existence leaks.
     """
     note = Note.objects.filter(id=note_id, unified_document__is_removed=False).first()
-    if note is None or not note.permissions.has_user(user):
+    if note is None or not note.is_readable_by(user):
         return CLOSE_NOT_FOUND
     return None
 

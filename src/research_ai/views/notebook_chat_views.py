@@ -6,11 +6,11 @@ by id. Chats are private to their creator: resolution is scoped to the
 requesting user, so another collaborator's chat id -- like a note the user
 cannot view -- is reported as 404 rather than 403, and nothing is leaked.
 
-Access remains gated to hub editors and moderators during rollout, and the
-user must also be in a non-blocked Research AI tier and able to view the note.
-The agent runs with the requester's permissions, so its edit tool refuses
-writes for viewers. A note the user cannot view is likewise a 404 -- the same
-contract as ``NoteToolset``.
+A note is viewable when the user has a permission on it, or is a moderator or
+hub editor (``Note.is_readable_by``). The user must
+also be in a non-blocked Research AI tier. The agent runs with the requester's
+permissions, so its edit tool refuses writes for viewers. A note the user
+cannot view is likewise a 404 -- the same contract as ``NoteToolset``.
 """
 
 import logging
@@ -53,8 +53,7 @@ def _get_viewable_note_or_404(note_id: int, user) -> Note:
     # Soft-deleted notes do not exist here either -- the same visibility rule
     # as NoteViewSet and NoteToolset.
     note = get_object_or_404(Note, id=note_id, unified_document__is_removed=False)
-    # Same predicate as HasAccessPermission, mirroring NoteToolset reads.
-    if not note.permissions.has_user(user):
+    if not note.is_readable_by(user):
         raise Http404
     return note
 
