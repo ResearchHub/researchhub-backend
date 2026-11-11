@@ -1961,7 +1961,7 @@ class ViewTests(APITestCase):
         fundraise = Fundraise.objects.get(
             unified_document_id=create_response.data["unified_document_id"]
         )
-        fundraise.escrow.amount_holding = Decimal("100")
+        fundraise.escrow.amount_holding = 100
         fundraise.escrow.save(update_fields=["amount_holding"])
         original_holding = fundraise.escrow.amount_holding
 

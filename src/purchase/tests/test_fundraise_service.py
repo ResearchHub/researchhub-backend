@@ -380,7 +380,7 @@ class UpdateGoalAmountTests(TestCase):
 
     def test_increases_goal(self):
         # Arrange
-        self.fundraise.escrow.amount_holding = Decimal("100")
+        self.fundraise.escrow.amount_holding = 100
         self.fundraise.escrow.save(update_fields=["amount_holding"])
 
         # Act
@@ -394,12 +394,12 @@ class UpdateGoalAmountTests(TestCase):
         self.assertEqual(updated.goal_amount, Decimal("2000.00"))
         self.assertEqual(self.fundraise.goal_amount, Decimal("2000.00"))
         self.assertEqual(self.fundraise.status, Fundraise.OPEN)
-        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("100"))
+        self.assertEqual(self.fundraise.escrow.amount_holding, 100)
 
     def test_decreases_goal_below_raised_keeps_open(self):
         # Arrange
         RscExchangeRate.objects.create(rate=1.0)
-        self.fundraise.escrow.amount_holding = Decimal("100")
+        self.fundraise.escrow.amount_holding = 100
         self.fundraise.escrow.save(update_fields=["amount_holding"])
 
         # Act
@@ -412,13 +412,13 @@ class UpdateGoalAmountTests(TestCase):
         self.fundraise.escrow.refresh_from_db()
         self.assertEqual(updated.goal_amount, Decimal("50.00"))
         self.assertEqual(self.fundraise.status, Fundraise.OPEN)
-        self.assertEqual(self.fundraise.escrow.amount_holding, Decimal("100"))
+        self.assertEqual(self.fundraise.escrow.amount_holding, 100)
         self.assertTrue(self.fundraise.has_met_goal())
 
     def test_rejects_non_positive_goal(self):
         # Arrange / Act / Assert
         with self.assertRaises(ValidationError):
-            self.service.update_goal_amount(self.fundraise, goal_amount=Decimal("0"))
+            self.service.update_goal_amount(self.fundraise, goal_amount=0)
 
         self.fundraise.refresh_from_db()
         self.assertEqual(self.fundraise.goal_amount, Decimal("1000.00"))
