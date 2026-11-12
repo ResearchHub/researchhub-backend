@@ -1,8 +1,10 @@
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.renderers import JSONRenderer
 from rest_framework.test import APITestCase
@@ -41,6 +43,7 @@ from user.related_models.author_model import Author
 from user.related_models.organization_model import Organization
 from user.related_models.risk_score_model import RiskScore
 from user.tests.helpers import (
+    create_hub_editor,
     create_organization,
     create_random_default_user,
     make_user_verified,
@@ -1839,6 +1842,230 @@ class ViewTests(APITestCase):
 
         # Should return no posts
         self.assertEqual(len(empty_results), 0)
+
+    def _long_body(self):
+        return (
+            "sufficiently long body. sufficiently long body. "
+            "sufficiently long body. sufficiently long body. "
+            "sufficiently long body"
+        )
+
+    def _long_title(self):
+        return "sufficiently long title. sufficiently long title."
+
+    def test_hub_editor_can_update_another_users_proposal(self):
+        # Arrange
+        author = create_random_default_user("proposal_owner")
+        make_user_verified(author)
+        editor, _hub = create_hub_editor("proposal_editor", "Proposal Editor Hub")
+        make_user_verified(editor)
+
+        self.client.force_authenticate(author)
+        create_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": self._long_body(),
+                "title": self._long_title(),
+                "fundraise_goal_amount": 1000,
+            },
+        )
+        self.assertEqual(create_response.status_code, 200)
+
+        # Act
+        self.client.force_authenticate(editor)
+        update_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": create_response.data["id"],
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": self._long_body(),
+                "title": "updated sufficiently long title. updated title.",
+            },
+        )
+
+        # Assert
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(
+            update_response.data["title"],
+            "updated sufficiently long title. updated title.",
+        )
+
+    def test_outsider_still_cannot_update_proposal(self):
+        # Arrange
+        author = create_random_default_user("proposal_owner2")
+        make_user_verified(author)
+        outsider = create_random_default_user("proposal_outsider")
+        make_user_verified(outsider)
+
+        self.client.force_authenticate(author)
+        create_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": self._long_body(),
+                "title": self._long_title(),
+                "fundraise_goal_amount": 1000,
+            },
+        )
+        self.assertEqual(create_response.status_code, 200)
+
+        # Act
+        self.client.force_authenticate(outsider)
+        update_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": create_response.data["id"],
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": self._long_body(),
+                "title": "updated sufficiently long title. updated title.",
+            },
+        )
+
+        # Assert
+        self.assertEqual(update_response.status_code, 403)
+
+    def test_hub_editor_can_update_proposal_fundraise_goal(self):
+        # Arrange
+        author = create_random_default_user("goal_owner")
+        make_user_verified(author)
+        editor, _hub = create_hub_editor("goal_editor", "Goal Editor Hub")
+        make_user_verified(editor)
+
+        self.client.force_authenticate(author)
+        create_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": self._long_body(),
+                "title": self._long_title(),
+                "fundraise_goal_amount": 1000,
+            },
+        )
+        self.assertEqual(create_response.status_code, 200)
+        fundraise = Fundraise.objects.get(
+            unified_document_id=create_response.data["unified_document_id"]
+        )
+        fundraise.escrow.amount_holding = 100
+        fundraise.escrow.save(update_fields=["amount_holding"])
+        original_holding = fundraise.escrow.amount_holding
+
+        # Act
+        self.client.force_authenticate(editor)
+        increase_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": create_response.data["id"],
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": self._long_body(),
+                "title": self._long_title(),
+                "fundraise_goal_amount": 2000,
+            },
+        )
+        decrease_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": create_response.data["id"],
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": self._long_body(),
+                "title": self._long_title(),
+                "fundraise_goal_amount": 50,
+            },
+        )
+
+        # Assert
+        self.assertEqual(increase_response.status_code, 200)
+        self.assertEqual(
+            increase_response.data["fundraise"]["goal_amount"]["usd"], 2000
+        )
+        self.assertEqual(decrease_response.status_code, 200)
+        self.assertEqual(decrease_response.data["fundraise"]["goal_amount"]["usd"], 50)
+        fundraise.refresh_from_db()
+        fundraise.escrow.refresh_from_db()
+        self.assertEqual(fundraise.goal_amount, Decimal("50.00"))
+        self.assertEqual(fundraise.status, Fundraise.OPEN)
+        self.assertEqual(fundraise.escrow.amount_holding, original_holding)
+
+    def test_hub_editor_can_update_another_users_grant_amount(self):
+        # Arrange
+        author = create_random_default_user("grant_owner", moderator=True)
+        make_user_verified(author)
+        editor, _hub = create_hub_editor("grant_editor", "Grant Editor Hub")
+        make_user_verified(editor)
+
+        self.client.force_authenticate(author)
+        create_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": self._long_body(),
+                "title": self._long_title(),
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "Original Foundation",
+                "grant_description": "Original grant description",
+            },
+        )
+        self.assertEqual(create_response.status_code, 200)
+        grant = Grant.objects.get(id=create_response.data["grant"]["id"])
+        pool_holding_before = grant.funding_pool.amount_holding
+        cache.set("grant_available_funding", {"stale": True})
+
+        # Act
+        self.client.force_authenticate(editor)
+        with patch(
+            "researchhub_document.views.researchhub_post_views."
+            "GrantCacheMixin.invalidate_grant_feed_cache"
+        ) as invalidate_feed:
+            update_response = self.client.post(
+                "/api/researchhubpost/",
+                {
+                    "post_id": create_response.data["id"],
+                    "document_type": "GRANT",
+                    "created_by": author.id,
+                    "full_src": "updated body",
+                    "is_public": True,
+                    "renderable_text": self._long_body(),
+                    "title": self._long_title(),
+                    "grant_amount": 75000,
+                    "grant_currency": "USD",
+                    "grant_organization": "Updated Foundation",
+                    "grant_description": "Updated grant description",
+                },
+            )
+
+        # Assert
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.data["grant"]["amount"]["usd"], 75000.0)
+        grant.refresh_from_db()
+        self.assertEqual(grant.amount, Decimal("75000.00"))
+        self.assertEqual(grant.funding_pool.amount_holding, pool_holding_before)
+        self.assertIsNone(cache.get("grant_available_funding"))
+        invalidate_feed.assert_called_once()
 
 
 class PreregistrationGrantAutoAttachTests(APITestCase):

@@ -1,5 +1,6 @@
 import logging
 
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import OuterRef, Prefetch, Subquery
@@ -23,7 +24,7 @@ from ai_peer_review.signals import preregistration_substantively_updated
 from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
-from purchase.models import Grant, GrantApplication
+from purchase.models import Fundraise, Grant, GrantApplication
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.funding_pool_serializer import (
     FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
@@ -699,7 +700,11 @@ class ResearchhubPostViewSet(
                     status=status.HTTP_409_CONFLICT,
                 )
 
-            if authors and request.user.author_profile.id not in authors:
+            if (
+                authors
+                and not request.user.is_moderator_or_editor()
+                and request.user.author_profile.id not in authors
+            ):
                 return Response(
                     {"msg": "You must include yourself in the authors list"},
                     status=400,
@@ -730,87 +735,110 @@ class ResearchhubPostViewSet(
                 rh_post, data=data, partial=True, context={"request": request}
             )
             serializer.is_valid(raise_exception=True)
-            serializer.save()
-            post = serializer.instance
 
-            file_name = (
-                f"RH-POST-{request.data.get('document_type')}-"
-                f"USER-{request.user.id}.txt"
-            )
-            full_src_file = ContentFile(request.data["full_src"].encode())
-            post.discussion_src.save(file_name, full_src_file)
-
-            if post.document_type == PREREGISTRATION:
-                preregistration_substantively_updated.send(
-                    sender=ResearchhubPost,
-                    post_id=post.id,
-                )
-
-            if isinstance(authors, list):
-                self._validate_author_ids(authors)
-                rh_post.reset_post_authors(authors)
-
-            # Handle grant updates
-            grant = None
-            unified_document = post.unified_document
-
-            # Get existing grant if any
-            existing_grant = Grant.objects.filter(
-                unified_document=unified_document
+            # Reject a goal the update cannot apply before any post write.
+            goal_amount = data.get("fundraise_goal_amount")
+            fundraise = Fundraise.objects.filter(
+                unified_document=rh_post.unified_document
             ).first()
-
-            # Update grants if both grant data is provided AND a grant already exists
-            if (grant_amount := data.get("grant_amount")) and existing_grant:
-                grant_data = {
-                    "amount": grant_amount,
-                    "currency": data.get("grant_currency") or USD,
-                    "organization": data.get("grant_organization"),
-                    "description": data.get("grant_description"),
-                    "unified_document_id": unified_document.id,
-                    "end_date": data.get("grant_end_date"),
-                }
-
-                # Only include contact_ids if it's provided and not None
-                grant_contacts = data.get("grant_contacts")
-                if grant_contacts is not None:
-                    grant_data["contact_ids"] = grant_contacts
-
-                if application_visibility := data.get("grant_application_visibility"):
-                    grant_data["application_visibility"] = application_visibility
-
-                grant_serializer = GrantCreateSerializer(data=grant_data)
-                grant_serializer.is_valid(raise_exception=True)
-
-                # Update existing grant
-                existing_grant.amount = grant_serializer.validated_data["amount"]
-                existing_grant.currency = grant_serializer.validated_data["currency"]
-                existing_grant.organization = grant_serializer.validated_data[
-                    "organization"
-                ]
-                existing_grant.description = grant_serializer.validated_data[
-                    "description"
-                ]
-                existing_grant.end_date = grant_serializer.validated_data.get(
-                    "end_date"
+            if goal_amount:
+                if fundraise is None:
+                    raise serializers.ValidationError(
+                        "Fundraise does not exist for this post"
+                    )
+                FundraiseService().validate_goal_amount(
+                    fundraise,
+                    goal_amount,
+                    data.get("fundraise_goal_currency") or USD,
                 )
-                if "application_visibility" in grant_serializer.validated_data:
-                    existing_grant.application_visibility = (
-                        grant_serializer.validated_data["application_visibility"]
+
+            with transaction.atomic():
+                serializer.save()
+                post = serializer.instance
+
+                file_name = (
+                    f"RH-POST-{request.data.get('document_type')}-"
+                    f"USER-{request.user.id}.txt"
+                )
+                full_src_file = ContentFile(request.data["full_src"].encode())
+                post.discussion_src.save(file_name, full_src_file)
+
+                if post.document_type == PREREGISTRATION:
+                    preregistration_substantively_updated.send(
+                        sender=ResearchhubPost,
+                        post_id=post.id,
                     )
 
-                # Handle contacts properly - get contact_ids and convert to User objects
-                contact_ids = grant_serializer.validated_data.get("contact_ids", [])
-                if contact_ids:
-                    contacts = User.objects.filter(id__in=contact_ids)
-                    existing_grant.contacts.set(contacts)
-                else:
-                    existing_grant.contacts.clear()
+                if isinstance(authors, list):
+                    self._validate_author_ids(authors)
+                    rh_post.reset_post_authors(authors)
 
-                existing_grant.save()
-                grant = existing_grant
-            else:
-                # No grant data provided or no existing grant, preserve existing grant
-                grant = existing_grant
+                grant = None
+                unified_document = post.unified_document
+                existing_grant = Grant.objects.filter(
+                    unified_document=unified_document
+                ).first()
+
+                if (grant_amount := data.get("grant_amount")) and existing_grant:
+                    grant_data = {
+                        "amount": grant_amount,
+                        "currency": data.get("grant_currency") or USD,
+                        "organization": data.get("grant_organization"),
+                        "description": data.get("grant_description"),
+                        "unified_document_id": unified_document.id,
+                        "end_date": data.get("grant_end_date"),
+                    }
+
+                    grant_contacts = data.get("grant_contacts")
+                    if grant_contacts is not None:
+                        grant_data["contact_ids"] = grant_contacts
+
+                    if application_visibility := data.get(
+                        "grant_application_visibility"
+                    ):
+                        grant_data["application_visibility"] = application_visibility
+
+                    grant_serializer = GrantCreateSerializer(data=grant_data)
+                    grant_serializer.is_valid(raise_exception=True)
+
+                    existing_grant.amount = grant_serializer.validated_data["amount"]
+                    existing_grant.currency = grant_serializer.validated_data[
+                        "currency"
+                    ]
+                    existing_grant.organization = grant_serializer.validated_data[
+                        "organization"
+                    ]
+                    existing_grant.description = grant_serializer.validated_data[
+                        "description"
+                    ]
+                    existing_grant.end_date = grant_serializer.validated_data.get(
+                        "end_date"
+                    )
+                    if "application_visibility" in grant_serializer.validated_data:
+                        existing_grant.application_visibility = (
+                            grant_serializer.validated_data["application_visibility"]
+                        )
+
+                    contact_ids = grant_serializer.validated_data.get("contact_ids", [])
+                    if contact_ids:
+                        contacts = User.objects.filter(id__in=contact_ids)
+                        existing_grant.contacts.set(contacts)
+                    else:
+                        existing_grant.contacts.clear()
+
+                    existing_grant.save()
+                    grant = existing_grant
+                    cache.delete("grant_available_funding")
+                    GrantCacheMixin.invalidate_grant_feed_cache()
+                else:
+                    grant = existing_grant
+
+                if goal_amount:
+                    fundraise = FundraiseService().update_goal_amount(
+                        fundraise=fundraise,
+                        goal_amount=goal_amount,
+                        goal_currency=data.get("fundraise_goal_currency") or USD,
+                    )
 
             response_data = serializer.data
             # Set up context for grant serialization including contacts
@@ -843,6 +871,9 @@ class ResearchhubPostViewSet(
                     )
                 },
             }
+            response_data["fundraise"] = (
+                DynamicFundraiseSerializer(fundraise).data if fundraise else None
+            )
             response_data["grant"] = (
                 DynamicGrantSerializer(
                     grant,

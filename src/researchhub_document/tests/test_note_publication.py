@@ -17,7 +17,7 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.services.note_publication_service import (
     NotePublicationService,
 )
-from user.tests.helpers import create_random_default_user
+from user.tests.helpers import create_hub_editor, create_random_default_user
 from utils.test_helpers import AWSMockMixin
 
 
@@ -71,6 +71,20 @@ class NotePublicationTests(AWSMockMixin, APITestCase):
                 self.assertEqual(
                     ResearchhubUnifiedDocument.objects.count(), document_count
                 )
+
+    def test_hub_editor_can_publish_another_users_note(self):
+        # Arrange
+        editor, _hub = create_hub_editor("note_publication_editor", "Publication Hub")
+        self.client.force_authenticate(editor)
+
+        # Act
+        response = self.client.post("/api/researchhubpost/", self.payload)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            ResearchhubPost.objects.get(pk=response.data["id"]).note, self.note
+        )
 
     def test_read_permission_does_not_allow_publication(self):
         # Arrange

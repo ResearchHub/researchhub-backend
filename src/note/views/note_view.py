@@ -76,12 +76,16 @@ class NoteViewSet(ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        notes = self.queryset.filter(
+            Q(created_by=user)
+            | Q(organization__permissions__user=user)
+            | Q(unified_document__permissions__user=user)
+        )
+        if self.action == "retrieve" and user.is_moderator_or_editor():
+            notes = notes | self.queryset
+        # distinct() is required: the permission joins duplicate rows.
         return (
-            self.queryset.filter(
-                Q(created_by=user)
-                | Q(organization__permissions__user=user)
-                | Q(unified_document__permissions__user=user)
-            )
+            notes.distinct()
             .select_related(
                 "grant_settings",
                 "post",
@@ -97,9 +101,13 @@ class NoteViewSet(ModelViewSet):
                 # The selected grant's image lives on its post.
                 "selected_grant__unified_document__posts",
             )
-            .distinct()
             .order_by("-created_date")
         )
+
+    def check_object_permissions(self, request, obj):
+        if self.action == "retrieve" and request.user.is_moderator_or_editor():
+            return
+        super().check_object_permissions(request, obj)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def accessible(self, request):
@@ -527,8 +535,13 @@ class NoteContentViewSet(
         obj = get_object_or_404(queryset, **filter_kwargs)
 
         if request_method != "POST":
-            self.check_object_permissions(self.request, obj.note)
-        else:
+            note = obj.note
+            editor_opening_note = (
+                self.action == "retrieve" and self.request.user.is_moderator_or_editor()
+            )
+            if not editor_opening_note:
+                self.check_object_permissions(self.request, note)
+        elif not self.request.user.is_moderator_or_editor():
             self.check_object_permissions(self.request, obj)
 
         return obj

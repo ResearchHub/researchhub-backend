@@ -10,7 +10,9 @@ from research_ai.models import AgentExecution
 from research_ai.tests.agent_files.helpers import make_file
 from researchhub_access_group.constants import ADMIN, VIEWER
 from researchhub_access_group.models import Permission
+from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
+from user.tests.helpers import create_hub_editor
 
 MODEL_SETTINGS = {
     "ANTHROPIC_AWS_WORKSPACE_ID": "ws-test",
@@ -612,6 +614,37 @@ class NotebookChatViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 404)
+
+    def test_hub_editor_can_open_chats_on_a_published_note(self):
+        # Arrange
+        note, _content = create_note(self.owner, organization=None)
+        post = create_post(created_by=self.owner, document_type="GRANT")
+        post.note = note
+        post.save(update_fields=["note"])
+        editor, _hub = create_hub_editor("chat_editor", "Chat Editor Hub")
+        self.client.force_authenticate(editor)
+        url = f"/api/research_ai/notebook/notes/{note.id}/chats/"
+
+        # Act
+        listing = self.client.get(url)
+        created = self.client.post(url, {}, format="json")
+
+        # Assert
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(created.status_code, 201)
+
+    def test_hub_editor_can_open_chats_on_an_unpublished_note(self):
+        # Arrange
+        editor, _hub = create_hub_editor("chat_draft_editor", "Chat Draft Hub")
+        self.client.force_authenticate(editor)
+
+        # Act
+        listing = self.client.get(self.chats_url)
+        created = self.client.post(self.chats_url, {}, format="json")
+
+        # Assert
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(created.status_code, 201)
 
     # -- renaming ---------------------------------------------------------
 

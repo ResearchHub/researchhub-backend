@@ -1,9 +1,13 @@
 from researchhub_document.models import ResearchhubPost
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from utils.permissions import AuthorizationBasedPermission
 
 
 class HasDocumentEditingPermission(AuthorizationBasedPermission):
-    message = "Need to be author or moderator to edit"
+    message = "Need to be author, editor, or moderator to edit"
 
     def has_permission(self, request, view):
         if (
@@ -22,6 +26,8 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
         if user is None or not user.is_authenticated:
             return False
         if post.created_by_id == user.id or user.moderator:
+            return True
+        if user.is_hub_editor() and post.document_type in (GRANT, PREREGISTRATION):
             return True
         if post.note_id is not None and post.note.organization is not None:
             return post.note.organization.org_has_member_user(user)
