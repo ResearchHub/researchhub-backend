@@ -34,6 +34,8 @@ class OAuthEndpointTests(TestCase):
             "/oauth/revoke/",
             "/oauth/introspect/",
             "/api/oauth/authorize/",
+            "/api/oauth/connected_apps/",
+            "/api/oauth/connected_apps/1/",
         ]
         for url in urls:
             with self.subTest(url=url):

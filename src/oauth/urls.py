@@ -3,6 +3,7 @@ from oauth2_provider.views import RevokeTokenView, TokenView
 
 from oauth.views import (
     AuthorizationServerMetadataView,
+    ConnectedAppViewSet,
     IntrospectionView,
     OAuthAuthorizeView,
     oauth_enabled,
@@ -38,5 +39,15 @@ urlpatterns = [
         "api/oauth/authorize/",
         oauth_enabled(OAuthAuthorizeView.as_view()),
         name="consent",
+    ),
+    path(
+        "api/oauth/connected_apps/",
+        oauth_enabled(ConnectedAppViewSet.as_view({"get": "list"})),
+        name="connected-apps",
+    ),
+    path(
+        "api/oauth/connected_apps/<int:pk>/",
+        oauth_enabled(ConnectedAppViewSet.as_view({"delete": "destroy"})),
+        name="connected-app",
     ),
 ]

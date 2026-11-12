@@ -1,8 +1,11 @@
 import hashlib
+from collections import defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.db import transaction
 from oauth2_provider.exceptions import FatalClientError, OAuthToolkitError
 from oauth2_provider.models import (
     get_access_token_model,
@@ -41,6 +44,14 @@ class ConsentRequest:
     scopes: list[dict]
 
 
+@dataclass(frozen=True)
+class ConnectedApp:
+    id: int
+    name: str
+    scopes: list[dict]
+    last_used_at: datetime
+
+
 class OAuthAuthorizationServerService:
     """
     Handles OAuth 2.0 authorization requests, validates them, facilitates the consent
@@ -60,12 +71,11 @@ class OAuthAuthorizationServerService:
             client_id=credentials["client_id"]
         )
         redirect_host = urlparse(credentials["redirect_uri"]).hostname
-        all_scopes = get_scopes_backend().get_all_scopes()
         return ConsentRequest(
             client_name=self._client_name(application),
             redirect_host=redirect_host,
             loopback_redirect=redirect_host in LOOPBACK_HOSTS,
-            scopes=[{"name": s, "description": all_scopes[s]} for s in scopes],
+            scopes=self._describe_scopes(scopes),
         )
 
     def decide(self, request, allow: bool) -> str:
@@ -138,18 +148,53 @@ class OAuthAuthorizationServerService:
 
         return token
 
-    def revoke_user_tokens(self, user) -> None:
+    def list_connected_apps(self, user) -> list[ConnectedApp]:
         """
-        Revokes all of a user's tokens and authorization codes.
+        Returns the clients the user has authorized and not revoked, most recently
+        used first. `last_used_at` is when the client last obtained a token.
         """
-        refresh_tokens = get_refresh_token_model().objects.filter(
-            user=user, revoked__isnull=True
+        refresh_tokens = (
+            get_refresh_token_model()
+            .objects.filter(user=user, revoked__isnull=True, access_token__isnull=False)
+            .select_related("application", "access_token")
+            .order_by("-created")
         )
+        # A client the user authorized more than once holds a token for each:
+        last_used = {}
+        scopes = defaultdict(set)
         for refresh_token in refresh_tokens:
-            refresh_token.revoke()
-        # Includes the API tokens from token exchanges, which have no refresh token:
-        get_access_token_model().objects.filter(user=user).delete()
-        get_grant_model().objects.filter(user=user).delete()
+            application = refresh_token.application
+            last_used.setdefault(application, refresh_token.created)
+            scopes[application].update(refresh_token.access_token.scope.split())
+
+        return [
+            ConnectedApp(
+                id=application.id,
+                name=self._client_name(application),
+                scopes=self._describe_scopes(sorted(scopes[application])),
+                last_used_at=last_used_at,
+            )
+            for application, last_used_at in last_used.items()
+        ]
+
+    def revoke_user_tokens(self, user, application_id=None) -> None:
+        """
+        Revokes a user's tokens and authorization codes, for all clients or only
+        the given one. API tokens exchanged for a revoked token stop working too,
+        because deleting it deletes their delegation links.
+        """
+        filters = {"user": user}
+        if application_id is not None:
+            filters["application_id"] = application_id
+
+        with transaction.atomic():
+            refresh_tokens = get_refresh_token_model().objects.filter(
+                revoked__isnull=True, **filters
+            )
+            for refresh_token in refresh_tokens:
+                refresh_token.revoke()
+            get_access_token_model().objects.filter(**filters).delete()
+            get_grant_model().objects.filter(**filters).delete()
 
     @staticmethod
     def is_mcp_client(application) -> bool:
@@ -180,6 +225,11 @@ class OAuthAuthorizationServerService:
             return urlparse(application.client_id).hostname
 
         return application.name
+
+    @staticmethod
+    def _describe_scopes(scopes):
+        all_scopes = get_scopes_backend().get_all_scopes()
+        return [{"name": scope, "description": all_scopes[scope]} for scope in scopes]
 
     def _validate(self, request):
         try:
