@@ -1,0 +1,28 @@
+id: notebook/question-no-edit
+agent: notebook
+note:
+  title: Microplastics in freshwater fish
+  document_type: NOTE
+  blocks:
+    - "## Question"
+    - >-
+      Do microplastic concentrations in river sediment predict microplastic
+      load in the gut of benthic-feeding fish downstream of wastewater
+      outflows?
+    - "## Plan"
+    - >-
+      Sample sediment and fish at five sites along one river, two upstream
+      and three downstream of a treatment plant, once in summer. Count
+      particles larger than 100 micrometres under a stereo microscope.
+    - "## Expected result"
+    - >-
+      Downstream sites will show higher sediment concentrations and higher gut
+      loads, and the two will correlate across sites.
+turns:
+  - >-
+    What is the biggest weakness in this study design? Just tell me; don't
+    change the note.
+expect:
+  tools_called: [read_note]
+  tools_not_called: [edit_note, create_note]
+  note_unchanged: true
