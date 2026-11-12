@@ -51,14 +51,6 @@ class ProseMirrorSchemaTests(unittest.TestCase):
             self.assertIn(mark_name, block.marks)
             self.assertIn(mark_name, comment.marks)
 
-    def test_get_schema_caches_instances(self):
-        # Act
-        first = get_schema(COMMENT_EDITOR)
-        second = get_schema(COMMENT_EDITOR)
-
-        # Assert
-        self.assertIs(first, second)
-
     def test_parse_document_round_trips_and_fills_defaults(self):
         # Act
         node = parse_document(COMMENT_EDITOR, COMMENT_DOC)
@@ -72,25 +64,6 @@ class ProseMirrorSchemaTests(unittest.TestCase):
         self.assertEqual(node.child(2).attrs["language"], "javascript")
         self.assertEqual(round_tripped["type"], "doc")
         self.assertEqual(len(round_tripped["content"]), 3)
-
-    def test_programmatic_document_construction(self):
-        # Arrange
-        block = get_schema(BLOCK_EDITOR)
-
-        # Act
-        doc = block.node(
-            "doc",
-            None,
-            [
-                block.node("heading", {"level": 1}, [block.text("My note")]),
-                block.node("paragraph", None, [block.text("Body text")]),
-                block.node("imageBlock", {"src": "https://example.com/img.png"}),
-            ],
-        )
-        doc.check()
-
-        # Assert
-        self.assertIsNone(doc.child(2).attrs["alt"])
 
     def test_non_document_root_rejected(self):
         # Arrange

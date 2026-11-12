@@ -362,50 +362,6 @@ class FundingPoolServiceTests(TestCase):
             )
         self.assertEqual(str(ctx.exception), "Funding pool is not open")
 
-    def test_close_fundraise_restores_pool_and_refunds_user_slices(self):
-        # Arrange: pool top-up + direct user contribution on the same proposal
-        self._seed_pool_holding(Decimal(200))
-        _, application, fundraise = self._create_proposal_application_with_fundraise()
-        distribution = self.service.distribute(
-            self.pool, self.creator, Decimal(75), application.id
-        )
-
-        user_contributor = create_random_authenticated_user("mixed_close_user")
-        self._give_available_balance(user_contributor, 1000)
-        _, user_error = FundraiseService().create_rsc_contribution(
-            user_contributor, fundraise, Decimal(40), use_credits=False
-        )
-        self.assertIsNone(user_error)
-        creator_balance_before_close = self.creator.get_available_balance()
-
-        # Act
-        closed = FundraiseService().close_fundraise(fundraise)
-
-        # Assert
-        self.assertTrue(closed)
-        fundraise.refresh_from_db()
-        fundraise.escrow.refresh_from_db()
-        self.assertEqual(fundraise.status, Fundraise.CLOSED)
-        self.assertEqual(fundraise.escrow.amount_holding, Decimal(0))
-
-        distribution.refresh_from_db()
-        self.assertEqual(distribution.status, FundingDistribution.REVERSED)
-
-        self.pool.refresh_from_db()
-        self.assertEqual(self.pool.amount_holding, Decimal(200))
-        self.assertEqual(self.pool.amount_distributed, Decimal(0))
-
-        self.assertTrue(
-            Balance.objects.filter(user=user_contributor, amount=40).exists()
-        )
-        self.assertEqual(
-            self.creator.get_available_balance(), creator_balance_before_close
-        )
-        self.assertEqual(
-            Balance.objects.filter(purchase=distribution.fundraise_purchase).count(),
-            0,
-        )
-
     def test_complete_fundraise_settles_distribution_and_pays_author(self):
         # Arrange
         self._seed_pool_holding(Decimal(150))

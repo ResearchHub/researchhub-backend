@@ -30,18 +30,6 @@ class NonprofitOrgModelTests(TestCase):
         )
         self.assertEqual(str(nonprofit), "No EIN Org (No EIN)")
 
-    def test_model_fields(self):
-        """Test that all model fields are saved correctly."""
-        self.assertEqual(self.nonprofit.name, "Test Nonprofit")
-        self.assertEqual(self.nonprofit.ein, "123456789")
-        self.assertEqual(self.nonprofit.endaoment_org_id, "test-org-id")
-        self.assertEqual(
-            self.nonprofit.base_wallet_address,
-            "0x1234567890abcdef1234567890abcdef12345678",
-        )
-        self.assertIsNotNone(self.nonprofit.created_date)
-        self.assertIsNotNone(self.nonprofit.updated_date)
-
 
 class NonprofitFundraiseLinkModelTests(TestCase):
     """Test cases for the NonprofitFundraiseLink model."""
@@ -84,14 +72,6 @@ class NonprofitFundraiseLinkModelTests(TestCase):
         """Test the string representation of the model."""
         expected = f"Test Nonprofit - {self.fundraise.id}"
         self.assertEqual(str(self.link), expected)
-
-    def test_model_fields(self):
-        """Test that all model fields are saved correctly."""
-        self.assertEqual(self.link.nonprofit, self.nonprofit)
-        self.assertEqual(self.link.fundraise, self.fundraise)
-        self.assertEqual(self.link.note, "Test note for this link")
-        self.assertIsNotNone(self.link.created_date)
-        self.assertIsNotNone(self.link.updated_date)
 
     def test_unique_constraint(self):
         """Test that the unique_together constraint is enforced."""

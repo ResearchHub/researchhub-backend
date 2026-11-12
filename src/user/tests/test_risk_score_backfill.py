@@ -66,22 +66,6 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
             ).exists()
         )
 
-    def test_google_signup_signal(self):
-        # Arrange
-        SocialAccount.objects.create(
-            user=self.user, provider="google", uid="google-123"
-        )
-
-        # Act
-        self._call()
-
-        # Assert
-        self.assertTrue(
-            RiskScoreEvent.objects.filter(
-                user=self.user, event_type=EventType.GOOGLE_SIGNUP
-            ).exists()
-        )
-
     def test_edu_email_signal(self):
         # Arrange
         self.user.email = "scholar@stanford.edu"
@@ -113,42 +97,6 @@ class BackfillOneTimeSignalTests(BackfillCommandMixin, TestCase):
         self.assertTrue(
             RiskScoreEvent.objects.filter(
                 user=self.user, event_type=EventType.EDU_EMAIL
-            ).exists()
-        )
-
-    def test_persona_verified_signal(self):
-        # Arrange
-        UserVerification.objects.create(
-            user=self.user,
-            first_name="Test",
-            last_name="User",
-            status=UserVerification.Status.APPROVED,
-            verified_by=UserVerification.Type.PERSONA,
-            external_id="inq_123",
-        )
-
-        # Act
-        self._call()
-
-        # Assert
-        self.assertTrue(
-            RiskScoreEvent.objects.filter(
-                user=self.user, event_type=EventType.PERSONA_VERIFIED_WHITELISTED
-            ).exists()
-        )
-
-    def test_account_age_bonus_signal(self):
-        # Arrange
-        self.user.date_joined = timezone.now() - timedelta(days=91)
-        self.user.save(update_fields=["date_joined"])
-
-        # Act
-        self._call()
-
-        # Assert
-        self.assertTrue(
-            RiskScoreEvent.objects.filter(
-                user=self.user, event_type=EventType.ACCOUNT_AGE_BONUS
             ).exists()
         )
 

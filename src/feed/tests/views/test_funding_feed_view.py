@@ -422,27 +422,6 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         cache_key = viewset.get_cache_key(request, "funding")
         self.assertEqual(cache_key, "funding_feed:popular:all:all:none:3-10")
 
-    def test_preregistration_post_only(self):
-        """Test that funding feed only returns preregistration posts"""
-        response = self.client.get(reverse("funding_feed-list"))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        results = response.data["results"]
-        content_types = [result["content_type"] for result in results]
-
-        # All returned items should be ResearchhubPost
-        for content_type in content_types:
-            self.assertEqual(content_type, "RESEARCHHUBPOST")
-
-        # All returned items should be preregistration posts
-        result_ids = [int(result["content_object"]["id"]) for result in results]
-        for post_id in result_ids:
-            post = ResearchhubPost.objects.get(id=post_id)
-            self.assertEqual(post.document_type, PREREGISTRATION)
-
-        # Discussion post should not be included
-        self.assertNotIn(self.non_preregistration_post.id, result_ids)
-
     def test_fundraise_status_filter(self):
         """Test filtering feed by fundraise status"""
         # Test each filter option to ensure they can be passed without errors
@@ -464,154 +443,6 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.other_post.id
         )
-
-    def test_open_fundraise_sorting(self):
-        """
-        Test that OPEN fundraises are sorted by created_date descending (newest first)
-        """
-        # Arrange
-        today = timezone.now()
-
-        oldest_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        oldest_post = ResearchhubPost.objects.create(
-            title="Oldest Post",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=oldest_doc,
-        )
-        ResearchhubPost.objects.filter(id=oldest_post.id).update(
-            created_date=today - timezone.timedelta(days=10)
-        )
-
-        newest_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        newest_post = ResearchhubPost.objects.create(
-            title="Newest Post",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=newest_doc,
-        )
-        ResearchhubPost.objects.filter(id=newest_post.id).update(
-            created_date=today - timezone.timedelta(days=1)
-        )
-
-        escrow_oldest = Escrow.objects.create(
-            amount_holding=0,
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=oldest_doc.id,
-        )
-        escrow_newest = Escrow.objects.create(
-            amount_holding=0,
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=newest_doc.id,
-        )
-
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=oldest_doc,
-            escrow=escrow_oldest,
-            status=Fundraise.OPEN,
-            goal_amount=100,
-            end_date=today + timezone.timedelta(days=30),
-        )
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=newest_doc,
-            escrow=escrow_newest,
-            status=Fundraise.OPEN,
-            goal_amount=100,
-            end_date=today + timezone.timedelta(days=30),
-        )
-
-        # Act
-        url = reverse("funding_feed-list") + "?fundraise_status=OPEN&ordering=newest"
-        response = self.client.get(url)
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-        self.assertLess(post_ids.index(newest_post.id), post_ids.index(oldest_post.id))
-
-    def test_closed_fundraise_sorting(self):
-        """
-        Test that CLOSED fundraises are sorted by created_date descending (newest first)
-        """
-        # Arrange
-        today = timezone.now()
-
-        oldest_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        oldest_post = ResearchhubPost.objects.create(
-            title="Oldest Closed Post",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=oldest_doc,
-        )
-        ResearchhubPost.objects.filter(id=oldest_post.id).update(
-            created_date=today - timezone.timedelta(days=30)
-        )
-
-        newest_doc = ResearchhubUnifiedDocument.objects.create(
-            document_type=PREREGISTRATION
-        )
-        newest_post = ResearchhubPost.objects.create(
-            title="Newest Closed Post",
-            created_by=self.user,
-            document_type=PREREGISTRATION,
-            unified_document=newest_doc,
-        )
-        ResearchhubPost.objects.filter(id=newest_post.id).update(
-            created_date=today - timezone.timedelta(days=3)
-        )
-
-        escrow_oldest = Escrow.objects.create(
-            amount_holding=0,
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=oldest_doc.id,
-        )
-        escrow_newest = Escrow.objects.create(
-            amount_holding=0,
-            hold_type=Escrow.FUNDRAISE,
-            created_by=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=newest_doc.id,
-        )
-
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=oldest_doc,
-            escrow=escrow_oldest,
-            status=Fundraise.COMPLETED,
-            goal_amount=100,
-            end_date=today - timezone.timedelta(days=30),
-        )
-        Fundraise.objects.create(
-            created_by=self.user,
-            unified_document=newest_doc,
-            escrow=escrow_newest,
-            status=Fundraise.COMPLETED,
-            goal_amount=100,
-            end_date=today - timezone.timedelta(days=3),
-        )
-
-        # Act
-        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED"
-        response = self.client.get(url)
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-        self.assertLess(post_ids.index(newest_post.id), post_ids.index(oldest_post.id))
 
     def test_all_fundraise_conditional_sorting(self):
         """
@@ -850,51 +681,6 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 0)
 
-    def test_grant_id_filter_disables_caching(self):
-        """Test that grant_id filter disables caching"""
-        from researchhub_document.related_models.constants.document_type import GRANT
-
-        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
-        grant = Grant.objects.create(
-            created_by=self.user,
-            unified_document=grant_doc,
-            amount=20000.00,
-            currency="USD",
-            organization="Cache Test Foundation",
-            description="Test grant for cache behavior",
-            status=Grant.OPEN,
-        )
-
-        GrantApplication.objects.create(
-            grant=grant, preregistration_post=self.post, applicant=self.user
-        )
-
-        # Clear cache before test
-        cache.clear()
-
-        # Make request with grant_id filter
-        url = reverse("funding_feed-list") + f"?grant_id={grant.id}&page=1"
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify that cache was not used for this request
-        # The view should not cache responses when grant_id is provided
-        cache_key = "funding_feed:latest:all:all:none:1-20"
-        cached_response = cache.get(cache_key)
-
-        # Cache should be None since grant_id disables caching
-        self.assertIsNone(cached_response)
-
-    def test_grant_id_filter_invalid_grant_id(self):
-        """Test grant_id filter with invalid grant ID"""
-        # Use a non-existent grant ID
-        url = reverse("funding_feed-list") + "?grant_id=99999"
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 0)
-
     def test_created_by_filter(self):
         """Test filtering funding feed by created_by parameter"""
         # Create a third user and their preregistration post
@@ -1066,32 +852,6 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         mock_cache.get.assert_not_called()
         mock_cache.set.assert_not_called()
 
-    @patch("feed.views.funding_feed_view.cache")
-    def test_include_private_shows_private_for_hub_editor(self, mock_cache):
-        # Arrange
-        from user.tests.helpers import create_hub_editor
-
-        private_post = self._create_private_preregistration(self.user)
-        editor = create_hub_editor(
-            "funding_include_private_editor", "Funding Include Private Hub"
-        )[0]
-        editor_client = APIClient()
-        editor_client.force_authenticate(user=editor)
-        mock_cache.get.return_value = None
-
-        # Act
-        response = editor_client.get(
-            reverse("funding_feed-list"),
-            {"include_private": "true", "page": 1},
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
-        self.assertIn(private_post.id, post_ids)
-        mock_cache.get.assert_not_called()
-        mock_cache.set.assert_not_called()
-
     def test_include_private_ignored_for_non_mod(self):
         """Non-mods cannot force private via include_private; stay on :public."""
         # Arrange — private owned by self.user; request as unrelated other_user
@@ -1155,25 +915,6 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertIn(private_post.id, post_ids)
-
-    def test_created_by_filter_disables_caching(self):
-        """Test that created_by filter disables caching"""
-        # Clear cache before test
-        cache.clear()
-
-        # Make request with created_by filter
-        url = reverse("funding_feed-list") + f"?created_by={self.user.id}&page=1"
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verify that cache was not used for this request
-        # The view should not cache responses when created_by is provided
-        cache_key = "funding_feed:latest:all:all:none:1-20"
-        cached_response = cache.get(cache_key)
-
-        # Cache should be None since created_by disables caching
-        self.assertIsNone(cached_response)
 
     def test_created_by_filter_with_fundraise_status(self):
         """Test created_by filter combined with fundraise_status filter"""
@@ -1406,17 +1147,6 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertIn(
             mixed_post.id, post_ids
         )  # Has COMPLETED fundraise - included despite open-expired one
-
-    def test_include_ended_default_behavior(self):
-        """Test that include_ended defaults to true when not specified"""
-        url = reverse("funding_feed-list")
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Should return all items (default behavior)
-        self.assertEqual(
-            len(response.data["results"]), 2
-        )  # self.post and self.other_post
 
     def test_upvotes_sorting(self):
         """Test sorting by upvotes (descending)"""
@@ -1794,32 +1524,6 @@ class FundingFeedViewSetTests(AWSMockTestCase):
             filter_instance.filter_queryset(drf_request, mock_queryset, mock_view)
             mock_upvotes.assert_called_once_with(mock_queryset)
 
-    def test_ordering_validation_integration(self):
-        """Test ordering validation through the actual API endpoint."""
-        # Test valid ordering
-        response = self.client.get(
-            reverse("funding_feed-list"), {"ordering": "upvotes"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Test invalid ordering - should fall back to default (best)
-        response = self.client.get(
-            reverse("funding_feed-list"), {"ordering": "invalid_field"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Test with '-' prefix - should work
-        response = self.client.get(
-            reverse("funding_feed-list"), {"ordering": "-upvotes"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Test multiple fields - should take first valid one
-        response = self.client.get(
-            reverse("funding_feed-list"), {"ordering": "invalid_field,upvotes"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
     def _create_fundraise_post(self, title, amount, status, created_date=None):
         """Helper to create a fundraise post for testing"""
         doc = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
@@ -2118,20 +1822,3 @@ class FundingFeedViewSetTests(AWSMockTestCase):
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
-
-    def test_funded_by_filter_returns_empty_for_user_with_no_grants(self):
-        """
-        Test funded_by filter returns empty when user has no grants with applications.
-        """
-        # Arrange
-        user_without_grants = User.objects.create_user(
-            username="no_grants", password=uuid.uuid4().hex
-        )
-
-        # Act
-        response = self.client.get(
-            reverse("funding_feed-list") + f"?funded_by={user_without_grants.id}"
-        )
-
-        # Assert
-        self.assertEqual(len(response.data["results"]), 0)

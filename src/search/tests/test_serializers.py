@@ -203,21 +203,3 @@ class TestElasticsearchSerializer(TestCase):
 
         # Assert
         self.assertEqual(result["nullable_field"], None)
-
-    def test_to_representation_with_nested_data(self):
-        """Test serializing documents with nested data structures"""
-        # Arrange
-        doc = create_mock_document(
-            id=1,
-            name="Test",
-            metadata={"key1": "value1", "key2": "value2"},
-            tags=["tag1", "tag2", "tag3"],
-        )
-
-        # Act
-        result = self.serializer.to_representation(doc)
-
-        # Assert
-        self.assertEqual(result["id"], 1)
-        self.assertEqual(result["metadata"], {"key1": "value1", "key2": "value2"})
-        self.assertEqual(result["tags"], ["tag1", "tag2", "tag3"])

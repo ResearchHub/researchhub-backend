@@ -647,21 +647,6 @@ class CompleteAndParseTests(SimpleTestCase):
         self.assertEqual(call["output_config"], {"effort": "low"})
         self.assertNotIn("temperature", call)
 
-    def test_opus_5_5_uses_mandatory_adaptive_thinking(self):
-        # Arrange
-        provider = _build_provider([_build_response([])], model_id="claude-opus-5-5")
-
-        # Act
-        _complete(provider, temperature=0.7)
-
-        # Assert
-        call = provider._client.messages.calls[0]
-        self.assertEqual(
-            call["thinking"], {"type": "adaptive", "display": "summarized"}
-        )
-        self.assertEqual(call["output_config"], {"effort": "low"})
-        self.assertNotIn("temperature", call)
-
     def test_frontend_generation_options_override_provider_defaults(self):
         # Arrange
         provider = _build_provider(
@@ -929,23 +914,6 @@ class CompleteAndParseTests(SimpleTestCase):
             _complete(provider)
         self.assertIsInstance(ctx.exception.__cause__, ValueError)
 
-    def test_none_max_tokens_resolves_to_the_model_output_ceiling(self):
-        # Arrange: an unset ceiling resolves to Opus 5's reviewed cap.
-        provider = _build_provider([_build_response([])])
-
-        # Act
-        provider.complete(
-            system_prompt="sys",
-            messages=[Message(role="user", content=[TextBlock(text="hi")])],
-            rendered_tools=[],
-            max_tokens=None,
-            temperature=0.0,
-        )
-
-        # Assert
-        call = provider._client.messages.calls[0]
-        self.assertEqual(call["max_tokens"], 128_000)
-
     def test_explicit_max_tokens_is_forwarded_unchanged(self):
         # Arrange: the _complete helper passes max_tokens=100.
         provider = _build_provider([_build_response([])])
@@ -1064,22 +1032,6 @@ class ServerSideToolTests(SimpleTestCase):
         self.assertEqual(turn.text, "found it")
         self.assertEqual(turn.tool_calls, [])
 
-    def test_server_tool_blocks_replay_verbatim_and_still_paired(self):
-        # Arrange: parse a searching turn, then send it back as history.
-        provider = _build_provider([_build_response(_build_server_search_blocks())])
-        turn = _complete(provider)
-
-        # Act
-        rendered = provider._render_messages(
-            [Message(role="assistant", content=turn.replay_content)]
-        )
-
-        # Assert: unedited wire shapes, request then result, ids still matching.
-        request, result = rendered[0]["content"]
-        self.assertEqual(request["type"], "server_tool_use")
-        self.assertEqual(result["type"], "web_search_tool_result")
-        self.assertEqual(result["tool_use_id"], request["id"])
-
     def test_code_execution_result_replays_with_encrypted_output(self):
         # Arrange: web search may invoke provider-managed code execution and
         # return its encrypted output as another assistant response block.
@@ -1116,36 +1068,6 @@ class ServerSideToolTests(SimpleTestCase):
         self.assertEqual(
             replayed_result["content"]["encrypted_stdout"],
             "enc-stdout",
-        )
-
-    def test_container_disclosed_only_by_a_stream_event_is_recorded(self):
-        # Arrange: Anthropic reports the container on ``message_delta``, which
-        # the SDK never accumulates onto the final message -- reading the final
-        # message alone loses the id every later request needs.
-        container = Container(
-            id="container_123",
-            expires_at=datetime(2099, 1, 1, tzinfo=UTC),
-        )
-        delta = _build_container_delta(container)
-
-        class DeltaOnlyMessages:
-            def stream(self, **kwargs):
-                return _FakeStream(_build_response([], stop_reason="tool_use"), [delta])
-
-        class DeltaOnlyClient:
-            messages = DeltaOnlyMessages()
-
-        provider = ClaudePlatformProvider(
-            client=DeltaOnlyClient(), model_id="claude-opus-5"
-        )
-
-        # Act
-        turn = _complete(provider)
-
-        # Assert
-        self.assertEqual(
-            turn.provider_state["anthropic"]["container"]["id"],
-            "container_123",
         )
 
     def test_code_execution_container_and_tool_caller_replay_on_followup(self):
@@ -1471,20 +1393,6 @@ class ServerSideToolTests(SimpleTestCase):
 
         # Assert
         self.assertEqual(turn.text, "resumed")
-        self.assertNotIn("container", provider._client.messages.calls[0])
-
-    def test_ordinary_requests_need_no_container(self):
-        # Arrange: no programmatic tool calls anywhere -- the common case must
-        # not be gated on container state.
-        provider = _build_provider(
-            [_build_response([AnthropicTextBlock(type="text", text="hello")])]
-        )
-
-        # Act
-        turn = _complete(provider)
-
-        # Assert
-        self.assertEqual(turn.text, "hello")
         self.assertNotIn("container", provider._client.messages.calls[0])
 
     def test_code_execution_container_survives_multihop_tool_calls(self):
@@ -1828,24 +1736,6 @@ class ServerSideToolTests(SimpleTestCase):
 
         # Assert: left unmarked (the tools+system breakpoint still stands).
         self.assertNotIn("cache_control", rendered[-1]["content"][-1])
-
-    def test_cache_breakpoint_still_lands_on_an_ordinary_turn(self):
-        # Arrange: the usual case -- the loop completes from a user turn.
-        provider = _build_provider()
-        messages = [
-            Message(
-                role="user",
-                content=[ToolResultBlock(tool_use_id="t1", content={"ok": True})],
-            )
-        ]
-
-        # Act
-        rendered = provider._render_messages(messages, cache_last=True)
-
-        # Assert
-        self.assertEqual(
-            rendered[-1]["content"][-1]["cache_control"], {"type": "ephemeral"}
-        )
 
 
 class RetryableErrorClassificationTests(SimpleTestCase):

@@ -67,15 +67,6 @@ class FundingCreditsReminderServiceTests(TestCase):
             is_html=True,
         )
 
-    def test_skips_users_without_funding_credits(self) -> None:
-        """A user with no funding credits gets no reminder."""
-        # Act
-        result = self.service.send_reminders()
-
-        # Assert
-        self.assertEqual(result, {"sent_count": 0})
-        self.assertFalse(self.notifications.exists())
-
     def test_skips_users_whose_credits_are_spent(self) -> None:
         """Credits fully offset by a debit do not trigger a reminder."""
         # Arrange

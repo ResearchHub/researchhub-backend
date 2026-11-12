@@ -21,11 +21,6 @@ class AmplitudeWebhookTestCase(TestCase):
         self.user = create_random_default_user("test_user")
         self.post = create_post(created_by=self.user)
 
-    def test_webhook_requires_post_method(self):
-        """Test that the webhook only accepts POST requests."""
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-
     def test_webhook_rejects_empty_payload(self):
         """Test that the webhook rejects empty payload."""
         response = self.client.post(

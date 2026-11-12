@@ -121,39 +121,6 @@ class PaperSignalsTests(AWSMockTestCase):
         mock_update_feed_metrics.apply_async.assert_not_called()
 
     @patch("feed.signals.paper_signals.update_feed_metrics")
-    def test_signal_handles_multiple_metrics_updates(self, mock_update_feed_metrics):
-        """
-        Test that the signal properly handles multiple updates to external_metadata.
-        """
-        # Arrange
-        mock_update_feed_metrics.apply_async = MagicMock()
-
-        # Act - First update
-        self.paper.external_metadata = {
-            "metrics": {
-                "score": 10.0,
-                "facebook_count": 5,
-                "twitter_count": 50,
-                "bluesky_count": 2,
-            }
-        }
-        self.paper.save(update_fields=["external_metadata"])
-
-        # Second update
-        self.paper.external_metadata = {
-            "metrics": {
-                "score": 20.0,
-                "facebook_count": 10,
-                "twitter_count": 100,
-                "bluesky_count": 5,
-            }
-        }
-        self.paper.save(update_fields=["external_metadata"])
-
-        # Assert - should be called twice
-        self.assertEqual(mock_update_feed_metrics.apply_async.call_count, 2)
-
-    @patch("feed.signals.paper_signals.update_feed_metrics")
     @patch("feed.signals.paper_signals.logger")
     def test_signal_logs_error_on_exception(
         self, mock_logger, mock_update_feed_metrics

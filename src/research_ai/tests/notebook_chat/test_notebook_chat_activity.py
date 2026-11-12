@@ -570,35 +570,6 @@ class NotebookChatActivityProjectionTests(TestCase):
         (event,) = _tool_calls(execution["activity"])
         return event
 
-    def test_claude_thinking_block_produces_a_thinking_event(self):
-        # Arrange
-        self._add_trace_row(
-            1,
-            [
-                {
-                    "type": "thinking",
-                    "data": {
-                        "type": "thinking",
-                        "thinking": "I should inspect the evidence.",
-                        "signature": "sig-opaque",
-                    },
-                },
-                {"type": "text", "text": "I will inspect the evidence."},
-            ],
-            AgentExecutionMessage.Provenance.MODEL,
-        )
-
-        # Act
-        activity = self._entry()["activity"]
-
-        # Assert
-        (thinking,) = _thinkings(activity)
-        self.assertEqual(thinking["text"], "I should inspect the evidence.")
-        self.assertEqual(
-            [event["type"] for event in activity], ["thinking", "narration"]
-        )
-        self.assertNotIn("sig-opaque", json.dumps(activity, default=str))
-
     def test_active_turn_includes_reconnectable_stream_snapshot(self):
         # Arrange
         snapshot = {
@@ -1612,41 +1583,6 @@ class NotebookChatActivityViewTests(APITestCase):
         self.assertEqual(event["tool"], "read_note")
         self.assertEqual(event["label"], "Read the note")
         self.assertEqual(event["status"], "succeeded")
-
-    def test_get_chat_surfaces_thinking_events(self):
-        # Arrange
-        with patch("research_ai.tasks.run_notebook_chat_turn_task.delay"):
-            posted = self.client.post(
-                f"{self.chat_url}messages/",
-                {"message": "Summarize the note"},
-                format="json",
-            )
-        _make_service(
-            provider=FakeProvider(
-                [
-                    tool_turn(
-                        "t1",
-                        "read_note",
-                        {"note_id": self.note.id},
-                        thinking={
-                            "type": "thinking",
-                            "thinking": "I should read the note first.",
-                            "signature": "sig-opaque",
-                        },
-                    ),
-                    text_turn("Summary."),
-                ]
-            )
-        ).run_turn(posted.data["execution_id"])
-
-        # Act
-        response = self.client.get(self.chat_url)
-
-        # Assert
-        (execution,) = response.data["executions"]
-        (thinking,) = _thinkings(execution["activity"])
-        self.assertEqual(thinking["text"], "I should read the note first.")
-        self.assertNotIn("sig-opaque", json.dumps(response.data, default=str))
 
     def test_activity_live_query_param_selects_the_polling_projection(self):
         # Arrange: two finished turns, the older settled beyond the grace

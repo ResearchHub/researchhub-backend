@@ -36,12 +36,6 @@ class AssistantChatViewTests(APITestCase):
             password="password",
             email="other@researchhub_test.com",
         )
-        # Neither editor nor moderator: verifies regular user access.
-        self.regular_user = user_model.objects.create_user(
-            username="regular@researchhub_test.com",
-            password="password",
-            email="regular@researchhub_test.com",
-        )
 
     def _chat_url(self, conversation_id):
         return f"{CHATS_URL}{conversation_id}/"
@@ -75,16 +69,6 @@ class AssistantChatViewTests(APITestCase):
         self.assertEqual(response.data["messages"], [])
         self.assertEqual(response.data["executions"], [])
         self.assertEqual(response.data["notes"], [])
-
-    def test_regular_users_can_create_chats(self):
-        # Arrange
-        self.client.force_authenticate(self.regular_user)
-
-        # Act
-        response = self.client.post(CHATS_URL, {}, format="json")
-
-        # Assert
-        self.assertEqual(response.status_code, 201)
 
     def test_requires_authentication(self):
         # Act

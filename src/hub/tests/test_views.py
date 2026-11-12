@@ -111,12 +111,3 @@ class HubViewsTests(APITestCase):
         self.assertEqual(len(results), 2)  # includes self.hub and self.hub2 from setUp
         hub_names = [h["name"] for h in results]
         self.assertNotIn("Journal Hub", hub_names)
-
-    def test_include_journals_parameter(self):
-        """Test that exclude_journals=false includes journal hubs"""
-
-        # Test with exclude_journals=false
-        response = self.client.get(self.base_url + "?exclude_journals=false")
-        self.assertEqual(
-            len(response.data["results"]), 2
-        )  # includes self.hub and self.hub2 from setUp

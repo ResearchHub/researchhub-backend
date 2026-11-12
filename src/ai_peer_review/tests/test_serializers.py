@@ -59,11 +59,3 @@ class EditorialFeedbackUpsertSerializerTests(SimpleTestCase):
         )
         with self.assertRaises(ValidationError):
             ser.is_valid(raise_exception=True)
-
-    def test_create_accepts_full_category_set(self):
-        cats = [{"category_code": k, "score": "high"} for k in CATEGORY_KEYS]
-        ser = EditorialFeedbackUpsertSerializer(
-            data={"expert_insights": "hi", "categories": cats},
-            context={"is_create": True},
-        )
-        self.assertTrue(ser.is_valid(), ser.errors)

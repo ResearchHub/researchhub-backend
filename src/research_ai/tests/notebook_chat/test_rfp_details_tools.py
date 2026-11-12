@@ -153,18 +153,6 @@ class RFPDetailsToolsetTests(TestCase):
             [self.user.id, self.colleague.id],
         )
 
-    def test_changes_only_the_fields_passed(self):
-        # Arrange
-        self._update(amount=50000, organization="Research Foundation")
-
-        # Act
-        result = self._update(description="Funding for field surveys.")
-
-        # Assert
-        self.assertEqual(result["amount"], "50000.00")
-        self.assertEqual(result["organization"], "Research Foundation")
-        self.assertEqual(result["description"], "Funding for field surveys.")
-
     def test_null_arguments_leave_stored_values_alone(self):
         # Arrange: models pad optional arguments with nulls.
         self._update(

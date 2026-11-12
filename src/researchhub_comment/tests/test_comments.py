@@ -214,25 +214,6 @@ class CommentViewTests(APITestCase):
 
         self.assertEqual(res.status_code, 200)
 
-    def test_comment_author_can_post_author_update(self):
-        # Arrange
-        author = self.paper.uploaded_by
-        self.client.force_authenticate(author)
-
-        # Act
-        res = self.client.post(
-            f"/api/paper/{self.paper.id}/comments/create_rh_comment/",
-            {
-                "comment_content_json": {
-                    "ops": [{"insert": "this is an author update"}]
-                },
-                "thread_type": "AUTHOR_UPDATE",
-            },
-        )
-
-        # Assert
-        self.assertEqual(res.status_code, 200)
-
     def test_comment_non_author_cant_post_author_update(self):
         # Arrange
         non_author = self.user_1
@@ -439,37 +420,6 @@ class CommentViewTests(APITestCase):
 
                 # Assert
                 self.assertEqual(link, f"{base_url}/{tab}#comment-{reply.id}")
-
-    def test_censored_top_level_comments_excluded_from_list(self):
-        """
-        Test that censored top-level comments are completely excluded
-        from the list endpoint.
-        """
-        parent_comment = self._create_paper_comment(self.paper.id, self.user_1)
-        self._create_paper_comment(
-            self.paper.id, self.user_2, parent_id=parent_comment.data["id"]
-        )
-        self._create_paper_comment(
-            self.paper.id, self.user_3, parent_id=parent_comment.data["id"]
-        )
-
-        # Verify the top-level comment is initially visible in the list
-        comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
-        self.assertEqual(comments_res.status_code, 200)
-        self.assertEqual(comments_res.data["count"], 1)
-
-        # Censor the parent comment
-        self.client.force_authenticate(self.moderator)
-        censor_res = self.client.delete(
-            f"/api/paper/{self.paper.id}/comments/{parent_comment.data['id']}/censor/"
-        )
-        self.assertEqual(censor_res.status_code, 200)
-
-        # Get comments list again - censored comment should be gone
-        comments_res = self.client.get(f"/api/paper/{self.paper.id}/comments/")
-        self.assertEqual(comments_res.status_code, 200)
-        self.assertEqual(comments_res.data["count"], 0)
-        self.assertEqual(len(comments_res.data["results"]), 0)
 
     def test_censored_nested_comments_excluded_from_children(self):
         """

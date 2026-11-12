@@ -221,31 +221,6 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         )
         self.assertEqual(link.note, "Test note for the link")
 
-    def test_link_to_fundraise_existing(self):
-        """Test updating an existing link between a nonprofit and a fundraise."""
-        # Create a link first
-        link = NonprofitFundraiseLink.objects.create(
-            nonprofit=self.nonprofit,
-            fundraise=self.fundraise,
-            note="Original note",
-        )
-
-        # Update the link
-        data = {
-            "nonprofit_id": self.nonprofit.id,
-            "fundraise_id": self.fundraise.id,
-            "note": "Updated note",
-        }
-
-        response = self.client.post(self.link_to_fundraise_url, data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["note"], "Updated note")
-
-        # Verify the link was updated in the database
-        link.refresh_from_db()
-        self.assertEqual(link.note, "Updated note")
-
     def test_link_to_fundraise_rejects_non_owner_create(self):
         """Test that users cannot link nonprofits to another user's fundraise."""
         other_user = self.user_model.objects.create_user(

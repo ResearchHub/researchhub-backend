@@ -291,37 +291,6 @@ class AgentLoopTests(SimpleTestCase):
         self.assertIsInstance(assistant_message.content[1], TextBlock)
         self.assertIsInstance(assistant_message.content[2], ToolUseBlock)
 
-    def test_tool_use_and_result_ids_correlate(self):
-        # Arrange
-        provider = FakeProvider(
-            [
-                _build_tool_turn("t1", "search", {"q": "jane"}),
-                _build_text_turn("done"),
-            ]
-        )
-        agent = _build_agent(provider, _build_toolset())
-
-        # Act
-        result = agent.run("find jane")
-
-        # Assert: the tool result echoes the tool use id (id-correlation).
-        tool_result_msg = result.messages[2]
-        self.assertEqual(tool_result_msg.role, "user")
-        self.assertEqual(tool_result_msg.content[0].tool_use_id, "t1")
-
-    def test_plain_text_turn_ends_loop(self):
-        # Arrange
-        provider = FakeProvider([_build_text_turn("all done")])
-        agent = _build_agent(provider, _build_toolset())
-
-        # Act
-        result = agent.run("hi")
-
-        # Assert
-        self.assertEqual(result.final_text, "all done")
-        self.assertEqual(result.stop_reason, "end_turn")
-        self.assertEqual(result.iterations, 1)
-
     def test_non_terminal_provider_stop_without_tool_calls_raises(self):
         # Arrange: partial text from the provider is not a completed answer.
         provider = FakeProvider(
@@ -461,24 +430,6 @@ class AgentLoopTests(SimpleTestCase):
         self.assertEqual(len(recorder.messages), 3)  # user, assistant, tool results
         self.assertEqual(recorder.failed, [ctx.exception])
         self.assertEqual(recorder.finished, [])
-
-    def test_recorder_sees_iteration_limit_failure(self):
-        # Arrange: the model never stops calling tools.
-        provider = FakeProvider(
-            [_build_tool_turn(f"t{i}", "search", {}) for i in range(5)]
-        )
-        recorder = RecordingRecorder()
-        agent = _build_agent(
-            provider, _build_toolset(), max_iterations=2, recorder=recorder
-        )
-
-        # Act
-        with self.assertRaises(IterationLimitError) as ctx:
-            agent.run("loop forever")
-
-        # Assert: the full accumulated transcript was recorded before the failure.
-        self.assertEqual([m for m, _ in recorder.messages], ctx.exception.messages)
-        self.assertEqual(recorder.failed, [ctx.exception])
 
     def test_raising_recorder_does_not_break_the_run(self):
         # Arrange

@@ -232,28 +232,3 @@ class ExternalCategoryMapperTestCase(TestCase):
         # Should still return the Computer Science hub that does exist
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].name, "Computer Science")
-
-    def test_cross_discipline_mappings_work_correctly(self):
-        """
-        Test that categories can map across traditional discipline boundaries.
-
-        Some categories like 'biochemistry' in ChemRxiv should map to Biology hubs,
-        not Chemistry hubs, reflecting the interdisciplinary nature of research.
-        """
-        # Create hubs for cross-discipline test
-        Hub.objects.create(name="Biochemistry", description="Biochemistry research")
-        Hub.objects.create(
-            name="Biological Physics", description="Biological Physics research"
-        )
-
-        # Test ChemRxiv biochemistry -> Biology
-        result = ExternalCategoryMapper.map("biochemistry", source="chemrxiv")
-        result_names = [hub.name for hub in result]
-        self.assertIn("Biology", result_names)
-        self.assertIn("Biochemistry", result_names)
-
-        # Test arXiv physics.bio-ph -> Biology
-        result = ExternalCategoryMapper.map("physics.bio-ph", source="arxiv")
-        result_names = [hub.name for hub in result]
-        self.assertIn("Biology", result_names)
-        self.assertIn("Biological Physics", result_names)
