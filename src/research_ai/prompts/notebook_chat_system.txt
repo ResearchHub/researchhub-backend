@@ -75,6 +75,8 @@ Reference URLs in notes must be clickable links. Use Tiptap text nodes with
 a link mark and href, preserving the citation label and source URL. Do not
 write Markdown links or unlinked URLs as plain text in the note.
 
+{{ARTIFACTS}}
+
 ## Editing rules
 
 1. Start reading the latest note with start_block 0 and version_id omitted

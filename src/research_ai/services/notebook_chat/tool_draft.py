@@ -14,9 +14,15 @@ Consecutive strings are separated by a blank line so the preview reads as
 paragraphs. The scanner tolerates fragments split anywhere, including inside
 escape sequences, and never raises on malformed input: the preview is
 best-effort and a broken stream simply stops yielding text.
+
+:class:`ArtifactDraft` reads ``create_artifact`` the same way: its ``content``
+string is the preview text, and its title and kind ride along with it.
 """
 
+import jiter
+
 from research_ai.services.note_tools import EDIT_NOTE
+from research_ai.services.notebook_chat.artifact_tools import CREATE_ARTIFACT
 
 # Tools whose arguments carry note prose worth previewing. Other tools' inputs
 # (queries, ids, code) still announce themselves via the draft item but surface
@@ -42,9 +48,16 @@ _ROLE_SKIP = "skip"
 
 
 class ToolDraftTextExtractor:
-    """Feed JSON fragments; get back the prose written since the last feed."""
+    """Feed JSON fragments; get back the prose written since the last feed.
 
-    def __init__(self):
+    ``prose_key`` names the object key whose string values are prose, and
+    ``array_prose`` whether bare strings in arrays are too; the defaults read
+    ``edit_note`` blocks.
+    """
+
+    def __init__(self, *, prose_key: str = _PROSE_KEY, array_prose: bool = True):
+        self._prose_key = prose_key
+        self._array_prose = array_prose
         # One entry per open container: ("object", expecting_key) or ("array",).
         self._stack: list[list] = []
         self._current_key: str | None = None
@@ -164,5 +177,45 @@ class ToolDraftTextExtractor:
         if top[0] == "object":
             if top[1]:
                 return _ROLE_KEY
-            return _ROLE_PROSE if self._current_key == _PROSE_KEY else _ROLE_SKIP
-        return _ROLE_PROSE
+            return _ROLE_PROSE if self._current_key == self._prose_key else _ROLE_SKIP
+        return _ROLE_PROSE if self._array_prose else _ROLE_SKIP
+
+
+# Tools whose arguments are an artifact being written: the content streams
+# whole, and the title and kind are picked out as soon as they are written.
+TOOL_DRAFT_ARTIFACT_TOOLS = frozenset({CREATE_ARTIFACT})
+_ARTIFACT_HEAD_FIELDS = ("title", "kind", "language")
+# The fields precede the content in the schema; a model that writes them after
+# it still gets its content streamed, just without a title until the call runs.
+_MAX_ARTIFACT_HEAD_BYTES = 2_048
+
+
+class ArtifactDraft:
+    """Feed ``create_artifact`` argument fragments; get back new content."""
+
+    def __init__(self):
+        self._content = ToolDraftTextExtractor(prose_key="content", array_prose=False)
+        self._head = bytearray()
+        self.fields: dict[str, str] = {}
+
+    def feed(self, fragment: str) -> str:
+        room = _MAX_ARTIFACT_HEAD_BYTES - len(self._head)
+        if room > 0:
+            self._head.extend(fragment.encode("utf-8")[:room])
+            self._read_head()
+        return self._content.feed(fragment)
+
+    def _read_head(self) -> None:
+        try:
+            payload = jiter.from_json(
+                bytes(self._head), partial_mode="trailing-strings"
+            )
+        except ValueError:
+            return
+        if not isinstance(payload, dict):
+            return
+        self.fields = {
+            field: payload[field]
+            for field in _ARTIFACT_HEAD_FIELDS
+            if isinstance(payload.get(field), str) and payload[field]
+        }
