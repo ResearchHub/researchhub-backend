@@ -12,6 +12,7 @@ from purchase.circle.service import (
     COMPLETED_STATES,
     FAILED_STATES,
     PENDING_DEPOSIT_STATES,
+    is_sweep_awaiting_transfer_id,
     process_circle_deposit,
 )
 from purchase.circle.webhook import is_rsc_token, verify_webhook_signature
@@ -145,6 +146,25 @@ class CircleWebhookView(APIView):
                 payload.get("notificationId"),
             )
             return Response(status=status.HTTP_200_OK)
+
+        is_final = state in COMPLETED_STATES or state in FAILED_STATES
+        if is_final and is_sweep_awaiting_transfer_id(
+            transaction_id,
+            notification.get("walletId"),
+            notification.get("blockchain", ""),
+        ):
+            # Ask Circle to redeliver once execute_sweep has saved the id,
+            # otherwise the sweep would stay INITIATED forever.
+            logger.info(
+                "Outbound webhook arrived before sweep transfer id was saved: "
+                "transfer_id=%s notification_id=%s",
+                transaction_id,
+                payload.get("notificationId"),
+            )
+            return Response(
+                {"message": "Sweep transfer not recorded yet"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         if state in COMPLETED_STATES:
             updated = self._update_sweep_status(transaction_id, Deposit.SWEEP_COMPLETED)

@@ -69,7 +69,15 @@ def process_circle_deposit(
     created and immediately marked PAID.
 
     If the Deposit is already PAID, the user is *not* credited again and no
-    sweep is dispatched.
+    sweep is dispatched. The row is locked so concurrent COMPLETED webhooks
+    (Circle retries them) cannot both credit the user.
+
+    If the Deposit is FAILED, it is not credited either. Circle's FAILED,
+    CANCELLED and DENIED states are terminal, so a COMPLETED for the same
+    transaction contradicts an earlier notification. Crediting it could pay
+    out RSC that never reached the wallet (the sweep would then hit a zero
+    balance and still be marked COMPLETED), so it is logged for manual
+    reconciliation instead.
 
     Args:
         circle_transaction_id: Circle's unique transaction identifier.
@@ -87,7 +95,7 @@ def process_circle_deposit(
     credited = False
 
     with transaction.atomic():
-        deposit, created = Deposit.objects.get_or_create(
+        deposit, created = Deposit.objects.select_for_update().get_or_create(
             circle_transaction_id=circle_transaction_id,
             defaults={
                 "user": user,
@@ -104,6 +112,15 @@ def process_circle_deposit(
             # Brand-new deposit (no prior INITIATED/CONFIRMED webhook).
             deposit.set_paid()
             credited = True
+        elif deposit.paid_status == Deposit.FAILED:
+            logger.error(
+                "Circle COMPLETED for a FAILED deposit, not crediting: "
+                "user=%s amount=%s circle_transaction_id=%s",
+                user.id,
+                amount,
+                circle_transaction_id,
+            )
+            return deposit, False
         elif deposit.paid_status != Deposit.PAID:
             # Existing pending deposit from an earlier webhook — promote it.
             deposit.circle_status = Deposit.CIRCLE_COMPLETED
@@ -133,6 +150,34 @@ def process_circle_deposit(
         )
 
     return deposit, credited
+
+
+def is_sweep_awaiting_transfer_id(
+    transfer_id: str, circle_wallet_id: str, blockchain: str
+) -> bool:
+    """
+    Whether an outbound transfer may belong to a sweep whose transfer id is not
+    saved yet.
+
+    ``execute_sweep`` saves the transfer id only after Circle returns it, so a
+    fast outbound webhook can arrive first. That is the case when no Deposit
+    has this transfer id yet and the wallet has a dispatched sweep still in
+    ``SWEEP_PENDING``.
+    """
+    if Deposit.objects.filter(sweep_transfer_id=transfer_id).exists():
+        return False
+    network = BLOCKCHAIN_TO_NETWORK.get(blockchain)
+    if not circle_wallet_id or network is None:
+        return False
+    try:
+        wallet = Wallet.get_by_circle_wallet_id(circle_wallet_id, network=network)
+    except Wallet.DoesNotExist:
+        return False
+    return Deposit.objects.filter(
+        user=wallet.user,
+        network=network,
+        sweep_status=Deposit.SWEEP_PENDING,
+    ).exists()
 
 
 # Sweeps worth this amount or more (in USD) go to the multisig;

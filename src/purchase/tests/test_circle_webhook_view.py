@@ -497,6 +497,32 @@ class TestCircleWebhookView(TestCase):
         self.assertEqual(deposit.paid_status, "PAID")
         self.assertEqual(deposit.circle_status, Deposit.CIRCLE_COMPLETED)
 
+    @patch("purchase.views.circle_webhook_view.dispatch_sweep")
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_completed_after_failed_does_not_credit(self, _mock_verify, mock_dispatch):
+        """COMPLETED webhook does not credit a deposit Circle already FAILED."""
+        # Arrange
+        self._post(_make_payload(state="INITIATED"))
+        self._post(_make_payload(state="FAILED"))
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self._post(_make_payload(state="COMPLETED"))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        deposit = Deposit.objects.get(circle_transaction_id="tx-001")
+        self.assertEqual(deposit.paid_status, "FAILED")
+        self.assertEqual(deposit.circle_status, Deposit.CIRCLE_FAILED)
+        self.assertIsNone(deposit.paid_date)
+
+        from purchase.models import Balance
+
+        self.assertFalse(Balance.objects.filter(user=self.user).exists())
+        mock_dispatch.assert_not_called()
+
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
     )
@@ -674,6 +700,39 @@ class TestCircleOutboundWebhook(TestCase):
         response = self._post(payload)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @patch(
+        "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
+    )
+    def test_outbound_before_transfer_id_saved_asks_for_redelivery(self, _mock_verify):
+        """Outbound webhook racing execute_sweep is redelivered, not dropped."""
+        # Arrange: sweep dispatched, transfer id not saved yet
+        deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_transaction_id="notif-inbound",
+            sweep_status=Deposit.SWEEP_PENDING,
+        )
+        payload = _make_outbound_payload(
+            state="COMPLETE", wallet_id="circle-wallet-base-abc"
+        )
+
+        # Act
+        early_response = self._post(payload)
+        deposit.sweep_status = Deposit.SWEEP_INITIATED
+        deposit.sweep_transfer_id = "sweep-tx-001"
+        deposit.save(update_fields=["sweep_status", "sweep_transfer_id"])
+        redelivered_response = self._post(payload)
+
+        # Assert
+        self.assertEqual(
+            early_response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+        self.assertEqual(redelivered_response.status_code, status.HTTP_200_OK)
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.sweep_status, Deposit.SWEEP_COMPLETED)
 
     @patch(
         "purchase.views.circle_webhook_view.verify_webhook_signature", return_value=True
