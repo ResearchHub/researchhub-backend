@@ -108,6 +108,79 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         transaction_fee = self.calculate_transaction_fee(network)
 
+        if message := self._check_withdrawal_allowed(user, amount, to_address):
+            logger.error(f"Invalid withdrawal: {message}")
+            return Response(message, status=400)
+
+        # Kept outside the user lock below because it makes RPC calls.
+        try:
+            valid, message = self._check_hotwallet_balance(amount, network)
+        except Exception:
+            logger.exception("Failed to check hotwallet balance for user %s", user.id)
+            return Response("Failed to create withdrawal", status=400)
+        if not valid:
+            logger.error(f"Invalid withdrawal: {message}")
+            return Response(message, status=400)
+
+        try:
+            with transaction.atomic():
+                # Lock the user record to prevent race conditions during withdrawal
+                user = User.objects.select_for_update().get(id=user.id)
+
+                # Re-check under the lock: a concurrent request may have
+                # committed a withdrawal since the check above.
+                if message := self._check_withdrawal_allowed(user, amount, to_address):
+                    logger.error(f"Invalid withdrawal: {message}")
+                    return Response(message, status=400)
+
+                valid, message, amount = self._check_withdrawal_amount(
+                    amount, transaction_fee, user
+                )
+
+                if not valid:
+                    return Response(message, status=400)
+
+                withdrawal = Withdrawal.objects.create(
+                    user=user,
+                    token_address=NETWORKS[network]["token_address"],
+                    from_address=settings.WEB3_WALLET_ADDRESS,
+                    to_address=to_address,
+                    amount=amount,
+                    fee=transaction_fee,
+                    network=network,
+                    paid_status=PaidStatusModelMixin.INITIATED,
+                )
+
+                self._prepare_withdrawal(withdrawal, amount, transaction_fee)
+                dispatch_withdrawal_broadcast(withdrawal.id)
+        except Exception:
+            logger.exception("Failed to create withdrawal for user %s", user.id)
+            return Response("Failed to create withdrawal", status=400)
+
+        # The withdrawal is committed, so a tracking failure must not fail
+        # the request.
+        try:
+            # Track in Amplitude
+            track_revenue_event.apply_async(
+                (
+                    user.id,
+                    "WITHDRAWAL_FEE",
+                    str(transaction_fee),
+                    None,
+                    "ON_CHAIN",
+                ),
+                priority=1,
+            )
+        except Exception:
+            logger.exception("Failed to track withdrawal fee for user %s", user.id)
+
+        serialized = WithdrawalSerializer(withdrawal)
+        return Response(serialized.data, status=201)
+
+    def _check_withdrawal_allowed(self, user, amount, to_address):
+        """
+        Returns an error message if the user may not withdraw right now.
+        """
         pending_tx = Withdrawal.objects.filter(
             user=user,
             paid_status__in=[
@@ -117,17 +190,15 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         )
 
         if pending_tx.exists():
-            return Response(
+            return (
                 "Please wait for your previous withdrawal to finish "
-                "before starting another one.",
-                status=400,
+                "before starting another one."
             )
 
         if not self._can_withdraw(user):
-            return Response(
+            return (
                 "Your account is not eligible to withdraw yet. "
-                "Please verify your identity to withdraw.",
-                status=400,
+                "Please verify your identity to withdraw."
             )
 
         valid, message = self._check_meets_withdrawal_minimum(amount)
@@ -136,56 +207,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         if valid:
             valid, message = self._check_withdrawal_time_limit(to_address, user)
 
-        if valid:
-            valid, message = self._check_hotwallet_balance(amount, network)
-
-        if valid:
-            try:
-                with transaction.atomic():
-                    # Lock the user record to prevent race conditions during withdrawal
-                    user = User.objects.select_for_update().get(id=user.id)
-
-                    valid, message, amount = self._check_withdrawal_amount(
-                        amount, transaction_fee, user
-                    )
-
-                    if not valid:
-                        return Response(message, status=400)
-
-                    withdrawal = Withdrawal.objects.create(
-                        user=user,
-                        token_address=NETWORKS[network]["token_address"],
-                        from_address=settings.WEB3_WALLET_ADDRESS,
-                        to_address=to_address,
-                        amount=amount,
-                        fee=transaction_fee,
-                        network=network,
-                        paid_status=PaidStatusModelMixin.INITIATED,
-                    )
-
-                    self._prepare_withdrawal(withdrawal, amount, transaction_fee)
-                    dispatch_withdrawal_broadcast(withdrawal.id)
-
-                # Track in Amplitude
-                track_revenue_event.apply_async(
-                    (
-                        user.id,
-                        "WITHDRAWAL_FEE",
-                        str(transaction_fee),
-                        None,
-                        "ON_CHAIN",
-                    ),
-                    priority=1,
-                )
-
-                serialized = WithdrawalSerializer(withdrawal)
-                return Response(serialized.data, status=201)
-            except Exception as e:
-                logger.exception("Failed to create withdrawal for user %s", user.id)
-                return Response(str(e), status=400)
-        else:
-            logger.error(f"Invalid withdrawal: {message}")
-            return Response(message, status=400)
+        return None if valid else message
 
     def _check_mfa(self, user, request) -> str | None:
         """
