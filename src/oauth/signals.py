@@ -1,11 +1,28 @@
 from typing import Any
 
 from allauth.account.signals import user_logged_in, user_signed_up
+from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.http import HttpRequest
 
+from oauth.services.authorization_server_service import OAuthAuthorizationServerService
 from oauth.services.user_signup_service import UserSignupService
 from user.models import User
+
+
+@receiver(post_save, sender=User)
+def revoke_oauth_tokens_of_inactive_user(
+    sender: type, instance: User, **kwargs: Any
+) -> None:
+    """
+    Revokes the OAuth tokens of a deactivated user. DOT doesn't check whether the
+    user is active when refreshing, and revoked tokens stay revoked if the account
+    is reactivated.
+    """
+    if instance.is_active:
+        return
+
+    OAuthAuthorizationServerService().revoke_user_tokens(instance)
 
 
 @receiver(user_signed_up)
