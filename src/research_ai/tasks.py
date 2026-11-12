@@ -5,7 +5,7 @@ from functools import partial
 from django.utils import timezone
 
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
-from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
+from research_ai.models import Expert, ExpertSearch, GeneratedEmail, ProposalDraft
 from research_ai.services.agent_files import AgentFileService
 from research_ai.services.cover_image_service import CoverImageService
 from research_ai.services.expert_finder import finder as expert_finder_mod
@@ -29,6 +29,7 @@ from research_ai.services.proposal_draft.cancel_service import ACTIVE_STATUSES
 from research_ai.services.proposal_draft.liveness_service import (
     ProposalDraftLivenessService,
 )
+from research_ai.services.researcher_profile import ResearcherProfileService
 from research_ai.services.social_share_service import (
     GENERATION_TIME_LIMIT_SECONDS,
     SocialShareService,
@@ -47,6 +48,10 @@ PROPOSAL_DRAFT_TIME_LIMIT = 4 * 60 * 60
 HARD_TIME_LIMIT_GRACE = 5 * 60
 # A lost file task is failed by the first status read past its timeout.
 AGENT_FILE_PROCESSING_TIME_LIMIT = 5 * 60
+# A build past this is killed; its lease lapses and a later trigger retries it.
+RESEARCHER_PROFILE_TIME_LIMIT = 20 * 60
+# Builds the nightly sweep queues at most, bounding its LLM spend.
+RESEARCHER_PROFILE_SWEEP_LIMIT = 200
 
 
 def _update_search_progress(
@@ -176,6 +181,9 @@ def link_experts_after_signup(
         normalized_email=normalized_email,
         user=user,
     )
+    if Expert.objects.filter(registered_user=user).exists():
+        # Adopt the profile outreach already built, then refresh it if needed.
+        ensure_researcher_profile_task.delay(user.id)
 
 
 @app.task(bind=True)
@@ -286,6 +294,38 @@ def reclaim_lost_agent_runs():
         "executions": [execution.id for execution in executions],
         "proposal_drafts": [draft.id for draft in drafts],
     }
+
+
+@app.task(
+    queue=QUEUE_AGENTS,
+    # Lowest priority, so queued profile builds yield to chat turns.
+    priority=9,
+    soft_time_limit=RESEARCHER_PROFILE_TIME_LIMIT,
+    time_limit=RESEARCHER_PROFILE_TIME_LIMIT + HARD_TIME_LIMIT_GRACE,
+)
+def ensure_researcher_profile_task(user_id: int):
+    """
+    Build or refresh a user's researcher profile when it needs it.
+    """
+    user = User.objects.filter(pk=user_id).first()
+    if user is None:
+        logger.warning("ensure_researcher_profile_task: user_id=%s not found", user_id)
+        return None
+    profile = ResearcherProfileService().ensure_for_user(user)
+    return {"profile_id": profile.id, "status": profile.status}
+
+
+@app.task(queue=QUEUE_AGENTS)
+def sweep_researcher_profiles():
+    """
+    Queue builds for user profiles that are pending, failed, stale, or stuck.
+    """
+    user_ids = ResearcherProfileService().due_for_sweep(
+        limit=RESEARCHER_PROFILE_SWEEP_LIMIT
+    )
+    for user_id in user_ids:
+        ensure_researcher_profile_task.delay(user_id)
+    return {"queued": len(user_ids)}
 
 
 @app.task(

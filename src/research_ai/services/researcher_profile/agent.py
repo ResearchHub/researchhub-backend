@@ -17,9 +17,11 @@ import logging
 
 from django.utils import timezone
 
+from research_ai.models import Expert
 from research_ai.services.agent import AgentService, LLMProvider, resolve_provider
 from research_ai.services.agent.errors import BudgetExceededError
 from research_ai.services.researcher_profile.openalex_tools import OpenAlexToolset
+from research_ai.services.researcher_profile.seed import ProfileSeed, seed_from_expert
 from utils.openalex import OpenAlex
 
 logger = logging.getLogger(__name__)
@@ -30,20 +32,23 @@ _MAX_CAPABILITIES = 12  # capabilities kept on the profile after grounding
 _MAX_EVIDENCE_PER_CAPABILITY = 3  # evidence source_urls kept per capability
 _VALID_CAPABILITY_KINDS = ("technique", "instrument", "model_system", "dataset")
 _MAX_ITERATIONS = 16  # tool turns before the agent loop gives up
+# Recorded when the run ended without a profile; the build counts as failed.
+NO_SUBMISSION_ERROR = "agent: did not submit a profile"
 
 _SYSTEM_PROMPT = """\
 You identify a researcher in OpenAlex and summarize their best work.
 
-You are given an "expert" -- a name, an affiliation, an expertise blurb, and
-source links that may contain an ORCID. The affiliation and expertise are
-machine-generated and noisy; treat them as hints, not facts.
+You are given an "expert" -- a name, an affiliation, an expertise blurb,
+source links that may contain an ORCID, and sometimes openalex_ids the
+researcher linked on their own ResearchHub profile. The affiliation and
+expertise may be machine-generated and noisy; treat them as hints, not facts.
 
 Goal: resolve the expert to the correct OpenAlex author, then pick their five
 most relevant, readable papers.
 
 How to work:
-- If a source link already gives an ORCID, confirm it with get_author before
-  trusting it.
+- If openalex_ids are given, or a source link gives an ORCID, confirm them
+  with get_author before trusting them.
 - Otherwise search_authors by name. Use search_institutions to turn the
   affiliation into an institution id and scope the search when names are common.
   Compare candidates' institutions, topics, and citation counts before choosing.
@@ -78,16 +83,9 @@ exactly once.
 """
 
 
-def _user_prompt(expert) -> str:
-    payload = {
-        "name": expert.full_name,
-        "affiliation": getattr(expert, "affiliation", "") or "",
-        "expertise": getattr(expert, "expertise", "") or "",
-        "source_urls": expert.source_urls,
-        "cited_orcid": expert.orcid,
-    }
+def _user_prompt(seed: ProfileSeed) -> str:
     return "Resolve this expert and build their profile:\n" + json.dumps(
-        payload, indent=2, ensure_ascii=False
+        seed.as_payload(), indent=2, ensure_ascii=False
     )
 
 
@@ -204,7 +202,7 @@ def _resolution(submitted: dict) -> dict:
 
 
 def run_profile_agent(
-    expert,
+    subject: ProfileSeed | Expert,
     *,
     provider: LLMProvider | None = None,
     oa_client: OpenAlex | None = None,
@@ -215,8 +213,10 @@ def run_profile_agent(
     Best-effort: an ordinary failed run yields an unresolved profile with the
     error recorded. Budget exhaustion propagates so the owning loop workflow
     can stop before another provider call. The profile agent has no trace of
-    its own unless the caller supplies a recorder.
+    its own unless the caller supplies a recorder. ``subject`` is a seed, or an
+    ``Expert`` to seed from.
     """
+    seed = subject if isinstance(subject, ProfileSeed) else seed_from_expert(subject)
     errors: list[str] = []
     toolset = OpenAlexToolset(client=oa_client)
     provider = provider or resolve_provider()
@@ -227,7 +227,7 @@ def run_profile_agent(
     )
 
     try:
-        agent.run(_user_prompt(expert))
+        agent.run(_user_prompt(seed))
     except BudgetExceededError:
         raise
     except Exception as exc:  # noqa: BLE001 - agent run is best-effort
@@ -235,7 +235,7 @@ def run_profile_agent(
         errors.append(f"agent: {exc}")
 
     if toolset.submitted is None:
-        errors.append("agent: did not submit a profile")
+        errors.append(NO_SUBMISSION_ERROR)
         resolution = _resolution({})
         works: list[dict] = []
         capabilities: list[dict] = []
