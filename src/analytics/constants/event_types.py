@@ -1,5 +1,5 @@
 """
-User interaction event types for tracking and ML processing via Personalize.
+User interaction event types for tracking.
 """
 
 # Database event types
@@ -31,19 +31,6 @@ EVENT_CHOICES = [
     (FEED_ITEM_ABSTRACT_EXPANDED, FEED_ITEM_ABSTRACT_EXPANDED),
     (FEED_ITEM_IMPRESSION, FEED_ITEM_IMPRESSION),
 ]
-
-# Event Weights
-EVENT_WEIGHTS = {
-    UPVOTE: 8.0,
-    COMMENT_CREATED: 12.0,
-    PEER_REVIEW_CREATED: 16.0,
-    FEED_ITEM_CLICK: 2.0,
-    PAGE_VIEW: 1.0,
-    DOCUMENT_TAB_CLICKED: 5.0,
-    DOCUMENT_SAVED_TO_LIST: 10.0,
-    FEED_ITEM_ABSTRACT_EXPANDED: 3.0,
-    FEED_ITEM_IMPRESSION: 0.2,
-}
 
 # Mapping from Amplitude event types to database enum values
 AMPLITUDE_TO_DB_EVENT_MAP = {
