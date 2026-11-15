@@ -443,6 +443,7 @@ class PostSerializer(ContentObjectSerializer):
                     "contacts",
                     "applications",
                     "funding_pool",
+                    "funding_mechanism",
                 ],
             )
             return serializer.data
