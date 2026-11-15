@@ -3,6 +3,7 @@ from collections.abc import Callable
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Q
 
 from feed.tasks import publish_to_feed
 from feed.views.funding_cache_mixin import FundingCacheMixin
@@ -60,7 +61,12 @@ class ProposalVisibilityService:
                 raise ValueError("Removed proposals cannot be made public.")
             if not unified_document.is_public:
                 if proposal.grant_applications.filter(
-                    grant__application_visibility=Grant.APPLICATION_VISIBILITY_PRIVATE
+                    Q(
+                        grant__application_visibility=(
+                            Grant.APPLICATION_VISIBILITY_PRIVATE
+                        )
+                    )
+                    | Q(grant__unified_document__is_public=False)
                 ).exists():
                     raise ValueError(
                         "This proposal is an application to a grant that requires "

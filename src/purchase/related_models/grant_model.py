@@ -160,6 +160,11 @@ class Grant(DefaultModel):
         """
         return self.status in self.PENDING_MODERATION_STATUSES
 
+    def effective_application_visibility(self) -> str:
+        if not self.unified_document.is_public:
+            return self.APPLICATION_VISIBILITY_PRIVATE
+        return self.application_visibility
+
     def get_llm_context_text(self):
         """Grant terms as prompt-ready text for LLM grounding.
 

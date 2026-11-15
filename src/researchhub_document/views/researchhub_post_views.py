@@ -468,8 +468,20 @@ class ResearchhubPostViewSet(
                 target_grant = None
                 if grant_id and document_type == PREREGISTRATION:
                     try:
-                        target_grant = Grant.objects.get(id=grant_id)
+                        target_grant = Grant.objects.select_related(
+                            "unified_document"
+                        ).get(id=grant_id)
                     except Grant.DoesNotExist, ValueError, TypeError:
+                        raise serializers.ValidationError("Grant not found")
+                    if (
+                        not ResearchhubPost.objects.filter(
+                            unified_document_id=target_grant.unified_document_id
+                        )
+                        .visible_to(
+                            request.user, get_shared_unified_document_id(request)
+                        )
+                        .exists()
+                    ):
                         raise serializers.ValidationError("Grant not found")
                     if not target_grant.is_active():
                         raise serializers.ValidationError(
@@ -670,6 +682,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "effective_application_visibility",
                         "funding_mechanism",
                         "funding_pool",
                     ],
@@ -892,6 +905,7 @@ class ResearchhubPostViewSet(
                         "created_by",
                         "contacts",
                         "application_visibility",
+                        "effective_application_visibility",
                         "funding_mechanism",
                         "funding_pool",
                     ],
@@ -922,7 +936,7 @@ class ResearchhubPostViewSet(
                     )
 
                 if document_type == PREREGISTRATION and target_grant is not None:
-                    required = target_grant.application_visibility
+                    required = target_grant.effective_application_visibility()
                     # An explicit is_public that conflicts with the grant's
                     # requirement is treated as a client error. When is_public
                     # is omitted we fall back to whatever the grant requires.
