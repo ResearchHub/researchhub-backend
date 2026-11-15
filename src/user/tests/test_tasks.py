@@ -93,6 +93,23 @@ class HandleSpamUserTaskTests(TestCase):
             object_id=self.paper.id,
         )
 
+    @patch("feed.activity_feed_cache.queue_activity_feed_cache_warm")
+    def test_suspend_warms_activity_feed_cache_once(self, mock_warm):
+        """Removing every comment still rebuilds the public activity feed once."""
+        # Arrange
+        RhCommentModel.objects.create(
+            created_by=self.user,
+            comment_content_json={"ops": [{"insert": "Another comment"}]},
+            thread=self.thread,
+        )
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        mock_warm.assert_called_once()
+
     def test_handle_spam_user_task_emits_user_suspended_event(self):
         # Arrange
         events = []
