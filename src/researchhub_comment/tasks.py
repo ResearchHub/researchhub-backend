@@ -29,3 +29,15 @@ def celery_create_mention_notification(comment_id: int, recipients: list[int]) -
     )
 
     notify_mentioned_users(comment_id, recipients)
+
+
+@app.task()
+def celery_screen_comment_for_spam(comment_id: int) -> None:
+    """Flag the comment for moderators to review when it reads as spam."""
+    # The comment model imports this task module before its class is defined.
+    from researchhub_comment.models import RhCommentModel
+    from researchhub_comment.services.comment_spam_screening_service import (
+        CommentSpamScreeningService,
+    )
+
+    CommentSpamScreeningService().screen(RhCommentModel.objects.get(id=comment_id))
