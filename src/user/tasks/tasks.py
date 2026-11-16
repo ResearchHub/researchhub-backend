@@ -11,6 +11,7 @@ from django.utils import timezone
 from discussion.constants.flag_reasons import NOT_SPECIFIED
 from discussion.models import Flag, Vote
 from discussion.views import censor
+from feed.activity_feed_cache import schedule_activity_feed_cache_warm
 from feed.models import FeedEntry
 from notification.models import Notification
 from paper.models import Paper
@@ -96,6 +97,7 @@ def handle_spam_user_task(user_id, requestor=None):
 
     # Resolve any open moderation flags on the user's content
     _resolve_open_flags_for_user(user, requestor)
+    schedule_activity_feed_cache_warm()
 
     # Quarantine S3 objects backing the user's content
     _quarantine_user_files(user)

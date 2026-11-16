@@ -421,6 +421,22 @@ class CommentViewTests(APITestCase):
                 # Assert
                 self.assertEqual(link, f"{base_url}/{tab}#comment-{reply.id}")
 
+    @patch("feed.activity_feed_cache.queue_activity_feed_cache_warm")
+    def test_censor_warms_activity_feed_cache(self, mock_warm):
+        # Arrange
+        comment = self._create_paper_comment(self.paper.id, self.user_1)
+        self.client.force_authenticate(self.moderator)
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.delete(
+                f"/api/paper/{self.paper.id}/comments/{comment.data['id']}/censor/"
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        mock_warm.assert_called_once()
+
     def test_censored_nested_comments_excluded_from_children(self):
         """
         Test that censored nested comments are excluded from the parent's

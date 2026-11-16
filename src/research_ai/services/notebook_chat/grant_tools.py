@@ -505,4 +505,4 @@ class SelectedRFPToolset:
             )
         except Note.DoesNotExist:
             return None
-        return note if note.permissions.has_user(self._user) else None
+        return note if note.is_readable_by(self._user) else None

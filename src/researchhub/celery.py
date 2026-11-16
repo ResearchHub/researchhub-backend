@@ -189,6 +189,14 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
+    # OAuth
+    "oauth_clear-expired-tokens": {
+        "task": "oauth.tasks.clear_expired_tokens",
+        "schedule": crontab(hour=3, minute=30),
+        "options": {
+            "priority": 5,
+        },
+    },
     # Research AI
     "research-ai-reclaim-lost-agent-runs": {
         "task": "research_ai.tasks.reclaim_lost_agent_runs",

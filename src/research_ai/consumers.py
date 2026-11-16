@@ -58,7 +58,7 @@ def _notebook_rejection_code(user, note_id: int, conversation_id: int) -> int | 
     if rejection is not None:
         return rejection
     note = Note.objects.filter(id=note_id, unified_document__is_removed=False).first()
-    if note is None or not note.permissions.has_user(user):
+    if note is None or not note.is_readable_by(user):
         return CLOSE_NOT_FOUND
     service = NotebookChatService()
     if service.get_conversation(note, user, conversation_id) is None:

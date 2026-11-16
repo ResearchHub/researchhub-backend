@@ -48,7 +48,7 @@ dependencies = [
     "mammoth>=1.13.0,<2",
     "markdownify>=1.2.3,<2",
     "openai>=1.45.0",
-    "opensearch-py==3.0.0",
+    "opensearch-py==3.2.0",
     "pillow>=12.3.0",
     "prosemirror>=0.6.1,<0.7",
     "psycopg[binary,pool]>=3.3.6,<4.0.0",

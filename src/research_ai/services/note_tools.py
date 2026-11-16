@@ -654,9 +654,7 @@ class NoteToolset:
         # after the lookup, while the input may arrive as a string.
         if self._note_ids is not None and note.id not in self._note_ids:
             return None
-        # Same predicate as HasAccessPermission: any non-NO_ACCESS permission
-        # (user- or org-level) makes the note readable.
-        if not note.permissions.has_user(self._user):
+        if not note.is_readable_by(self._user):
             return None
         return note
 

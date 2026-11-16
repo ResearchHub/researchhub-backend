@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.admin.options import get_content_type_for_model
 from django.core import mail
@@ -219,6 +220,81 @@ class AuditViewTests(APITestCase):
         self.assertEqual(email.to, [self.random_content_creator.email])
         self.assertIn("The following item has been removed for: SPAM", email.body)
         self.assertIn(target_paper.title, email.body)
+
+    @patch("feed.activity_feed_cache.queue_activity_feed_cache_warm")
+    def test_remove_flagged_content_warms_activity_feed_cache_once(self, mock_warm):
+        """Approving several flags rebuilds the public activity feed a single time."""
+        # Arrange
+        first_paper = create_paper(uploaded_by=self.random_content_creator)
+        second_paper = create_paper(uploaded_by=self.random_content_creator)
+        self.client.force_authenticate(self.reg_user)
+        self.client.post(f"/api/paper/{first_paper.id}/flag/", {"reason_choice": SPAM})
+        self.client.post(f"/api/paper/{second_paper.id}/flag/", {"reason_choice": SPAM})
+        flag_ids = [
+            first_paper.flags.first().id,
+            second_paper.flags.first().id,
+        ]
+        self.client.force_authenticate(self.test_editor)
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/{REMOVE_FLAGGED_CONTENT}",
+                {"flag_ids": flag_ids, "send_email": False},
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        mock_warm.assert_called_once()
+
+    @patch("feed.activity_feed_cache.queue_activity_feed_cache_warm")
+    def test_flag_and_remove_warms_activity_feed_cache_once(self, mock_warm):
+        # Arrange
+        first_paper = create_paper(uploaded_by=self.random_content_creator)
+        second_paper = create_paper(uploaded_by=self.random_content_creator)
+        self.client.force_authenticate(self.test_editor)
+        payload = {
+            "flag": [
+                {
+                    "content_type": get_content_type_for_model(first_paper).id,
+                    "object_id": first_paper.id,
+                    "reason_choice": SPAM,
+                },
+                {
+                    "content_type": get_content_type_for_model(second_paper).id,
+                    "object_id": second_paper.id,
+                    "reason_choice": SPAM,
+                },
+            ],
+            "verdict": {"verdict_choice": SPAM, "is_content_removed": True},
+            "send_email": False,
+        }
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(FLAG_AND_REMOVE_URL, payload)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        mock_warm.assert_called_once()
+
+    @patch("feed.activity_feed_cache.queue_activity_feed_cache_warm")
+    def test_dismiss_flagged_content_does_not_warm_activity_feed_cache(self, mock_warm):
+        # Arrange
+        target_paper = create_paper(uploaded_by=self.random_content_creator)
+        self.client.force_authenticate(self.test_editor)
+        self.client.post(f"/api/paper/{target_paper.id}/flag/", {"reason_choice": SPAM})
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                DISMISS_FLAGGED_CONTENT_URL,
+                {"flag_ids": [target_paper.flags.first().id]},
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        mock_warm.assert_not_called()
 
 
 class AutoPaymentAuditTests(APITestCase):

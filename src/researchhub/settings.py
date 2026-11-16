@@ -445,14 +445,23 @@ OAUTH_ENABLED = (
 if PRODUCTION:
     OAUTH_ISSUER = "https://api.researchhub.com"
     OAUTH_MCP_RESOURCE = "https://mcp.researchhub.com/v1/mcp"
+    OAUTH_API_RESOURCE = "https://api.researchhub.com"
 elif STAGING:
     OAUTH_ISSUER = "https://api.staging.researchhub.com"
     OAUTH_MCP_RESOURCE = "https://mcp.staging.researchhub.com/v1/mcp"
+    OAUTH_API_RESOURCE = "https://api.staging.researchhub.com"
 else:
     OAUTH_ISSUER = os.environ.get("OAUTH_ISSUER", "http://localhost:8000")
     OAUTH_MCP_RESOURCE = os.environ.get(
         "OAUTH_MCP_RESOURCE", "http://localhost:8080/v1/mcp"
     )
+    OAUTH_API_RESOURCE = os.environ.get("OAUTH_API_RESOURCE", "http://localhost:8000")
+
+# The MCP server's confidential client, the only one allowed to exchange tokens
+OAUTH_MCP_CLIENT_ID = os.environ.get(
+    "OAUTH_MCP_CLIENT_ID", getattr(keys, "OAUTH_MCP_CLIENT_ID", "")
+)
+OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = "oauth2_provider.AccessToken"
 
 OAUTH2_PROVIDER = {
     "OIDC_ISS_ENDPOINT": OAUTH_ISSUER,
@@ -465,6 +474,15 @@ OAUTH2_PROVIDER = {
         "none",
         "client_secret_basic",
     ],
+    "ACCESS_TOKEN_EXPIRE_SECONDS": 60 * 60,  # 1 hour
+    "REFRESH_TOKEN_EXPIRE_SECONDS": 180 * 24 * 60 * 60,  # 180 days
+    "REFRESH_TOKEN_REUSE_PROTECTION": True,
+    # Let clients identify themselves through metadata at their client_id URL.
+    # See: https://django-oauth-toolkit.readthedocs.io/en/latest/cimd.html
+    "CIMD_ENABLED": True,
+    "CIMD_METADATA_FETCHER": "oauth.cimd.SupportedGrantsMetadataFetcher",
+    # Adds the token exchange grant for the MCP server:
+    "OAUTH2_SERVER_CLASS": "oauth.token_exchange.OAuthServer",
     # No implicit grants allowed:
     "COMPLIANT_BCP_RFC9700_IMPLICIT_GRANT": True,
     # No password grants allowed:
@@ -475,6 +493,10 @@ OAUTH2_PROVIDER = {
     "COMPLIANT_BCP_RFC9700_ACCESS_TOKEN_TRANSPORT": True,
     # `iss` in authorization responses:
     "COMPLIANT_BCP_RFC9700_AUTHZ_RESPONSE_ISS": True,
+    # Only hashes of tokens are stored:
+    "COMPLIANT_BCP_RFC9700_TOKEN_STORAGE": True,
+    # Fail deploy checks if refresh token reuse protection is ever turned off:
+    "COMPLIANT_BCP_RFC9700_REFRESH_TOKEN": True,
 }
 
 # Database

@@ -2,7 +2,9 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 
+from oauth.authentication import DelegatedTokenAuthentication
 from purchase.models import Grant
 from purchase.serializers.funding_impact_serializer import FundingImpactSerializer
 from purchase.serializers.funding_overview_serializer import FundingOverviewSerializer
@@ -20,10 +22,14 @@ def _resolve_funder_user(request) -> User | None:
     Return the user whose funder metrics should be loaded.
 
     Regular users always receive their own data. Moderators may pass ?user_id
-    to view another user's overview.
+    to view another user's overview, except through OAuth, whose tokens only
+    grant access to the user's own data.
     """
     user_id = request.query_params.get("user_id")
-    if user_id and request.user.moderator:
+    via_oauth = isinstance(
+        request.successful_authenticator, DelegatedTokenAuthentication
+    )
+    if user_id and request.user.moderator and not via_oauth:
         try:
             return User.objects.get(id=user_id)
         except User.DoesNotExist:
@@ -46,7 +52,15 @@ class FunderViewSet(viewsets.ViewSet):
         )
         return super().dispatch(request, *args, **kwargs)
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[IsAuthenticated],
+        authentication_classes=[
+            *api_settings.DEFAULT_AUTHENTICATION_CLASSES,
+            DelegatedTokenAuthentication,
+        ],
+    )
     def funding_overview(self, request, *args, **kwargs):
         """Return funding overview metrics for the authenticated user."""
         user = _resolve_funder_user(request)

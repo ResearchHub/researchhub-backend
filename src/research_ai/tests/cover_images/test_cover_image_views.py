@@ -7,6 +7,8 @@ from rest_framework.test import APITestCase
 from note.tests.helpers import create_note
 from research_ai.models import CoverImageGeneration, LLMUsageEvent
 from research_ai.services.cover_image_service import CoverImageService
+from researchhub_document.helpers import create_post
+from user.tests.helpers import create_hub_editor
 
 
 class CoverImageGenerationViewTests(APITestCase):
@@ -105,6 +107,41 @@ class CoverImageGenerationViewTests(APITestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data["code"], "note_not_found")
         enqueue.assert_not_called()
+
+    @patch(ENQUEUE)
+    def test_hub_editor_can_generate_a_cover_for_a_published_note(self, enqueue):
+        # Arrange
+        note, _content = create_note(self.other, organization=None)
+        post = create_post(created_by=self.other, document_type="GRANT")
+        post.note = note
+        post.save(update_fields=["note"])
+        editor, _hub = create_hub_editor("cover_editor", "Cover Editor Hub")
+        self.client.force_authenticate(editor)
+
+        # Act
+        response = self.client.post(
+            self.COVER_IMAGES_URL, self._payload(note_id=note.id), format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        enqueue.assert_called_once()
+
+    @patch(ENQUEUE)
+    def test_hub_editor_can_generate_a_cover_for_an_unpublished_note(self, enqueue):
+        # Arrange
+        note, _content = create_note(self.other, organization=None)
+        editor, _hub = create_hub_editor("cover_draft_editor", "Cover Draft Hub")
+        self.client.force_authenticate(editor)
+
+        # Act
+        response = self.client.post(
+            self.COVER_IMAGES_URL, self._payload(note_id=note.id), format="json"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        enqueue.assert_called_once()
 
     @patch(ENQUEUE)
     def test_post_is_not_rate_limited_within_the_budget(self, enqueue):

@@ -23,6 +23,7 @@ class NotePublicationService:
         permissions = note.permissions
         if not (
             note.created_by_id == user.id
+            or user.is_moderator_or_editor()
             or permissions.has_admin_user(user)
             or permissions.has_editor_user(user)
         ):
