@@ -31,21 +31,25 @@ class CommentSpamScreeningServiceTests(TestCase):
         )
         self.comment = create_rh_comment()
 
-    def test_flags_only_comments_scored_at_or_over_the_threshold(self) -> None:
-        """The AI account files a spam flag only when a score reaches the threshold."""
+    def test_records_every_result_and_flags_only_those_at_the_threshold(self) -> None:
+        """Every result is recorded, but only a score at the threshold files a flag."""
         for promotional, should_flag in ((FLAG_THRESHOLD, True), (0.5, False)):
             with self.subTest(promotional=promotional):
                 # Arrange
                 self.comment.flags.all().delete()
+                self.comment.spam_screenings.all().delete()
                 client = _mock_jev_client(promotional=promotional, solicitation=0.1)
 
                 # Act
                 CommentSpamScreeningService(client=client).screen(self.comment)
 
                 # Assert
+                screening = self.comment.spam_screenings.get()
                 is_flagged = self.comment.flags.filter(
                     created_by=self.flagger, reason_choice=SPAM
                 ).exists()
+                self.assertEqual(screening.promotional, promotional)
+                self.assertEqual(screening.flagged, should_flag)
                 self.assertEqual(is_flagged, should_flag)
 
     def test_skips_comments_from_trusted_users(self) -> None:

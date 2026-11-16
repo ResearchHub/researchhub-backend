@@ -1,7 +1,7 @@
 from discussion.constants.flag_reasons import SPAM
 from discussion.views import create_flag
 from research_ai.services.message_screening.jev_client import JevClient
-from researchhub_comment.models import RhCommentModel
+from researchhub_comment.models import CommentSpamScreening, RhCommentModel
 from user.models import User
 from user.services.risk_score_service import RiskScoreService
 
@@ -53,7 +53,7 @@ QUESTIONS = {
 
 
 class CommentSpamScreeningService:
-    """Flags posted comments that read as spam for moderators to review."""
+    """Screens comments with Jev, recording every result and flagging the spam."""
 
     def __init__(
         self,
@@ -61,11 +61,11 @@ class CommentSpamScreeningService:
         risk_score_service: RiskScoreService | None = None,
     ) -> None:
         """Default to the configured Jev client and the real risk score service."""
-        self.client = JevClient.from_settings() if client is None else client
+        self.client = client or JevClient.from_settings()
         self.risk_score_service = risk_score_service or RiskScoreService()
 
     def screen(self, comment: RhCommentModel) -> None:
-        """Flag the comment as spam when any Jev score reaches the threshold."""
+        """Record Jev's spam scores for the comment, flagging it at the threshold."""
         if self.client is None or self.risk_score_service.is_trusted(
             comment.created_by
         ):
@@ -74,14 +74,22 @@ class CommentSpamScreeningService:
         if comment.flags.filter(created_by=flagger).exists():
             return
         state = {"comment": comment.plain_text[:MAX_COMMENT_CHARS]}
-        answers = self.client.decide(state, QUESTIONS).answers
-        if max(answers.values()) >= FLAG_THRESHOLD:
+        decision = self.client.decide(state, QUESTIONS)
+        screening = CommentSpamScreening.objects.create(
+            comment=comment,
+            model=decision.model,
+            promotional=decision.answers["promotional"],
+            solicitation=decision.answers["solicitation"],
+            flagged=max(decision.answers.values()) >= FLAG_THRESHOLD,
+            cost_microusd=decision.cost_microusd,
+        )
+        if screening.flagged:
             create_flag(
                 user=flagger,
                 item=comment,
                 reason=SPAM,
                 reason_choice=SPAM,
-                reason_memo=_describe_scores(answers),
+                reason_memo=_describe_scores(decision.answers),
             )
 
 
