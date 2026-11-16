@@ -49,6 +49,26 @@ QUESTIONS = {
             ),
         },
     },
+    "off_topic": {
+        "type": "noul",
+        "instructions": (
+            "Is this comment, posted on a scientific paper or research proposal, "
+            "unrelated to research, such as gibberish, a test post, or text about "
+            "an unrelated topic?"
+        ),
+        "criteria": {
+            "true": (
+                "The comment is gibberish, a test post, or entirely about something "
+                "that has nothing to do with research."
+            ),
+            "false": (
+                "The comment could belong in a research discussion, even if it is "
+                "short, vague, critical, rude, low quality, or not in English, "
+                "such as praise, thanks, agreement, a personal experience, or a "
+                "question for the authors or other commenters."
+            ),
+        },
+    },
 }
 
 
@@ -80,6 +100,7 @@ class CommentSpamScreeningService:
             model=decision.model,
             promotional=decision.answers["promotional"],
             solicitation=decision.answers["solicitation"],
+            off_topic=decision.answers["off_topic"],
             flagged=max(decision.answers.values()) >= FLAG_THRESHOLD,
             cost_microusd=decision.cost_microusd,
         )

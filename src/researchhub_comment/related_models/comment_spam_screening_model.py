@@ -16,5 +16,6 @@ class CommentSpamScreening(DefaultModel):
     model = models.CharField(max_length=255)
     promotional = models.FloatField()
     solicitation = models.FloatField()
+    off_topic = models.FloatField()
     flagged = models.BooleanField()
     cost_microusd = models.PositiveBigIntegerField(null=True, blank=True)

@@ -38,7 +38,9 @@ class CommentSpamScreeningServiceTests(TestCase):
                 # Arrange
                 self.comment.flags.all().delete()
                 self.comment.spam_screenings.all().delete()
-                client = _mock_jev_client(promotional=promotional, solicitation=0.1)
+                client = _mock_jev_client(
+                    promotional=promotional, solicitation=0.1, off_topic=0.1
+                )
 
                 # Act
                 CommentSpamScreeningService(client=client).screen(self.comment)
@@ -56,7 +58,7 @@ class CommentSpamScreeningServiceTests(TestCase):
         """A trusted user's comment is neither screened nor flagged."""
         # Arrange
         RiskScore.objects.create(user=self.comment.created_by, score=TRUSTED_THRESHOLD)
-        client = _mock_jev_client(promotional=0.99, solicitation=0.99)
+        client = _mock_jev_client(promotional=0.99, solicitation=0.99, off_topic=0.99)
 
         # Act
         CommentSpamScreeningService(client=client).screen(self.comment)
@@ -68,7 +70,7 @@ class CommentSpamScreeningServiceTests(TestCase):
     def test_skips_comments_it_already_flagged(self) -> None:
         """Screening a flagged comment again does not call Jev a second time."""
         # Arrange
-        client = _mock_jev_client(promotional=0.99, solicitation=0.1)
+        client = _mock_jev_client(promotional=0.99, solicitation=0.1, off_topic=0.1)
         service = CommentSpamScreeningService(client=client)
         service.screen(self.comment)
 
