@@ -1,16 +1,14 @@
-import logging
 from collections.abc import Callable
 
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q, QuerySet
 
+from feed.activity_feed_cache import queue_activity_feed_cache_warm
 from feed.models import FeedEntry, HiddenFeedEntry
 from feed.serializers import assessed_reviews_prefetch
 from purchase.models import Fundraise, Grant
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import User
-
-logger = logging.getLogger(__name__)
 
 
 class FeedEntryVisibilityService:
@@ -111,9 +109,4 @@ class FeedEntryVisibilityService:
 
     @staticmethod
     def _queue_activity_feed_cache_warm() -> None:
-        from feed.tasks import warm_activity_feed_cache
-
-        try:
-            warm_activity_feed_cache.delay()
-        except Exception:
-            logger.exception("Failed to enqueue activity feed cache warm")
+        queue_activity_feed_cache_warm()

@@ -16,6 +16,7 @@ from discussion.permissions import CensorDiscussion as CensorDiscussionPermissio
 from discussion.permissions import EditorCensorDiscussion
 from discussion.permissions import Vote as VotePermission
 from discussion.serializers import FlagSerializer, VoteSerializer
+from feed.activity_feed_cache import schedule_activity_feed_cache_warm
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from paper.models import Paper
 from purchase.models import RscExchangeRate
@@ -126,6 +127,7 @@ class ReactionViewActionMixin:
 
         with transaction.atomic():
             censor(item)
+            schedule_activity_feed_cache_warm()
             return Response(
                 self.get_serializer(instance=item, _include_fields=("id",)).data,
                 status=200,
