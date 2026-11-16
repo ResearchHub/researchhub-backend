@@ -14,6 +14,7 @@ from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
 from discussion.models import Flag
 from discussion.serializers import DynamicFlagSerializer, FlagSerializer
 from discussion.views import censor
+from feed.activity_feed_cache import schedule_activity_feed_cache_warm
 from mailing_list.services import EmailService
 from notification.models import Notification
 from notification.services import NotificationService
@@ -280,6 +281,7 @@ class AuditViewSet(viewsets.GenericViewSet):
             flags = flag_serializer.save()
 
             verdict_serializer = None
+            removed_content = False
             for flag in flags:
                 verdict_data["flag"] = flag.id
                 verdict_serializer = VerdictSerializer(data=verdict_data)
@@ -289,11 +291,15 @@ class AuditViewSet(viewsets.GenericViewSet):
                 is_content_removed = verdict.is_content_removed
                 if is_content_removed:
                     self._remove_flagged_content(flag)
+                    removed_content = True
                     self._send_notification_to_content_creator(
                         remover=flagger,
                         send_email=data.get("send_email", True),
                         verdict=verdict,
                     )
+
+            if removed_content:
+                schedule_activity_feed_cache_warm()
 
             return Response(
                 {"flag": flag_serializer.data, "verdict": verdict_serializer.data},
@@ -348,6 +354,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
         with transaction.atomic():
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
+            removed_content = False
             for flag in flags.iterator():
                 available_reasons = [r[0] for r in FLAG_REASON_CHOICES]
                 verdict_choice = NOT_SPECIFIED
@@ -365,6 +372,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 flag.save()
 
                 self._remove_flagged_content(flag)
+                removed_content = True
                 try:
                     self._send_notification_to_content_creator(
                         remover=flagger,
@@ -375,6 +383,9 @@ class AuditViewSet(viewsets.GenericViewSet):
                     logger.exception(
                         "Failed to send notification for verdict %s", verdict.id
                     )
+
+            if removed_content:
+                schedule_activity_feed_cache_warm()
 
             return Response(
                 {},

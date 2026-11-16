@@ -1,11 +1,15 @@
 """Activity-feed cache helpers.
 
 Warm/replace model: Celery refreshes pages 1-N every 5 minutes via ``cache.set``.
-No delete-based invalidation.
+No delete-based invalidation. Removals that should leave the public feed
+immediately enqueue the same replace after the write commits.
 """
 
 from __future__ import annotations
 
+import logging
+
+from django.db import transaction
 from rest_framework.request import Request
 
 from feed.cache_segment import (
@@ -13,9 +17,25 @@ from feed.cache_segment import (
     is_cache_disabled,
     is_cacheable_page,
 )
+from feed.tasks import warm_activity_feed_cache
+
+logger = logging.getLogger(__name__)
 
 # Bump when unscoped public feed filtering or serialization changes.
 ACTIVITY_FEED_CACHE_VERSION = 5
+
+
+def queue_activity_feed_cache_warm() -> None:
+    """Enqueue a replace of the cached public activity-feed pages."""
+    try:
+        warm_activity_feed_cache.delay()
+    except Exception:
+        logger.exception("Failed to enqueue activity feed cache warm")
+
+
+def schedule_activity_feed_cache_warm() -> None:
+    """Replace public activity-feed pages after the current transaction commits."""
+    transaction.on_commit(queue_activity_feed_cache_warm, robust=True)
 
 
 def activity_feed_cache_key(page: int, page_size: int = FEED_CACHE_PAGE_SIZE) -> str:
