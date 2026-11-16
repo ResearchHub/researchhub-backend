@@ -52,20 +52,20 @@ QUESTIONS = {
     "off_topic": {
         "type": "noul",
         "instructions": (
-            "Is this comment, posted on a scientific paper or research proposal, "
-            "unrelated to research, such as gibberish, a test post, or text about "
-            "an unrelated topic?"
+            "Is this comment unrelated to both research and the document it is "
+            "posted on, whose title is given, such as gibberish, a test post, or "
+            "text about an unrelated topic?"
         ),
         "criteria": {
             "true": (
-                "The comment is gibberish, a test post, or entirely about something "
-                "that has nothing to do with research."
+                "The comment is gibberish, a test post, or about a topic unrelated "
+                "to both research and the document's title."
             ),
             "false": (
-                "The comment could belong in a research discussion, even if it is "
+                "The comment relates to research or to the document, even if it is "
                 "short, vague, critical, rude, low quality, or not in English, "
-                "such as praise, thanks, agreement, a personal experience, or a "
-                "question for the authors or other commenters."
+                "such as praise, thanks, agreement, a personal experience with the "
+                "topic, or a question for the authors or other commenters."
             ),
         },
     },
@@ -93,7 +93,10 @@ class CommentSpamScreeningService:
         flagger = User.objects.get_ai_expert_account()
         if comment.flags.filter(created_by=flagger).exists():
             return
-        state = {"comment": comment.plain_text[:MAX_COMMENT_CHARS]}
+        state = {
+            "document_title": comment.unified_document.get_display_title(),
+            "comment": comment.plain_text[:MAX_COMMENT_CHARS],
+        }
         decision = self.client.decide(state, QUESTIONS)
         screening = CommentSpamScreening.objects.create(
             comment=comment,
