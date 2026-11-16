@@ -22,6 +22,7 @@ from research_ai.services.agent.errors import (
 )
 from research_ai.services.agent.providers.base import LLMProvider
 from research_ai.services.agent.recorder import AgentRecorder
+from research_ai.services.agent.run_metrics import RunToolMetrics
 from research_ai.services.agent.tools import Toolset
 from research_ai.services.agent.types import (
     AssistantTurn,
@@ -167,6 +168,7 @@ class Agent:
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.recorder = recorder
+        self._run_tool_metrics = RunToolMetrics()
 
     def run(
         self, user_prompt: str, *, images: Sequence[ImageBlock] = ()
@@ -368,6 +370,7 @@ class Agent:
             ) as span:
                 output, tool_stop = self.toolset.call(call.name, call.input)
                 result = output.content
+                self._run_tool_metrics.observe(call.name, call.input, result)
                 log_trace(span, output=result)
                 if isinstance(result, dict) and "error" in result:
                     log_trace(span, error=str(result["error"]))
@@ -391,6 +394,8 @@ class Agent:
 
     def _drive(self, messages: list[Message], *, new_message: Message) -> AgentResult:
         execution = getattr(self.recorder, "execution", None)
+        conversation = getattr(execution, "conversation", None)
+        self._run_tool_metrics = RunToolMetrics()
         with trace_operation(
             "agent.run",
             span_type="task",
@@ -405,10 +410,17 @@ class Agent:
                 "provider": type(self.provider).__name__,
                 "execution_id": getattr(execution, "id", None),
                 "conversation_id": getattr(execution, "conversation_id", None),
+                "user_id": getattr(conversation, "user_id", None),
+                "workflow": getattr(conversation, "workflow", None),
                 "max_iterations": self.max_iterations,
             },
         ) as span:
-            result = self._drive_recorded(messages, new_message=new_message)
+            try:
+                result = self._drive_recorded(messages, new_message=new_message)
+            finally:
+                # Tool failures may be handled in a normal end_turn response;
+                # record writes separately even if the run is interrupted.
+                log_trace(span, metadata=self._run_tool_metrics.metadata())
             log_trace(
                 span,
                 output=result.final_text,

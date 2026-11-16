@@ -1,7 +1,8 @@
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.test import APITestCase
+from rest_framework.test import APIRequestFactory, APITestCase
 
 from note.models import NoteContent
 from note.services.note_creation_service import NoteCreationService
@@ -13,6 +14,10 @@ from researchhub_document.related_models.constants.document_type import (
     DISCUSSION,
     GRANT,
     PREREGISTRATION,
+)
+from researchhub_document.serializers.researchhub_post_serializer import (
+    DynamicPostSerializer,
+    ResearchhubPostSerializer,
 )
 from researchhub_document.services.note_publication_service import (
     NotePublicationService,
@@ -31,6 +36,7 @@ class NotePublicationTests(AWSMockMixin, APITestCase):
         )
         self.secret = "Private draft body that must not be disclosed"
         NoteContent.objects.create(note=self.note, plain_text=self.secret)
+        self.note.refresh_from_db()
         self.payload = {
             "document_type": DISCUSSION,
             "title": "Public post with a sufficiently long title",
@@ -207,3 +213,91 @@ class NotePublicationTests(AWSMockMixin, APITestCase):
 
         # Assert
         self.assertFalse(ResearchhubPost.objects.filter(note=self.note).exists())
+
+    def test_public_post_redacts_backing_draft_for_unrelated_readers(self):
+        # Arrange: the published body and the latest private draft differ.
+        post = create_post(created_by=self.owner)
+        post.note = self.note
+        post.save(update_fields=["note"])
+
+        for user in (AnonymousUser(), self.other_user, None):
+            for serializer_type in (ResearchhubPostSerializer, DynamicPostSerializer):
+                with self.subTest(user=user, serializer=serializer_type):
+                    request = APIRequestFactory().get("/")
+                    request.user = user
+                    serializer = serializer_type(
+                        post,
+                        context={
+                            "request": request,
+                            "doc_dps_get_note": {
+                                "_include_fields": ["id", "latest_version"]
+                            },
+                        },
+                    )
+
+                    # Act: exercise the embedding used by detail and nested APIs.
+                    note = serializer.get_note(post)
+
+                    # Assert
+                    self.assertIsNone(note)
+
+        # Act: exercise both the public list and detail endpoints.
+        for user in (None, self.other_user):
+            self.client.force_authenticate(user)
+            for url in (
+                f"/api/researchhubpost/{post.id}/",
+                f"/api/researchhubpost/?post_id={post.id}",
+            ):
+                with self.subTest(user=user, url=url):
+                    response = self.client.get(url)
+
+                    # Assert
+                    self.assertEqual(response.status_code, status.HTTP_200_OK)
+                    self.assertNotIn(self.secret, str(response.data))
+                    self.assertIn(post.renderable_text, str(response.data))
+
+    def test_backing_draft_remains_visible_to_owner_and_collaborator(self):
+        # Arrange
+        post = create_post(created_by=self.owner)
+        post.note = self.note
+        post.save(update_fields=["note"])
+        self._grant_permission(VIEWER)
+
+        for user in (self.owner, self.other_user):
+            for serializer_type in (ResearchhubPostSerializer, DynamicPostSerializer):
+                with self.subTest(user=user, serializer=serializer_type):
+                    request = APIRequestFactory().get("/")
+                    request.user = user
+
+                    # Act
+                    note = serializer_type(
+                        post,
+                        context={
+                            "request": request,
+                            "doc_dps_get_note": {
+                                "_include_fields": ["id", "latest_version"]
+                            },
+                        },
+                    ).get_note(post)
+
+                    # Assert
+                    self.assertIn(self.secret, str(note))
+
+    def test_backing_draft_is_hidden_without_request_or_after_removal(self):
+        # Arrange
+        post = create_post(created_by=self.owner)
+        post.note = self.note
+        post.save(update_fields=["note"])
+        request = APIRequestFactory().get("/")
+        request.user = self.owner
+
+        for context in ({}, {"request": request}):
+            if context:
+                self.note.unified_document.is_removed = True
+                self.note.unified_document.save(update_fields=["is_removed"])
+            for serializer_type in (ResearchhubPostSerializer, DynamicPostSerializer):
+                # Act
+                note = serializer_type(post, context=context).get_note(post)
+
+                # Assert
+                self.assertIsNone(note)
