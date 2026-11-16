@@ -67,8 +67,8 @@ class CommentSpamScreeningServiceTests(TestCase):
         client.decide.assert_not_called()
         self.assertFalse(self.comment.flags.exists())
 
-    def test_skips_comments_it_already_flagged(self) -> None:
-        """Screening a flagged comment again does not call Jev a second time."""
+    def test_rescreens_flagged_comments_without_flagging_them_again(self) -> None:
+        """Rescreening a flagged comment records it but files no second flag."""
         # Arrange
         client = _mock_jev_client(promotional=0.99, solicitation=0.1, off_topic=0.1)
         service = CommentSpamScreeningService(client=client)
@@ -78,4 +78,5 @@ class CommentSpamScreeningServiceTests(TestCase):
         service.screen(self.comment)
 
         # Assert
-        client.decide.assert_called_once()
+        self.assertEqual(self.comment.spam_screenings.count(), 2)
+        self.assertEqual(self.comment.flags.count(), 1)

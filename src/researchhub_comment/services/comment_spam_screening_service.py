@@ -90,9 +90,6 @@ class CommentSpamScreeningService:
             comment.created_by
         ):
             return
-        flagger = User.objects.get_ai_expert_account()
-        if comment.flags.filter(created_by=flagger).exists():
-            return
         state = {
             "document_title": comment.unified_document.get_display_title(),
             "comment": comment.plain_text[:MAX_COMMENT_CHARS],
@@ -107,7 +104,8 @@ class CommentSpamScreeningService:
             flagged=max(decision.answers.values()) >= FLAG_THRESHOLD,
             cost_microusd=decision.cost_microusd,
         )
-        if screening.flagged:
+        flagger = User.objects.get_ai_expert_account()
+        if screening.flagged and not comment.flags.filter(created_by=flagger).exists():
             create_flag(
                 user=flagger,
                 item=comment,
