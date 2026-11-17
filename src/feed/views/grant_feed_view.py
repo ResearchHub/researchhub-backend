@@ -138,7 +138,11 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ReadOnlyModelViewSet):
                 "unified_document",
             )
             .prefetch_related(*prefetch_related)
-            .filter(document_type=GRANT, unified_document__is_removed=False)
+            .filter(
+                document_type=GRANT,
+                unified_document__is_removed=False,
+            )
+            .exclude(unified_document__document_filter__is_excluded_in_feed=True)
         )
         queryset = queryset.exclude(
             unified_document__grants__status__in=[Grant.PENDING, Grant.DECLINED]

@@ -125,6 +125,15 @@ class ResearchhubPostQuerySet(models.QuerySet):
 
 
 class ResearchhubPost(AbstractGenericReactionModel):
+    external_source_id = models.CharField(
+        max_length=128,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text=(
+            "Namespaced source key for rerunnable imports; never derived from title."
+        ),
+    )
     authors = models.ManyToManyField(
         Author,
         related_name="authored_posts",

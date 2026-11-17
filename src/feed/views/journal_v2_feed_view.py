@@ -171,5 +171,6 @@ class JournalV2FeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
                     ResearchhubUnifiedDocument.APPROVED
                 ),
             )
+            .exclude(unified_document__document_filter__is_excluded_in_feed=True)
         )
         return queryset
