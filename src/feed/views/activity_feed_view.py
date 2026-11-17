@@ -362,6 +362,10 @@ class ActivityFeedViewSet(FeedViewMixin, ReadOnlyModelViewSet):
             .order_by("-action_date")
         )
         queryset = exclude_hidden_feed_entries(queryset)
+        queryset = queryset.exclude(
+            unified_document__document_type=GRANT,
+            unified_document__document_filter__is_excluded_in_feed=True,
+        )
 
         # Exclude paper publications
         paper_ct = ContentType.objects.get_for_model(Paper)

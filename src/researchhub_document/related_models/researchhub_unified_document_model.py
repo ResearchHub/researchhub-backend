@@ -121,6 +121,22 @@ class ResearchhubUnifiedDocument(
             models.Index(fields=["document_type"], name="idx_document_type"),
         )
 
+    @property
+    def is_rfp_excluded_from_feed(self) -> bool:
+        """Check RFP exclusion without loading filters for other document types."""
+        if self.document_type != GRANT or self.document_filter_id is None:
+            return False
+
+        field = self._meta.get_field("document_filter")
+        if field.is_cached(self):
+            document_filter = field.get_cached_value(self)
+            return bool(document_filter and document_filter.is_excluded_in_feed)
+
+        return DocumentFilter.objects.filter(
+            pk=self.document_filter_id,
+            is_excluded_in_feed=True,
+        ).exists()
+
     def update_filter(self, filter_type):
         if self.document_filter:
             self.document_filter.update_filter(filter_type)

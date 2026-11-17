@@ -88,10 +88,13 @@ class DynamicFundingPoolSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def _amount_currency_dict(self, rsc_amount):
-        try:
-            usd_amount = RscExchangeRate.rsc_to_usd(float(rsc_amount))
-        except AttributeError:
-            usd_amount = None
+        if rsc_amount == 0:
+            usd_amount = 0
+        else:
+            try:
+                usd_amount = RscExchangeRate.rsc_to_usd(float(rsc_amount))
+            except AttributeError:
+                usd_amount = None
         return {
             "rsc": rsc_amount,
             "usd": usd_amount,
