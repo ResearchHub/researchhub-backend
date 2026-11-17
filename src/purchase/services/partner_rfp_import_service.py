@@ -3,10 +3,15 @@
 import html
 from decimal import Decimal
 
+from bs4 import BeautifulSoup
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils.text import slugify
 from rest_framework import serializers
 
+from note.models import GrantSettings, NoteContent
+from note.services.note_content_service import NoteContentService
+from note.services.note_creation_service import NoteCreationService
 from purchase.models import Grant
 from purchase.related_models.constants.currency import USD
 from purchase.services.grant_creation_service import GrantCreationService
@@ -34,10 +39,14 @@ class PartnerRfpImportService:
         partner_organization: str,
         cover_service=None,
         grant_creation_service=None,
+        note_creation_service=None,
+        note_content_service=None,
     ):
         self.partner_organization = validate_partner_organization(partner_organization)
         self.cover_service = cover_service or CoverImageService()
         self.grant_creation_service = grant_creation_service or GrantCreationService()
+        self.note_creation_service = note_creation_service or NoteCreationService()
+        self.note_content_service = note_content_service or NoteContentService()
 
     @transaction.atomic
     def import_topic(
@@ -113,7 +122,70 @@ class PartnerRfpImportService:
                 description=description,
                 status=Grant.OPEN,
             )
+        self._ensure_published_content(post, owner=owner)
         return post, created
+
+    def _ensure_published_content(self, post, *, owner):
+        """Fill missing publication data the web RFP page reads, including on retry."""
+        update_fields = []
+        if post.note_id is None:
+            note = self.note_creation_service.create_private_note(
+                created_by=owner, title=post.title, document_type=GRANT
+            )
+            note.reset_note_authors(
+                [author.pk for author in post.ordered_authors]
+                or [owner.author_profile.pk]
+            )
+            plain_text = BeautifulSoup(post.renderable_text, "html.parser").get_text(
+                "\n"
+            )
+            content_json = {
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": line}],
+                    }
+                    for line in plain_text.splitlines()
+                    if line
+                ],
+            }
+            version = self.note_content_service.create_version(
+                note,
+                content_json,
+                plain_text=plain_text,
+                created_by=owner,
+                created_via=NoteContent.CREATED_VIA_SYSTEM,
+            )
+            note.latest_version = version
+            note.image = post.image or ""
+            note.preview_img = post.preview_img
+            note.save(update_fields=["image", "preview_img", "updated_date"])
+            grant = post.unified_document.grants.get()
+            settings = GrantSettings.objects.create(
+                note=note,
+                amount=grant.amount,
+                currency=grant.currency,
+                organization=grant.organization or "",
+                description=grant.description,
+                end_date=grant.end_date,
+                application_visibility=grant.application_visibility,
+                funding_mechanism=grant.funding_mechanism,
+            )
+            settings.contacts.set(grant.contacts.all())
+            post.note = note
+            update_fields.append("note")
+
+        if not post.discussion_src:
+            post.discussion_src.save(
+                f"partner-rfp-{post.pk}.html",
+                ContentFile(post.renderable_text.encode("utf-8")),
+                save=False,
+            )
+            update_fields.append("discussion_src")
+
+        if update_fields:
+            post.save(update_fields=[*update_fields, "updated_date"])
 
     @staticmethod
     def page_html(summary: str) -> str:
@@ -151,6 +223,10 @@ class PartnerRfpImportService:
         post.image = generation.image_key
         post.preview_img = url
         post.save(update_fields=["image", "preview_img", "updated_date"])
+        if post.note_id is not None and not post.note.image:
+            post.note.image = post.image
+            post.note.preview_img = url
+            post.note.save(update_fields=["image", "preview_img", "updated_date"])
 
     def export(
         self,

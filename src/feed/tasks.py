@@ -45,20 +45,23 @@ def create_feed_entry(
     item_content_type = ContentType.objects.get(id=item_content_type_id)
 
     # Get the actual model instances
-    item = item_content_type.get_object_for_this_type(id=item_id)
+    if item_content_type.model_class() is ResearchhubPost:
+        item = ResearchhubPost.objects.select_related(
+            "unified_document__document_filter"
+        ).get(pk=item_id)
+    else:
+        item = item_content_type.get_object_for_this_type(id=item_id)
     user = User.objects.get(id=user_id) if user_id else None
 
     unified_document = _get_unified_document(item, item_content_type)
 
-    if unified_document is not None and getattr(
-        unified_document.document_filter, "is_excluded_in_feed", False
-    ):
-        return None
-
     # Suppress feed entries for items attached to a private unified document.
     # Covers posts, comments, bounties, and fundraise contributions in one place.
-    if unified_document is not None and not unified_document.is_public:
-        return None
+    if unified_document is not None:
+        if not unified_document.is_public:
+            return None
+        if unified_document.is_rfp_excluded_from_feed:
+            return None
 
     # Changelogs are listed on the changelog page only, never in feeds.
     if unified_document is not None and unified_document.document_type == CHANGELOG:
