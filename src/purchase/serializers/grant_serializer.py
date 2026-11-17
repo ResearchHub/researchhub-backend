@@ -95,12 +95,16 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         """
         usd_amount = float(grant.amount)
 
-        # Handle case where no exchange rate exists (e.g., in tests)
-        try:
-            rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
-        except AttributeError:
-            # Fallback to None if no exchange rate is available
-            rsc_amount = None
+        if usd_amount == 0:
+            # Zero needs no exchange rate, including when none is available.
+            rsc_amount = 0
+        else:
+            # Handle case where no exchange rate exists (e.g., in tests)
+            try:
+                rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+            except AttributeError:
+                # Fallback to None if no exchange rate is available
+                rsc_amount = None
 
         return {
             "usd": usd_amount,

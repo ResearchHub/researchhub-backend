@@ -5,19 +5,22 @@ from decimal import Decimal
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry
+from note.models import Note
 from purchase.models import Grant
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.services.partner_rfp_catalog import PartnerRfpTopic
 from purchase.services.partner_rfp_import_service import PartnerRfpImportService
@@ -28,6 +31,9 @@ from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import AWSMockTestCase
 
 
+@override_settings(
+    STORAGES={"default": {"BACKEND": "django.core.files.storage.InMemoryStorage"}}
+)
 class PartnerRfpImportTests(AWSMockTestCase):
     def setUp(self):
         super().setUp()
@@ -128,19 +134,87 @@ class PartnerRfpImportTests(AWSMockTestCase):
         self.assertEqual(post.unified_document.grants.get().status, Grant.OPEN)
         self.assertFalse(response.data["results"])
 
+    def test_zero_dollar_rfp_public_post_and_metadata_load_without_exchange_rates(self):
+        # Arrange
+        post, _ = self.service.import_topic(
+            self.topic, owner=self.owner, is_public=True
+        )
+        grant = post.unified_document.grants.get()
+        self.client.force_authenticate(None)
+
+        # Act
+        with (
+            patch.object(
+                RscExchangeRate, "usd_to_rsc", side_effect=RuntimeError("No rate")
+            ) as usd_to_rsc,
+            patch.object(
+                RscExchangeRate, "rsc_to_usd", side_effect=RuntimeError("No rate")
+            ) as rsc_to_usd,
+        ):
+            post_response = self.client.get(f"/api/researchhubpost/{post.pk}/")
+            metadata_response = self.client.get(
+                f"/api/researchhub_unified_document/{post.unified_document_id}"
+                "/get_document_metadata/"
+            )
+
+        # Assert
+        self.assertEqual(post_response.status_code, 200)
+        self.assertEqual(post_response.data["id"], post.pk)
+        self.assertEqual(post_response.data["title"], self.topic.title)
+        self.assertEqual(post_response.data["full_markdown"], post.renderable_text)
+        self.assertTrue(post_response.data["post_src"])
+        nested_grant = post_response.data["note"]["post"]["unified_document"]["grant"]
+        self.assertEqual(nested_grant["id"], grant.pk)
+        self.assertEqual(nested_grant["amount"]["usd"], 0)
+        self.assertEqual(post_response.data["note"]["grant_settings"]["amount"], "0.00")
+        self.assertEqual(metadata_response.status_code, 200)
+        data = metadata_response.data["grant"]
+        self.assertEqual(data["id"], grant.pk)
+        self.assertEqual(data["status"], Grant.OPEN)
+        self.assertEqual(data["amount"], {"usd": 0, "rsc": 0, "formatted": "0.00 USD"})
+        self.assertEqual(data["funding_pool"]["id"], grant.funding_pool.pk)
+        for field in ("amount_holding", "amount_distributed", "amount_raised"):
+            self.assertEqual(data["funding_pool"][field]["usd"], 0)
+            self.assertEqual(data["funding_pool"][field]["rsc"], 0)
+        usd_to_rsc.assert_not_called()
+        rsc_to_usd.assert_not_called()
+
+    def test_zero_dollar_grant_detail_loads_for_an_unrelated_authenticated_user(self):
+        # Arrange
+        post, _ = self.service.import_topic(
+            self.topic, owner=self.owner, is_public=True
+        )
+        grant = post.unified_document.grants.get()
+        viewer = create_random_authenticated_user("zero_grant_viewer")
+        self.client.force_authenticate(viewer)
+
+        # Act
+        response = self.client.get(f"/api/grant/{grant.pk}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], grant.pk)
+        self.assertEqual(response.data["post_id"], post.pk)
+        self.assertEqual(response.data["amount"]["usd"], 0)
+        self.assertEqual(response.data["amount"]["rsc"], 0)
+        self.assertTrue(response.data["is_active"])
+
     def test_task_does_not_publish_an_excluded_public_document(self):
         # Arrange
         post, _ = self.service.import_topic(
             self.topic, owner=self.owner, is_public=True
         )
+        content_type_id = ContentType.objects.get_for_model(post).pk
 
         # Act
-        result = create_feed_entry(
-            post.pk,
-            ContentType.objects.get_for_model(post).pk,
-            "PUBLISH",
-            user_id=self.owner.pk,
-        )
+        # Content type, post (with document/filter), and user: no lazy lookups.
+        with self.assertNumQueries(3):
+            result = create_feed_entry(
+                post.pk,
+                content_type_id,
+                "PUBLISH",
+                user_id=self.owner.pk,
+            )
 
         # Assert
         self.assertIsNone(result)
@@ -191,6 +265,7 @@ class PartnerRfpImportTests(AWSMockTestCase):
         # Assert
         post.refresh_from_db()
         self.assertEqual(post.image, generation.image_key)
+        self.assertEqual(post.note.image, generation.image_key)
         self.cover_service.generate_for_batch.assert_not_called()
 
     def test_new_cover_uses_the_batch_generation_entry_point(self):
@@ -223,6 +298,41 @@ class PartnerRfpImportTests(AWSMockTestCase):
         # Act / Assert
         with self.assertRaisesRegex(ValueError, "another owner"):
             self.service.import_topic(self.topic, owner=self.moderator)
+
+    def test_retry_repairs_missing_publication_data_without_changing_the_id(self):
+        # Arrange
+        post, _ = self.service.import_topic(self.topic, owner=self.owner)
+        grant_id = post.unified_document.grants.get().pk
+        old_note_id = post.note_id
+        edited_body = (
+            "<p>A manually edited research question that must be retained.</p>"
+        )
+        ResearchhubPost.objects.filter(pk=post.pk).update(
+            note=None, discussion_src=None, renderable_text=edited_body
+        )
+        Note.objects.filter(pk=old_note_id).delete()
+
+        # Act
+        repaired, created = self.service.import_topic(self.topic, owner=self.owner)
+        repaired_again, created_again = self.service.import_topic(
+            self.topic, owner=self.owner
+        )
+
+        # Assert
+        self.assertFalse(created)
+        self.assertFalse(created_again)
+        self.assertEqual(repaired.pk, post.pk)
+        self.assertEqual(repaired.unified_document.grants.get().pk, grant_id)
+        self.assertEqual(repaired.get_full_markdown(), edited_body)
+        self.assertEqual(
+            repaired.note.latest_version.plain_text,
+            "A manually edited research question that must be retained.",
+        )
+        self.assertEqual(repaired_again.note_id, repaired.note_id)
+        self.assertEqual(
+            repaired_again.discussion_src.name, repaired.discussion_src.name
+        )
+        self.assertEqual(repaired.note.notes.count(), 1)
 
     def test_regular_grant_api_serializer_still_rejects_zero(self):
         # Arrange

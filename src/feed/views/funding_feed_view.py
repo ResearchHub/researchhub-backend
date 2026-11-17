@@ -186,7 +186,6 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
                 unified_document__is_removed=False,
                 unified_document__status=ResearchhubUnifiedDocument.APPROVED,
             )
-            .exclude(unified_document__document_filter__is_excluded_in_feed=True)
         )
 
         # Personalized feeds (grant_id / created_by / funded_by) and
