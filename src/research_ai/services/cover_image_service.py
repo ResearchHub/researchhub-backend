@@ -251,7 +251,31 @@ class CoverImageService:
         }.get(generation.status)
         return since is not None and since < timezone.now() - self.STALE_AFTER
 
-    def run(self, generation_id: int) -> None:
+    def generate_for_batch(
+        self,
+        *,
+        user,
+        document_type: str,
+        title: str,
+        subtitle: str = "",
+    ) -> CoverImageGeneration:
+        """Generate an internally funded batch cover without user budget charges.
+
+        Server-side imports call this directly. Request-facing generation keeps
+        its usual admission checks and usage recording through ``start``/``run``.
+        The creator owns the saved image; their personal AI budget is untouched.
+        """
+        generation = self._admit(
+            user,
+            document_type=document_type,
+            title=title,
+            subtitle=subtitle,
+        )
+        self.run(generation.id, charge_user_budget=False)
+        generation.refresh_from_db()
+        return generation
+
+    def run(self, generation_id: int, *, charge_user_budget: bool = True) -> None:
         """Generate and store the banner for a queued request."""
         now = timezone.now()
         cutoff = now - self.STALE_AFTER
@@ -281,15 +305,18 @@ class CoverImageService:
             self._fail(generation, "OpenRouter is not configured")
             return
         # The budget may have been spent since the request was queued.
-        try:
-            check_spend_admission(generation.created_by)
-        except UsageLimitExceededError:
-            self._fail(generation, "The daily AI usage limit is reached")
-            return
-        except Exception:  # noqa: BLE001 - a request is never left processing
-            logger.exception("could not check the budget for cover %s", generation.id)
-            self._fail(generation, "Could not check the daily AI usage limit")
-            return
+        if charge_user_budget:
+            try:
+                check_spend_admission(generation.created_by)
+            except UsageLimitExceededError:
+                self._fail(generation, "The daily AI usage limit is reached")
+                return
+            except Exception:  # noqa: BLE001 - a request is never left processing
+                logger.exception(
+                    "could not check the budget for cover %s", generation.id
+                )
+                self._fail(generation, "Could not check the daily AI usage limit")
+                return
 
         references = []
         if generation.logo_file_id:
@@ -313,7 +340,14 @@ class CoverImageService:
             self._fail(generation, "OpenRouter returned no image")
             return
         # The image came back, so it was billed, whether or not it is stored.
-        self._record_usage(generation, image)
+        if charge_user_budget:
+            self._record_usage(generation, image)
+        else:
+            logger.info(
+                "Batch cover %s provider cost: %s micro-USD",
+                generation.id,
+                image.cost_microusd,
+            )
 
         jpeg = self._jpeg_or_none(image)
         if jpeg is None:

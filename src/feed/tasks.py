@@ -50,6 +50,11 @@ def create_feed_entry(
 
     unified_document = _get_unified_document(item, item_content_type)
 
+    if unified_document is not None and getattr(
+        unified_document.document_filter, "is_excluded_in_feed", False
+    ):
+        return None
+
     # Suppress feed entries for items attached to a private unified document.
     # Covers posts, comments, bounties, and fundraise contributions in one place.
     if unified_document is not None and not unified_document.is_public:
