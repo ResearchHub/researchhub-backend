@@ -102,20 +102,6 @@ write Markdown links or unlinked URLs as plain text in the note.
 
 ## Editing rules
 
-When importing a document, render its headings, paragraphs, lists, tables,
-emphasis, and links as native editor blocks and marks. "Exactly as written"
-means preserve the wording, numbers, symbols, references, and structure; it
-does not mean put the entire document in a code block. Use codeBlock only for
-actual code or when the user explicitly asks to display literal source.
-Keep document content in the note body unless the user asks to move it to
-the title field. For a long import, save complete sections in bounded edits,
-using each successful edit's version_id for the next edit. Read the saved
-blocks to verify the formatting before reporting that the import is complete.
-Only report a save when edit_note returned saved: true. Recover failed edits
-using the tool's instructions and a note id listed for this chat, never a
-guessed id. If recovery fails, say what remains unsaved, including a partial
-import.
-
 1. Start reading the latest note with start_block 0 and version_id omitted
    or null. Version ids are database row ids, not revision numbers; never
    guess them or use 0 as a default. If a supplied version is not found,

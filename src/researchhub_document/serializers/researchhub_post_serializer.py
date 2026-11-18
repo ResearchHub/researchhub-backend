@@ -46,21 +46,6 @@ from utils.http import get_user_from_request
 logger = logging.getLogger(__name__)
 
 
-def _readable_backing_note(post, context):
-    """Public post visibility does not grant access to its mutable draft."""
-    user = get_user_from_request(context)
-    if user is None or not user.is_authenticated:
-        return None
-    note = post.note
-    if (
-        note is None
-        or note.unified_document.is_removed
-        or not note.permissions.has_user(user)
-    ):
-        return None
-    return note
-
-
 class RegisteredReportPublishSerializer(Serializer):
     """Validate a registered report publish request."""
 
@@ -200,9 +185,9 @@ class ResearchhubPostSerializer(
     def get_note(self, instance):
         from note.serializers import NoteSerializer
 
-        note = _readable_backing_note(instance, self.context)
+        note = instance.note
         if note:
-            return NoteSerializer(note, context=self.context).data
+            return NoteSerializer(instance.note, context=self.context).data
         return None
 
     def get_registered_report_id(self, post: ResearchhubPost) -> int | None:
@@ -555,11 +540,10 @@ class DynamicPostSerializer(
         from note.serializers import DynamicNoteSerializer
 
         context = self.context
-        note = _readable_backing_note(post, context)
-        if note is None:
-            return None
         _context_fields = context.get("doc_dps_get_note", {})
-        serializer = DynamicNoteSerializer(note, context=context, **_context_fields)
+        serializer = DynamicNoteSerializer(
+            post.note, context=context, **_context_fields
+        )
         return serializer.data
 
     def get_peer_reviews(self, post):
