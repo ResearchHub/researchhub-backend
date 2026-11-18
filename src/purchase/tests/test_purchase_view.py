@@ -1,9 +1,13 @@
+from decimal import Decimal
+from unittest.mock import patch
+
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from notification.models import Notification
 from paper.tests.helpers import create_paper
 from purchase.models import Balance, Purchase, RscExchangeRate
+from purchase.permissions import CanTipOrReadOnly
 from reputation.models import BountyFee, Escrow, SupportFee
 from researchhub_comment.constants.rh_comment_thread_types import (
     COMMUNITY_REVIEW,
@@ -12,17 +16,23 @@ from researchhub_comment.constants.rh_comment_thread_types import (
 )
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
+from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import (
     create_random_authenticated_user,
     create_user,
 )
 
+STARTING_BALANCE = Decimal(10000)
+
 
 class PurchaseViewTests(APITestCase):
     def setUp(self):
         self.bank_user = create_user(email="bank@researchhub.com")
+        self.foundation = create_user(email=FOUNDATION_EMAIL)
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
         self.supportFee = SupportFee.objects.create(rh_pct=0.03, dao_pct=0.00)
+        self.distribution_ct = ContentType.objects.get(model="distribution")
+        self._fund(self.foundation)
 
         RscExchangeRate.objects.create(
             rate=0.5,
@@ -30,118 +40,272 @@ class PurchaseViewTests(APITestCase):
             target_currency="USD",
         )
 
-    def test_list_purchases(self):
-        purchaser = create_random_authenticated_user("rep_user")
-        poster = create_random_authenticated_user("rep_user")
-        comment = create_rh_comment(created_by=poster)
-
-        tip_amount = 100
-
-        # give the user 10,000 RSC
-        distribution_ct = ContentType.objects.get(model="distribution")
+    def _fund(self, user, amount=STARTING_BALANCE):
         Balance.objects.create(
-            amount="10000", user=purchaser, content_type=distribution_ct
+            amount=str(amount), user=user, content_type=self.distribution_ct
         )
 
+    def _post_support_response(
+        self, user, object_id, content_type, amount=10, purchase_type="BOOST"
+    ):
+        url = "/api/purchase/"
+        self.client.force_authenticate(user)
+        return self.client.post(
+            url,
+            {
+                "amount": amount,
+                "content_type": content_type,
+                "object_id": object_id,
+                "purchase_method": "OFF_CHAIN",
+                "purchase_type": purchase_type,
+            },
+        )
+
+    def _assert_no_tip_was_made(self, tipper, recipient, tipper_balance=None):
+        """Nothing was recorded and neither side's balance moved."""
+        self.assertEqual(Purchase.objects.count(), 0)
+        self.assertEqual(
+            tipper.get_balance(),
+            STARTING_BALANCE if tipper_balance is None else tipper_balance,
+        )
+        self.assertEqual(Balance.objects.filter(user=tipper).count(), 1)
+        self.assertEqual(recipient.get_balance(), 0)
+        self.assertFalse(Balance.objects.filter(user=recipient).exists())
+        self.assertFalse(Notification.objects.filter(recipient=recipient).exists())
+
+    def test_list_purchases(self):
+        # Arrange
+        poster = create_random_authenticated_user("rep_user")
+        comment = create_rh_comment(created_by=poster)
         response = self._post_support_response(
-            purchaser, comment.id, "rhcommentmodel", tip_amount
+            self.foundation, comment.id, "rhcommentmodel", 100
         )
         self.assertContains(response, "id", status_code=201)
 
-        self.client.force_authenticate(purchaser)
+        # Act
+        self.client.force_authenticate(self.foundation)
         response = self.client.get("/api/purchase/")
+
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
 
     def test_list_purchases_cannot_list_other_users_purchases(self):
-        purchaser = create_random_authenticated_user("rep_user")
+        # Arrange
         poster = create_random_authenticated_user("rep_user")
         comment = create_rh_comment(created_by=poster)
-
-        tip_amount = 100
-
-        # give the user 10,000 RSC
-        distribution_ct = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount="10000", user=purchaser, content_type=distribution_ct
-        )
-
         response = self._post_support_response(
-            purchaser, comment.id, "rhcommentmodel", tip_amount
+            self.foundation, comment.id, "rhcommentmodel", 100
         )
         self.assertContains(response, "id", status_code=201)
 
+        # Act
         self.client.force_authenticate(poster)
         response = self.client.get("/api/purchase/")
+
+        # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 0)
 
+    def test_ordinary_user_can_still_list_past_tips(self):
+        """Tips made before the restriction stay readable by their owner."""
+        # Arrange
+        tipper = create_random_authenticated_user("past_tipper")
+        poster = create_random_authenticated_user("poster")
+        comment = create_rh_comment(created_by=poster)
+        past_tip = Purchase.objects.create(
+            user=tipper,
+            content_type=ContentType.objects.get_for_model(comment),
+            object_id=comment.id,
+            purchase_type=Purchase.BOOST,
+            purchase_method=Purchase.OFF_CHAIN,
+            paid_status=Purchase.PAID,
+            amount="100",
+        )
+
+        # Act
+        self.client.force_authenticate(tipper)
+        response = self.client.get("/api/purchase/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [result["id"] for result in response.data["results"]], [past_tip.id]
+        )
+        self.assertEqual(response.data["results"][0]["purchase_type"], Purchase.BOOST)
+
     def test_support_paper_is_rejected(self):
-        user = create_random_authenticated_user("rep_user")
+        # Arrange
         uploader = create_random_authenticated_user("rep_user")
         paper = create_paper(uploaded_by=uploader)
-        amount = 10
 
-        # give the user 10,000 RSC
-        distribution_ct = ContentType.objects.get(model="distribution")
-        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
+        # Act
+        response = self._post_support_response(self.foundation, paper.id, "paper", 10)
 
-        response = self._post_support_response(user, paper.id, "paper", amount)
+        # Assert
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count(), 0)
 
-    def test_support_comment_distribution(self):
-        user = create_random_authenticated_user("rep_user")
+    def test_foundation_account_can_tip(self):
+        # Arrange
         poster = create_random_authenticated_user("rep_user")
         post = create_post(created_by=poster)
         comment = create_rh_comment(created_by=poster, post=post)
-
         tip_amount = 100
         fee_amount = 3
 
-        # give the user 10,000 RSC
-        distribution_ct = ContentType.objects.get(model="distribution")
-        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
-
+        # Act
         response = self._post_support_response(
-            user, comment.id, "rhcommentmodel", tip_amount
+            self.foundation, comment.id, "rhcommentmodel", tip_amount
         )
+
+        # Assert
         self.assertContains(response, "id", status_code=201)
-        purchase_id = response.data["id"]
-        # fee and balance deducted from user
+        purchase = Purchase.objects.get(id=response.data["id"])
+        self.assertEqual(purchase.user, self.foundation)
+        self.assertEqual(purchase.purchase_type, Purchase.BOOST)
+        self.assertEqual(purchase.paid_status, Purchase.PAID)
+        # fee and tip deducted from the Foundation account
         fee_balance_entry = Balance.objects.filter(
-            user=user,
+            user=self.foundation,
             content_type=ContentType.objects.get_for_model(SupportFee),
         )
         self.assertTrue(fee_balance_entry.exists())
-        balance_fee_amount = float(fee_balance_entry.first().amount)
-        self.assertEqual(balance_fee_amount, float(-fee_amount))
+        self.assertEqual(float(fee_balance_entry.first().amount), float(-fee_amount))
         amount_balance_entry = Balance.objects.filter(
-            user=user,
+            user=self.foundation,
             content_type=ContentType.objects.get(model="purchase"),
-            object_id=purchase_id,
+            object_id=purchase.id,
         )
         self.assertTrue(amount_balance_entry.exists())
-        tip_balance_amount = float(amount_balance_entry.first().amount)
-        self.assertEqual(tip_balance_amount, float(-tip_amount))
-        # balance added to poster
+        self.assertEqual(float(amount_balance_entry.first().amount), float(-tip_amount))
+        self.assertEqual(
+            self.foundation.get_balance(),
+            STARTING_BALANCE - tip_amount - fee_amount,
+        )
+        # tip credited to the poster
         poster_balance_entry = Balance.objects.filter(
-            user=poster,
-            content_type=ContentType.objects.get(model="distribution"),
+            user=poster, content_type=self.distribution_ct
         )
         self.assertTrue(poster_balance_entry.exists())
-        poster_balance_amount = float(
-            poster_balance_entry.latest("created_date").amount
+        self.assertEqual(
+            float(poster_balance_entry.latest("created_date").amount),
+            float(tip_amount),
         )
-        self.assertEqual(poster_balance_amount, float(tip_amount))
+        self.assertEqual(poster.get_balance(), tip_amount)
+
+    def test_ordinary_user_cannot_tip(self):
+        # Arrange
+        user = create_random_authenticated_user("tipper")
+        poster = create_random_authenticated_user("poster")
+        comment = create_rh_comment(created_by=poster)
+        self._fund(user)
+
+        # Act
+        response = self._post_support_response(user, comment.id, "rhcommentmodel", 100)
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self._assert_no_tip_was_made(user, poster)
+
+    def test_moderator_and_staff_cannot_tip(self):
+        # Arrange
+        moderator = create_random_authenticated_user("moderator", moderator=True)
+        staff = create_random_authenticated_user("staff")
+        staff.is_staff = True
+        staff.is_superuser = True
+        staff.save()
+        poster = create_random_authenticated_user("poster")
+        comment = create_rh_comment(created_by=poster)
+
+        for user in (moderator, staff):
+            with self.subTest(user=user.email):
+                self._fund(user)
+
+                # Act
+                response = self._post_support_response(
+                    user, comment.id, "rhcommentmodel", 100
+                )
+
+                # Assert
+                self.assertEqual(response.status_code, 403)
+                self._assert_no_tip_was_made(user, poster)
+
+    def test_ordinary_user_cannot_tip_under_another_purchase_type(self):
+        """The restriction covers the endpoint, not just the BOOST label."""
+        # Arrange
+        user = create_random_authenticated_user("tipper")
+        poster = create_random_authenticated_user("poster")
+        comment = create_rh_comment(created_by=poster)
+        self._fund(user)
+
+        for purchase_type in (
+            Purchase.DOI,
+            Purchase.FUNDRAISE_CONTRIBUTION,
+            Purchase.FUNDING_POOL_CONTRIBUTION,
+        ):
+            with self.subTest(purchase_type=purchase_type):
+                # Act
+                response = self._post_support_response(
+                    user, comment.id, "rhcommentmodel", 100, purchase_type
+                )
+
+                # Assert
+                self.assertEqual(response.status_code, 403)
+                self._assert_no_tip_was_made(user, poster)
+
+    def test_fallback_account_cannot_tip_without_a_foundation_account(self):
+        """The bank account stands in as community account when none exists."""
+        # Arrange
+        self.foundation.delete(soft=False)
+        poster = create_random_authenticated_user("poster")
+        comment = create_rh_comment(created_by=poster)
+        self._fund(self.bank_user)
+
+        # Act
+        response = self._post_support_response(
+            self.bank_user, comment.id, "rhcommentmodel", 100
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self._assert_no_tip_was_made(self.bank_user, poster)
+
+    def test_tip_is_refused_inside_the_transaction_without_the_permission(self):
+        """The view refuses on its own if the permission class is bypassed."""
+        # Arrange
+        user = create_random_authenticated_user("tipper")
+        poster = create_random_authenticated_user("poster")
+        comment = create_rh_comment(created_by=poster)
+        self._fund(user)
+
+        # Act
+        with patch.object(CanTipOrReadOnly, "has_permission", return_value=True):
+            response = self._post_support_response(
+                user, comment.id, "rhcommentmodel", 100
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self._assert_no_tip_was_made(user, poster)
+
+    def test_unauthenticated_request_cannot_tip(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
+        comment = create_rh_comment(created_by=poster)
+
+        # Act
+        response = self._post_support_response(None, comment.id, "rhcommentmodel", 100)
+
+        # Assert
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(Purchase.objects.count(), 0)
+        self.assertFalse(Balance.objects.filter(user=poster).exists())
 
     def test_support_notifies_reviews_and_comments_with_their_own_types(self) -> None:
         """Tips on peer reviews and on comments send separate notification types."""
         # Arrange
-        user = create_random_authenticated_user("tipper")
         poster = create_random_authenticated_user("poster")
-        distribution_ct = ContentType.objects.get(model="distribution")
-        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
         expected_types = {
             GENERIC_COMMENT: Notification.RSC_SUPPORT_ON_DIS,
             COMMUNITY_REVIEW: Notification.RSC_SUPPORT_ON_DOC,
@@ -155,7 +319,9 @@ class PurchaseViewTests(APITestCase):
                 comment.save()
 
                 # Act
-                self._post_support_response(user, comment.id, "rhcommentmodel", 100)
+                self._post_support_response(
+                    self.foundation, comment.id, "rhcommentmodel", 100
+                )
 
                 # Assert
                 self.assertEqual(
@@ -165,36 +331,17 @@ class PurchaseViewTests(APITestCase):
                     notification_type,
                 )
 
-    def _post_support_response(self, user, object_id, content_type, amount=10):
-        url = "/api/purchase/"
-        self.client.force_authenticate(user)
-        return self.client.post(
-            url,
-            {
-                "amount": amount,
-                "content_type": content_type,
-                "object_id": object_id,
-                "purchase_method": "OFF_CHAIN",
-                "purchase_type": "BOOST",
-            },
-        )
-
     def test_invalid_purchase_method_is_rejected(self):
-        purchaser = create_random_authenticated_user("purchaser")
+        # Arrange
         poster = create_random_authenticated_user("poster")
         comment = create_rh_comment(created_by=poster)
-        tip_amount = 100
 
-        distribution_ct = ContentType.objects.get(model="distribution")
-        Balance.objects.create(
-            amount="10000", user=purchaser, content_type=distribution_ct
-        )
-
-        self.client.force_authenticate(purchaser)
+        # Act
+        self.client.force_authenticate(self.foundation)
         response = self.client.post(
             "/api/purchase/",
             {
-                "amount": tip_amount,
+                "amount": 100,
                 "content_type": "rhcommentmodel",
                 "object_id": comment.id,
                 "purchase_method": "ON_CHAIN",
@@ -202,38 +349,42 @@ class PurchaseViewTests(APITestCase):
             },
         )
 
+        # Assert
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(Purchase.objects.filter(user=purchaser).count(), 0)
-        self.assertEqual(
-            Balance.objects.filter(user=poster, content_type=distribution_ct).count(),
-            0,
-        )
+        self._assert_no_tip_was_made(self.foundation, poster)
 
-    def test_probable_spammer_cannot_support(self):
-        user = create_random_authenticated_user("spammer_user")
-        poster = create_random_authenticated_user("poster_user")
+    def test_invalid_purchase_type_is_rejected(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
         comment = create_rh_comment(created_by=poster)
 
-        # Set user as probable spammer
-        user.probable_spammer = True
-        user.save()
+        for purchase_type in (
+            Purchase.DOI,
+            Purchase.FUNDRAISE_CONTRIBUTION,
+            Purchase.FUNDING_POOL_CONTRIBUTION,
+        ):
+            with self.subTest(purchase_type=purchase_type):
+                # Act
+                response = self._post_support_response(
+                    self.foundation, comment.id, "rhcommentmodel", 100, purchase_type
+                )
 
-        # give the user 10,000 RSC
-        distribution_ct = ContentType.objects.get(model="distribution")
-        Balance.objects.create(amount="10000", user=user, content_type=distribution_ct)
+                # Assert
+                self.assertEqual(response.status_code, 400)
+                self._assert_no_tip_was_made(self.foundation, poster)
 
-        response = self._post_support_response(user, comment.id, "rhcommentmodel", 100)
+    def test_probable_spammer_cannot_support(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster_user")
+        comment = create_rh_comment(created_by=poster)
+        self.foundation.probable_spammer = True
+        self.foundation.save()
 
+        # Act
+        response = self._post_support_response(
+            self.foundation, comment.id, "rhcommentmodel", 100
+        )
+
+        # Assert
         self.assertEqual(response.status_code, 403)
-
-        # Verify no balance entries were created
-        self.assertEqual(
-            Balance.objects.filter(
-                user=user, content_type=ContentType.objects.get_for_model(SupportFee)
-            ).count(),
-            0,
-        )
-        self.assertEqual(
-            Balance.objects.filter(user=poster, content_type=distribution_ct).count(),
-            0,
-        )
+        self._assert_no_tip_was_made(self.foundation, poster)
