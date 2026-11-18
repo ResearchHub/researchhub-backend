@@ -5,7 +5,7 @@ import logging
 from note.related_models.note_model import Note
 from research_ai.models import AgentConversationMessage, AgentMessageScreening
 from research_ai.services.agent.errors import AgentRunError
-from research_ai.services.message_screening.jev_client import DecisionError, JevClient
+from research_ai.services.jev_client import DecisionError, JevClient
 
 logger = logging.getLogger(__name__)
 

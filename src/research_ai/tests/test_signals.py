@@ -1,8 +1,25 @@
+from unittest.mock import MagicMock, patch
+
 from django.test import TestCase
 from django_ses.signals import bounce_received, complaint_received, open_received
 
 from research_ai.models import GeneratedEmail
+from research_ai.tasks import screen_comment_task
+from researchhub_comment.events import CommentSubmittedEvent, comment_submitted
 from user.tests.helpers import create_random_authenticated_user
+
+
+class CommentSubmittedSignalTests(TestCase):
+    @patch.object(screen_comment_task, "delay")
+    def test_queues_screening_of_the_comment(self, mock_delay: MagicMock) -> None:
+        """A submitted comment queues the task that screens it."""
+        # Act
+        comment_submitted.send(
+            sender=self.__class__, event=CommentSubmittedEvent(comment_id=7)
+        )
+
+        # Assert
+        mock_delay.assert_called_once_with(7)
 
 
 class SesEventSignalTests(TestCase):

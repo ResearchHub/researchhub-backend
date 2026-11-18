@@ -38,6 +38,7 @@ from researchhub_comment.constants.rh_comment_view_constants import (
     PAPER,
     RESEARCHHUB_POST,
 )
+from researchhub_comment.events import publish_comment_submitted
 from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.permissions import (
@@ -50,10 +51,7 @@ from researchhub_comment.serializers import (
     RhCommentSerializer,
     RhCommentThreadSerializer,
 )
-from researchhub_comment.tasks import (
-    celery_create_mention_notification,
-    celery_screen_comment_for_spam,
-)
+from researchhub_comment.tasks import celery_create_mention_notification
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
@@ -352,9 +350,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 }
             )
             rh_comment, _ = RhCommentModel.create_from_data(data)
-            transaction.on_commit(
-                lambda: celery_screen_comment_for_spam.delay(rh_comment.id)
-            )
+            publish_comment_submitted(sender=RhCommentModel, comment_id=rh_comment.id)
 
             unified_document = rh_comment.unified_document
             self.add_upvote(user, rh_comment)
@@ -600,7 +596,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def perform_update(self, serializer):
         instance = serializer.save()
         instance.update_comment_content()
-        transaction.on_commit(lambda: celery_screen_comment_for_spam.delay(instance.id))
+        publish_comment_submitted(sender=RhCommentModel, comment_id=instance.id)
 
     @action(
         detail=True,

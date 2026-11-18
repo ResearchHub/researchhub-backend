@@ -29,19 +29,3 @@ def celery_create_mention_notification(comment_id: int, recipients: list[int]) -
     )
 
     notify_mentioned_users(comment_id, recipients)
-
-
-@app.task(bind=True, max_retries=3, default_retry_delay=60)
-def celery_screen_comment_for_spam(self, comment_id: int) -> None:
-    """Flag the comment for moderators to review when it reads as spam."""
-    # The comment model imports this task module before its class is defined.
-    from research_ai.services.message_screening.jev_client import DecisionError
-    from researchhub_comment.models import RhCommentModel
-    from researchhub_comment.services.comment_spam_screening_service import (
-        CommentSpamScreeningService,
-    )
-
-    try:
-        CommentSpamScreeningService().screen(RhCommentModel.objects.get(id=comment_id))
-    except DecisionError as exc:
-        raise self.retry(exc=exc)

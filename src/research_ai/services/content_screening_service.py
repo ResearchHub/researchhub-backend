@@ -1,7 +1,9 @@
 from discussion.constants.flag_reasons import SPAM
-from discussion.views import create_flag
-from research_ai.services.message_screening.jev_client import JevClient
-from researchhub_comment.models import CommentSpamScreening, RhCommentModel
+from discussion.models import AbstractGenericReactionModel
+from discussion.services.flag_service import create_flag
+from research_ai.models import ContentScreening
+from research_ai.services.jev_client import JevClient
+from researchhub_comment.models import RhCommentModel
 from user.models import User
 from user.services.risk_score_service import RiskScoreService
 
@@ -10,7 +12,7 @@ FLAG_THRESHOLD = 0.9
 # Peer reviews run long; the intent shows well before this.
 MAX_COMMENT_CHARS = 8_000
 
-QUESTIONS = {
+COMMENT_QUESTIONS = {
     "promotional": {
         "type": "noul",
         "instructions": (
@@ -72,8 +74,8 @@ QUESTIONS = {
 }
 
 
-class CommentSpamScreeningService:
-    """Screens comments with Jev, recording every result and flagging the spam."""
+class ContentScreeningService:
+    """Screens user content with Jev, saving every result and flagging the spam."""
 
     def __init__(
         self,
@@ -84,8 +86,8 @@ class CommentSpamScreeningService:
         self.client = client or JevClient.from_settings()
         self.risk_score_service = risk_score_service or RiskScoreService()
 
-    def screen(self, comment: RhCommentModel) -> None:
-        """Record Jev's spam scores for the comment, flagging it at the threshold."""
+    def screen_comment(self, comment: RhCommentModel) -> None:
+        """Screen the comment's text against the title of the document it is on."""
         if self.client is None or self.risk_score_service.is_trusted(
             comment.created_by
         ):
@@ -94,21 +96,30 @@ class CommentSpamScreeningService:
             "document_title": comment.unified_document.get_display_title(),
             "comment": comment.plain_text[:MAX_COMMENT_CHARS],
         }
-        decision = self.client.decide(state, QUESTIONS)
-        screening = CommentSpamScreening.objects.create(
-            comment=comment,
+        self._screen(comment, state, COMMENT_QUESTIONS)
+
+    def _screen(
+        self,
+        item: AbstractGenericReactionModel,
+        state: dict,
+        questions: dict[str, dict],
+    ) -> None:
+        """Record Jev's scores for the item, flagging it at the threshold."""
+        decision = self.client.decide(state, questions)
+        screening = ContentScreening.objects.create(
+            item=item,
             model=decision.model,
-            promotional=decision.answers["promotional"],
-            solicitation=decision.answers["solicitation"],
-            off_topic=decision.answers["off_topic"],
+            scores=decision.answers,
             flagged=max(decision.answers.values()) >= FLAG_THRESHOLD,
             cost_microusd=decision.cost_microusd,
         )
+        if not screening.flagged:
+            return
         flagger = User.objects.get_ai_expert_account()
-        if screening.flagged and not comment.flags.filter(created_by=flagger).exists():
+        if not item.flags.filter(created_by=flagger).exists():
             create_flag(
                 user=flagger,
-                item=comment,
+                item=item,
                 reason=SPAM,
                 reason_choice=SPAM,
                 reason_memo=_describe_scores(decision.answers),
