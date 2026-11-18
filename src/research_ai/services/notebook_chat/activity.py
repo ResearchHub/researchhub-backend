@@ -4,8 +4,9 @@ A curated projection of :func:`conversation_activity_events` into fixed public
 shapes. Tool calls carry tool, label, status and timestamps, plus the
 enrichments the frontend renders: the note version an edit produced, so an open
 editor knows to reload, the id and title of a note the turn created so the
-client can link to it, a human detail line (the search query, author, or
-attached file), and title/url ``sources`` for citations. Sources come from
+client can link to it, the artifact version a create or update wrote, a human
+detail line (the search query, author, or attached file), and title/url
+``sources`` for citations. Sources come from
 every tool that yields citable items -- web search and the scholarly tools
 alike -- in one shape, so the frontend renders one citation list. Narration
 events carry the prose the model wrote between tool calls, which is what turns
@@ -37,6 +38,11 @@ from research_ai.services.note_tools import (
     EDIT_NOTE,
     READ_NOTE,
     RENAME_NOTE,
+)
+from research_ai.services.notebook_chat.artifact_tools import (
+    CREATE_ARTIFACT,
+    READ_ARTIFACT,
+    UPDATE_ARTIFACT,
 )
 from research_ai.services.notebook_chat.attachment_tools import (
     READ_ATTACHMENT,
@@ -103,6 +109,9 @@ _LABELS = {
     READ_ATTACHMENT: "Read an attached file",
     SEARCH_ATTACHMENT: "Searched attached files",
     VIEW_ATTACHMENT_PAGES: "Looked at pages of an attached file",
+    CREATE_ARTIFACT: "Created an artifact",
+    UPDATE_ARTIFACT: "Updated an artifact",
+    READ_ARTIFACT: "Read an artifact",
 }
 # What each tool is doing while the call is still open, for the live phase.
 # Distinct from _LABELS, which reads as a completed step.
@@ -135,6 +144,9 @@ _ACTIVE_LABELS = {
     READ_ATTACHMENT: "Reading an attached file",
     SEARCH_ATTACHMENT: "Searching attached files",
     VIEW_ATTACHMENT_PAGES: "Looking at pages of an attached file",
+    CREATE_ARTIFACT: "Creating an artifact",
+    UPDATE_ARTIFACT: "Updating an artifact",
+    READ_ARTIFACT: "Reading an artifact",
 }
 # What the model is doing while it is still writing a tool call's arguments.
 # Only tools whose arguments are substantial work in themselves need copy
@@ -143,6 +155,8 @@ _ACTIVE_LABELS = {
 _DRAFTING_LABELS = {
     **dict.fromkeys(CODE_EXECUTION_TOOLS, "Preparing code"),
     EDIT_NOTE: "Drafting an edit",
+    CREATE_ARTIFACT: "Writing an artifact",
+    UPDATE_ARTIFACT: "Drafting an artifact update",
 }
 # The input field per tool whose value is the user's own kind of text -- safe
 # and meaningful to echo as the event detail.
@@ -155,12 +169,15 @@ _DETAIL_INPUT_FIELDS = {
     SEARCH_AUTHORS: "name",
     SEARCH_WORK_FULLTEXT: "query",
     SEARCH_ATTACHMENT: "query",
+    CREATE_ARTIFACT: "title",
 }
 # Tools whose event detail is a name only their result carries.
 _DETAIL_RESULT_FIELDS = {
     GET_AUTHOR: "display_name",
     READ_ATTACHMENT: "filename",
     VIEW_ATTACHMENT_PAGES: "filename",
+    UPDATE_ARTIFACT: "title",
+    READ_ARTIFACT: "title",
 }
 _MAX_DETAIL_CHARS = 200
 _MAX_SOURCES = 5
@@ -315,11 +332,30 @@ def _public_tool_call(event: ToolCallEvent, execution_active: bool) -> dict:
         if isinstance(note_id, int):
             public["note_id"] = note_id
             public["note_title"] = str(result.get("title") or "")
+    if succeeded and event.tool in (CREATE_ARTIFACT, UPDATE_ARTIFACT):
+        artifact = _artifact(event.result or {})
+        if artifact is not None:
+            public["artifact"] = artifact
     if succeeded:
         sources = _sources(event)
         if sources:
             public["sources"] = sources
     return public
+
+
+def _artifact(result: dict) -> dict | None:
+    """The artifact and version a create or update wrote, for the client to
+    fetch and show; the content itself stays out of the feed."""
+    artifact_id = result.get("artifact_id")
+    version = result.get("version")
+    if not isinstance(artifact_id, int) or not isinstance(version, int):
+        return None
+    return {
+        "id": artifact_id,
+        "version": version,
+        "kind": str(result.get("kind") or ""),
+        "title": str(result.get("title") or ""),
+    }
 
 
 def _label(tool: str) -> str:

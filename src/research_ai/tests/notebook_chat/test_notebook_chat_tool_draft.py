@@ -1,6 +1,9 @@
 import unittest
 
-from research_ai.services.notebook_chat.tool_draft import ToolDraftTextExtractor
+from research_ai.services.notebook_chat.tool_draft import (
+    ArtifactDraft,
+    ToolDraftTextExtractor,
+)
 
 
 def _feed_all(extractor: ToolDraftTextExtractor, chunks) -> str:
@@ -87,3 +90,21 @@ class ToolDraftTextExtractorTests(unittest.TestCase):
 
         # Assert: best-effort silence, not an exception.
         self.assertIsInstance(text, str)
+
+
+class ArtifactDraftTests(unittest.TestCase):
+    def test_reads_content_as_text_and_head_fields_as_they_arrive(self):
+        # Arrange
+        draft = ArtifactDraft()
+
+        # Act
+        first = draft.feed('{"title": "Dose res')
+        fields_mid_title = dict(draft.fields)
+        second = draft.feed('ponse", "kind": "react", "content": "<div>\\"hi\\"')
+        third = draft.feed('</div>", "language": ""}')
+
+        # Assert: only content is text; an empty field is left out.
+        self.assertEqual(first, "")
+        self.assertEqual(fields_mid_title, {"title": "Dose res"})
+        self.assertEqual(second + third, '<div>"hi"</div>')
+        self.assertEqual(draft.fields, {"title": "Dose response", "kind": "react"})

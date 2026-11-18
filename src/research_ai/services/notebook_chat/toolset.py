@@ -3,7 +3,8 @@
 Assembles the toolset one chat turn runs with: the note read/edit tools
 (scoped to the acting user's permissions), the acting user's public profile,
 ResearchHub grant discovery, the OpenAlex literature and citation tools, web
-search and fetch, and the files the user attached to the conversation. The
+search and fetch, the files the user attached to the conversation, and the
+artifacts the chat makes. The
 OpenAlex toolset is reused minus ``submit_profile`` -- a chat turn ends when
 the model answers in plain text, so a terminal submit tool from another flow
 must not ride along.
@@ -105,10 +106,11 @@ def compose_notebook_toolset(
     web_search_toolset,
     web_fetch_toolset=None,
     attachment_toolset=None,
+    artifact_toolset=None,
     native_tool_names: frozenset[str] = frozenset(),
 ) -> Toolset:
     """Note read/edit + user/researcher profile + grants + literature + web search,
-    plus attached files.
+    plus attached files and artifacts.
 
     ``native_tool_names`` are the names the provider runs server-side (on
     Claude Platform, ``web_search``). A local tool by that name is left out:
@@ -134,6 +136,8 @@ def compose_notebook_toolset(
     candidates.extend(note_toolset.build_tools())
     if attachment_toolset is not None:
         candidates.extend(attachment_toolset.build_tools())
+    if artifact_toolset is not None:
+        candidates.extend(artifact_toolset.build_tools())
 
     toolset = Toolset()
     for tool in candidates:

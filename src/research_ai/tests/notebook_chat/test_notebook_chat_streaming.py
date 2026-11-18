@@ -352,3 +352,63 @@ class NotebookStreamBufferTests(SimpleTestCase):
 
         # Act & Assert
         self.assertIsNone(self.store.get(9))
+
+
+class ArtifactDraftStreamTests(SimpleTestCase):
+    def setUp(self):
+        self.cache = FakeCache()
+        self.store = ExecutionStreamStore(cache_backend=self.cache)
+        self.publisher = FakePublisher()
+        self.buffer = NotebookStreamBuffer(
+            conversation_id=7,
+            execution_id=9,
+            store=self.store,
+            publisher=self.publisher,
+            clock=lambda: 10.0,
+        )
+
+    def test_streams_artifact_content_with_its_title_and_kind(self):
+        # Arrange
+        self.buffer.append(1, ToolUseStreamStart(block_index=0, name="create_artifact"))
+
+        # Act: the argument arrives split inside the content string.
+        for fragment in (
+            '{"title": "Flow", "kind": "mer',
+            'maid", "content": "graph TD\\n  A',
+            '-->B"}',
+        ):
+            self.buffer.append(
+                1, ToolInputStreamDelta(block_index=0, partial_json=fragment)
+            )
+        self.buffer.flush()
+
+        # Assert
+        item = self.store.get(9)["items"][0]
+        self.assertEqual(item["tool"], "create_artifact")
+        self.assertEqual(item["label"], "Writing an artifact")
+        self.assertEqual(item["text"], "graph TD\n  A-->B")
+        self.assertEqual(item["artifact"], {"title": "Flow", "kind": "mermaid"})
+        deltas = [
+            delta for _, kwargs in self.publisher.calls for delta in kwargs["deltas"]
+        ]
+        self.assertEqual(
+            "".join(delta["delta"] for delta in deltas), "graph TD\n  A-->B"
+        )
+        self.assertEqual(deltas[-1]["artifact"], {"title": "Flow", "kind": "mermaid"})
+
+    def test_artifact_content_is_not_cut_at_the_edit_draft_bound(self):
+        # Arrange
+        body = "x" * (MAX_STREAM_TOOL_DRAFT_CHARS + 10)
+        self.buffer.append(1, ToolUseStreamStart(block_index=0, name="create_artifact"))
+
+        # Act
+        self.buffer.append(
+            1,
+            ToolInputStreamDelta(
+                block_index=0, partial_json=f'{{"kind": "html", "content": "{body}"}}'
+            ),
+        )
+        self.buffer.flush()
+
+        # Assert
+        self.assertEqual(len(self.store.get(9)["items"][0]["text"]), len(body))

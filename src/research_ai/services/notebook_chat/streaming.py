@@ -11,6 +11,8 @@ Draft items carry the tool name and a label from the moment the block opens,
 so the client can say what the model is doing during the long stretches where
 every output token is a tool argument; for tools whose arguments are note
 prose (``edit_note``) the text being written streams into the item as well.
+An artifact being created streams its content as the item's text, with its
+title and kind as an ``artifact`` field.
 
 The preview is deliberately best-effort. Execution status is durable and
 authoritative, so clients must discard preview events after an execution has
@@ -31,10 +33,13 @@ from research_ai.services.agent.types import (
     ToolInputStreamDelta,
     ToolUseStreamStart,
 )
+from research_ai.services.artifact_service import MAX_CONTENT_CHARS
 from research_ai.services.notebook_chat.activity import drafting_label
 from research_ai.services.notebook_chat.draft_blocks import ToolDraftBlocks
 from research_ai.services.notebook_chat.tool_draft import (
+    TOOL_DRAFT_ARTIFACT_TOOLS,
     TOOL_DRAFT_PROSE_TOOLS,
+    ArtifactDraft,
     ToolDraftTextExtractor,
 )
 
@@ -50,6 +55,8 @@ MAX_STREAM_THINKING_CHARS = 4_000
 # paragraphs in practice; the bound only stops a runaway call from growing
 # the per-flush snapshot without limit.
 MAX_STREAM_TOOL_DRAFT_CHARS = 20_000
+# An artifact streams whole, up to the most one version may hold.
+MAX_STREAM_ARTIFACT_CHARS = MAX_CONTENT_CHARS
 
 ITEM_NARRATION = "narration"
 ITEM_THINKING = "thinking"
@@ -108,6 +115,7 @@ class NotebookStreamBuffer:
         # Per draft item, the scanner turning argument JSON into prose.
         self.drafts: dict[str, ToolDraftTextExtractor] = {}
         self.block_drafts: dict[str, ToolDraftBlocks] = {}
+        self.artifact_drafts: dict[str, ArtifactDraft] = {}
         self.last_flush_at: float | None = None
         self.last_active_check_at: float | None = None
         self.stream_revision = 0
@@ -132,14 +140,16 @@ class NotebookStreamBuffer:
         if item is None:
             item = self._new_item(item_id, item_type, event)
             self.items[item_id] = item
+        if item_id in self.artifact_drafts:
+            maximum = MAX_STREAM_ARTIFACT_CHARS
 
         room = maximum - len(item["text"])
         fragment = self._fragment(item, event)[: max(0, room)]
         # A tool-use start carries no text but must still announce its item;
         # anything else with nothing to show is a no-op.
         announces = opened and isinstance(event, ToolUseStreamStart)
-        draft_update = (
-            isinstance(event, ToolInputStreamDelta) and item_id in self.block_drafts
+        draft_update = isinstance(event, ToolInputStreamDelta) and (
+            item_id in self.block_drafts or item_id in self.artifact_drafts
         )
         if not fragment and not announces and not draft_update:
             return
@@ -187,6 +197,8 @@ class NotebookStreamBuffer:
             if tool in TOOL_DRAFT_PROSE_TOOLS:
                 self.drafts[item_id] = ToolDraftTextExtractor()
                 self.block_drafts[item_id] = ToolDraftBlocks()
+            if tool in TOOL_DRAFT_ARTIFACT_TOOLS:
+                self.artifact_drafts[item_id] = ArtifactDraft()
         return item
 
     def _fragment(self, item: dict, event) -> str:
@@ -197,6 +209,9 @@ class NotebookStreamBuffer:
             draft = self.block_drafts.get(item["id"])
             if draft is not None:
                 draft.feed(event.partial_json)
+            artifact = self.artifact_drafts.get(item["id"])
+            if artifact is not None:
+                return artifact.feed(event.partial_json)
             extractor = self.drafts.get(item["id"])
             return extractor.feed(event.partial_json) if extractor else ""
         return event.text
@@ -218,6 +233,10 @@ class NotebookStreamBuffer:
                 blocks = draft.snapshot()
                 self.items[item_id]["blocks"] = blocks
                 delta["blocks"] = blocks
+            artifact = self.artifact_drafts.get(item_id)
+            if artifact is not None:
+                self.items[item_id]["artifact"] = dict(artifact.fields)
+                delta["artifact"] = dict(artifact.fields)
         deltas = [dict(delta) for delta in self.pending.values()]
         self.store.set(
             self.execution_id,
@@ -290,6 +309,7 @@ class NotebookStreamBuffer:
         self.pending_chars = 0
         self.drafts.clear()
         self.block_drafts.clear()
+        self.artifact_drafts.clear()
         self.iteration = iteration
         self.sequence = 0
         self.last_flush_at = None

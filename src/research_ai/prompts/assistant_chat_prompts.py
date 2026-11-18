@@ -15,8 +15,10 @@ from research_ai.prompts._loader import load_template
 
 def build_assistant_chat_system_prompt() -> str:
     """The system prompt for every turn of an assistant conversation."""
-    return load_template("assistant_chat_system.txt").replace(
-        "{{PROPOSAL_WRITING}}", load_template("proposal_writing.txt").strip()
+    return (
+        load_template("assistant_chat_system.txt")
+        .replace("{{PROPOSAL_WRITING}}", load_template("proposal_writing.txt").strip())
+        .replace("{{ARTIFACTS}}", load_template("artifacts.txt").strip())
     )
 
 

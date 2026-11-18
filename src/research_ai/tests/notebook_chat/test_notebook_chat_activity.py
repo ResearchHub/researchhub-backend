@@ -14,6 +14,7 @@ from research_ai.models import (
     AgentConversation,
     AgentExecution,
     AgentExecutionMessage,
+    Artifact,
 )
 from research_ai.services.agent_persistence.recorder import DatabaseAgentRecorder
 from research_ai.services.notebook_chat import ACTIVITY_LIVE, NotebookChatService
@@ -37,6 +38,7 @@ PUBLIC_EVENT_KEYS = {
     "detail",
     "note_version_id",
     "sources",
+    "artifact",
 }
 
 MODEL_SETTINGS = {
@@ -211,6 +213,84 @@ class NotebookChatActivityTests(TestCase):
         serialized = json.dumps(activity, default=str)
         self.assertNotIn("Edited by the assistant", serialized)
         self.assertNotIn("thinking-signature-sentinel", serialized)
+
+    def test_artifact_writes_report_the_version_without_the_content(self):
+        # Arrange
+        execution = self._run_turn(
+            [
+                tool_turn(
+                    "t1",
+                    "create_artifact",
+                    {
+                        "title": "Enrollment flow",
+                        "kind": "mermaid",
+                        "content": "graph TD; Screened-->Enrolled",
+                    },
+                ),
+                tool_turn(
+                    "t2",
+                    "update_artifact",
+                    # No artifact has this id, so the update fails.
+                    {"artifact_id": 999_999, "content": "graph TD; A-->B"},
+                ),
+                text_turn("Done."),
+            ]
+        )
+
+        # Act
+        activity = self._activity(execution)
+
+        # Assert
+        artifact = Artifact.objects.get(conversation=self.conversation)
+        created, update = _tool_calls(activity)
+        self.assertEqual(created["label"], "Created an artifact")
+        self.assertEqual(created["detail"], "Enrollment flow")
+        self.assertEqual(
+            created["artifact"],
+            {
+                "id": artifact.id,
+                "version": 1,
+                "kind": "mermaid",
+                "title": "Enrollment flow",
+            },
+        )
+        # A failed update names no artifact version.
+        self.assertEqual(update["status"], "failed")
+        self.assertNotIn("artifact", update)
+        self.assertNotIn("Screened-->Enrolled", json.dumps(activity, default=str))
+
+    def test_next_turn_opens_with_the_chats_artifacts(self):
+        # Arrange
+        self._run_turn(
+            [
+                tool_turn(
+                    "t1",
+                    "create_artifact",
+                    {"title": "Power curve", "kind": "react", "content": "x"},
+                ),
+                text_turn("Made it."),
+            ]
+        )
+        artifact = Artifact.objects.get(conversation=self.conversation)
+        provider = FakeProvider([text_turn("Sure.")])
+        service = _make_service()
+        with (
+            patch("research_ai.tasks.run_notebook_chat_turn_task.delay"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            execution = service.submit_message(
+                self.note, self.conversation, "Make it blue."
+            )
+
+        # Act
+        _make_service(provider=provider).run_turn(execution.id)
+
+        # Assert
+        prompt = str(provider.calls[0][-1])
+        self.assertIn(
+            f'artifact {artifact.id} ("Power curve", react, version 1)', prompt
+        )
+        self.assertIn("Make it blue.", prompt)
 
     def test_web_search_reports_query_and_citation_sources(self):
         # Arrange

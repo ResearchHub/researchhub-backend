@@ -113,6 +113,10 @@ from research_ai.services.notebook_chat.activity import (
     execution_phase,
     public_activity,
 )
+from research_ai.services.notebook_chat.artifact_tools import (
+    ArtifactToolset,
+    build_artifacts_notice,
+)
 from research_ai.services.notebook_chat.attachment_tools import (
     AttachmentToolset,
     attachment_preamble,
@@ -994,6 +998,9 @@ class NotebookChatService:
                 # At zero the tool is still offered, and refuses.
                 page_image_room=page_image_room,
             ),
+            artifact_toolset=ArtifactToolset(
+                conversation=conversation, execution=execution
+            ),
             native_tool_names=provider.native_tool_names,
         )
         config = self._turn_config(execution)
@@ -1035,6 +1042,9 @@ class NotebookChatService:
         notes_notice = build_created_notes_notice(linked_notes)
         if notes_notice:
             prompt = f"{notes_notice}\n\n{prompt}"
+        artifacts_notice = build_artifacts_notice(conversation.artifacts.order_by("id"))
+        if artifacts_notice:
+            prompt = f"{artifacts_notice}\n\n{prompt}"
         try:
             result = agent.continue_conversation(context, prompt, images=images)
         except AgentRunError as exc:
