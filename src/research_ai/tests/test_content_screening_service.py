@@ -21,7 +21,7 @@ def _mock_jev_client(**answers: float) -> Mock:
     client = Mock()
     client.decide.return_value = Decision(
         model=MODEL,
-        answers={name: 0.1 for name in COMMENT_QUESTIONS} | answers,
+        answers=dict.fromkeys(COMMENT_QUESTIONS, 0.1) | answers,
         cost_microusd=None,
     )
     return client
