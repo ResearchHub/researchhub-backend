@@ -95,7 +95,10 @@ _EDIT_FORMAT = (
     "blockquoteFigure, table/tableRow/tableCell, horizontalRule, hardBreak. "
     'Math: {"type": "blockMath", "attrs": {"latex": "E = mc^2"}}, or '
     "inlineMath with the same attrs inside a paragraph. Marks: bold, italic, "
-    "underline, strike, code, subscript, superscript, highlight, link. Never "
+    "underline, strike, code, subscript, superscript, highlight, link. "
+    "Import prose as native headings, paragraphs, lists, and tables, preserving "
+    "its wording and links. Do not wrap an imported document in a codeBlock "
+    "unless the user explicitly asks for literal source. Never "
     "write test content into the user's note."
 )
 

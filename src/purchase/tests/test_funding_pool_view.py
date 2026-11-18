@@ -18,7 +18,10 @@ from purchase.models import (
 from purchase.services.funding_pool_service import FundingPoolService
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import BountyFee
+from researchhub_access_group.constants import ADMIN
+from researchhub_access_group.models import Permission
 from researchhub_document.helpers import create_post
+from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     GRANT as GRANT_DOC,
 )
@@ -129,6 +132,13 @@ class FundingPoolViewTests(APITestCase):
             title="Grant note",
             unified_document=self.post.unified_document,
         )
+        # Match real note creation: the owner has explicit draft access.
+        Permission.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=note.unified_document_id,
+            user=self.creator,
+            access_type=ADMIN,
+        )
         self.post.note = note
         self.post.save(update_fields=["note"])
         return note
@@ -147,6 +157,23 @@ class FundingPoolViewTests(APITestCase):
             "funding_pool"
         ]
         self.assertEqual(pool["contributors"], {"total": 0, "top": []})
+
+    def test_public_grant_post_hides_draft_from_unrelated_readers(self):
+        # Arrange
+        self._attach_note()
+        outsider = create_random_authenticated_user("pool_view_outsider")
+
+        for user in (None, outsider):
+            with self.subTest(user=user):
+                self.client.force_authenticate(user)
+
+                # Act
+                response = self.client.get(f"/api/researchhubpost/{self.post.id}/")
+
+                # Assert: the grant remains readable; its draft requires access.
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data["id"], self.post.id)
+                self.assertIsNone(response.data["note"])
 
     def test_note_serializer_omits_pool_contributors_by_default(self):
         # Arrange
