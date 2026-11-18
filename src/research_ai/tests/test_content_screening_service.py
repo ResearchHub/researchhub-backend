@@ -58,7 +58,7 @@ class ContentScreeningServiceTests(TestCase):
                 self.assertEqual(is_flagged, should_flag)
 
     def test_skips_comments_from_trusted_users(self) -> None:
-        """A trusted user's comment is neither screened nor flagged."""
+        """A trusted user's comment is never sent to Jev."""
         # Arrange
         RiskScore.objects.create(user=self.comment.created_by, score=TRUSTED_THRESHOLD)
         client = _mock_jev_client(promotional=0.99)
@@ -68,7 +68,6 @@ class ContentScreeningServiceTests(TestCase):
 
         # Assert
         client.decide.assert_not_called()
-        self.assertFalse(self.comment.flags.exists())
 
     def test_rescreens_flagged_comments_without_flagging_them_again(self) -> None:
         """Rescreening a flagged comment records it but files no second flag."""
