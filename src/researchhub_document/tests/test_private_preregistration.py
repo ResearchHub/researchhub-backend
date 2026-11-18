@@ -15,7 +15,7 @@ from purchase.related_models.constants.currency import USD
 from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from researchhub_access_group.constants import ADMIN, NO_ACCESS, VIEWER
+from researchhub_access_group.constants import NO_ACCESS, VIEWER
 from researchhub_access_group.models import Permission
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
@@ -982,13 +982,6 @@ class NotePostEmbedVisibilityTests(AWSMockTestCase):
             organization=self.org,
             title="Note title",
             unified_document=self.private_post.unified_document,
-        )
-        # Mirror note creation: authorship alone does not grant draft access.
-        Permission.objects.create(
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=self.note.unified_document_id,
-            user=self.author,
-            access_type=ADMIN,
         )
         self.private_post.note = self.note
         self.private_post.save()
