@@ -1,12 +1,10 @@
 import logging
-import uuid
 
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from allauth.account.adapter import get_adapter
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, Value
 from django.db.models.functions import Lower
-from PIL import Image
 from rest_framework import serializers
 from rest_framework.serializers import (
     CharField,
@@ -26,6 +24,10 @@ from research_ai.services.usage_budget import (
     resolve_ai_tier,
 )
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.services.image_upload_service import (
+    InvalidImageUploadError,
+    normalize_image_upload,
+)
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
     ASSOCIATE_EDITOR,
@@ -51,12 +53,19 @@ from utils.turnstile import TurnstileService
 
 logger = logging.getLogger(__name__)
 
-PROFILE_IMAGE_FORMATS = {
-    "GIF": ("gif", "image/gif"),
-    "JPEG": ("jpg", "image/jpeg"),
-    "PNG": ("png", "image/png"),
-    "WEBP": ("webp", "image/webp"),
-}
+
+def _validate_image_upload(upload):
+    """
+    Return the uploaded image named and typed by its content, or raise a
+    validation error if it is not an accepted image.
+    """
+    if upload is None:
+        return None
+
+    try:
+        return normalize_image_upload(upload)
+    except InvalidImageUploadError as e:
+        raise serializers.ValidationError(str(e)) from e
 
 
 def compute_user_balances(user):
@@ -358,25 +367,7 @@ class AuthorEditableSerializer(ModelSerializer):
         ]
 
     def validate_profile_image(self, upload):
-        if upload is None:
-            return None
-
-        try:
-            with Image.open(upload, formats=tuple(PROFILE_IMAGE_FORMATS)) as image:
-                image.verify()
-                image_format = "JPEG" if image.format == "MPO" else image.format
-                extension, content_type = PROFILE_IMAGE_FORMATS[image_format]
-        except Exception:
-            raise serializers.ValidationError(
-                "Upload a valid JPEG, PNG, GIF or WebP image."
-            )
-
-        # Derive the stored name and content type from the actual content,
-        # not what the client provided:
-        upload.seek(0)
-        upload.name = f"{uuid.uuid4().hex}.{extension}"
-        upload.content_type = content_type
-        return upload
+        return _validate_image_upload(upload)
 
 
 class EditorContributionSerializer(ModelSerializer):
@@ -873,6 +864,9 @@ class OrganizationSerializer(ModelSerializer):
         model = Organization
         fields = "__all__"
         read_only_fields = ["id", "slug"]
+
+    def validate_cover_image(self, upload):
+        return _validate_image_upload(upload)
 
     def get_member_count(self, organization):
         permissions = organization.permissions
