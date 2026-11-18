@@ -1,11 +1,14 @@
+import io
 import json
 import time
 from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.utils import timezone
+from PIL import Image
 from rest_framework.test import APIClient
 
 from purchase.models import Balance
@@ -15,6 +18,7 @@ from reputation.distributor import Distributor
 from reputation.models import Distribution, Withdrawal
 from user.models import UserVerification
 from user.serializers import (
+    AuthorEditableSerializer,
     AuthorSerializer,
     DynamicUserSerializer,
     UserEditableSerializer,
@@ -66,6 +70,79 @@ class UserSerializersTests(TestCase):
 
         # Assert
         self.assertFalse(serializer.data["is_verified"])
+
+
+def _image_upload(image_format, name="blob", content_type="image/png"):
+    buffer = io.BytesIO()
+    Image.new("RGB", (1, 1)).save(buffer, format=image_format)
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type=content_type)
+
+
+class AuthorEditableSerializerProfileImageTests(TestCase):
+    def setUp(self):
+        self.author = create_user().author_profile
+
+    def _validate(self, profile_image):
+        serializer = AuthorEditableSerializer(
+            self.author, data={"profile_image": profile_image}, partial=True
+        )
+        return serializer.is_valid(), serializer
+
+    def test_accepts_supported_formats_named_and_typed_by_content(self):
+        cases = [
+            ("PNG", ".png", "image/png"),
+            ("JPEG", ".jpg", "image/jpeg"),
+            ("GIF", ".gif", "image/gif"),
+            ("WEBP", ".webp", "image/webp"),
+        ]
+        for image_format, extension, content_type in cases:
+            with self.subTest(image_format=image_format):
+                # Arrange
+                upload = _image_upload(
+                    image_format, name="spam.html", content_type="text/html"
+                )
+
+                # Act
+                is_valid, serializer = self._validate(upload)
+
+                # Assert
+                self.assertTrue(is_valid, serializer.errors)
+                profile_image = serializer.validated_data["profile_image"]
+                self.assertTrue(profile_image.name.endswith(extension))
+                self.assertEqual(profile_image.content_type, content_type)
+                self.assertEqual(profile_image.tell(), 0)
+
+    def test_rejects_html_disguised_as_image(self):
+        # Arrange
+        upload = SimpleUploadedFile(
+            "avatar.png", b"<html><body>spam</body></html>", content_type="image/png"
+        )
+
+        # Act
+        is_valid, serializer = self._validate(upload)
+
+        # Assert
+        self.assertFalse(is_valid)
+        self.assertIn("profile_image", serializer.errors)
+
+    def test_rejects_unsupported_image_format(self):
+        # Arrange
+        upload = _image_upload("BMP", name="avatar.bmp", content_type="image/bmp")
+
+        # Act
+        is_valid, serializer = self._validate(upload)
+
+        # Assert
+        self.assertFalse(is_valid)
+        self.assertIn("profile_image", serializer.errors)
+
+    def test_accepts_null_to_clear_profile_image(self):
+        # Act
+        is_valid, serializer = self._validate(None)
+
+        # Assert
+        self.assertTrue(is_valid, serializer.errors)
+        self.assertIsNone(serializer.validated_data["profile_image"])
 
 
 class UserBalancesSerializerTests(TestCase):
