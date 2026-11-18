@@ -18,6 +18,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 )
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
+    GRANT,
     PAPER,
     PREREGISTRATION,
 )
@@ -162,6 +163,49 @@ class ExcludedInFeedVisibilityTests(AWSMockTestCase):
         self.assertTrue(
             FeedEntry.objects.filter(pk=self.hidden_paper_entry.pk).exists()
         )
+
+    def test_rfp_document_filter_does_not_change_the_paper_feed(self):
+        # Arrange
+        document_filter = self.visible_paper_doc.document_filter
+        document_filter.is_excluded_in_feed = True
+        document_filter.save(update_fields=["is_excluded_in_feed"])
+
+        # Act
+        response = self.client.get(reverse("feed-list"), {"feed_view": "latest"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = _unified_document_ids(response)
+        self.assertIn(self.visible_paper_doc.pk, ids)
+        self.assertNotIn(self.hidden_paper_doc.pk, ids)
+
+    def test_activity_document_exclusion_applies_only_to_rfps(self):
+        # Arrange
+        entries = {}
+        for document_type in (GRANT, PREREGISTRATION):
+            post = create_post(created_by=self.user, document_type=document_type)
+            document_filter = post.unified_document.document_filter
+            document_filter.is_excluded_in_feed = True
+            document_filter.save(update_fields=["is_excluded_in_feed"])
+            entries[document_type] = FeedEntry.objects.create(
+                action="PUBLISH",
+                action_date=timezone.now(),
+                content_type=self.post_content_type,
+                object_id=post.pk,
+                unified_document=post.unified_document,
+                user=self.user,
+                content={},
+                metrics={},
+            )
+
+        # Act
+        response = self.client.get(reverse("activity_feed-list"))
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = _feed_entry_ids(response)
+        self.assertNotIn(entries[GRANT].pk, ids)
+        self.assertIn(entries[PREREGISTRATION].pk, ids)
 
     def test_hiding_one_activity_entry_leaves_siblings_visible(self):
         # Arrange

@@ -3,7 +3,7 @@ from unittest import TestCase
 
 import responses
 
-from research_ai.services.message_screening.jev_client import (
+from research_ai.services.jev_client import (
     API_URL,
     MODEL,
     DecisionError,

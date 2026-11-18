@@ -1,3 +1,4 @@
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APITestCase
 
 from paper.related_models.authorship_model import Authorship
@@ -94,3 +95,25 @@ class AuthorApiTests(APITestCase):
         self.assertTrue(author.is_removed)
         self.assertFalse(author.is_public)
         self.assertIsNotNone(author.is_removed_date)
+
+    def test_update_rejects_html_profile_image(self):
+        # Arrange
+        user = self.user_with_published_works
+        author = user.author_profile
+        upload = SimpleUploadedFile(
+            "spam.html", b"<html><body>spam</body></html>", content_type="text/html"
+        )
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.patch(
+            f"/api/author/{author.id}/",
+            {"profile_image": upload},
+            format="multipart",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("profile_image", response.data)
+        author.refresh_from_db()
+        self.assertFalse(author.profile_image)

@@ -3,6 +3,7 @@
 from datetime import timedelta
 from unittest.mock import ANY, MagicMock, patch
 
+from celery.exceptions import Retry
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
@@ -16,6 +17,8 @@ from research_ai.models import (
     ProposalDraft,
     SearchExpert,
 )
+from research_ai.services.content_screening_service import ContentScreeningService
+from research_ai.services.jev_client import DecisionError
 from research_ai.services.usage_budget import ReservationHeartbeat
 from research_ai.tasks import (
     _update_search_progress,
@@ -24,10 +27,12 @@ from research_ai.tasks import (
     purge_agent_files,
     reclaim_lost_agent_runs,
     run_proposal_draft_task,
+    screen_comment_task,
     send_queued_emails_task,
 )
 from research_ai.tests.agent_files.helpers import make_file, pdf_bytes
 from researchhub.services.private_storage_service import PrivateStorageService
+from researchhub_comment.tests.helpers import create_rh_comment
 from user.tests.helpers import create_random_authenticated_user
 
 # --- _update_search_progress ---
@@ -566,3 +571,38 @@ class AgentFileTaskTests(TestCase):
         self.assertEqual(result, {"purged": 1})
         self.assertFalse(AgentFile.objects.filter(id=file.id).exists())
         mock_delete.assert_called_once_with(file.storage_key)
+
+
+# --- screen_comment_task ---
+
+
+class ScreenCommentTaskTests(TestCase):
+    def setUp(self) -> None:
+        """Create a comment to screen."""
+        self.comment = create_rh_comment()
+
+    @patch.object(ContentScreeningService, "screen_comment")
+    def test_screens_the_comment(self, mock_screen: MagicMock) -> None:
+        """The task screens the comment it was queued for."""
+        # Act
+        screen_comment_task(self.comment.id)
+
+        # Assert
+        mock_screen.assert_called_once_with(self.comment)
+
+    @patch.object(screen_comment_task, "retry", side_effect=Retry())
+    @patch.object(ContentScreeningService, "screen_comment")
+    def test_retries_when_jev_fails(
+        self, mock_screen: MagicMock, mock_retry: MagicMock
+    ) -> None:
+        """A Jev failure retries the task instead of dropping the screening."""
+        # Arrange
+        error = DecisionError("Jev timed out")
+        mock_screen.side_effect = error
+
+        # Act
+        with self.assertRaises(Retry):
+            screen_comment_task(self.comment.id)
+
+        # Assert
+        mock_retry.assert_called_once_with(exc=error)

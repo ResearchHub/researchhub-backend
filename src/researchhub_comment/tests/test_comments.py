@@ -1,6 +1,6 @@
 import threading
 import time
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
@@ -21,6 +21,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
     PEER_REVIEW,
 )
+from researchhub_comment.events import comment_submitted
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.services.comment_notification_service import (
     notify_mentioned_users,
@@ -213,6 +214,32 @@ class CommentViewTests(APITestCase):
         )
 
         self.assertEqual(res.status_code, 200)
+
+    def test_publishes_comment_submitted_on_post_and_edit(self) -> None:
+        """Posting a comment and editing it each announce the comment once."""
+        # Arrange
+        receiver = Mock()
+        comment_submitted.connect(
+            receiver, dispatch_uid="test_comment_submitted_event", weak=False
+        )
+
+        # Act
+        try:
+            with self.captureOnCommitCallbacks(execute=True):
+                comment = self._create_paper_comment(self.paper.id, self.user_1)
+            with self.captureOnCommitCallbacks(execute=True):
+                self.client.patch(
+                    f"/api/paper/{self.paper.id}/comments/{comment.data['id']}/",
+                    {"comment_content_json": {"ops": [{"insert": "an edit"}]}},
+                )
+        finally:
+            comment_submitted.disconnect(dispatch_uid="test_comment_submitted_event")
+
+        # Assert
+        comment_ids = [
+            call.kwargs["event"].comment_id for call in receiver.call_args_list
+        ]
+        self.assertEqual(comment_ids, [comment.data["id"], comment.data["id"]])
 
     def test_comment_non_author_cant_post_author_update(self):
         # Arrange

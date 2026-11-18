@@ -8,7 +8,7 @@ instead of maintaining parallel copies of the same logic.
 from django.db.models import Model
 
 from discussion.models import Flag
-from discussion.views import create_flag
+from discussion.services.flag_service import create_flag
 from user.related_models.verdict_model import Verdict
 
 

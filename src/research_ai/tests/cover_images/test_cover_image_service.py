@@ -89,6 +89,24 @@ class CoverImageServiceTests(TestCase):
         self.assertEqual(generation.created_by, self.user)
         self.enqueue.assert_called_once_with(generation.id)
 
+    def test_batch_cover_does_not_check_or_charge_the_user_budget(self):
+        # Arrange
+        with patch(
+            "research_ai.services.cover_image_service.check_spend_admission",
+            side_effect=UsageLimitExceededError("Budget exhausted"),
+        ) as admission:
+            # Act
+            generation = self.service.generate_for_batch(
+                user=self.user, document_type="GRANT", title="An imported RFP"
+            )
+
+        # Assert
+        self.assertEqual(generation.status, CoverImageGeneration.Status.COMPLETED)
+        self.assertTrue(generation.image_key)
+        admission.assert_not_called()
+        self.assertFalse(LLMUsageEvent.objects.exists())
+        self.enqueue.assert_not_called()
+
     @override_settings(OPENROUTER_API_KEY="")
     def test_start_queues_the_request_without_an_api_key(self):
         # Arrange
