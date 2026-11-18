@@ -38,6 +38,7 @@ from researchhub_comment.constants.rh_comment_view_constants import (
     PAPER,
     RESEARCHHUB_POST,
 )
+from researchhub_comment.events import publish_comment_submitted
 from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.permissions import (
@@ -349,6 +350,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 }
             )
             rh_comment, _ = RhCommentModel.create_from_data(data)
+            publish_comment_submitted(sender=RhCommentModel, comment_id=rh_comment.id)
 
             unified_document = rh_comment.unified_document
             self.add_upvote(user, rh_comment)
@@ -594,6 +596,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def perform_update(self, serializer):
         instance = serializer.save()
         instance.update_comment_content()
+        publish_comment_submitted(sender=RhCommentModel, comment_id=instance.id)
 
     @action(
         detail=True,

@@ -16,6 +16,7 @@ from discussion.permissions import CensorDiscussion as CensorDiscussionPermissio
 from discussion.permissions import EditorCensorDiscussion
 from discussion.permissions import Vote as VotePermission
 from discussion.serializers import FlagSerializer, VoteSerializer
+from discussion.services.flag_service import create_flag
 from feed.activity_feed_cache import schedule_activity_feed_cache_warm
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from paper.models import Paper
@@ -230,24 +231,6 @@ class ReactionViewActionMixin:
         obj.score -= 1
         obj.save()
         return vote
-
-
-def create_flag(user, item, reason, reason_choice, reason_memo=None):
-    with transaction.atomic():
-        data = {
-            "created_by": user.id,
-            "object_id": item.id,
-            "content_type": get_content_type_for_model(item).id,
-            "reason": reason or reason_choice,
-            "reason_choice": reason_choice or reason,
-            # Default to empty string to match model default and avoid nulls
-            "reason_memo": reason_memo or "",
-        }
-        serializer = FlagSerializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        flag = serializer.save()
-        flag.hubs.add(*item.unified_document.hubs.all())
-        return flag, serializer.data
 
 
 def find_vote(user, item, vote_type) -> bool:

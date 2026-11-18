@@ -8,7 +8,8 @@ from django.utils.dateparse import parse_datetime
 from django_ses.signals import bounce_received, complaint_received, open_received
 
 from research_ai.models import GeneratedEmail
-from research_ai.tasks import link_experts_after_signup
+from research_ai.tasks import link_experts_after_signup, screen_comment_task
+from researchhub_comment.events import CommentSubmittedEvent, comment_submitted
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -34,6 +35,14 @@ def on_user_created_link_experts(sender, instance, created, **kwargs):
         normalized_email=normalized,
         user_id=instance.pk,
     )
+
+
+@receiver(comment_submitted, dispatch_uid="research_ai_enqueue_comment_screening")
+def enqueue_comment_screening(
+    sender: object, event: CommentSubmittedEvent, **kwargs
+) -> None:
+    """Queue Jev screening for a comment a user posted or edited."""
+    screen_comment_task.delay(event.comment_id)
 
 
 @receiver(open_received)

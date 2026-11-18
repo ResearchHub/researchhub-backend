@@ -6,12 +6,12 @@ from django.test import TestCase, override_settings
 from note.tests.helpers import create_note
 from research_ai.models import AgentConversation, AgentMessageScreening
 from research_ai.services.agent_persistence import AgentConversationService
-from research_ai.services.message_screening import MessageScreeningService
-from research_ai.services.message_screening.jev_client import (
+from research_ai.services.jev_client import (
     MODEL,
     Decision,
     DecisionError,
 )
+from research_ai.services.message_screening import MessageScreeningService
 from research_ai.services.message_screening.service import (
     MAX_MESSAGE_CHARS,
     QUESTIONS,

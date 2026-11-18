@@ -7,10 +7,12 @@ from django.utils import timezone
 from research_ai.constants import VALID_EMAIL_TEMPLATE_KEYS
 from research_ai.models import ExpertSearch, GeneratedEmail, ProposalDraft
 from research_ai.services.agent_files import AgentFileService
+from research_ai.services.content_screening_service import ContentScreeningService
 from research_ai.services.cover_image_service import CoverImageService
 from research_ai.services.expert_finder import finder as expert_finder_mod
 from research_ai.services.expert_finder.display import ExpertDisplay
 from research_ai.services.expert_finder.persist import ExpertPersist
+from research_ai.services.jev_client import DecisionError
 from research_ai.services.notebook_chat import NotebookChatService
 from research_ai.services.outreach.email_generator import generate_expert_email
 from research_ai.services.outreach.email_sender import send_outreach_email
@@ -36,6 +38,7 @@ from research_ai.services.social_share_service import (
 from research_ai.services.usage_budget import ReservationHeartbeat
 from research_ai.services.usage_budget.reservation import reservation_deadline
 from researchhub.celery import QUEUE_AGENTS, app
+from researchhub_comment.models import RhCommentModel
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -657,3 +660,13 @@ def send_queued_emails_task(
 def generate_share_post_task(post_id: int, lock_key: str, token: str):
     """Write and cache the share post the API queued for ``post_id``."""
     SocialShareService().generate_and_cache(post_id, lock_key, token)
+
+
+@app.task(bind=True, max_retries=3, default_retry_delay=60)
+def screen_comment_task(self, comment_id: int) -> None:
+    """Screen the comment with Jev, retrying while Jev is unavailable."""
+    comment = RhCommentModel.objects.get(id=comment_id)
+    try:
+        ContentScreeningService().screen_comment(comment)
+    except DecisionError as exc:
+        raise self.retry(exc=exc)
