@@ -1,10 +1,12 @@
 import logging
+import uuid
 
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from allauth.account.adapter import get_adapter
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, Value
 from django.db.models.functions import Lower
+from PIL import Image
 from rest_framework import serializers
 from rest_framework.serializers import (
     CharField,
@@ -48,6 +50,13 @@ from user.related_models.risk_score_model import RiskScoreEvent
 from utils.turnstile import TurnstileService
 
 logger = logging.getLogger(__name__)
+
+PROFILE_IMAGE_FORMATS = {
+    "GIF": ("gif", "image/gif"),
+    "JPEG": ("jpg", "image/jpeg"),
+    "PNG": ("png", "image/png"),
+    "WEBP": ("webp", "image/webp"),
+}
 
 
 def compute_user_balances(user):
@@ -347,6 +356,27 @@ class AuthorEditableSerializer(ModelSerializer):
             "orcid_account",
             "user",
         ]
+
+    def validate_profile_image(self, upload):
+        if upload is None:
+            return None
+
+        try:
+            with Image.open(upload, formats=tuple(PROFILE_IMAGE_FORMATS)) as image:
+                image.verify()
+                image_format = "JPEG" if image.format == "MPO" else image.format
+                extension, content_type = PROFILE_IMAGE_FORMATS[image_format]
+        except Exception:
+            raise serializers.ValidationError(
+                "Upload a valid JPEG, PNG, GIF or WebP image."
+            )
+
+        # Derive the stored name and content type from the actual content,
+        # not what the client provided:
+        upload.seek(0)
+        upload.name = f"{uuid.uuid4().hex}.{extension}"
+        upload.content_type = content_type
+        return upload
 
 
 class EditorContributionSerializer(ModelSerializer):
