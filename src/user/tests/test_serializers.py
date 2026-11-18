@@ -112,6 +112,24 @@ class AuthorEditableSerializerProfileImageTests(TestCase):
                 self.assertEqual(profile_image.content_type, content_type)
                 self.assertEqual(profile_image.tell(), 0)
 
+    def test_accepts_multi_picture_jpeg_as_jpeg(self):
+        # Arrange
+        buffer = io.BytesIO()
+        frames = [Image.new("RGB", (1, 1), color) for color in ("red", "blue")]
+        frames[0].save(buffer, format="MPO", save_all=True, append_images=frames[1:])
+        upload = SimpleUploadedFile(
+            "photo.jpg", buffer.getvalue(), content_type="image/jpeg"
+        )
+
+        # Act
+        is_valid, serializer = self._validate(upload)
+
+        # Assert
+        self.assertTrue(is_valid, serializer.errors)
+        profile_image = serializer.validated_data["profile_image"]
+        self.assertTrue(profile_image.name.endswith(".jpg"))
+        self.assertEqual(profile_image.content_type, "image/jpeg")
+
     def test_rejects_html_disguised_as_image(self):
         # Arrange
         upload = SimpleUploadedFile(

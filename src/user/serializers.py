@@ -51,7 +51,6 @@ from utils.turnstile import TurnstileService
 
 logger = logging.getLogger(__name__)
 
-# Pillow format -> (file extension, content type) of accepted profile images.
 PROFILE_IMAGE_FORMATS = {
     "GIF": ("gif", "image/gif"),
     "JPEG": ("jpg", "image/jpeg"),
@@ -365,15 +364,15 @@ class AuthorEditableSerializer(ModelSerializer):
         try:
             with Image.open(upload, formats=tuple(PROFILE_IMAGE_FORMATS)) as image:
                 image.verify()
-                image_format = image.format
+                image_format = "JPEG" if image.format == "MPO" else image.format
+                extension, content_type = PROFILE_IMAGE_FORMATS[image_format]
         except Exception:
             raise serializers.ValidationError(
                 "Upload a valid JPEG, PNG, GIF or WebP image."
             )
 
-        # Derive the stored name and content type from the actual content, not
-        # the client
-        extension, content_type = PROFILE_IMAGE_FORMATS[image_format]
+        # Derive the stored name and content type from the actual content,
+        # not what the client provided:
         upload.seek(0)
         upload.name = f"{uuid.uuid4().hex}.{extension}"
         upload.content_type = content_type
