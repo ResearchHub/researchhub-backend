@@ -99,6 +99,16 @@ class GrantCreateSerializer(serializers.ModelSerializer):
             except ResearchhubPost.DoesNotExist:
                 raise serializers.ValidationError("Post does not exist")
 
+        if (
+            unified_document is not None
+            and not unified_document.is_public
+            and data.get("application_visibility")
+            == Grant.APPLICATION_VISIBILITY_PUBLIC
+        ):
+            raise serializers.ValidationError(
+                "A private grant cannot require public applications."
+            )
+
         # Add validated objects to data for use in create()
         data["unified_document"] = unified_document
 

@@ -33,6 +33,7 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
     applications = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
     funding_pool = serializers.SerializerMethodField()
+    effective_application_visibility = serializers.SerializerMethodField()
 
     class Meta:
         model = Grant
@@ -54,6 +55,9 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
             grant.contacts.all(), context=context, many=True, **_context_fields
         )
         return serializer.data
+
+    def get_effective_application_visibility(self, grant):
+        return grant.effective_application_visibility()
 
     def get_funding_pool(self, grant):
         """Expose pool holding/distributed/raised on the grant payload."""

@@ -152,3 +152,98 @@ class UnifiedDocumentShareLinkServiceTests(TestCase):
             self.service.create_or_get(discussion.unified_document.id, self.moderator)
 
         self.assertFalse(UnifiedDocumentShareLink.objects.exists())
+
+
+class RfpShareLinkServiceTests(TestCase):
+    def setUp(self):
+        self.service = UnifiedDocumentShareLinkService()
+        self.moderator = create_random_default_user("rfp-share-mod", moderator=True)
+        self.owner = create_random_default_user("rfp-share-owner")
+        self.outsider = create_random_default_user("rfp-share-outsider")
+
+        self.rfp_post = create_post(created_by=self.owner, document_type=GRANT)
+        self.unified_document = self.rfp_post.unified_document
+        self.unified_document.is_public = False
+        self.unified_document.save(update_fields=["is_public"])
+        self.grant = Grant.objects.create(
+            created_by=self.owner,
+            unified_document=self.unified_document,
+            amount=1000,
+            currency=USD,
+            description="Private RFP",
+            status=Grant.OPEN,
+        )
+
+    def test_rfp_owner_can_create_share_link(self):
+        # Act
+        link, created = self.service.create_or_get(self.unified_document.id, self.owner)
+
+        # Assert
+        self.assertTrue(created)
+        self.assertEqual(
+            self.service.resolve_unified_document_id(link.token),
+            self.unified_document.id,
+        )
+
+    def test_grant_creator_who_did_not_post_rfp_can_create_share_link(self):
+        # Arrange
+        grant_creator = create_random_default_user("rfp-share-grant-creator")
+        self.grant.created_by = grant_creator
+        self.grant.save(update_fields=["created_by"])
+
+        # Act
+        _, created = self.service.create_or_get(self.unified_document.id, grant_creator)
+
+        # Assert
+        self.assertTrue(created)
+
+    def test_moderator_can_create_share_link_for_rfp(self):
+        # Act
+        _, created = self.service.create_or_get(
+            self.unified_document.id, self.moderator
+        )
+
+        # Assert
+        self.assertTrue(created)
+
+    def test_unaffiliated_user_cannot_create_rfp_share_link(self):
+        # Act / Assert
+        with self.assertRaises(PermissionError):
+            self.service.create_or_get(self.unified_document.id, self.outsider)
+        self.assertFalse(UnifiedDocumentShareLink.objects.exists())
+
+    def test_cannot_share_rfp_pending_or_declined_moderation(self):
+        for status in Grant.PENDING_MODERATION_STATUSES:
+            with self.subTest(status=status):
+                # Arrange
+                self.grant.status = status
+                self.grant.save(update_fields=["status"])
+
+                # Act / Assert
+                with self.assertRaises(ValueError):
+                    self.service.create_or_get(self.unified_document.id, self.owner)
+                self.assertFalse(UnifiedDocumentShareLink.objects.exists())
+
+    def test_rfp_link_stops_resolving_once_grant_is_declined(self):
+        # Arrange
+        link, _ = self.service.create_or_get(self.unified_document.id, self.owner)
+
+        # Act
+        self.grant.status = Grant.DECLINED
+        self.grant.save(update_fields=["status"])
+
+        # Assert
+        self.assertIsNone(self.service.resolve_unified_document_id(link.token))
+
+    def test_owner_can_disable_rfp_share_link_after_decline(self):
+        # Arrange
+        link, _ = self.service.create_or_get(self.unified_document.id, self.owner)
+        self.grant.status = Grant.DECLINED
+        self.grant.save(update_fields=["status"])
+
+        # Act
+        removed = self.service.disable(self.unified_document.id, self.owner)
+
+        # Assert
+        self.assertTrue(removed)
+        self.assertFalse(UnifiedDocumentShareLink.objects.filter(pk=link.pk).exists())

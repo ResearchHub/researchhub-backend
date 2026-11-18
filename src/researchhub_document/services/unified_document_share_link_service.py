@@ -5,8 +5,15 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from purchase.models import Grant
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
+from researchhub_document.related_models.researchhub_post_model import (
+    ResearchhubPost,
+    ResearchhubPostQuerySet,
+)
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -20,6 +27,8 @@ SHARE_LINK_TOKEN_BYTES = 32
 
 # Query parameter carrying the share token on ordinary document requests.
 SHARE_TOKEN_PARAM = "st"
+
+SHAREABLE_DOCUMENT_TYPES = (PREREGISTRATION, GRANT)
 
 
 def get_shared_unified_document_id(request) -> int | None:
@@ -44,12 +53,12 @@ def get_shared_unified_document_id(request) -> int | None:
 
 
 class UnifiedDocumentShareLinkService:
-    """Generate and resolve anonymous share links for proposals."""
+    """Generate and resolve anonymous share links for proposals and RFPs."""
 
     def create_or_get(
         self, unified_document_id: int, user: User
     ) -> tuple[UnifiedDocumentShareLink, bool]:
-        """Return the proposal's share link, generating one when needed.
+        """Return the document's share link, generating one when needed.
 
         A live link is returned untouched no matter which eligible user asks,
         so a second caller can never invalidate a URL that has already been
@@ -84,7 +93,7 @@ class UnifiedDocumentShareLinkService:
     def get_live_link(
         self, unified_document_id: int, user: User
     ) -> UnifiedDocumentShareLink | None:
-        """Return the proposal's live share link without minting one.
+        """Return the document's live share link without minting one.
 
         Read-only, so it is safe to call on page render. An expired link
         answers ``None`` exactly as a missing one does, since fetching must
@@ -101,7 +110,7 @@ class UnifiedDocumentShareLinkService:
         return None if link is None or link.is_expired() else link
 
     def disable(self, unified_document_id: int, user: User) -> bool:
-        """Turn sharing off for a proposal, killing any link handed out.
+        """Turn sharing off for a document, killing any link handed out.
 
         Deletes rather than expires, so re-sharing later mints a fresh token
         and a URL that was turned off can never come back to life. Returns
@@ -124,7 +133,7 @@ class UnifiedDocumentShareLinkService:
     def resolve_unified_document_id(self, token: str) -> int | None:
         """Return the unified document id a live token grants access to.
 
-        Unknown tokens, expired links, removed documents, non-proposals, and
+        Unknown tokens, expired links, removed documents, unshareable types, and
         anything that has not cleared moderation all answer ``None`` so callers
         cannot tell them apart. Re-checking moderation here, and not only when
         the link is minted, is what stops a link handed out earlier from
@@ -140,9 +149,9 @@ class UnifiedDocumentShareLinkService:
                 token=token,
                 expires_at__gt=timezone.now(),
                 unified_document__is_removed=False,
-                unified_document__document_type=PREREGISTRATION,
-                unified_document__status=ResearchhubUnifiedDocument.APPROVED,
+                unified_document__document_type__in=SHAREABLE_DOCUMENT_TYPES,
             )
+            .filter(ResearchhubPostQuerySet._moderation_approved_filter())
             .values_list("unified_document_id", flat=True)
             .first()
         )
@@ -153,10 +162,8 @@ class UnifiedDocumentShareLinkService:
         self._assert_can_manage(unified_document, user)
         # Checked after eligibility so moderation state is not disclosed to
         # users who have no business knowing the proposal exists.
-        if not unified_document.is_approved:
-            raise ValueError(
-                "Only proposals that have cleared moderation can be shared."
-            )
+        if not self._has_cleared_moderation(unified_document):
+            raise ValueError("Only work that has cleared moderation can be shared.")
 
     def _assert_can_manage(
         self, unified_document: ResearchhubUnifiedDocument, user: User
@@ -164,15 +171,26 @@ class UnifiedDocumentShareLinkService:
         """Guard shared by sharing and turning sharing off.
 
         Deliberately excludes the moderation gate: turning sharing off has to
-        stay available for a proposal that has since been declined.
+        stay available for work that has since been declined.
         """
-        if unified_document.document_type != PREREGISTRATION:
-            raise ValueError("Only proposals can be shared.")
+        if unified_document.document_type not in SHAREABLE_DOCUMENT_TYPES:
+            raise ValueError("Only proposals and RFPs can be shared.")
         if not self._is_eligible(unified_document, user):
             raise PermissionError(
-                "Only moderators, the proposal's authors, or the creator of a "
-                "grant it applied to can generate a share link."
+                "Only moderators, hub editors, the work's authors, or the "
+                "creator of a related grant can generate a share link."
             )
+
+    @staticmethod
+    def _has_cleared_moderation(
+        unified_document: ResearchhubUnifiedDocument,
+    ) -> bool:
+        # RFP documents stay APPROVED; Grant.status is their moderation gate.
+        if not unified_document.is_approved:
+            return False
+        return not unified_document.grants.filter(
+            status__in=Grant.PENDING_MODERATION_STATUSES
+        ).exists()
 
     def _is_eligible(
         self, unified_document: ResearchhubUnifiedDocument, user: User
@@ -190,6 +208,7 @@ class UnifiedDocumentShareLinkService:
                 Q(created_by=user)
                 | Q(authors__user=user)
                 | Q(grant_applications__grant__created_by=user)
+                | Q(unified_document__grants__created_by=user)
             )
             .exists()
         )

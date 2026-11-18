@@ -16,6 +16,12 @@ from researchhub_document.related_models.constants.document_type import (
     PREREGISTRATION,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.unified_document_share_link_model import (
+    UnifiedDocumentShareLink,
+)
+from researchhub_document.services.unified_document_share_link_service import (
+    UnifiedDocumentShareLinkService,
+)
 from user.tests.helpers import (
     create_hub_editor,
     create_random_authenticated_user,
@@ -248,3 +254,243 @@ class PrivatePreregistrationVisibilityTests(APITestCase):
         self.client.force_authenticate(editor)
         resp = self.client.get(f"/api/researchhubpost/{self.private_post.id}/")
         self.assertEqual(resp.status_code, 200)
+
+
+def _proposal_body(**overrides):
+    body = {
+        "document_type": PREREGISTRATION,
+        "full_src": "body",
+        "renderable_text": (
+            "sufficiently long body. sufficiently long body. "
+            "sufficiently long body. sufficiently long body. "
+            "sufficiently long body"
+        ),
+        "title": "sufficiently long title. sufficiently long title.",
+    }
+    body.update(overrides)
+    return body
+
+
+class PrivateGrantShareAndApplicationTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.owner = create_random_authenticated_user("priv_rfp_owner")
+        self.applicant = create_random_authenticated_user("priv_rfp_applicant")
+        make_user_verified(self.applicant)
+
+        self.rfp_post = create_post(
+            created_by=self.owner, document_type=GRANT, title="Private RFP"
+        )
+        self.rfp_doc = self.rfp_post.unified_document
+        self.rfp_doc.is_public = False
+        self.rfp_doc.save(update_fields=["is_public"])
+        self.grant = Grant.objects.create(
+            created_by=self.owner,
+            unified_document=self.rfp_doc,
+            amount=Decimal("20000.00"),
+            currency="USD",
+            organization="OrgPriv",
+            description="private",
+            status=Grant.OPEN,
+            end_date=timezone.now() + timedelta(days=30),
+        )
+        self.token = (
+            UnifiedDocumentShareLinkService()
+            .create_or_get(self.rfp_doc.id, self.owner)[0]
+            .token
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def _own_proposal(self, *, is_public):
+        post = create_post(created_by=self.applicant, document_type=PREREGISTRATION)
+        post.unified_document.is_public = is_public
+        post.unified_document.save(update_fields=["is_public"])
+        return post
+
+    def test_owner_can_create_share_link_for_private_rfp_via_api(self):
+        # Arrange
+        UnifiedDocumentShareLink.objects.all().delete()
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        resp = self.client.post(
+            f"/api/researchhub_unified_document/{self.rfp_doc.id}/share_link/"
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, 201)
+        self.assertTrue(resp.data["token"])
+
+    def test_anonymous_user_can_view_private_rfp_with_token(self):
+        # Act
+        with_token = self.client.get(
+            f"/api/researchhubpost/{self.rfp_post.id}/?st={self.token}"
+        )
+        without_token = self.client.get(f"/api/researchhubpost/{self.rfp_post.id}/")
+
+        # Assert
+        self.assertEqual(with_token.status_code, 200)
+        self.assertEqual(with_token.data["title"], "Private RFP")
+        self.assertEqual(without_token.status_code, 404)
+
+    def test_token_does_not_expose_rfp_in_grant_feed_or_grant_list(self):
+        # Arrange
+        self.client.force_authenticate(self.applicant)
+
+        # Act
+        feed = self.client.get(f"/api/grant_feed/?st={self.token}")
+        listing = self.client.get(f"/api/grant/?st={self.token}")
+        detail = self.client.get(f"/api/grant/{self.grant.id}/?st={self.token}")
+
+        # Assert
+        feed_titles = [r["content_object"]["title"] for r in feed.data["results"]]
+        self.assertNotIn("Private RFP", feed_titles)
+        listed_ids = [g["id"] for g in listing.data["results"]]
+        self.assertNotIn(self.grant.id, listed_ids)
+        self.assertEqual(detail.status_code, 404)
+
+    def test_link_recipient_can_apply_with_token(self):
+        # Arrange
+        proposal = self._own_proposal(is_public=False)
+        self.client.force_authenticate(self.applicant)
+
+        # Act
+        without_token = self.client.post(
+            f"/api/grant/{self.grant.id}/application/",
+            {"preregistration_post_id": proposal.id},
+        )
+        with_token = self.client.post(
+            f"/api/grant/{self.grant.id}/application/?st={self.token}",
+            {"preregistration_post_id": proposal.id},
+        )
+
+        # Assert
+        self.assertEqual(without_token.status_code, 404)
+        self.assertEqual(with_token.status_code, 201)
+        self.assertTrue(
+            GrantApplication.objects.filter(
+                grant=self.grant, preregistration_post=proposal
+            ).exists()
+        )
+
+    def test_public_proposal_cannot_apply_to_private_rfp(self):
+        # Arrange
+        self.assertEqual(
+            self.grant.application_visibility, Grant.APPLICATION_VISIBILITY_OPTIONAL
+        )
+        proposal = self._own_proposal(is_public=True)
+        self.client.force_authenticate(self.applicant)
+
+        # Act
+        resp = self.client.post(
+            f"/api/grant/{self.grant.id}/application/?st={self.token}",
+            {"preregistration_post_id": proposal.id},
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(GrantApplication.objects.filter(grant=self.grant).exists())
+
+    def test_creating_proposal_for_private_rfp_without_access_reports_not_found(self):
+        # Arrange
+        self.client.force_authenticate(self.applicant)
+        posts_before = ResearchhubPost.objects.count()
+
+        # Act
+        resp = self.client.post(
+            "/api/researchhubpost/",
+            _proposal_body(grant_id=self.grant.id, is_public=False),
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("Grant not found", str(resp.data))
+        self.assertEqual(ResearchhubPost.objects.count(), posts_before)
+
+    def test_creating_proposal_with_token_defaults_to_private(self):
+        # Arrange
+        self.client.force_authenticate(self.applicant)
+
+        # Act
+        resp = self.client.post(
+            f"/api/researchhubpost/?st={self.token}",
+            _proposal_body(grant_id=self.grant.id),
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, 200)
+        post = ResearchhubPost.objects.get(id=resp.data["id"])
+        self.assertFalse(post.unified_document.is_public)
+        self.assertTrue(
+            GrantApplication.objects.filter(
+                grant=self.grant, preregistration_post=post
+            ).exists()
+        )
+
+    def test_creating_public_proposal_for_private_rfp_is_rejected(self):
+        # Arrange
+        self.client.force_authenticate(self.applicant)
+
+        # Act
+        resp = self.client.post(
+            f"/api/researchhubpost/?st={self.token}",
+            _proposal_body(grant_id=self.grant.id, is_public=True),
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(GrantApplication.objects.filter(grant=self.grant).exists())
+
+    def test_proposal_applied_to_private_rfp_cannot_be_made_public(self):
+        # Arrange
+        proposal = self._own_proposal(is_public=False)
+        GrantApplication.objects.create(
+            grant=self.grant, preregistration_post=proposal, applicant=self.applicant
+        )
+        self.client.force_authenticate(self.applicant)
+
+        # Act
+        resp = self.client.post(f"/api/researchhubpost/{proposal.id}/make_public/")
+
+        # Assert
+        self.assertEqual(resp.status_code, 400)
+        proposal.unified_document.refresh_from_db()
+        self.assertFalse(proposal.unified_document.is_public)
+
+    def test_private_rfp_cannot_require_public_applications(self):
+        # Arrange
+        author = create_random_default_user("priv_rfp_public_apps", moderator=True)
+        make_user_verified(author)
+        self.client.force_authenticate(author)
+        grants_before = Grant.objects.count()
+
+        # Act
+        resp = self.client.post(
+            "/api/researchhubpost/",
+            _grant_post_body(
+                is_public=False,
+                grant_application_visibility=Grant.APPLICATION_VISIBILITY_PUBLIC,
+            ),
+        )
+
+        # Assert
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(Grant.objects.count(), grants_before)
+
+    def test_grant_payload_exposes_effective_application_visibility(self):
+        # Arrange
+        self.client.force_authenticate(self.owner)
+
+        # Act
+        resp = self.client.get(f"/api/grant/{self.grant.id}/")
+
+        # Assert
+        self.assertEqual(
+            resp.data["application_visibility"], Grant.APPLICATION_VISIBILITY_OPTIONAL
+        )
+        self.assertEqual(
+            resp.data["effective_application_visibility"],
+            Grant.APPLICATION_VISIBILITY_PRIVATE,
+        )

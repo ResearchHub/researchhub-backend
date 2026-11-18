@@ -18,6 +18,9 @@ from purchase.services.grant_application_service import GrantApplicationService
 from purchase.services.grant_service import GrantModerationService
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.services.unified_document_share_link_service import (
+    get_shared_unified_document_id,
+)
 from user.permissions import IsModerator
 
 
@@ -31,9 +34,15 @@ class GrantViewSet(viewsets.ModelViewSet):
         # visible_to gates grant posts on Grant.status, so pending and declined
         # grants stay hidden from everyone but the creator, moderators, and hub
         # editors.
-        visible_doc_ids = ResearchhubPost.objects.visible_to(self.request.user).values(
-            "unified_document_id"
+        # The share token must never widen list or detail views.
+        shared_unified_document_id = (
+            get_shared_unified_document_id(self.request)
+            if self.action == "application"
+            else None
         )
+        visible_doc_ids = ResearchhubPost.objects.visible_to(
+            self.request.user, shared_unified_document_id
+        ).values("unified_document_id")
         qs = qs.filter(unified_document_id__in=visible_doc_ids)
 
         return qs.select_related("funding_pool").prefetch_related(
@@ -314,15 +323,10 @@ class GrantViewSet(viewsets.ModelViewSet):
     @staticmethod
     def _visibility_mismatch(grant: Grant, post: ResearchhubPost) -> str | None:
         is_public = post.unified_document.is_public
-        if (
-            grant.application_visibility == Grant.APPLICATION_VISIBILITY_PRIVATE
-            and is_public
-        ):
+        required = grant.effective_application_visibility()
+        if required == Grant.APPLICATION_VISIBILITY_PRIVATE and is_public:
             return "This grant requires applications to be private."
-        if (
-            grant.application_visibility == Grant.APPLICATION_VISIBILITY_PUBLIC
-            and not is_public
-        ):
+        if required == Grant.APPLICATION_VISIBILITY_PUBLIC and not is_public:
             return "This grant requires applications to be public."
         return None
 
