@@ -60,12 +60,11 @@ class UserManager(SoftDeletableManagerMixin, DjangoUserManager):
 
         return self._get_default_account()
 
-    def get_community_account(self):
-        user = User.objects.filter(email=FOUNDATION_EMAIL)
-        if user.exists():
-            return user.first()
+    def get_foundation_account(self):
+        return self.filter(email=FOUNDATION_EMAIL).first()
 
-        return self._get_default_account()
+    def get_community_account(self):
+        return self.get_foundation_account() or self._get_default_account()
 
     def get_community_revenue_account(self):
         user = User.objects.filter(email=FOUNDATION_REVENUE_EMAIL)
@@ -128,11 +127,8 @@ class User(SoftDeletableModel, AbstractUser):
 
     @classmethod
     def is_rh_community_account(cls, user) -> bool:
-        try:
-            community_account = cls.objects.get_community_account()
-        except Exception:
-            return False
-        return user.id == community_account.id
+        foundation_account = cls.objects.get_foundation_account()
+        return foundation_account is not None and user.id == foundation_account.id
 
     @property
     def is_orcid_connected(self):

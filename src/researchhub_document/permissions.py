@@ -13,6 +13,7 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
         if (
             view.action == "create"
             or view.action == "update"
+            or view.action == "partial_update"
             or view.action == "upsert"
         ) and request.data.get("post_id") is not None:
             post = ResearchhubPost.objects.get(id=request.data.get("post_id"))

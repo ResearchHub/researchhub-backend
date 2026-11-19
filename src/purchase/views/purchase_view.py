@@ -15,17 +15,18 @@ from analytics.tasks import track_revenue_event
 from notification.models import Notification
 from notification.services import NotificationService
 from purchase.models import Balance, Purchase, RscExchangeRate
+from purchase.permissions import CanTipOrReadOnly
 from purchase.related_models.constants.support import (
     MAXIMUM_SUPPORT_AMOUNT_RSC,
     MINIMUM_SUPPORT_AMOUNT_RSC,
 )
 from purchase.serializers import PurchaseSerializer
+from purchase.services.tip_service import TipService
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
 from reputation.models import Contribution, SupportFee
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
-from researchhub_comment.constants.rh_comment_thread_types import REVIEW_COMMENT_TYPES
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
 
@@ -33,9 +34,13 @@ from utils.permissions import CreateOrReadOnly
 class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
-    permission_classes = [IsAuthenticated, CreateOrReadOnly]
+    permission_classes = [IsAuthenticated, CreateOrReadOnly, CanTipOrReadOnly]
     pagination_class = PageNumberPagination
     ALLOWED_CONTENT_TYPES = ("rhcommentmodel",)
+
+    def __init__(self, *args, **kwargs):
+        self.tip_service = kwargs.pop("tip_service", TipService())
+        super().__init__(*args, **kwargs)
 
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
@@ -61,6 +66,9 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         if purchase_method != Purchase.OFF_CHAIN:
             raise ValidationError("Invalid purchase method")
 
+        if purchase_type != Purchase.BOOST:
+            raise ValidationError("Invalid purchase type")
+
         decimal_amount = decimal.Decimal(amount)
         if decimal_amount <= 0:
             raise ValidationError("Invalid amount")
@@ -68,6 +76,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
+            self.tip_service.ensure_can_tip(user)
 
             purchase_data = {
                 "amount": amount,
@@ -84,6 +93,8 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
                 raise ValidationError(
                     f"Invalid amount. Minimum of {MINIMUM_SUPPORT_AMOUNT_RSC} RSC."
                 )
+
+            self.tip_service.ensure_tip_allowed(user, object_id, decimal_amount)
 
             user_balance = user.get_balance()
             (
@@ -149,11 +160,6 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             context = {"purchase_minimal_serialization": True, "exclude_stats": True}
             recipient = comment.created_by
             unified_doc = comment.unified_document
-            notification_type = (
-                Notification.RSC_SUPPORT_ON_DOC
-                if comment.comment_type in REVIEW_COMMENT_TYPES
-                else Notification.RSC_SUPPORT_ON_DIS
-            )
 
             if recipient and recipient != user:
                 distribution = create_purchase_distribution(user, amount)
@@ -166,9 +172,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         serializer_data = serializer.data
 
         if recipient and user:
-            self.send_purchase_notification(
-                purchase, unified_doc, recipient, notification_type
-            )
+            self.send_purchase_notification(purchase, unified_doc, recipient)
 
         create_contribution.apply_async(
             (
@@ -183,9 +187,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         )
         return Response(serializer_data, status=201)
 
-    def send_purchase_notification(
-        self, purchase, unified_doc, recipient, notification_type
-    ):
+    def send_purchase_notification(self, purchase, unified_doc, recipient):
         creator = purchase.user
 
         if creator == recipient:
@@ -197,7 +199,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             object_id=purchase.id,
         )
         NotificationService().send(
-            notification_type,
+            Notification.RSC_SUPPORT_ON_DOC,
             recipient=recipient,
             action_user=creator,
             item=purchase,

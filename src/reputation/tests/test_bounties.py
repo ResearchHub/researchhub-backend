@@ -156,6 +156,24 @@ class BountyViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, 403)
 
+    def test_fallback_account_cannot_create_bounty_without_foundation_account(self):
+        # Arrange
+        self.foundation.delete()
+        self.client.force_authenticate(self.bank_user)
+
+        # Act
+        response = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+
     def test_moderator_can_create_bounty(self):
         self._authenticate_bounty_manager(self.moderator)
         response = self.client.post(

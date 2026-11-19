@@ -409,6 +409,45 @@ class ViewTests(APITestCase):
 
         self.assertEqual(updated_response.status_code, 403)
 
+    def _partial_update_post(self, post):
+        return self.client.patch(
+            f"/api/researchhubpost/{post.id}/",
+            {
+                "post_id": post.id,
+                "document_type": "DISCUSSION",
+                "full_src": "body",
+                "renderable_text": "y" * MIN_POST_BODY_LENGTH,
+                "title": "y" * MIN_POST_TITLE_LENGTH,
+            },
+            format="json",
+        )
+
+    def test_non_author_cannot_partially_update_post(self):
+        # Arrange
+        post = create_post(created_by=self.admin_user, title="Original title")
+        self.client.force_authenticate(self.non_member)
+
+        # Act
+        response = self._partial_update_post(post)
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        post.refresh_from_db()
+        self.assertEqual(post.title, "Original title")
+
+    def test_author_can_partially_update_post(self):
+        # Arrange
+        post = create_post(created_by=self.admin_user, title="Original title")
+        self.client.force_authenticate(self.admin_user)
+
+        # Act
+        response = self._partial_update_post(post)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        post.refresh_from_db()
+        self.assertEqual(post.title, "y" * MIN_POST_TITLE_LENGTH)
+
     def test_doi_not_assigned_on_publish(self):
         """DOIs are no longer assigned at publish time for any post type."""
         author = create_random_default_user("author")
