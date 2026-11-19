@@ -896,15 +896,13 @@ class OrganizationSerializer(ModelSerializer):
             "id",
             "created_date",
             "updated_date",
+            "cover_image",
             "description",
             "note_created",
             "org_type",
             "slug",
             "user",
         ]
-
-    def validate_cover_image(self, upload):
-        return validate_image_upload(upload)
 
     def get_member_count(self, organization):
         permissions = organization.permissions
