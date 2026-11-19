@@ -15,11 +15,13 @@ from analytics.tasks import track_revenue_event
 from notification.models import Notification
 from notification.services import NotificationService
 from purchase.models import Balance, Purchase, RscExchangeRate
+from purchase.permissions import CanTipOrReadOnly
 from purchase.related_models.constants.support import (
     MAXIMUM_SUPPORT_AMOUNT_RSC,
     MINIMUM_SUPPORT_AMOUNT_RSC,
 )
 from purchase.serializers import PurchaseSerializer
+from purchase.services.tip_service import TipService
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
 from reputation.models import Contribution, SupportFee
@@ -33,9 +35,13 @@ from utils.permissions import CreateOrReadOnly
 class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
     queryset = Purchase.objects.all()
     serializer_class = PurchaseSerializer
-    permission_classes = [IsAuthenticated, CreateOrReadOnly]
+    permission_classes = [IsAuthenticated, CreateOrReadOnly, CanTipOrReadOnly]
     pagination_class = PageNumberPagination
     ALLOWED_CONTENT_TYPES = ("rhcommentmodel",)
+
+    def __init__(self, *args, **kwargs):
+        self.tip_service = kwargs.pop("tip_service", TipService())
+        super().__init__(*args, **kwargs)
 
     def get_queryset(self):
         return self.queryset.filter(user=self.request.user)
@@ -61,6 +67,9 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         if purchase_method != Purchase.OFF_CHAIN:
             raise ValidationError("Invalid purchase method")
 
+        if purchase_type != Purchase.BOOST:
+            raise ValidationError("Invalid purchase type")
+
         decimal_amount = decimal.Decimal(amount)
         if decimal_amount <= 0:
             raise ValidationError("Invalid amount")
@@ -68,6 +77,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
+            self.tip_service.ensure_can_tip(user)
 
             purchase_data = {
                 "amount": amount,
