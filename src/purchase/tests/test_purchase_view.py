@@ -1,7 +1,9 @@
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from notification.models import Notification
@@ -16,6 +18,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
 )
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
+from review.models import Review
 from user.related_models.user_model import FOUNDATION_EMAIL
 from user.tests.helpers import (
     create_random_authenticated_user,
@@ -23,6 +26,8 @@ from user.tests.helpers import (
 )
 
 STARTING_BALANCE = Decimal(10000)
+PER_TIP_LIMIT_RSC = 600
+DAILY_LIMIT_RSC = 10000
 
 
 class PurchaseViewTests(APITestCase):
@@ -44,6 +49,27 @@ class PurchaseViewTests(APITestCase):
         Balance.objects.create(
             amount=str(amount), user=user, content_type=self.distribution_ct
         )
+
+    def _create_review_comment(self, poster, post=None, comment_type=COMMUNITY_REVIEW):
+        comment = create_rh_comment(created_by=poster, post=post)
+        comment.comment_type = comment_type
+        comment.save()
+        return comment
+
+    def _record_past_tip(self, comment, amount, age=timedelta(0)):
+        purchase = Purchase.objects.create(
+            user=self.foundation,
+            content_type=ContentType.objects.get_for_model(comment),
+            object_id=comment.id,
+            purchase_type=Purchase.BOOST,
+            purchase_method=Purchase.OFF_CHAIN,
+            paid_status=Purchase.PAID,
+            amount=str(amount),
+        )
+        Purchase.objects.filter(id=purchase.id).update(
+            created_date=timezone.now() - age
+        )
+        return purchase
 
     def _post_support_response(
         self, user, object_id, content_type, amount=10, purchase_type="BOOST"
@@ -76,7 +102,7 @@ class PurchaseViewTests(APITestCase):
     def test_list_purchases(self):
         # Arrange
         poster = create_random_authenticated_user("rep_user")
-        comment = create_rh_comment(created_by=poster)
+        comment = self._create_review_comment(poster)
         response = self._post_support_response(
             self.foundation, comment.id, "rhcommentmodel", 100
         )
@@ -93,7 +119,7 @@ class PurchaseViewTests(APITestCase):
     def test_list_purchases_cannot_list_other_users_purchases(self):
         # Arrange
         poster = create_random_authenticated_user("rep_user")
-        comment = create_rh_comment(created_by=poster)
+        comment = self._create_review_comment(poster)
         response = self._post_support_response(
             self.foundation, comment.id, "rhcommentmodel", 100
         )
@@ -150,7 +176,7 @@ class PurchaseViewTests(APITestCase):
         # Arrange
         poster = create_random_authenticated_user("rep_user")
         post = create_post(created_by=poster)
-        comment = create_rh_comment(created_by=poster, post=post)
+        comment = self._create_review_comment(poster, post=post)
         tip_amount = 100
         fee_amount = 3
 
@@ -302,34 +328,151 @@ class PurchaseViewTests(APITestCase):
         self.assertEqual(Purchase.objects.count(), 0)
         self.assertFalse(Balance.objects.filter(user=poster).exists())
 
-    def test_support_notifies_reviews_and_comments_with_their_own_types(self) -> None:
-        """Tips on peer reviews and on comments send separate notification types."""
+    def test_tip_notifies_the_review_author(self) -> None:
         # Arrange
         poster = create_random_authenticated_user("poster")
-        expected_types = {
-            GENERIC_COMMENT: Notification.RSC_SUPPORT_ON_DIS,
-            COMMUNITY_REVIEW: Notification.RSC_SUPPORT_ON_DOC,
-            PEER_REVIEW: Notification.RSC_SUPPORT_ON_DOC,
-        }
 
-        for comment_type, notification_type in expected_types.items():
+        for comment_type in (COMMUNITY_REVIEW, PEER_REVIEW):
             with self.subTest(comment_type=comment_type):
-                comment = create_rh_comment(created_by=poster)
-                comment.comment_type = comment_type
-                comment.save()
+                comment = self._create_review_comment(poster, comment_type=comment_type)
 
                 # Act
-                self._post_support_response(
+                response = self._post_support_response(
                     self.foundation, comment.id, "rhcommentmodel", 100
                 )
 
                 # Assert
+                self.assertEqual(response.status_code, 201)
                 self.assertEqual(
                     Notification.objects.filter(recipient=poster)
                     .latest("id")
                     .notification_type,
-                    notification_type,
+                    Notification.RSC_SUPPORT_ON_DOC,
                 )
+
+    def test_tip_marks_the_review_assessed(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
+        comment = self._create_review_comment(poster)
+        review = Review.objects.create(
+            created_by=poster,
+            content_type=ContentType.objects.get_for_model(comment),
+            object_id=comment.id,
+            unified_document=comment.unified_document,
+            score=7,
+        )
+
+        # Act
+        response = self._post_support_response(
+            self.foundation, comment.id, "rhcommentmodel", 100
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        review.refresh_from_db()
+        self.assertTrue(review.is_assessed)
+
+    def test_tip_on_a_comment_that_is_not_a_review_is_rejected(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
+        comment = self._create_review_comment(poster, comment_type=GENERIC_COMMENT)
+
+        # Act
+        response = self._post_support_response(
+            self.foundation, comment.id, "rhcommentmodel", 100
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self._assert_no_tip_was_made(self.foundation, poster)
+
+    def test_tip_on_a_missing_comment_is_rejected(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
+
+        for object_id in (0, "not-a-number"):
+            with self.subTest(object_id=object_id):
+                # Act
+                response = self._post_support_response(
+                    self.foundation, object_id, "rhcommentmodel", 100
+                )
+
+                # Assert
+                self.assertEqual(response.status_code, 400)
+                self._assert_no_tip_was_made(self.foundation, poster)
+
+    def test_tip_at_the_per_tip_limit_is_accepted(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
+        comment = self._create_review_comment(poster)
+
+        # Act
+        response = self._post_support_response(
+            self.foundation, comment.id, "rhcommentmodel", PER_TIP_LIMIT_RSC
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(poster.get_balance(), PER_TIP_LIMIT_RSC)
+
+    def test_tip_above_the_per_tip_limit_is_rejected(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
+        comment = self._create_review_comment(poster)
+
+        # Act
+        response = self._post_support_response(
+            self.foundation, comment.id, "rhcommentmodel", PER_TIP_LIMIT_RSC + 1
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self._assert_no_tip_was_made(self.foundation, poster)
+
+    def test_tip_above_the_daily_limit_is_rejected(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
+        comment = self._create_review_comment(poster)
+        self._record_past_tip(comment, DAILY_LIMIT_RSC - 100)
+
+        # Act
+        response = self._post_support_response(
+            self.foundation, comment.id, "rhcommentmodel", 101
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Purchase.objects.count(), 1)
+        self.assertEqual(self.foundation.get_balance(), STARTING_BALANCE)
+        self.assertEqual(poster.get_balance(), 0)
+
+    def test_tip_reaching_the_daily_limit_is_accepted(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
+        comment = self._create_review_comment(poster)
+        self._record_past_tip(comment, DAILY_LIMIT_RSC - 100)
+
+        # Act
+        response = self._post_support_response(
+            self.foundation, comment.id, "rhcommentmodel", 100
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+
+    def test_tips_older_than_the_window_do_not_count_toward_the_daily_limit(self):
+        # Arrange
+        poster = create_random_authenticated_user("poster")
+        comment = self._create_review_comment(poster)
+        self._record_past_tip(comment, DAILY_LIMIT_RSC, age=timedelta(hours=25))
+
+        # Act
+        response = self._post_support_response(
+            self.foundation, comment.id, "rhcommentmodel", 100
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
 
     def test_invalid_purchase_method_is_rejected(self):
         # Arrange

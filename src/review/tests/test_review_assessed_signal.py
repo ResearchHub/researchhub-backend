@@ -59,6 +59,18 @@ class ReviewAssessedOnPurchaseSignalTests(TestCase):
         self.review.refresh_from_db()
         self.assertFalse(self.review.is_assessed)
 
+    def test_fallback_account_purchase_does_not_mark_assessed(self):
+        # Arrange
+        bank = create_user(email="bank@researchhub.com")
+        self.foundation.delete()
+
+        # Act
+        self._create_purchase(bank)
+
+        # Assert
+        self.review.refresh_from_db()
+        self.assertFalse(self.review.is_assessed)
+
     def test_foundation_purchase_on_non_comment_does_not_mark_assessed(self):
         paper_ct = ContentType.objects.get_for_model(self.paper)
         Purchase.objects.create(

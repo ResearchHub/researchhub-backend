@@ -27,7 +27,6 @@ from reputation.distributor import Distributor
 from reputation.models import Contribution, SupportFee
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
-from researchhub_comment.constants.rh_comment_thread_types import REVIEW_COMMENT_TYPES
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
 
@@ -95,6 +94,8 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
                     f"Invalid amount. Minimum of {MINIMUM_SUPPORT_AMOUNT_RSC} RSC."
                 )
 
+            self.tip_service.ensure_tip_allowed(user, object_id, decimal_amount)
+
             user_balance = user.get_balance()
             (
                 total_fee,
@@ -159,11 +160,6 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             context = {"purchase_minimal_serialization": True, "exclude_stats": True}
             recipient = comment.created_by
             unified_doc = comment.unified_document
-            notification_type = (
-                Notification.RSC_SUPPORT_ON_DOC
-                if comment.comment_type in REVIEW_COMMENT_TYPES
-                else Notification.RSC_SUPPORT_ON_DIS
-            )
 
             if recipient and recipient != user:
                 distribution = create_purchase_distribution(user, amount)
@@ -176,9 +172,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         serializer_data = serializer.data
 
         if recipient and user:
-            self.send_purchase_notification(
-                purchase, unified_doc, recipient, notification_type
-            )
+            self.send_purchase_notification(purchase, unified_doc, recipient)
 
         create_contribution.apply_async(
             (
@@ -193,9 +187,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         )
         return Response(serializer_data, status=201)
 
-    def send_purchase_notification(
-        self, purchase, unified_doc, recipient, notification_type
-    ):
+    def send_purchase_notification(self, purchase, unified_doc, recipient):
         creator = purchase.user
 
         if creator == recipient:
@@ -207,7 +199,7 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
             object_id=purchase.id,
         )
         NotificationService().send(
-            notification_type,
+            Notification.RSC_SUPPORT_ON_DOC,
             recipient=recipient,
             action_user=creator,
             item=purchase,
