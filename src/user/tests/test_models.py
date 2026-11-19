@@ -12,8 +12,81 @@ from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
 from reputation.related_models.distribution import Distribution
 from user.related_models.follow_model import Follow
-from user.related_models.user_model import User
+from user.related_models.user_model import FOUNDATION_EMAIL, User
 from user.tests.helpers import create_user
+
+
+class FoundationAccountTests(TestCase):
+    def setUp(self):
+        self.bank = create_user(email="bank@researchhub.com")
+
+    def test_foundation_user_is_the_community_account(self):
+        # Arrange
+        foundation = create_user(email=FOUNDATION_EMAIL)
+
+        # Act
+        is_community_account = User.is_rh_community_account(foundation)
+
+        # Assert
+        self.assertTrue(is_community_account)
+        self.assertEqual(User.objects.get_foundation_account(), foundation)
+        self.assertEqual(User.objects.get_community_account(), foundation)
+
+    def test_other_user_is_not_the_community_account(self):
+        # Arrange
+        create_user(email=FOUNDATION_EMAIL)
+
+        # Act
+        is_community_account = User.is_rh_community_account(self.bank)
+
+        # Assert
+        self.assertFalse(is_community_account)
+
+    def test_fallback_accounts_are_not_the_community_account(self):
+        # Arrange
+        first_user = User.objects.create(
+            id=1, email="first@researchhub.com", username="first@researchhub.com"
+        )
+
+        for account in (self.bank, first_user):
+            with self.subTest(account=account.email):
+                # Act
+                is_community_account = User.is_rh_community_account(account)
+
+                # Assert
+                self.assertFalse(is_community_account)
+
+    def test_removed_foundation_user_is_not_the_community_account(self):
+        # Arrange
+        foundation = create_user(email=FOUNDATION_EMAIL)
+        foundation.delete()
+
+        # Act
+        is_community_account = User.is_rh_community_account(foundation)
+
+        # Assert
+        self.assertFalse(is_community_account)
+        self.assertIsNone(User.objects.get_foundation_account())
+
+    def test_community_account_lookup_still_falls_back_to_the_bank(self):
+        # Act
+        account = User.objects.get_community_account()
+
+        # Assert
+        self.assertEqual(account, self.bank)
+
+    def test_community_account_lookup_still_falls_back_to_the_first_user(self):
+        # Arrange
+        self.bank.delete(soft=False)
+        first_user = User.objects.create(
+            id=1, email="first@researchhub.com", username="first@researchhub.com"
+        )
+
+        # Act
+        account = User.objects.get_community_account()
+
+        # Assert
+        self.assertEqual(account, first_user)
 
 
 class AuthorModelsTests(TestCase):
