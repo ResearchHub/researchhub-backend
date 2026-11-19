@@ -1,5 +1,6 @@
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
@@ -16,7 +17,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     RH_COMMENT_THREAD_TYPES,
 )
 from researchhub_comment.tests.helpers import create_rh_comment
-from user.related_models.user_model import FOUNDATION_EMAIL
+from user.related_models.user_model import FOUNDATION_EMAIL, User
 from user.tests.helpers import create_random_default_user, create_user
 
 
@@ -115,6 +116,17 @@ class TipServiceTests(TestCase):
 
         # Assert
         self.assertIsNone(result)
+
+    def test_account_without_foundation_email_cannot_tip(self):
+        # Arrange
+        user = create_random_default_user("ordinary")
+
+        # Act
+        with patch.object(User, "is_rh_community_account", return_value=True):
+            allowed = self.service.can_tip(user)
+
+        # Assert
+        self.assertFalse(allowed)
 
 
 class TipRulesTests(TestCase):

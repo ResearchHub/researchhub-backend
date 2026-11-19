@@ -13,7 +13,7 @@ from purchase.related_models.purchase_model import Purchase
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_comment.constants.rh_comment_thread_types import REVIEW_COMMENT_TYPES
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from user.related_models.user_model import User
+from user.related_models.user_model import FOUNDATION_EMAIL, User
 
 
 class TipService:
@@ -24,6 +24,9 @@ class TipService:
 
     def can_tip(self, user) -> bool:
         if user is None or not user.is_authenticated:
+            return False
+
+        if user.email != FOUNDATION_EMAIL:
             return False
 
         return User.is_rh_community_account(user)
