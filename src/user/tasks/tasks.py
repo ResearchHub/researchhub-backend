@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Iterator
+from itertools import chain
 
 import requests
 from django.apps import apps
@@ -13,19 +14,25 @@ from discussion.models import Flag, Vote
 from discussion.views import censor
 from feed.activity_feed_cache import schedule_activity_feed_cache_warm
 from feed.models import FeedEntry
+from note.models import Note, NoteContent
 from notification.models import Notification
 from paper.models import Paper
 from purchase.models import Fundraise, Grant
 from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Bounty
 from researchhub.celery import app
-from researchhub.services.storage_service import S3StorageService, object_key_from_url
+from researchhub.services.storage_service import (
+    SUPPORTED_ENTITIES,
+    S3StorageService,
+    object_key_from_url,
+)
+from researchhub_access_group.constants import ADMIN
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from review.models.review_model import Review
 from user.editor_payout_tasks import editor_daily_payout_task
 from user.events import publish_user_reinstated, publish_user_suspended
-from user.models import User
+from user.models import Author, Organization, User
 from user.related_models.verdict_model import Verdict
 from user.rsc_exchange_rate_record_tasks import rsc_exchange_rate_record_tasks
 
@@ -170,6 +177,70 @@ def _user_file_keys(user: User) -> Iterator[str]:
     for comment in comments.iterator():
         if comment.comment_content_src:
             yield comment.comment_content_src.name
+
+    yield from _profile_image_keys(user)
+    yield from _organization_cover_image_keys(user)
+    yield from _presigned_upload_keys(user)
+
+
+def _profile_image_keys(user: User) -> Iterator[str]:
+    names = Author.all_objects.filter(user=user).values_list("profile_image", flat=True)
+    for name in names:
+        if name and "://" not in name:
+            yield name
+
+
+def _organization_cover_image_keys(user: User) -> Iterator[str]:
+    organizations = Organization.objects.filter(
+        Q(user=user) | Q(permissions__user=user, permissions__access_type=ADMIN)
+    ).distinct()
+    for organization in organizations.iterator():
+        if not organization.cover_image:
+            continue
+        has_other_admin = (
+            organization.permissions.filter(access_type=ADMIN, user__isnull=False)
+            .exclude(user=user)
+            .exists()
+        )
+        if organization.user_id == user.id or not has_other_admin:
+            yield organization.cover_image.name
+
+
+def _presigned_upload_keys(user: User) -> set[str]:
+    prefixes = tuple(
+        f"uploads/{entity}s/users/{user.id}/" for entity in SUPPORTED_ENTITIES
+    )
+    references = chain(
+        user.created_posts.values_list("image", "preview_img").iterator(),
+        Note.objects.filter(created_by=user)
+        .values_list("image", "preview_img")
+        .iterator(),
+        NoteContent.objects.filter(Q(created_by=user) | Q(note__created_by=user))
+        .values_list("json", flat=True)
+        .iterator(),
+        RhCommentModel.all_objects.filter(created_by=user)
+        .values_list("comment_content_json", flat=True)
+        .iterator(),
+    )
+    keys = set()
+    for reference in references:
+        for value in _string_values(reference):
+            key = object_key_from_url(value) or value
+            if key.startswith(prefixes):
+                keys.add(key)
+    return keys
+
+
+def _string_values(value) -> Iterator[str]:
+    pending = [value]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, str):
+            yield item
+        elif isinstance(item, dict):
+            pending.extend(item.values())
+        elif isinstance(item, list | tuple):
+            pending.extend(item)
 
 
 def _quarantine_user_files(user: User) -> None:
