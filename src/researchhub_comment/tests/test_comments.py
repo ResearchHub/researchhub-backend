@@ -851,3 +851,71 @@ class CommentViewTests(APITestCase):
         results = res.data["results"]
         self.assertEqual(results[0]["id"], verified.data["id"])
         self.assertEqual(results[1]["id"], unverified.data["id"])
+
+    def _create_private_comment(self):
+        comment = create_rh_comment(paper=self.paper, created_by=self.user_1)
+        Permission.objects.create(
+            access_type=ADMIN,
+            content_type=ContentType.objects.get_for_model(comment.thread),
+            object_id=comment.thread_id,
+            user=self.user_1,
+        )
+        return comment
+
+    def test_get_comment_hides_private_comment(self):
+        # Arrange
+        comment = self._create_private_comment()
+        url = f"/api/paper/{self.paper.id}/comments/{comment.id}/get_comment/"
+
+        for user in (None, self.user_2):
+            with self.subTest(user=user):
+                self.client.force_authenticate(user)
+
+                # Act
+                response = self.client.get(url)
+
+                # Assert
+                self.assertEqual(response.status_code, 404)
+
+    def test_get_comment_returns_private_comment_to_participant(self):
+        # Arrange
+        comment = self._create_private_comment()
+        self.client.force_authenticate(self.user_1)
+
+        # Act
+        response = self.client.get(
+            f"/api/paper/{self.paper.id}/comments/{comment.id}/get_comment/"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], comment.id)
+
+    def test_get_comment_returns_public_comment_to_anonymous(self):
+        # Arrange
+        comment = create_rh_comment(paper=self.paper, created_by=self.user_1)
+        self.client.force_authenticate(None)
+
+        # Act
+        response = self.client.get(
+            f"/api/paper/{self.paper.id}/comments/{comment.id}/get_comment/"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+
+    def test_retrieve_hides_private_comment_for_any_privacy_type(self):
+        # Arrange
+        comment = self._create_private_comment()
+        url = f"/api/paper/{self.paper.id}/comments/{comment.id}/"
+
+        for user in (None, self.user_2):
+            for query in ("", "?privacy_type=WORKSPACE", "?privacy_type=PUBLIC"):
+                with self.subTest(user=user, query=query):
+                    self.client.force_authenticate(user)
+
+                    # Act
+                    response = self.client.get(f"{url}{query}")
+
+                    # Assert
+                    self.assertEqual(response.status_code, 404)

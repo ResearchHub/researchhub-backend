@@ -2039,6 +2039,59 @@ class NoteTests(APITestCase):
             "Kind Foundation",
         )
 
+    def _create_workspace_note_with_viewer(self):
+        note = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "TEST",
+            },
+        ).data
+        viewer_user = get_user_model().objects.create_user(
+            username="note_viewer@researchhub_test.com",
+            password=uuid.uuid4().hex,
+            email="note_viewer@researchhub_test.com",
+        )
+        Permission.objects.create(
+            access_type="VIEWER",
+            content_type=self.unified_doc_ct,
+            object_id=note["unified_document"]["id"],
+            user=viewer_user,
+        )
+        return Note.objects.get(id=note["id"]), viewer_user
+
+    def test_note_viewer_cannot_delete_note(self):
+        # Arrange
+        note, viewer_user = self._create_workspace_note_with_viewer()
+        self.client.force_authenticate(viewer_user)
+
+        # Act
+        response = self.client.post(f"/api/note/{note.id}/delete/")
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        note.unified_document.refresh_from_db()
+        self.assertFalse(note.unified_document.is_removed)
+
+    def test_note_viewer_cannot_make_note_private(self):
+        # Arrange
+        note, viewer_user = self._create_workspace_note_with_viewer()
+        permissions_before = set(
+            note.permissions.values_list("id", "access_type", "user_id")
+        )
+        self.client.force_authenticate(viewer_user)
+
+        # Act
+        response = self.client.post(f"/api/note/{note.id}/make_private/")
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            set(note.permissions.values_list("id", "access_type", "user_id")),
+            permissions_before,
+        )
+
 
 class AccessibleNoteTests(APITestCase):
     organization_ct = None

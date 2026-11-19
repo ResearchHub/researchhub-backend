@@ -79,8 +79,8 @@ class HasOrgEditingPermission(BasePermission):
 
         unified_document = obj.unified_document
         permissions = unified_document.permissions
-        is_admin = permissions.has_admin_user(user, perm=False)
-        is_editor = permissions.has_editor_user(user, perm=False)
+        is_admin = permissions.has_admin_user(user)
+        is_editor = permissions.has_editor_user(user)
         return is_admin or is_editor
 
 
