@@ -163,7 +163,10 @@ class PartnerRfpImportTests(AWSMockTestCase):
         self.assertEqual(post_response.data["title"], self.topic.title)
         self.assertEqual(post_response.data["full_markdown"], post.renderable_text)
         self.assertTrue(post_response.data["post_src"])
-        self.assertIsNone(post_response.data["note"])
+        nested_grant = post_response.data["note"]["post"]["unified_document"]["grant"]
+        self.assertEqual(nested_grant["id"], grant.pk)
+        self.assertEqual(nested_grant["amount"]["usd"], 0)
+        self.assertEqual(post_response.data["note"]["grant_settings"]["amount"], "0.00")
         self.assertEqual(metadata_response.status_code, 200)
         data = metadata_response.data["grant"]
         self.assertEqual(data["id"], grant.pk)

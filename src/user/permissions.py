@@ -16,13 +16,6 @@ class UpdateAuthor(AuthorizationBasedPermission):
         return True
 
 
-class Censor(AuthorizationBasedPermission):
-    message = "Need to be a moderator to censor users."
-
-    def is_authorized(self, request, view, obj):
-        return request.user.moderator
-
-
 class IsModerator(AuthorizationBasedPermission):
     message = "Need to be a moderator."
 
@@ -31,6 +24,10 @@ class IsModerator(AuthorizationBasedPermission):
 
     def is_authorized(self, request, view, obj):
         return request.user.is_authenticated and request.user.moderator
+
+
+class Censor(IsModerator):
+    message = "Need to be a moderator to censor users."
 
 
 class UserIsEditor(BasePermission):
@@ -64,11 +61,14 @@ class DeleteUserPermission(BasePermission):
 class DeleteAuthorPermission(BasePermission):
     message = "Permission Denied: User is not moderator"
 
-    def has_object_permission(self, request, view, obj):
+    def has_permission(self, request, view):
         user = request.user
-        user_is_moderator = user.moderator
+        return bool(
+            request.method == "DELETE" and user.is_authenticated and user.moderator
+        )
 
-        return bool(request.method == "DELETE" and user_is_moderator)
+    def has_object_permission(self, request, view, obj):
+        return self.has_permission(request, view)
 
 
 class IsVerifiedUser(BasePermission):

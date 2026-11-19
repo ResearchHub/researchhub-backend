@@ -4,7 +4,7 @@ from rest_framework.test import APITestCase
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from user.models import Author, User
-from user.tests.helpers import create_user
+from user.tests.helpers import create_random_default_user, create_user
 
 
 class AuthorApiTests(APITestCase):
@@ -117,3 +117,72 @@ class AuthorApiTests(APITestCase):
         self.assertIn("profile_image", response.data)
         author.refresh_from_db()
         self.assertFalse(author.profile_image)
+
+    def test_anonymous_cannot_create_author(self):
+        # Arrange
+        author_count = Author.objects.count()
+
+        # Act
+        response = self.client.post(
+            "/api/author/", {"first_name": "New", "last_name": "Author"}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(Author.objects.count(), author_count)
+
+    def test_suspended_user_cannot_create_author(self):
+        # Arrange
+        user = create_random_default_user("suspended_author_creator")
+        user.is_suspended = True
+        user.save()
+        author_count = Author.objects.count()
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            "/api/author/", {"first_name": "New", "last_name": "Author"}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Author.objects.count(), author_count)
+
+    def test_authenticated_user_can_create_author(self):
+        # Arrange
+        user = create_random_default_user("author_creator")
+        self.client.force_authenticate(user)
+
+        # Act
+        response = self.client.post(
+            "/api/author/", {"first_name": "New", "last_name": "Author"}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 201)
+
+    def test_anonymous_cannot_change_author(self):
+        # Arrange
+        author = self.user_with_published_works.author_profile
+        url = f"/api/author/{author.id}/"
+
+        # Act
+        patch_response = self.client.patch(url, {"first_name": "Changed"})
+        delete_response = self.client.delete(url)
+
+        # Assert
+        self.assertEqual(patch_response.status_code, 401)
+        self.assertEqual(delete_response.status_code, 401)
+        author.refresh_from_db()
+        self.assertEqual(author.first_name, "Yang")
+        self.assertFalse(author.is_removed)
+
+    def test_anonymous_can_read_author(self):
+        # Arrange
+        author = self.user_with_published_works.author_profile
+
+        # Act
+        response = self.client.get(f"/api/author/{author.id}/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
