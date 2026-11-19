@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 
 from django.contrib.contenttypes.models import ContentType
-from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
@@ -76,15 +75,23 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             if Organization.objects.filter(name=name).exists():
                 return Response({"data": "Name is already in use."}, status=409)
 
+            # `image` is the legacy name for `cover_image` during creation
+            cover_image = None
+            if image:
+                image_serializer = self.get_serializer(
+                    data={"cover_image": image}, partial=True
+                )
+                if not image_serializer.is_valid():
+                    errors = image_serializer.errors["cover_image"]
+                    return Response({"image": errors}, status=400)
+                cover_image = image_serializer.validated_data["cover_image"]
+
             organization = Organization.objects.create(
+                cover_image=cover_image,
                 description=description,
                 name=name,
             )
             self._create_permissions(user, organization)
-
-            if image:
-                file_name, file = self._create_image_file(image, organization, user)
-                organization.cover_image.save(file_name, file)
 
             context = self.get_serializer_context()
             context["request"] = request
@@ -109,11 +116,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             user=user,
         )
         return org_permission, user_permission
-
-    def _create_image_file(self, data, organization, user):
-        file_name = f"ORGANIZATION-IMAGE-{organization.id}--USER-{user.id}.txt"
-        full_src_file = ContentFile(data.encode())
-        return file_name, full_src_file
 
     def update(self, request, *args, **kwargs):
         user = request.user
