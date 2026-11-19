@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -910,6 +911,64 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
                 f"{prefix % 'comments'}/a.png",
             },
         )
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_quarantines_uploads_in_string_encoded_documents(
+        self, storage_service_mock
+    ):
+        # Arrange
+        base_url = "https://storage.test.researchhub.com"
+        note_key = f"uploads/notes/users/{self.user.id}/abc/body.png"
+        comment_key = f"uploads/comments/users/{self.user.id}/abc/a.png"
+        NoteContent.objects.create(
+            note=self._create_note(self.user),
+            json=json.dumps(
+                {
+                    "type": "doc",
+                    "content": [
+                        {"type": "image", "attrs": {"src": f"{base_url}/{note_key}"}}
+                    ],
+                }
+            ),
+        )
+        self.comment.comment_content_json = json.dumps(
+            {"ops": [{"insert": {"image": f"{base_url}/{comment_key}"}}]}
+        )
+        self.comment.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual(
+            self._quarantined_keys(storage_service_mock), {note_key, comment_key}
+        )
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_completes_with_deeply_nested_document(self, storage_service_mock):
+        # Arrange
+        NoteContent.objects.create(
+            note=self._create_note(self.user),
+            json="[" * 200000 + "]" * 200000,
+        )
+        events = []
+        user_suspended.connect(
+            lambda sender, event, **kwargs: events.append(event),
+            dispatch_uid="test_nested_document_suspended_event",
+            weak=False,
+        )
+        self.addCleanup(
+            user_suspended.disconnect,
+            dispatch_uid="test_nested_document_suspended_event",
+        )
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual([event.user_id for event in events], [self.user.id])
 
     @override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
     @patch("user.tasks.tasks.S3StorageService")

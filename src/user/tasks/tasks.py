@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import Iterator
 from itertools import chain
@@ -236,6 +237,12 @@ def _string_values(value) -> Iterator[str]:
     while pending:
         item = pending.pop()
         if isinstance(item, str):
+            if item.lstrip().startswith(("{", "[")):
+                try:
+                    pending.append(json.loads(item))
+                    continue
+                except ValueError, RecursionError:
+                    pass
             yield item
         elif isinstance(item, dict):
             pending.extend(item.values())
