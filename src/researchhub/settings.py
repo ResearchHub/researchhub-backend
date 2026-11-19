@@ -169,9 +169,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https:\/\/[\w-]+researchhub\.vercel\.app$",
-    r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
-    r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
+    r"^https://(web|researchhub)(-[a-z0-9-]+)?-researchhub\.vercel\.app\Z",
 ]
 
 # Health check
