@@ -8,7 +8,6 @@ import debug_toolbar
 from dj_rest_auth.mfa.views import MFALoginView
 from dj_rest_auth.views import (
     LogoutView,
-    PasswordChangeView,
     PasswordResetConfirmView,
     PasswordResetView,
 )
@@ -61,6 +60,7 @@ from review.views.review_availability_view import ReviewAvailabilityView
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 from user.views.custom_verify_email_view import CustomVerifyEmailView
+from user.views.password_change_view import TokenReplacingPasswordChangeView
 from user_lists.views import ListItemViewSet, ListViewSet
 
 router = routers.DefaultRouter()
@@ -302,7 +302,7 @@ urlpatterns = [
     ),
     re_path(
         r"api/auth/password-change/$",
-        PasswordChangeView.as_view(),
+        TokenReplacingPasswordChangeView.as_view(),
         name="password-change",
     ),
     re_path(

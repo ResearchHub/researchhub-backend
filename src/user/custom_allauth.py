@@ -1,12 +1,17 @@
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.account.forms import ResetPasswordForm
 from allauth.account.utils import user_pk_to_url_str
-from dj_rest_auth.serializers import PasswordResetSerializer
+from dj_rest_auth.serializers import (
+    PasswordResetConfirmSerializer,
+    PasswordResetSerializer,
+)
 from django.conf import settings
+from django.db import transaction
 from django.http import HttpRequest
 from django.utils.safestring import mark_safe
 
 from mailing_list.services import EmailService
+from user.services.auth_token_service import AuthTokenService
 
 BRANDED_TEMPLATE = "general_branded_email"
 
@@ -46,6 +51,14 @@ class CustomPasswordResetSerializer(PasswordResetSerializer):
 
     def get_email_options(self) -> dict:
         return {}
+
+
+class CustomPasswordResetConfirmSerializer(PasswordResetConfirmSerializer):
+    def save(self):
+        with transaction.atomic():
+            user = super().save()
+            AuthTokenService().revoke(user)
+        return user
 
 
 class CustomResetPasswordForm(ResetPasswordForm):
