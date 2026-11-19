@@ -55,10 +55,6 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_image_upload(upload):
-    """
-    Return the uploaded image named and typed by its content, or raise a
-    validation error if it is not an accepted image.
-    """
     if upload is None:
         return None
 

@@ -18,8 +18,6 @@ class PresignedUrl(NamedTuple):
     url: str
 
 
-# Content type -> file extensions an uploaded object's key may end with.
-# The first extension is the one given to a file named otherwise.
 SUPPORTED_CONTENT_TYPE_EXTENSIONS = {
     "application/pdf": ("pdf",),
     "image/png": ("png",),
@@ -180,11 +178,6 @@ class S3StorageService(StorageService):
             raise
 
     def _key_filename(self, filename: str, content_type: str) -> str:
-        """
-        Return `filename` with an extension that matches `content_type`, so an
-        object is never stored under a name that suggests a different type than
-        the one it is uploaded and served as.
-        """
         extensions = SUPPORTED_CONTENT_TYPE_EXTENSIONS[content_type]
         stem, _, extension = filename.rpartition(".")
         if stem and extension.lower() in extensions:
