@@ -28,6 +28,7 @@ from researchhub_document.related_models.constants.journey_stage import (
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from researchhub_document.services.rich_text_sanitizer_service import sanitize_html
 from user.models import Author, User
 
 logger = logging.getLogger(__name__)
@@ -299,7 +300,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
             return None
         try:
             with src.open() as file:
-                return file.read().decode("utf-8")
+                return sanitize_html(file.read().decode("utf-8"))
         except FileNotFoundError:
             logger.warning(
                 "Full markdown file %s missing for post %s", src.name, self.id

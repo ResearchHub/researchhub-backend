@@ -48,6 +48,10 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE,
     REGISTERED_REPORT,
 )
+from researchhub_document.services.rich_text_sanitizer_service import (
+    sanitize_editor_document,
+    sanitize_html,
+)
 from user.models import Organization
 from utils.prosemirror import BLOCK_EDITOR, parse_document
 
@@ -549,8 +553,8 @@ class NoteContentViewSet(
     def create(self, request, *args, **kwargs):
         user = request.user
         data = request.data
-        full_src = data.get("full_src", "")
-        full_json = data.get("full_json", None)
+        full_src = sanitize_html(data.get("full_src", ""))
+        full_json = sanitize_editor_document(data.get("full_json", None))
         note_id = data.get("note", None)
         plain_text = data.get("plain_text", None)
         parent_version_id = data.get("parent_version", None)
@@ -593,6 +597,14 @@ class NoteContentViewSet(
         serializer = self.serializer_class(note_content)
         data = serializer.data
         return Response(data, status=200)
+
+    def perform_update(self, serializer):
+        overrides = {}
+        if "json" in serializer.validated_data:
+            overrides["json"] = sanitize_editor_document(
+                serializer.validated_data["json"]
+            )
+        serializer.save(**overrides)
 
     def _warn_on_schema_mismatch(self, version: NoteContent) -> None:
         """Log stored content the editor schema rejects; never block the save.

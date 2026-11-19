@@ -63,11 +63,16 @@ from researchhub_document.services.journey_service import JourneyService
 from researchhub_document.services.note_publication_service import (
     NotePublicationService,
 )
+from researchhub_document.services.post_image_service import validate_post_image_key
 from researchhub_document.services.proposal_visibility_service import (
     ProposalVisibilityService,
 )
 from researchhub_document.services.registered_report_work_service import (
     RegisteredReportWorkService,
+)
+from researchhub_document.services.rich_text_sanitizer_service import (
+    sanitize_editor_document,
+    sanitize_html,
 )
 from researchhub_document.services.unified_document_share_link_service import (
     get_shared_unified_document_id,
@@ -413,6 +418,7 @@ class ResearchhubPostViewSet(
                     )
                     note_id = note.pk
                 journey_service = JourneyService()
+                image_note = note
                 registered_report_proposal = None
                 journal_entry_service = None
                 if document_type == REGISTERED_REPORT:
@@ -433,11 +439,14 @@ class ResearchhubPostViewSet(
                             registered_report_proposal,
                         )
                     )
+                    image_note = registered_report_note
                     note_id = serializer.validated_data["note_id"]
                     journal_entry_service.persist_registered_report_content(
                         registered_report_note,
                         serializer.validated_data["renderable_text"],
-                        serializer.validated_data["full_json"],
+                        sanitize_editor_document(
+                            serializer.validated_data["full_json"]
+                        ),
                         created_by=created_by,
                     )
                     authors = serializer.validated_data.get(
@@ -449,6 +458,13 @@ class ResearchhubPostViewSet(
                         image = registered_report_proposal.image
                     if preview_img is None:
                         preview_img = registered_report_proposal.preview_img
+
+                validate_post_image_key(
+                    image,
+                    created_by,
+                    note=image_note,
+                    existing_image=getattr(registered_report_proposal, "image", None),
+                )
 
                 risk_score_service = RiskScoreService()
 
@@ -503,7 +519,7 @@ class ResearchhubPostViewSet(
                     unified_document=unified_document,
                 )
                 file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
-                full_src_file = ContentFile(data["full_src"].encode())
+                full_src_file = ContentFile(sanitize_html(data["full_src"]).encode())
                 self._validate_author_ids(authors)
                 rh_post.reset_post_authors(authors)
                 self.add_upvote(created_by, rh_post)
@@ -731,6 +747,13 @@ class ResearchhubPostViewSet(
             if validation_response is not None:
                 return validation_response
 
+            validate_post_image_key(
+                data.get("image"),
+                request.user,
+                note=rh_post.note,
+                existing_image=rh_post.image,
+            )
+
             serializer = ResearchhubPostSerializer(
                 rh_post, data=data, partial=True, context={"request": request}
             )
@@ -760,7 +783,9 @@ class ResearchhubPostViewSet(
                     f"RH-POST-{request.data.get('document_type')}-"
                     f"USER-{request.user.id}.txt"
                 )
-                full_src_file = ContentFile(request.data["full_src"].encode())
+                full_src_file = ContentFile(
+                    sanitize_html(request.data["full_src"]).encode()
+                )
                 post.discussion_src.save(file_name, full_src_file)
 
                 if post.document_type == PREREGISTRATION:
