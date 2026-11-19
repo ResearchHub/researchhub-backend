@@ -52,6 +52,17 @@ cp misc/keys.sample.py src/config_local/keys.py
 
 Make adjustments to the new configuration files as needed.
 
+### Deployed Environments
+
+When `APP_ENV` contains `production` or `staging`, a process refuses to start unless these environment variables are set to non-sample values:
+
+| Process | Required environment variables |
+| --- | --- |
+| API | `SECRET_KEY`, `SALT_KEY`, `HEALTH_CHECK_TOKEN`, `PERSONA_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SIGNING_SECRET` |
+| Celery workers and management commands | `SECRET_KEY`, `SALT_KEY` |
+
+Celery beat, Flower and `collectstatic` do not need them.
+
 ### Start Developing
 
 When opening the code in VSCode, tt will recognize the Dev Containers configuration and will prompt to _Rebuild and Reopen in Container_.

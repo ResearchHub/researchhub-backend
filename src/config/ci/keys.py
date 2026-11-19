@@ -1,7 +1,11 @@
 import os
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "test")
-SALT_KEY = os.environ.get("SALT_KEY", "test-salt-key")
+from config.required_secrets import check_required_secrets, local_default
+
+check_required_secrets()
+
+SECRET_KEY = os.environ.get("SECRET_KEY", local_default("test"))
+SALT_KEY = os.environ.get("SALT_KEY", local_default("test-salt-key"))
 
 AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", "awsRegionName1")
 AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "awsBucketName1")
