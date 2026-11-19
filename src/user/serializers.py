@@ -878,8 +878,30 @@ class OrganizationSerializer(ModelSerializer):
 
     class Meta:
         model = Organization
-        fields = "__all__"
-        read_only_fields = ["id", "slug"]
+        fields = [
+            "id",
+            "member_count",
+            "user_permission",
+            "created_date",
+            "updated_date",
+            "cover_image",
+            "description",
+            "name",
+            "note_created",
+            "org_type",
+            "slug",
+            "user",
+        ]
+        read_only_fields = [
+            "id",
+            "created_date",
+            "updated_date",
+            "description",
+            "note_created",
+            "org_type",
+            "slug",
+            "user",
+        ]
 
     def validate_cover_image(self, upload):
         return validate_image_upload(upload)
