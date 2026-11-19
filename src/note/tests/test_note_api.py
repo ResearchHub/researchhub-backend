@@ -1,6 +1,8 @@
+import io
 import uuid
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -1868,6 +1870,56 @@ class NoteTests(APITestCase):
             [author["id"] for author in response.data["authors"]],
             [second_author.id, first_author.id],
         )
+
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_rejects_cover_upload_that_fails_verification(
+        self, create_client_mock
+    ) -> None:
+        """A cover whose bytes do not match its type never reaches the note."""
+        # Arrange
+        key = "uploads/posts/users/1/abc/cover.png"
+        create_client_mock.return_value.get_object.return_value = {
+            "Body": io.BytesIO(b"<html>"),
+            "ContentRange": "bytes 0-5/6",
+            "ContentType": "image/png",
+        }
+
+        # Act
+        response = self.client.post(
+            "/api/note/",
+            {"image": key, "title": "Draft with details"},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("image", response.data)
+        self.assertFalse(Note.objects.filter(image=key).exists())
+
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_verifies_cover_upload_only_when_it_changes(
+        self, create_client_mock
+    ) -> None:
+        """A patch that resends the note's cover does not read it again."""
+        # Arrange
+        key = "uploads/posts/users/1/abc/cover.png"
+        s3_client_mock = create_client_mock.return_value
+        s3_client_mock.get_object.return_value = {
+            "Body": io.BytesIO(b"\x89PNG\r\n\x1a\n"),
+            "ContentRange": "bytes 0-7/8",
+            "ContentType": "image/png",
+        }
+        note_id = self.client.post("/api/note/", {"image": key}).data["id"]
+
+        # Act
+        response = self.client.patch(
+            f"/api/note/{note_id}/",
+            {"image": key, "title": "Renamed"},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["image"], key)
+        s3_client_mock.get_object.assert_called_once()
 
     def test_patches_draft_details_partially(self) -> None:
         """A patch changes only the draft details it sends."""

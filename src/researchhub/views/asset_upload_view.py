@@ -4,7 +4,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from researchhub.serializers import AssetUploadRequestSerializer
-from researchhub.services.storage_service import S3StorageService
+from researchhub.services.storage_service import (
+    UPLOAD_METHOD_POST,
+    S3StorageService,
+)
 from utils.parsers import clean_filename
 
 
@@ -33,6 +36,22 @@ class AssetUploadView(APIView):
         content_type = data.get("content_type")
         entity = data.get("entity")
         filename = clean_filename(data.get("filename"))
+
+        if serializer.validated_data["upload_method"] == UPLOAD_METHOD_POST:
+            presigned_post = self.storage_service.create_presigned_post(
+                entity, filename, user.id, content_type
+            )
+            return Response(
+                {
+                    "upload": {
+                        "url": presigned_post.url,
+                        "fields": presigned_post.fields,
+                    },
+                    "max_bytes": presigned_post.max_bytes,
+                    "object_key": presigned_post.object_key,
+                    "object_url": presigned_post.object_url,
+                }
+            )
 
         presigned_url = self.storage_service.create_presigned_url(
             entity, filename, user.id, content_type
