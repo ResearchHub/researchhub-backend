@@ -27,7 +27,7 @@ from user.tests.helpers import (
 
 STARTING_BALANCE = Decimal(10000)
 PER_TIP_LIMIT_RSC = 600
-DAILY_LIMIT_RSC = 6000
+DAILY_LIMIT_RSC = 10000
 
 
 class PurchaseViewTests(APITestCase):

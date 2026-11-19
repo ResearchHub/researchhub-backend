@@ -222,22 +222,32 @@ class TipRulesTests(TestCase):
 
     def test_tip_reaching_the_daily_limit_is_allowed(self):
         # Arrange
-        self._record_tip(5500)
+        self._record_tip(9500)
 
         # Act / Assert
         self._ensure_allowed("500")
 
     def test_tip_above_the_daily_limit_is_rejected(self):
         # Arrange
-        self._record_tip(5500)
+        self._record_tip(9500)
 
         # Act / Assert
         with self.assertRaisesMessage(ValidationError, TipService.DAILY_LIMIT_MESSAGE):
             self._ensure_allowed("500.01")
 
+    def test_daily_limit_does_not_follow_the_exchange_rate(self):
+        # Arrange
+        RscExchangeRate.objects.create(rate=0.25, real_rate=0.25, target_currency="USD")
+        self._record_tip(9500)
+
+        # Act / Assert
+        self._ensure_allowed("500")
+        with self.assertRaisesMessage(ValidationError, TipService.DAILY_LIMIT_MESSAGE):
+            self._ensure_allowed("500.01")
+
     def test_tip_inside_the_window_counts_toward_the_daily_limit(self):
         # Arrange
-        self._record_tip(6000, age=timedelta(hours=23))
+        self._record_tip(10000, age=timedelta(hours=23))
 
         # Act / Assert
         with self.assertRaisesMessage(ValidationError, TipService.DAILY_LIMIT_MESSAGE):
@@ -245,15 +255,16 @@ class TipRulesTests(TestCase):
 
     def test_tip_outside_the_window_is_not_counted(self):
         # Arrange
-        self._record_tip(6000, age=timedelta(hours=25))
+        self._record_tip(10000, age=timedelta(hours=25))
 
         # Act / Assert
         self._ensure_allowed("10")
 
     def test_other_purchases_are_not_counted(self):
         # Arrange
-        self._record_tip(6000, user=self.reviewer)
-        self._record_tip(6000, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION)
+        self._record_tip(10000, user=self.reviewer)
+        self._record_tip(10000, purchase_type=Purchase.FUNDRAISE_CONTRIBUTION)
+        self._record_tip(10000, purchase_type=Purchase.FUNDING_POOL_CONTRIBUTION)
 
         # Act / Assert
         self._ensure_allowed("10")

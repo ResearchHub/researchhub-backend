@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from purchase.related_models.constants.support import (
-    MAXIMUM_DAILY_TIP_TOTAL_USD,
+    MAXIMUM_DAILY_TIP_TOTAL_RSC,
     MAXIMUM_TIP_AMOUNT_USD,
     TIP_LIMIT_WINDOW_HOURS,
 )
@@ -58,6 +58,5 @@ class TipService:
             .filter(purchase_type=Purchase.BOOST, created_date__gte=window_start)
             .sum()
         )
-        daily_limit = RscExchangeRate.usd_to_rsc(MAXIMUM_DAILY_TIP_TOTAL_USD)
-        if recent_total + amount > daily_limit:
+        if recent_total + amount > MAXIMUM_DAILY_TIP_TOTAL_RSC:
             raise ValidationError(self.DAILY_LIMIT_MESSAGE)
