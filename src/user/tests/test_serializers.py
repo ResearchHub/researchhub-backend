@@ -21,6 +21,7 @@ from user.serializers import (
     AuthorEditableSerializer,
     AuthorSerializer,
     DynamicUserSerializer,
+    OrganizationSerializer,
     UserEditableSerializer,
     UserSerializer,
 )
@@ -76,6 +77,53 @@ def _image_upload(image_format, name="blob", content_type="image/png"):
     buffer = io.BytesIO()
     Image.new("RGB", (1, 1)).save(buffer, format=image_format)
     return SimpleUploadedFile(name, buffer.getvalue(), content_type=content_type)
+
+
+class OrganizationSerializerCoverImageTests(TestCase):
+    def setUp(self):
+        self.organization = create_user().organization
+
+    def _validate(self, cover_image):
+        serializer = OrganizationSerializer(
+            self.organization, data={"cover_image": cover_image}, partial=True
+        )
+        return serializer.is_valid(), serializer
+
+    def test_accepts_image_named_and_typed_by_content(self):
+        # Arrange
+        upload = _image_upload("PNG", name="spam.html", content_type="text/html")
+
+        # Act
+        is_valid, serializer = self._validate(upload)
+
+        # Assert
+        self.assertTrue(is_valid, serializer.errors)
+        cover_image = serializer.validated_data["cover_image"]
+        self.assertTrue(cover_image.name.endswith(".png"))
+        self.assertNotIn("spam", cover_image.name)
+        self.assertEqual(cover_image.content_type, "image/png")
+        self.assertEqual(cover_image.tell(), 0)
+
+    def test_rejects_html_disguised_as_image(self):
+        # Arrange
+        upload = SimpleUploadedFile(
+            "cover.png", b"<html><body>spam</body></html>", content_type="image/png"
+        )
+
+        # Act
+        is_valid, serializer = self._validate(upload)
+
+        # Assert
+        self.assertFalse(is_valid)
+        self.assertIn("cover_image", serializer.errors)
+
+    def test_accepts_null_to_clear_cover_image(self):
+        # Act
+        is_valid, serializer = self._validate(None)
+
+        # Assert
+        self.assertTrue(is_valid, serializer.errors)
+        self.assertIsNone(serializer.validated_data["cover_image"])
 
 
 class AuthorEditableSerializerProfileImageTests(TestCase):

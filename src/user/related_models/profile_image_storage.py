@@ -1,7 +1,7 @@
-from storages.backends.s3boto3 import S3Boto3Storage
+from researchhub.storage import SafeS3Storage
 
 
-class ProfileImageStorage(S3Boto3Storage):
+class ProfileImageStorage(SafeS3Storage):
     def __init__(self):
         super().__init__()
 

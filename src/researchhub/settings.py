@@ -661,7 +661,7 @@ EXPERT_FINDER_FROM_EMAIL = f"outreach@{EMAIL_DOMAIN}"
 STORAGES = {
     "default": {
         "BACKEND": (
-            "storages.backends.s3boto3.S3Boto3Storage"
+            "researchhub.storage.SafeS3Storage"
             if not TESTING
             else "django.core.files.storage.FileSystemStorage"
         ),

@@ -18,7 +18,12 @@ class PresignedUrl(NamedTuple):
     url: str
 
 
-SUPPORTED_CONTENT_TYPES = ["application/pdf", "image/png", "image/jpeg"]
+SUPPORTED_CONTENT_TYPE_EXTENSIONS = {
+    "application/pdf": ("pdf",),
+    "image/png": ("png",),
+    "image/jpeg": ("jpg", "jpeg"),
+}
+SUPPORTED_CONTENT_TYPES = list(SUPPORTED_CONTENT_TYPE_EXTENSIONS)
 SUPPORTED_ENTITIES = ["comment", "note", "paper", "post"]
 
 QUARANTINE_PREFIX = "quarantine/"
@@ -82,7 +87,8 @@ class S3StorageService(StorageService):
         if content_type not in SUPPORTED_CONTENT_TYPES:
             raise ValueError(f"Unsupported content type: {content_type}")
 
-        s3_filename = f"uploads/{entity}s/users/{user_id}/{uuid.uuid4()}/{filename}"
+        key_filename = self._key_filename(filename, content_type)
+        s3_filename = f"uploads/{entity}s/users/{user_id}/{uuid.uuid4()}/{key_filename}"
 
         s3_client = aws_utils.create_client("s3")
 
@@ -170,6 +176,13 @@ class S3StorageService(StorageService):
             if e.response.get("Error", {}).get("Code") == "404":
                 return False
             raise
+
+    def _key_filename(self, filename: str, content_type: str) -> str:
+        extensions = SUPPORTED_CONTENT_TYPE_EXTENSIONS[content_type]
+        stem, _, extension = filename.rpartition(".")
+        if stem and extension.lower() in extensions:
+            return filename
+        return f"{filename.strip('.') or 'file'}.{extensions[0]}"
 
     def _sanitize_filename(self, filename: str) -> str:
         """

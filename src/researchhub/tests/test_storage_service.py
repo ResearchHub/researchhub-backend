@@ -55,6 +55,38 @@ class StorageServiceTest(TestCase):
             ),
         )
 
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_create_presigned_url_key_extension_matches_content_type(
+        self, create_client_mock
+    ):
+        cases = [
+            ("page.html", "image/png", "page.html.png"),
+            ("image.svg", "image/jpeg", "image.svg.jpg"),
+            ("paper", "application/pdf", "paper.pdf"),
+            (".html", "image/png", "html.png"),
+            ("photo.jpeg", "image/jpeg", "photo.jpeg"),
+            ("photo.JPG", "image/jpeg", "photo.JPG"),
+            ("photo.png", "image/jpeg", "photo.png.jpg"),
+        ]
+        for filename, content_type, expected in cases:
+            with self.subTest(filename=filename, content_type=content_type):
+                # Arrange
+                s3_client_mock = Mock()
+                s3_client_mock.generate_presigned_url.return_value = "https://url1"
+                create_client_mock.return_value = s3_client_mock
+
+                # Act
+                url = S3StorageService().create_presigned_url(
+                    "post", filename, "userId1", content_type
+                )
+
+                # Assert
+                signed = s3_client_mock.generate_presigned_url.call_args.kwargs
+                self.assertEqual(signed["Params"]["Key"], url.object_key)
+                self.assertEqual(signed["Params"]["ContentType"], content_type)
+                self.assertEqual(url.object_key.rsplit("/", 1)[-1], expected)
+                self.assertTrue(url.object_url.endswith(f"/{expected}"))
+
     def test_create_presigned_url_unsupported_entity(self):
         with self.assertRaises(ValueError):
             S3StorageService().create_presigned_url(
