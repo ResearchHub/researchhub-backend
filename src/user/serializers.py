@@ -51,12 +51,37 @@ from utils.turnstile import TurnstileService
 
 logger = logging.getLogger(__name__)
 
-PROFILE_IMAGE_FORMATS = {
+IMAGE_UPLOAD_FORMATS = {
     "GIF": ("gif", "image/gif"),
     "JPEG": ("jpg", "image/jpeg"),
     "PNG": ("png", "image/png"),
     "WEBP": ("webp", "image/webp"),
 }
+
+
+def validate_image_upload(upload):
+    """
+    Reject uploads that aren't a supported image.
+    Accepted uploads are renamed and typed by their actual content,
+    not by what the client provided.
+    """
+    if upload is None:
+        return None
+
+    try:
+        with Image.open(upload, formats=tuple(IMAGE_UPLOAD_FORMATS)) as image:
+            image.verify()
+            image_format = "JPEG" if image.format == "MPO" else image.format
+            extension, content_type = IMAGE_UPLOAD_FORMATS[image_format]
+    except Exception:
+        raise serializers.ValidationError(
+            "Upload a valid JPEG, PNG, GIF or WebP image."
+        )
+
+    upload.seek(0)
+    upload.name = f"{uuid.uuid4().hex}.{extension}"
+    upload.content_type = content_type
+    return upload
 
 
 def compute_user_balances(user):
@@ -358,25 +383,7 @@ class AuthorEditableSerializer(ModelSerializer):
         ]
 
     def validate_profile_image(self, upload):
-        if upload is None:
-            return None
-
-        try:
-            with Image.open(upload, formats=tuple(PROFILE_IMAGE_FORMATS)) as image:
-                image.verify()
-                image_format = "JPEG" if image.format == "MPO" else image.format
-                extension, content_type = PROFILE_IMAGE_FORMATS[image_format]
-        except Exception:
-            raise serializers.ValidationError(
-                "Upload a valid JPEG, PNG, GIF or WebP image."
-            )
-
-        # Derive the stored name and content type from the actual content,
-        # not what the client provided:
-        upload.seek(0)
-        upload.name = f"{uuid.uuid4().hex}.{extension}"
-        upload.content_type = content_type
-        return upload
+        return validate_image_upload(upload)
 
 
 class EditorContributionSerializer(ModelSerializer):
@@ -873,6 +880,9 @@ class OrganizationSerializer(ModelSerializer):
         model = Organization
         fields = "__all__"
         read_only_fields = ["id", "slug"]
+
+    def validate_cover_image(self, upload):
+        return validate_image_upload(upload)
 
     def get_member_count(self, organization):
         permissions = organization.permissions

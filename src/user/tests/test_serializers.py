@@ -16,11 +16,12 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Distribution, Withdrawal
-from user.models import UserVerification
+from user.models import Organization, UserVerification
 from user.serializers import (
     AuthorEditableSerializer,
     AuthorSerializer,
     DynamicUserSerializer,
+    OrganizationSerializer,
     UserEditableSerializer,
     UserSerializer,
 )
@@ -161,6 +162,53 @@ class AuthorEditableSerializerProfileImageTests(TestCase):
         # Assert
         self.assertTrue(is_valid, serializer.errors)
         self.assertIsNone(serializer.validated_data["profile_image"])
+
+
+class OrganizationSerializerCoverImageTests(TestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(
+            name="Test Org", slug="test-org-cover-image"
+        )
+
+    def _validate(self, cover_image):
+        serializer = OrganizationSerializer(
+            self.organization, data={"cover_image": cover_image}, partial=True
+        )
+        return serializer.is_valid(), serializer
+
+    def test_accepts_image_named_and_typed_by_content(self):
+        # Arrange
+        upload = _image_upload("PNG", name="spam.html", content_type="text/html")
+
+        # Act
+        is_valid, serializer = self._validate(upload)
+
+        # Assert
+        self.assertTrue(is_valid, serializer.errors)
+        cover_image = serializer.validated_data["cover_image"]
+        self.assertTrue(cover_image.name.endswith(".png"))
+        self.assertEqual(cover_image.content_type, "image/png")
+
+    def test_rejects_html_disguised_as_image(self):
+        # Arrange
+        upload = SimpleUploadedFile(
+            "cover.png", b"<html><body>spam</body></html>", content_type="image/png"
+        )
+
+        # Act
+        is_valid, serializer = self._validate(upload)
+
+        # Assert
+        self.assertFalse(is_valid)
+        self.assertIn("cover_image", serializer.errors)
+
+    def test_accepts_null_to_clear_cover_image(self):
+        # Act
+        is_valid, serializer = self._validate(None)
+
+        # Assert
+        self.assertTrue(is_valid, serializer.errors)
+        self.assertIsNone(serializer.validated_data["cover_image"])
 
 
 class UserBalancesSerializerTests(TestCase):

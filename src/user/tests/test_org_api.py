@@ -2,6 +2,7 @@ import uuid
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APITestCase
 
 from researchhub_access_group.models import Permission
@@ -171,3 +172,23 @@ class OrganizationTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_update_rejects_html_cover_image(self):
+        # Arrange
+        self.client.force_authenticate(self.org_a_admin)
+        upload = SimpleUploadedFile(
+            "spam.html", b"<html><body>spam</body></html>", content_type="text/html"
+        )
+
+        # Act
+        response = self.client.patch(
+            f"/api/organization/{self.org_a['id']}/",
+            {"cover_image": upload},
+            format="multipart",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("cover_image", response.data)
+        organization = Organization.objects.get(id=self.org_a["id"])
+        self.assertFalse(organization.cover_image)
