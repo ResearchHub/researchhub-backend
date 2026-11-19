@@ -1,12 +1,16 @@
 import logging
+import posixpath
+import re
 import unicodedata
 import uuid
+from collections.abc import Iterable
 from typing import NamedTuple
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from botocore.exceptions import BotoCoreError, ClientError
 from django.conf import settings
 
+from researchhub.services.image_upload_service import MAX_IMAGE_UPLOAD_BYTES
 from utils import aws as aws_utils
 
 logger = logging.getLogger(__name__)
@@ -18,6 +22,18 @@ class PresignedUrl(NamedTuple):
     url: str
 
 
+class PresignedPost(NamedTuple):
+    object_key: str
+    object_url: str
+    url: str
+    fields: dict[str, str]
+    max_bytes: int
+
+
+class UploadVerificationError(ValueError):
+    pass
+
+
 SUPPORTED_CONTENT_TYPE_EXTENSIONS = {
     "application/pdf": ("pdf",),
     "image/png": ("png",),
@@ -25,6 +41,27 @@ SUPPORTED_CONTENT_TYPE_EXTENSIONS = {
 }
 SUPPORTED_CONTENT_TYPES = list(SUPPORTED_CONTENT_TYPE_EXTENSIONS)
 SUPPORTED_ENTITIES = ["comment", "note", "paper", "post"]
+
+UPLOAD_METHOD_POST = "post"
+UPLOAD_METHOD_PUT = "put"
+UPLOAD_METHODS = [UPLOAD_METHOD_PUT, UPLOAD_METHOD_POST]
+
+MAX_UPLOAD_BYTES = {
+    "application/pdf": 25 * 1024 * 1024,
+    "image/png": MAX_IMAGE_UPLOAD_BYTES,
+    "image/jpeg": MAX_IMAGE_UPLOAD_BYTES,
+}
+CONTENT_SIGNATURES = {
+    "application/pdf": b"%PDF-",
+    "image/png": b"\x89PNG\r\n\x1a\n",
+    "image/jpeg": b"\xff\xd8\xff",
+}
+_SIGNATURE_BYTES = max(len(signature) for signature in CONTENT_SIGNATURES.values())
+_UPLOAD_KEY = re.compile(
+    rf"uploads/(?:{'|'.join(f'{entity}s' for entity in SUPPORTED_ENTITIES)})"
+    r"/users/[^/]+/[^/]+/.+",
+    re.DOTALL,
+)
 
 QUARANTINE_PREFIX = "quarantine/"
 """Prefix within the storage bucket where quarantined objects are moved."""
@@ -54,6 +91,16 @@ def object_key_from_url(url: str | None) -> str | None:
     return key or None
 
 
+def uploaded_object_key(reference: object) -> str | None:
+    if not reference or not isinstance(reference, str):
+        return None
+
+    url_key = object_key_from_url(reference)
+    key = reference if url_key is None else unquote(url_key)
+    key = posixpath.normpath(key.replace("\\", "/")).lstrip("/")
+    return key if _UPLOAD_KEY.fullmatch(key) else None
+
+
 class StorageService:
     def create_presigned_url(
         self,
@@ -62,6 +109,14 @@ class StorageService:
         user_id: str,
         content_type: str,
     ) -> PresignedUrl: ...
+
+    def create_presigned_post(
+        self,
+        entity: str,
+        filename: str,
+        user_id: str,
+        content_type: str,
+    ) -> PresignedPost: ...
 
 
 class S3StorageService(StorageService):
@@ -81,14 +136,7 @@ class S3StorageService(StorageService):
         Create a presigned URL for uploading a file to S3 that is time-limited.
         """
 
-        if entity not in SUPPORTED_ENTITIES:
-            raise ValueError(f"Unsupported entity: {entity}")
-
-        if content_type not in SUPPORTED_CONTENT_TYPES:
-            raise ValueError(f"Unsupported content type: {content_type}")
-
-        key_filename = self._key_filename(filename, content_type)
-        s3_filename = f"uploads/{entity}s/users/{user_id}/{uuid.uuid4()}/{key_filename}"
+        s3_filename = self._new_upload_key(entity, filename, user_id, content_type)
 
         s3_client = aws_utils.create_client("s3")
 
@@ -111,6 +159,79 @@ class S3StorageService(StorageService):
             object_key=s3_filename,
             object_url=f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_filename}",
         )
+
+    def create_presigned_post(
+        self,
+        entity: str,
+        filename: str,
+        user_id: str,
+        content_type: str,
+        valid_for_min: int = 2,
+    ) -> PresignedPost:
+        key = self._new_upload_key(entity, filename, user_id, content_type)
+        max_bytes = MAX_UPLOAD_BYTES[content_type]
+        fields = {
+            "Content-Type": content_type,
+            "x-amz-meta-created-by-id": f"{user_id}",
+            "x-amz-meta-file-name": self._sanitize_filename(filename),
+        }
+
+        response = aws_utils.create_client("s3").generate_presigned_post(
+            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+            Key=key,
+            Fields=fields,
+            Conditions=[
+                *({name: value} for name, value in fields.items()),
+                ["content-length-range", 1, max_bytes],
+            ],
+            ExpiresIn=60 * valid_for_min,
+        )
+
+        return PresignedPost(
+            object_key=key,
+            object_url=f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{key}",
+            url=response["url"],
+            fields=dict(response["fields"]),
+            max_bytes=max_bytes,
+        )
+
+    def verify_uploads(
+        self,
+        references: Iterable[str | None],
+        attached: Iterable[str | None] = (),
+    ) -> None:
+        keys = {uploaded_object_key(reference) for reference in references}
+        keys -= {uploaded_object_key(reference) for reference in attached}
+        keys.discard(None)
+        for key in sorted(keys):
+            self.verify_upload(key)
+
+    def verify_upload(self, key: str) -> None:
+        try:
+            response = aws_utils.create_client("s3").get_object(
+                Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                Key=key,
+                Range=f"bytes=0-{_SIGNATURE_BYTES - 1}",
+            )
+            body = response["Body"]
+            try:
+                leading_bytes = body.read(_SIGNATURE_BYTES)
+            finally:
+                body.close()
+        except (BotoCoreError, ClientError) as e:
+            logger.warning("Could not read uploaded object %r: %s", key, e)
+            raise UploadVerificationError(
+                "The uploaded file could not be verified."
+            ) from e
+
+        content_type = response.get("ContentType", "")
+        signature = CONTENT_SIGNATURES.get(content_type)
+        if signature is None or not leading_bytes.startswith(signature):
+            raise UploadVerificationError("The uploaded file does not match its type.")
+
+        size = int(response["ContentRange"].rpartition("/")[2])
+        if size > MAX_UPLOAD_BYTES[content_type]:
+            raise UploadVerificationError("The uploaded file is too large.")
 
     def quarantine_object(self, key: str) -> str | None:
         """
@@ -176,6 +297,18 @@ class S3StorageService(StorageService):
             if e.response.get("Error", {}).get("Code") == "404":
                 return False
             raise
+
+    def _new_upload_key(
+        self, entity: str, filename: str, user_id: str, content_type: str
+    ) -> str:
+        if entity not in SUPPORTED_ENTITIES:
+            raise ValueError(f"Unsupported entity: {entity}")
+
+        if content_type not in SUPPORTED_CONTENT_TYPES:
+            raise ValueError(f"Unsupported content type: {content_type}")
+
+        key_filename = self._key_filename(filename, content_type)
+        return f"uploads/{entity}s/users/{user_id}/{uuid.uuid4()}/{key_filename}"
 
     def _key_filename(self, filename: str, content_type: str) -> str:
         extensions = SUPPORTED_CONTENT_TYPE_EXTENSIONS[content_type]

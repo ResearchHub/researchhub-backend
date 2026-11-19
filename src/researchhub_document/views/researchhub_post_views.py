@@ -35,6 +35,7 @@ from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from purchase.services.fundraise_service import FundraiseService
 from purchase.services.grant_service import GrantModerationService
+from researchhub.serializers import validate_uploaded_assets
 from researchhub.settings import TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
@@ -403,6 +404,8 @@ class ResearchhubPostViewSet(
         if validation_response is not None:
             return validation_response
 
+        validate_uploaded_assets([image, preview_img])
+
         try:
             with transaction.atomic():
                 created_by = request.user
@@ -735,6 +738,13 @@ class ResearchhubPostViewSet(
                 rh_post, data=data, partial=True, context={"request": request}
             )
             serializer.is_valid(raise_exception=True)
+            validate_uploaded_assets(
+                [
+                    serializer.validated_data.get("image"),
+                    serializer.validated_data.get("preview_img"),
+                ],
+                attached=[rh_post.image, rh_post.preview_img],
+            )
 
             # Reject a goal the update cannot apply before any post write.
             goal_amount = data.get("fundraise_goal_amount")

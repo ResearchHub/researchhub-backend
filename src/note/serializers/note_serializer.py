@@ -24,7 +24,10 @@ from purchase.serializers.funding_pool_serializer import (
     FUNDING_POOL_WITH_CONTRIBUTORS_CONTEXT,
 )
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
-from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.serializers import (
+    DynamicModelFieldSerializer,
+    validate_uploaded_assets,
+)
 from researchhub_access_group.constants import (
     ADMIN,
     EDITOR,
@@ -213,6 +216,13 @@ class NoteSerializer(ModelSerializer):
         """Validate the selected grant and funding forms against the note's type."""
         document_type = attrs.get(
             "document_type", getattr(self.instance, "document_type", None)
+        )
+        validate_uploaded_assets(
+            [attrs.get("image"), attrs.get("preview_img")],
+            attached=[
+                getattr(self.instance, "image", None),
+                getattr(self.instance, "preview_img", None),
+            ],
         )
         self._validate_changelog_author(attrs)
         self._validate_funding_details(attrs, document_type)

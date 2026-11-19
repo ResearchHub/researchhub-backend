@@ -1,3 +1,4 @@
+import io
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -370,6 +371,89 @@ class ViewTests(APITestCase):
             "updated title. updated title. updated title.",
         )
         self.assertEqual(updated_response.data["image_url"], "/updatedImagePath1")
+
+    def _post_payload(self, note, **overrides):
+        return {
+            "document_type": "DISCUSSION",
+            "created_by": self.admin_user.id,
+            "full_src": "body",
+            "is_public": True,
+            "note_id": note.id,
+            "renderable_text": (
+                "sufficiently long body. sufficiently long body. "
+                "sufficiently long body. sufficiently long body. "
+                "sufficiently long body"
+            ),
+            "title": "sufficiently long title. sufficiently long title.",
+            **overrides,
+        }
+
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_create_post_rejects_upload_that_fails_verification(
+        self, create_client_mock
+    ):
+        # Arrange
+        key = "uploads/posts/users/1/abc/cover.png"
+        create_client_mock.return_value.get_object.return_value = {
+            "Body": io.BytesIO(b"<html>"),
+            "ContentRange": "bytes 0-5/6",
+            "ContentType": "image/png",
+        }
+        note = create_note(self.admin_user, self.organization)[0]
+        self.client.force_authenticate(self.admin_user)
+
+        # Act
+        response = self.client.post(
+            "/api/researchhubpost/", self._post_payload(note, image=key)
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("image", response.data)
+        self.assertFalse(ResearchhubPost.objects.filter(image=key).exists())
+
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    def test_update_post_verifies_only_a_changed_upload(self, create_client_mock):
+        # Arrange
+        key = "uploads/posts/users/1/abc/cover.png"
+        s3_client_mock = create_client_mock.return_value
+        s3_client_mock.get_object.side_effect = lambda **kwargs: {
+            "Body": io.BytesIO(b"\x89PNG\r\n\x1a\n"),
+            "ContentRange": "bytes 0-7/8",
+            "ContentType": "image/png",
+        }
+        note = create_note(self.admin_user, self.organization)[0]
+        self.client.force_authenticate(self.admin_user)
+        post_id = self.client.post(
+            "/api/researchhubpost/", self._post_payload(note, image=key)
+        ).data["id"]
+        s3_client_mock.get_object.reset_mock()
+
+        # Act
+        unchanged = self.client.post(
+            "/api/researchhubpost/",
+            self._post_payload(note, image=key, post_id=post_id),
+        )
+        unchanged_reads = s3_client_mock.get_object.call_count
+        s3_client_mock.get_object.side_effect = lambda **kwargs: {
+            "Body": io.BytesIO(b"<html>"),
+            "ContentRange": "bytes 0-5/6",
+            "ContentType": "image/png",
+        }
+        changed = self.client.post(
+            "/api/researchhubpost/",
+            self._post_payload(
+                note,
+                image="uploads/posts/users/1/def/other.png",
+                post_id=post_id,
+            ),
+        )
+
+        # Assert
+        self.assertEqual(unchanged.status_code, 200)
+        self.assertEqual(unchanged_reads, 0)
+        self.assertEqual(changed.status_code, 400)
+        self.assertEqual(ResearchhubPost.objects.get(id=post_id).image, key)
 
     def test_author_can_update_post_with_non_members(self):
         """Verify updating a post recredits its authors in the submitted order."""
