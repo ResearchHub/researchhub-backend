@@ -8,7 +8,6 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
-    AllowAny,
     IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
@@ -618,11 +617,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     @action(
         detail=True,
         methods=["GET"],
-        permission_classes=[AllowAny],
+        permission_classes=[ThreadViewingPermissions],
     )
     def get_comment(self, request, model=None, model_object_id=None, pk=None):
+        comment = self.get_object()
         try:
-            comment = self.get_object()
             context = self._get_retrieve_context()
             serializer = self.get_serializer(
                 comment,

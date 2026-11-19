@@ -59,16 +59,9 @@ class ThreadViewingPermissions(BasePermission):
 
         privacy_type = request.query_params.get("privacy_type")
 
-        # Workspace visibility (explicit or implicit): user must belong to the
-        # organization that owns the thread permission. If the request did not
-        # specify privacy_type but the thread is tied to an organization, we
-        # still enforce the same rule.
-        if (
-            privacy_type == WORKSPACE
-            or obj.thread.permissions.filter(organization__isnull=False).exists()
-        ):
-            perm = obj.thread.permissions.filter(organization__isnull=False).first()
-            if perm and perm.organization and not perm.organization.org_has_user(user):
+        perm = obj.thread.permissions.filter(organization__isnull=False).first()
+        if perm:
+            if user.is_anonymous or not perm.organization.org_has_user(user):
                 # Hide existence from unauthorised users
                 raise NotFound
             return True
@@ -78,9 +71,10 @@ class ThreadViewingPermissions(BasePermission):
             organization__isnull=True
         ).exists()
 
-        if privacy_type == "PRIVATE" or (
-            is_private_thread and privacy_type != WORKSPACE
-        ):
+        if privacy_type == "PRIVATE" or is_private_thread:
+            if user.is_anonymous:
+                raise NotFound
+
             # Allow if the user is on the explicit permission list, or is the
             # comment/thread author (legacy behaviour).
             perm_ok = obj.thread.permissions.filter(

@@ -148,7 +148,19 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     )
     def censor(self, request, pk=None):
         author_id = request.data.get("authorId")
-        user_to_censor = User.objects.get(author_profile__id=author_id)
+
+        if not author_id:
+            return Response(
+                {"message": "authorId is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user_to_censor = User.objects.get(author_profile__id=author_id)
+        except User.DoesNotExist, TypeError, ValueError:
+            return Response(
+                {"message": "User not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
         user_to_censor.set_probable_spammer()
         user_to_censor.set_suspended()
         user_to_censor.is_active = False
@@ -207,8 +219,24 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, Censor],
     )
     def reinstate(self, request):
-        author_id = request.data["author_id"]
-        user = Author.objects.get(id=author_id).user
+        author_id = request.data.get("author_id")
+
+        if not author_id:
+            return Response(
+                {"message": "author_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            user = Author.objects.get(id=author_id).user
+        except Author.DoesNotExist, TypeError, ValueError:
+            user = None
+
+        if user is None:
+            return Response(
+                {"message": "User not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
         user.is_active = True
         user.is_suspended = False
         user.probable_spammer = False

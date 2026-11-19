@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.core.cache import cache
 from django.utils import timezone
@@ -294,3 +295,146 @@ class UserModerationTests(APITestCase):
         response = self.client.post(url, data)
 
         self.assertEqual(response.status_code, 404)
+
+    def _suspend_target_user(self):
+        self.target_user.is_active = False
+        self.target_user.is_suspended = True
+        self.target_user.probable_spammer = True
+        self.target_user.save()
+
+    @patch("user.views.user_views.handle_spam_user_task")
+    def test_censor_rejects_non_moderator(self, mock_task):
+        # Arrange
+        regular_user = create_random_default_user("regular_user")
+        self.client.force_authenticate(user=regular_user)
+
+        # Act
+        response = self.client.post(
+            "/api/user/censor/", {"authorId": self.target_user.author_profile.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self.target_user.refresh_from_db()
+        self.assertFalse(self.target_user.is_suspended)
+        self.assertFalse(self.target_user.probable_spammer)
+        self.assertTrue(self.target_user.is_active)
+        mock_task.assert_not_called()
+
+    @patch("user.views.user_views.handle_spam_user_task")
+    def test_censor_rejects_hub_editor(self, mock_task):
+        # Arrange
+        self.client.force_authenticate(user=self.hub_editor)
+
+        # Act
+        response = self.client.post(
+            "/api/user/censor/", {"authorId": self.target_user.author_profile.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self.target_user.refresh_from_db()
+        self.assertFalse(self.target_user.is_suspended)
+        mock_task.assert_not_called()
+
+    @patch("user.views.user_views.handle_spam_user_task")
+    def test_censor_rejects_anonymous(self, mock_task):
+        # Act
+        response = self.client.post(
+            "/api/user/censor/", {"authorId": self.target_user.author_profile.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 401)
+        self.target_user.refresh_from_db()
+        self.assertFalse(self.target_user.is_suspended)
+        mock_task.assert_not_called()
+
+    @patch("user.views.user_views.handle_spam_user_task")
+    def test_censor_moderator_success(self, mock_task):
+        # Arrange
+        self.client.force_authenticate(user=self.moderator)
+
+        # Act
+        response = self.client.post(
+            "/api/user/censor/", {"authorId": self.target_user.author_profile.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.target_user.refresh_from_db()
+        self.assertTrue(self.target_user.is_suspended)
+        self.assertTrue(self.target_user.probable_spammer)
+        self.assertFalse(self.target_user.is_active)
+        mock_task.assert_called_once_with(self.target_user.id, self.moderator)
+
+    def test_censor_invalid_author_id(self):
+        # Arrange
+        self.client.force_authenticate(user=self.moderator)
+        cases = [({}, 400), ({"authorId": -1}, 404), ({"authorId": "invalid"}, 404)]
+
+        for data, expected_status in cases:
+            with self.subTest(data=data):
+                # Act
+                response = self.client.post("/api/user/censor/", data)
+
+                # Assert
+                self.assertEqual(response.status_code, expected_status)
+
+    @patch("user.views.user_views.reinstate_user_task")
+    def test_reinstate_rejects_non_moderator(self, mock_task):
+        # Arrange
+        self._suspend_target_user()
+        regular_user = create_random_default_user("regular_user")
+        self.client.force_authenticate(user=regular_user)
+
+        # Act
+        response = self.client.post(
+            "/api/user/reinstate/", {"author_id": self.target_user.author_profile.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 403)
+        self.target_user.refresh_from_db()
+        self.assertTrue(self.target_user.is_suspended)
+        self.assertTrue(self.target_user.probable_spammer)
+        self.assertFalse(self.target_user.is_active)
+        mock_task.assert_not_called()
+
+    @patch("user.views.user_views.reinstate_user_task")
+    def test_reinstate_moderator_success(self, mock_task):
+        # Arrange
+        self._suspend_target_user()
+        self.client.force_authenticate(user=self.moderator)
+
+        # Act
+        response = self.client.post(
+            "/api/user/reinstate/", {"author_id": self.target_user.author_profile.id}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.target_user.refresh_from_db()
+        self.assertFalse(self.target_user.is_suspended)
+        self.assertFalse(self.target_user.probable_spammer)
+        self.assertTrue(self.target_user.is_active)
+        mock_task.assert_called_once_with(self.target_user.id)
+
+    def test_reinstate_invalid_author_id(self):
+        # Arrange
+        self.client.force_authenticate(user=self.moderator)
+        unclaimed_author = Author.objects.create(first_name="No", last_name="User")
+        cases = [
+            ({}, 400),
+            ({"author_id": -1}, 404),
+            ({"author_id": "invalid"}, 404),
+            ({"author_id": unclaimed_author.id}, 404),
+        ]
+
+        for data, expected_status in cases:
+            with self.subTest(data=data):
+                # Act
+                response = self.client.post("/api/user/reinstate/", data)
+
+                # Assert
+                self.assertEqual(response.status_code, expected_status)
