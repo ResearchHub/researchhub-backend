@@ -1,8 +1,12 @@
+import io
+import tempfile
 import uuid
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from PIL import Image
 from rest_framework.test import APITestCase
 
 from researchhub_access_group.models import Permission
@@ -192,3 +196,43 @@ class OrganizationTests(APITestCase):
         self.assertIn("cover_image", response.data)
         organization = Organization.objects.get(id=self.org_a["id"])
         self.assertFalse(organization.cover_image)
+
+    def test_create_rejects_non_image_image(self):
+        # Arrange
+        self.client.force_authenticate(self.org_a_admin)
+
+        # Act
+        response = self.client.post(
+            "/api/organization/",
+            {"name": "ORG C", "image": "<html><body>spam</body></html>"},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("image", response.data)
+        self.assertFalse(Organization.objects.filter(name="ORG C").exists())
+
+    def test_create_stores_image_named_by_content(self):
+        # Arrange
+        self.client.force_authenticate(self.org_a_admin)
+        buffer = io.BytesIO()
+        Image.new("RGB", (1, 1)).save(buffer, format="PNG")
+        upload = SimpleUploadedFile(
+            "spam.html", buffer.getvalue(), content_type="text/html"
+        )
+
+        # Act
+        with (
+            tempfile.TemporaryDirectory() as media_root,
+            override_settings(MEDIA_ROOT=media_root),
+        ):
+            response = self.client.post(
+                "/api/organization/",
+                {"name": "ORG C", "image": upload},
+                format="multipart",
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        organization = Organization.objects.get(name="ORG C")
+        self.assertTrue(organization.cover_image.name.endswith(".png"))
