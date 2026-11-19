@@ -339,39 +339,39 @@ class PaperSerializer(BasePaperSerializer, ModeratedDocumentStatusSerializerMixi
             "version",
             "version_list",
         ]
+        editable_fields = [
+            "abstract",
+            "doi",
+            "hubs",
+            "paper_publish_date",
+            "paper_title",
+            "paper_type",
+            "pdf_license",
+            "title",
+        ]
         moderator_only_update_fields = [
             "pdf_license",
         ]
 
-        patch_read_only_fields = ["uploaded_by"]
         model = Paper
 
     def update(self, instance, validated_data):
         request = self.context.get("request", None)
 
-        # Check permissions
+        editable_fields = set(self.Meta.editable_fields)
         if not request.user.moderator:
-            for field in self.Meta.moderator_only_update_fields:
-                if field in validated_data:
-                    validated_data.pop(field, None)
+            editable_fields -= set(self.Meta.moderator_only_update_fields)
+        validated_data = {
+            field: value
+            for field, value in validated_data.items()
+            if field in editable_fields
+        }
 
-        validated_data.pop("authors", [None])
-        # Discard any `file` key so it cannot reach the FileField
-        # (`to_internal_value` skips DRF validation).
-        validated_data.pop("file", None)
         hubs = validated_data.pop("hubs", None)
-        pdf_license = validated_data.get("pdf_license", None)
-        validated_data.pop("raw_authors", [])
+        pdf_license = validated_data.get("pdf_license")
 
         try:
             with transaction.atomic():
-                # Temporary fix for updating read only fields
-                read_only_fields = (
-                    self.Meta.read_only_fields + self.Meta.patch_read_only_fields
-                )
-                for read_only_field in read_only_fields:
-                    if read_only_field in validated_data:
-                        validated_data.pop(read_only_field, None)
                 self._clean_abstract(validated_data)
 
                 paper = super().update(instance, validated_data)
