@@ -4,8 +4,6 @@ from purchase.services.tip_service import TipService
 
 
 class CanTipOrReadOnly(BasePermission):
-    """Reads are open to the caller; only an account allowed to tip may write."""
-
     message = TipService.RESTRICTED_MESSAGE
 
     def has_permission(self, request, view):

@@ -77,7 +77,6 @@ class PurchaseViewSet(GenericViewSet, CreateModelMixin, ListModelMixin):
         content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
-            # Checked again on the locked row, before any balance is touched.
             self.tip_service.ensure_can_tip(user)
 
             purchase_data = {
