@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from notification.models import Notification
 from purchase.circle.client import CircleTransferError
-from purchase.models import Fundraise, Wallet
+from purchase.models import Fundraise, UsdFundraiseContribution, Wallet
 from purchase.services.fundraise_service import FundraiseService
 from purchase.tasks import (
     complete_eligible_fundraises,
@@ -59,6 +59,36 @@ class FundraiseTasksTest(TestCase):
 
         # Create bank user that's needed for fee calculations
         self.bank_user = create_user(email="bank@researchhub.com")
+
+    def test_complete_eligible_fundraises_completes_usd_only_fundraise(self):
+        """A week-old fundraise that met its goal only in USD is completed"""
+        # Arrange
+        fundraise = self.fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=self.post.unified_document,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+        fundraise.start_date = datetime.now(UTC) - timedelta(days=8)
+        fundraise.save()
+        UsdFundraiseContribution.objects.create(
+            user=create_random_authenticated_user("usd_contributor"),
+            fundraise=fundraise,
+            amount_cents=10000,
+            fee_cents=900,
+            origin_fund_id="test_origin_fund",
+            destination_org_id="test_destination_org",
+        )
+
+        # Act
+        result = complete_eligible_fundraises()
+
+        # Assert
+        self.assertEqual(result["completed_count"], 1)
+        self.assertEqual(result["error_count"], 0)
+        fundraise.refresh_from_db()
+        self.assertEqual(fundraise.status, Fundraise.COMPLETED)
 
     def test_complete_eligible_fundraises_success(self):
         """Test that eligible fundraises are automatically completed"""

@@ -101,6 +101,19 @@ class ReferralBonusServiceTest(TestCase):
 
         # Bonuses can be applied multiple times for different fundraises
 
+    def test_refunded_contributions_not_eligible(self):
+        """Contributions refunded by an earlier close earn no referral bonus"""
+        # Arrange
+        self.purchase.paid_status = Purchase.REFUNDED
+        self.purchase.save()
+        initial_distribution_count = Distribution.objects.count()
+
+        # Act
+        self.service.process_fundraise_completion(self.fundraise)
+
+        # Assert
+        self.assertEqual(Distribution.objects.count(), initial_distribution_count)
+
     def test_old_referrals_not_eligible(self):
         """Test that referrals older than 6 months are not eligible"""
         # Update referral signup to be older than 6 months
