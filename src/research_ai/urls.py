@@ -42,6 +42,10 @@ from research_ai.views.model_views import (
     InvitedTierGrantView,
     UsageBudgetStatusView,
 )
+from research_ai.views.notebook_chat_agui_views import (
+    NotebookChatAguiConnectView,
+    NotebookChatAguiRunView,
+)
 from research_ai.views.notebook_chat_views import (
     NotebookChatCancelView,
     NotebookChatDetailView,
@@ -150,6 +154,14 @@ urlpatterns = [
     path(
         "notebook/notes/<int:note_id>/chats/<int:conversation_id>/cancel/",
         NotebookChatCancelView.as_view(),
+    ),
+    path(
+        "notebook/notes/<int:note_id>/chats/<int:conversation_id>/agui/",
+        NotebookChatAguiRunView.as_view(),
+    ),
+    path(
+        "notebook/notes/<int:note_id>/chats/<int:conversation_id>/agui/connect/",
+        NotebookChatAguiConnectView.as_view(),
     ),
     path("assistant/chats/", AssistantChatListCreateView.as_view()),
     path(
