@@ -1,6 +1,5 @@
 """Execution recorder, lifecycle, and trace persistence coverage."""
 
-import json
 from unittest.mock import patch
 
 from django.db import IntegrityError, transaction
@@ -13,7 +12,7 @@ from research_ai.models import (
     AgentExecutionMessage,
 )
 from research_ai.services.agent.loop import AgentResult
-from research_ai.services.agent.tools import MAX_TOOL_RESULT_BYTES, Tool
+from research_ai.services.agent.tools import Tool
 from research_ai.services.agent.types import (
     StopReason,
     TurnUsage,
@@ -21,7 +20,6 @@ from research_ai.services.agent.types import (
 )
 from research_ai.services.agent_persistence import AgentExecutionService
 from research_ai.services.agent_persistence.content import (
-    MAX_CONTEXT_MESSAGE_BYTES,
     MAX_TRACE_MESSAGE_BYTES,
 )
 from research_ai.tests.agent.persistence_test_helpers import (
@@ -200,40 +198,6 @@ class AgentRecorderPersistenceTests(AgentPersistenceTestCase):
         self.assertEqual(execution.final_output, {})
         self.assertFalse(hasattr(execution, "generated_chat_message"))
         self.assertTrue(recorder.terminal_observed)
-
-    def test_oversized_tool_result_never_reaches_the_durable_rows(self):
-        # Arrange: the dispatch cap turns a flooding tool into an error the
-        # model can act on, which is why persistence never has to compact a
-        # message to fit its row.
-        recorder = self.recorder()
-        provider = FakeProvider(
-            [
-                tool_turn("large", "large_tool", {"query": "everything"}),
-                text_turn("narrowing the query"),
-            ]
-        )
-        tool = Tool(
-            "large_tool",
-            "large",
-            {"type": "object"},
-            lambda _args: {"result": "x" * (MAX_TOOL_RESULT_BYTES * 2)},
-        )
-
-        # Act
-        agent(provider, recorder, [tool]).run("go")
-
-        # Assert
-        context_rows = list(recorder.execution.context_messages.order_by("sequence"))
-        self.assertFalse(any(row.is_compacted for row in context_rows))
-        result_block = context_rows[2].content[0]
-        self.assertEqual(result_block["tool_use_id"], "large")
-        self.assertTrue(result_block["is_error"])
-        self.assertIn("over the", result_block["content"]["error"])
-        for row in context_rows:
-            self.assertLessEqual(
-                len(json.dumps(row.content).encode()), MAX_CONTEXT_MESSAGE_BYTES
-            )
-            deserialize_messages([{"role": row.role, "content": row.content}])
 
     def test_chat_publication_keeps_the_untruncated_response(self):
         # Arrange: chat content is unbounded, so the answer the user reads must

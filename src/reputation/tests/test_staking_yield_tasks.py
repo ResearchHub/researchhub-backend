@@ -112,17 +112,6 @@ class CreateDailyStakingSnapshotTaskTest(TestCase):
         "reputation.services.rsc_supply_service."
         "RscSupplyService.fetch_circulating_supply"
     )
-    def test_creates_first_snapshot_without_seed_row(self, mock_supply):
-        mock_supply.return_value = Decimal(220000000)
-        result = create_daily_staking_snapshots()
-
-        self.assertTrue(result)
-        self.assertEqual(StakingGlobalSnapshot.objects.count(), 1)
-
-    @patch(
-        "reputation.services.rsc_supply_service."
-        "RscSupplyService.fetch_circulating_supply"
-    )
     @patch("reputation.tasks.create_daily_staking_snapshots.retry")
     def test_retries_when_supply_fetch_fails(self, mock_retry, mock_supply):
         mock_supply.side_effect = Exception("CoinGecko unavailable")

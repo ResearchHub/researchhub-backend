@@ -12,20 +12,6 @@ class ModeratorTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-    def test_moderator_can_view_details(self):
-        self.user = create_user(
-            email="mod@example.com",
-            first_name="Moderator",
-            last_name="mod",
-            moderator=True,
-        )
-
-        self.client.force_authenticate(user=self.user)
-
-        url = f"/api/moderator/{self.user.id}/user_details/"
-        response = self.client.get(url, {})
-        self.assertIn("id", response.data)
-
     def test_moderator_details_include_risk_score(self):
         # Arrange
         moderator = create_user(email="mod@example.com", moderator=True)

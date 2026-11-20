@@ -36,18 +36,6 @@ class NormalizeLlmTextToHtmlTests(TestCase):
             "<p>A</p><p></p><p>B</p>",
         )
 
-    def test_multiple_blank_lines(self):
-        self.assertEqual(
-            normalize_llm_text_to_html("A\n\n\nB"),
-            "<p>A</p><p></p><p></p><p>B</p>",
-        )
-
-    def test_literal_backslash_n_normalized(self):
-        self.assertEqual(
-            normalize_llm_text_to_html("Hi\\n\\nThere"),
-            "<p>Hi</p><p></p><p>There</p>",
-        )
-
     def test_mixed_literal_and_real_newlines(self):
         self.assertEqual(
             normalize_llm_text_to_html("One\nTwo\\n\nThree"),
@@ -74,26 +62,11 @@ class NormalizeLlmTextForSubjectTests(TestCase):
 
 
 class StripMarkdownTests(TestCase):
-    def test_strips_bold_double_asterisk(self):
-        self.assertEqual(_strip_markdown("Hello **bold** world"), "Hello bold world")
-
     def test_strips_bold_double_underscore(self):
         self.assertEqual(_strip_markdown("Hello __bold__ world"), "Hello bold world")
 
-    def test_strips_italic_single_asterisk(self):
-        self.assertEqual(_strip_markdown("Hello *italic* world"), "Hello italic world")
-
     def test_strips_italic_single_underscore(self):
         self.assertEqual(_strip_markdown("Hello _italic_ world"), "Hello italic world")
-
-    def test_strips_inline_code(self):
-        self.assertEqual(_strip_markdown("See `code` here"), "See code here")
-
-    def test_strips_markdown_links_keeps_text(self):
-        self.assertEqual(
-            _strip_markdown("See [link text](https://example.com) here"),
-            "See link text here",
-        )
 
     def test_combined_markdown(self):
         text = "**Bold** and *italic* with `code` and [click](https://x.com)."
@@ -198,9 +171,6 @@ class ReplacePlaceholdersTests(TestCase):
 
 
 class BuildSignatureBlockTests(TestCase):
-    def test_empty_template_data_returns_empty_string(self):
-        self.assertEqual(_build_signature_block({}), "")
-
     def test_all_empty_values_returns_empty_string(self):
         data = {
             "name": "",

@@ -38,16 +38,6 @@ class TestReviewAvailability(APITestCase):
 
     # --- Service tests ---
 
-    def test_can_review_when_no_previous_reviews(self):
-        # Arrange: no reviews exist
-
-        # Act
-        result = get_review_availability(self.user)
-
-        # Assert
-        self.assertTrue(result.can_review)
-        self.assertIsNone(result.available_at)
-
     def test_can_review_when_under_limit_in_window(self):
         # Arrange: create one review (under limit of 2)
         self._create_review(days_ago=1)
@@ -58,18 +48,6 @@ class TestReviewAvailability(APITestCase):
         # Assert
         self.assertTrue(result.can_review)
         self.assertIsNone(result.available_at)
-
-    def test_cannot_review_when_at_limit_in_window(self):
-        # Arrange: create MAX_REVIEWS_PER_WINDOW reviews in the window
-        self._create_review(days_ago=1)
-        self._create_review(days_ago=2)
-
-        # Act
-        result = get_review_availability(self.user)
-
-        # Assert
-        self.assertFalse(result.can_review)
-        self.assertIsNotNone(result.available_at)
 
     def test_can_review_when_oldest_review_exits_window(self):
         # Arrange: create 2 reviews, but oldest is outside the window

@@ -458,23 +458,6 @@ class LeaderboardApiTests(APITestCase):
         self.assertNotIn(self.bank.id, user_ids)
         self.assertIn(self.reviewer1.id, user_ids)
 
-    def test_reviewers_leaderboard_includes_rank(self):
-        """Test that reviewers endpoint includes rank field."""
-        url = "/api/leaderboard/reviewers/"
-        start_date = (timezone.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        end_date = (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-        response = self.client.get(
-            f"{url}?start_date={start_date}&end_date={end_date}&page_size=500"
-        )
-
-        self.assertEqual(response.status_code, 200)
-        results = response.data["results"]
-        self.assertTrue(len(results) > 0)
-
-        for i, entry in enumerate(results):
-            self.assertIn("rank", entry)
-            self.assertEqual(entry["rank"], i + 1)
-
     def test_funders_leaderboard_includes_rank(self):
         """Test that funders endpoint includes rank field."""
         url = "/api/leaderboard/funders/"

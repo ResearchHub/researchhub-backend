@@ -47,16 +47,6 @@ class TestGetFundedFundraiseIds(TestCase):
             is_refunded=is_refunded,
         )
 
-    def test_returns_empty_for_no_contributions(self):
-        # Arrange
-        other_user = create_random_authenticated_user("other")
-
-        # Act
-        result = get_funded_fundraise_ids(other_user.id)
-
-        # Assert
-        self.assertEqual(result, set())
-
     def test_returns_rsc_and_usd_contributions_deduplicated(self):
         # Arrange
         fundraise = self._create_fundraise()

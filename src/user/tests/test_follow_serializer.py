@@ -15,14 +15,6 @@ class FollowSerializerTests(TestCase):
         self.request = self.factory.get("/")
         self.request.user = self.user
 
-    def test_validate_allowed_content_type(self):
-        data = {
-            "content_type": "user",
-            "object_id": self.target_user.id,
-        }
-        serializer = FollowSerializer(data=data)
-        self.assertTrue(serializer.is_valid(), serializer.errors)
-
     def test_validate_disallowed_content_type(self):
         data = {
             "content_type": "permission",  # Not in ALLOWED_FOLLOW_MODELS

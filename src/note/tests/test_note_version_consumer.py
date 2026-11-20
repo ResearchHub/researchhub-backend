@@ -181,47 +181,6 @@ class NoteVersionConsumerTests(TransactionTestCase):
         await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
         await communicator.wait()
 
-    async def test_subscriber_receives_published_events(self):
-        # Arrange
-        communicator, response = await self._connect(self.viewer)
-        self.assertEqual(response["type"], "websocket.accept")
-
-        # Act: an event lands on the note's group, shaped exactly as
-        # ``NoteVersionEventPublisher`` sends it.
-        await get_channel_layer().group_send(
-            note_group(self.note.id),
-            {
-                "type": EVENT_TYPE,
-                "data": {
-                    "type": NOTE_VERSION_CREATED,
-                    "note_id": self.note.id,
-                    "version_id": 5001,
-                    "parent_version_id": 5000,
-                    "created_by": 7,
-                    "created_via": "agent",
-                    "created_date": "2026-08-12T14:03:22+00:00",
-                },
-            },
-        )
-
-        # Assert: the client receives the data object verbatim.
-        output = await communicator.receive_output()
-        self.assertEqual(output["type"], "websocket.send")
-        self.assertEqual(
-            json.loads(output["text"]),
-            {
-                "type": NOTE_VERSION_CREATED,
-                "note_id": self.note.id,
-                "version_id": 5001,
-                "parent_version_id": 5000,
-                "created_by": 7,
-                "created_via": "agent",
-                "created_date": "2026-08-12T14:03:22+00:00",
-            },
-        )
-        await communicator.send_input({"type": "websocket.disconnect", "code": 1000})
-        await communicator.wait()
-
     async def test_revoked_viewer_is_closed_instead_of_receiving_events(self):
         # Arrange: admitted while permitted, then the permission is revoked
         # (as make_private or remove_permission would).

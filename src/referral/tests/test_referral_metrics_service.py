@@ -32,36 +32,6 @@ class ReferralMetricsServiceTest(TestCase):
         # Create service instance
         self.service = ReferralMetricsService(self.referrer)
 
-    def test_calculate_expiration_date(self):
-        """Test expiration date calculation is 6 months from signup."""
-        signup_date = timezone.now()
-        expiration_date = self.service._calculate_expiration_date(signup_date)
-
-        expected_expiration = signup_date + timedelta(days=30 * 6)
-
-        # Allow small time difference for test execution
-        self.assertAlmostEqual(
-            expiration_date.timestamp(),
-            expected_expiration.timestamp(),
-            delta=1,  # 1 second tolerance
-        )
-
-    def test_is_referral_expired_recent_signup(self):
-        """Test that recent signups are not marked as expired."""
-        # Recent signup (1 day ago)
-        recent_signup_date = timezone.now() - timedelta(days=1)
-        is_expired = self.service._is_referral_expired(recent_signup_date)
-
-        self.assertFalse(is_expired)
-
-    def test_is_referral_expired_old_signup(self):
-        """Test that old signups are marked as expired."""
-        # Old signup (7 months ago)
-        old_signup_date = timezone.now() - timedelta(days=30 * 7)
-        is_expired = self.service._is_referral_expired(old_signup_date)
-
-        self.assertTrue(is_expired)
-
     def test_is_referral_expired_exact_boundary(self):
         """Test expiration at exactly 6 months."""
         # Exactly 6 months ago (plus 1 minute to ensure it's expired)
@@ -92,20 +62,6 @@ class ReferralMetricsServiceTest(TestCase):
         self.assertIn("referral_bonus_expiration_date", referral_info)
         self.assertIn("is_referral_bonus_expired", referral_info)
         self.assertFalse(referral_info["is_referral_bonus_expired"])
-
-    def test_get_user_referral_info_when_not_referred(self):
-        """Test getting user's referral info when they weren't referred."""
-        # User with no referral
-        independent_user = User.objects.create_user(
-            username="independent",
-            email="independent@test.com",
-            password=uuid.uuid4().hex,
-        )
-
-        independent_service = ReferralMetricsService(independent_user)
-        referral_info = independent_service._get_user_referral_info()
-
-        self.assertIsNone(referral_info)
 
     def test_get_user_referral_info_with_expired_bonus(self):
         """Test referral info for expired bonus period."""

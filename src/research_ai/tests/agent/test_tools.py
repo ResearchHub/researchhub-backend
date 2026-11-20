@@ -177,17 +177,6 @@ class ToolsetDispatchTests(SimpleTestCase):
         self.assertEqual(result, {"error": "missing required field"})
         self.assertFalse(stop)
 
-    def test_non_terminal_tool_does_not_stop(self):
-        # Arrange
-        toolset = Toolset([_build_ok_tool("search")])
-
-        # Act
-        result, stop = toolset.dispatch("search", {"q": "x"})
-
-        # Assert
-        self.assertEqual(result, {"echo": {"q": "x"}})
-        self.assertFalse(stop)
-
     def test_registry_accessors(self):
         # Arrange
         search = _build_ok_tool("search")

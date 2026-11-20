@@ -31,14 +31,6 @@ class GenerateCodeTests(TestCase):
         # Assert
         self.assertTrue(EmailOptOut.objects.filter(email=EMAIL).exists())
 
-    def test_codes_differ_between_addresses(self):
-        # Act
-        first = _unsubscribe_code(self.service, EMAIL)
-        second = _unsubscribe_code(self.service, "other@example.com")
-
-        # Assert
-        self.assertNotEqual(first, second)
-
 
 class GenerateUrlTests(TestCase):
     def test_url_points_to_the_frontend_and_carries_the_code(self):

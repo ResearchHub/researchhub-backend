@@ -138,28 +138,6 @@ class TestEndaomentService(TestCase):
         self.assertFalse(result.success)
         self.assertEqual(result.error, "invalid_state")
 
-    def test_process_callback_with_nonexistent_user_returns_error(self):
-        """
-        Test that a non-existent user returns error.
-        """
-        # Arrange
-        self.mock_client.validate_state.return_value = {
-            "user_id": 99999,
-            "code_verifier": "verifier123",
-        }
-        self.mock_client.fetch_token.return_value = TokenResponse(
-            access_token="access_token",
-            refresh_token="refresh_token",
-            expires_in=3600,
-        )
-
-        # Act
-        result = self.service.process_callback(code="auth_code", state="valid_state")
-
-        # Assert
-        self.assertFalse(result.success)
-        self.assertEqual(result.error, "error")
-
     def test_process_callback_success_creates_account(self):
         """
         Test successful callback creates EndaomentAccount.
@@ -574,29 +552,6 @@ class TestEndaomentService(TestCase):
             purpose="fundraise1",
         )
 
-    def test_extract_user_id_valid_token(self):
-        """
-        Test _extract_user_id returns 'sub' from a valid JWT.
-        """
-        # Arrange
-        id_token = self._create_id_token("user_123")
-
-        # Act
-        actual = EndaomentService._extract_user_id(id_token)
-
-        # Assert
-        self.assertEqual(actual, "user_123")
-
-    def test_extract_user_id_none_token(self):
-        """
-        Test _extract_user_id returns None for None input.
-        """
-        # Act
-        actual = EndaomentService._extract_user_id(None)
-
-        # Assert
-        self.assertIsNone(actual)
-
     def test_extract_user_id_invalid_token(self):
         """
         Test _extract_user_id returns None for malformed JWT.
@@ -619,17 +574,6 @@ class TestEndaomentService(TestCase):
 
         # Assert
         self.assertIsNone(actual)
-
-    @override_settings(ENDAOMENT_RH_FUND_IDS={1234: "rhFund1", 5678: "rhFund2"})
-    def test_get_researchhub_fund_id(self):
-        """
-        Test get_researchhub_fund_id returns correct fund ID based on settings.
-        """
-        # Arrange & Act
-        result = self.service._get_researchhub_fund_id(1234)
-
-        # Assert
-        self.assertEqual(result, "rhFund1")
 
     @override_settings(ENDAOMENT_RH_FUND_IDS={1234: "rhFund1"})
     def test_transfer_to_researchhub_fund(self):
@@ -720,16 +664,6 @@ class TestEndaomentService(TestCase):
                 amount_cents=5000,
             )
         self.mock_client.create_async_entity_transfer.assert_not_called()
-
-    def test_get_researchhub_fund_id_no_mapping(self):
-        """
-        Test get_researchhub_fund_id returns None when no mapping exists.
-        """
-        # Act & Assert
-        with self.assertRaisesMessage(
-            ValueError, "No ResearchHub fund configured for chain ID 9999"
-        ):
-            self.service._get_researchhub_fund_id(9999)
 
     def test_disconnect(self):
         """

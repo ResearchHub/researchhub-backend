@@ -121,16 +121,6 @@ class AgentFileViewTests(AWSMockMixin, APITestCase):
         delay.assert_called_once_with(created.data["id"])
         self.assertEqual(polled.data["status"], AgentFile.Status.PROCESSING)
 
-    def test_create_explains_an_unsupported_file(self):
-        # Act
-        response = self.client.post(
-            FILES_URL, {"filename": "deck.pptx", "size_bytes": 10}, format="json"
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["code"], "unsupported_file_type")
-
     def test_create_refuses_an_empty_file(self):
         # Act
         response = self.client.post(

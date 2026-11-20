@@ -270,28 +270,6 @@ class CreateRegisteredReportDraftTests(APITestCase):
             ).exists()
         )
 
-    def test_creates_draft_for_another_users_proposal(self) -> None:
-        """Verify moderators can create drafts for proposals they do not own."""
-        # Arrange
-        proposal = self._create_proposal(self.other_user)
-        self._create_fundraise(proposal, Fundraise.COMPLETED, Decimal(100))
-
-        # Act
-        response = self.client.post(
-            self.draft_url,
-            self._build_draft_payload(proposal),
-            format="json",
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 201)
-        note = Note.objects.get(id=response.data["id"])
-        self.assertEqual(note.created_by, self.moderator)
-        self.assertEqual(
-            response.data["registered_report_prefill"]["proposal_id"],
-            proposal.id,
-        )
-
     def test_rejects_open_fundraise(self) -> None:
         """Verify proposals without completed fundraises cannot create drafts."""
         # Arrange

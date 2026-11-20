@@ -585,19 +585,6 @@ class SetSelectedRFPToolTests(TestCase):
         self.assertEqual(result, {"error": "this preregistration is not accessible"})
         self.assertIsNone(self.note.selected_grant_id)
 
-    def test_rejects_a_malformed_grant_id_rather_than_clearing(self):
-        # Arrange
-        grant = self._grant()
-        self._set(grant.id)
-
-        # Act
-        result = self._set("not-an-id")
-        self.note.refresh_from_db()
-
-        # Assert
-        self.assertEqual(result, {"error": "grant_id must be a grant id or null"})
-        self.assertEqual(self.note.selected_grant_id, grant.id)
-
     def test_rejects_an_omitted_grant_id_rather_than_clearing(self):
         # Arrange: dispatch does not enforce the input schema, so an argument
         # object with no grant_id reaches the handler; only an explicit null

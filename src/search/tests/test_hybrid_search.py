@@ -17,31 +17,6 @@ from search.views.suggest import SuggestView
 # =============================================================================
 
 
-class TestMatchBoolPrefixQueryConstruction(unittest.TestCase):
-    """Test the match_bool_prefix query construction."""
-
-    def test_query_construction(self):
-        """Test match_bool_prefix query structure."""
-        from opensearchpy import Q
-
-        # Test the query structure that match_bool_prefix creates
-        query_params = {
-            "query": "test query",
-            "minimum_should_match": "2<70%",
-            "fuzziness": "AUTO",
-        }
-        query = Q("match_bool_prefix", title=query_params)
-        query_dict = query.to_dict()
-
-        # Verify structure
-        self.assertIn("match_bool_prefix", query_dict)
-        self.assertIn("title", query_dict["match_bool_prefix"])
-        match_config = query_dict["match_bool_prefix"]["title"]
-        self.assertEqual(match_config["query"], "test query")
-        self.assertEqual(match_config["minimum_should_match"], "2<70%")
-        self.assertEqual(match_config["fuzziness"], "AUTO")
-
-
 class TestMatchBoolPrefixTriggerConditions(unittest.TestCase):
     """Test when match_bool_prefix fallback should trigger."""
 

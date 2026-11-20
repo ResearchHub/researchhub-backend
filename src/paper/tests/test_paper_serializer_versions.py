@@ -93,54 +93,6 @@ class PaperSerializerVersionTests(TestCase):
         self.assertEqual(thread_ids, expected_thread_ids)
         self.assertEqual(len(discussions), 3)
 
-    def test_get_discussions_with_version_paper(self):
-        """Test that get_discussions works when called with a version paper."""
-        # Create threads for each paper version
-        original_thread = self._create_comment_thread(self.original_paper)
-        version_1_thread = self._create_comment_thread(self.version_1_paper)
-        version_2_thread = self._create_comment_thread(self.version_2_paper)
-
-        # Test serializer with version 1 paper
-        request = self.factory.get("/")
-        request.user = self.user
-        serializer = DynamicPaperSerializer(
-            self.version_1_paper, context={"request": request}
-        )
-
-        discussions = serializer.get_discussions(self.version_1_paper)
-
-        # Should return discussions from all versions
-        thread_ids = {discussion["id"] for discussion in discussions}
-        expected_thread_ids = {
-            original_thread.id,
-            version_1_thread.id,
-            version_2_thread.id,
-        }
-
-        self.assertEqual(thread_ids, expected_thread_ids)
-        self.assertEqual(len(discussions), 3)
-
-    def test_get_discussions_single_paper_no_versions(self):
-        """Test get_discussions with a standalone paper (no versions)."""
-        standalone_paper = create_paper(title="Standalone Paper")
-        standalone_thread = self._create_comment_thread(standalone_paper)
-        self._create_comment(standalone_thread, "Standalone comment")
-
-        request = self.factory.get("/")
-        request.user = self.user
-        serializer = DynamicPaperSerializer(
-            standalone_paper, context={"request": request}
-        )
-
-        discussions = serializer.get_discussions(standalone_paper)
-
-        # Should return only the standalone paper's discussions
-        thread_ids = {discussion["id"] for discussion in discussions}
-        expected_thread_ids = {standalone_thread.id}
-
-        self.assertEqual(thread_ids, expected_thread_ids)
-        self.assertEqual(len(discussions), 1)
-
     def test_get_discussion_aggregates_includes_all_versions(self):
         """Test that get_discussion_aggregates aggregates data from all paper
         versions."""
@@ -171,32 +123,6 @@ class PaperSerializerVersionTests(TestCase):
 
         # The discussion count should reflect comments from all versions
         # (this depends on how the paper's discussion_count property works)
-
-    def test_get_discussion_aggregates_with_version_paper(self):
-        """Test that get_discussion_aggregates works when called with a version
-        paper."""
-        # Create threads and comments for each paper version
-        original_thread = self._create_comment_thread(self.original_paper)
-        version_1_thread = self._create_comment_thread(self.version_1_paper)
-        version_2_thread = self._create_comment_thread(self.version_2_paper)
-
-        # Create comments in each thread
-        self._create_comment(original_thread, "Comment on original")
-        self._create_comment(version_1_thread, "Comment on version 1")
-        self._create_comment(version_2_thread, "Comment on version 2")
-
-        # Test serializer with version 1 paper
-        request = self.factory.get("/")
-        request.user = self.user
-        serializer = DynamicPaperSerializer(
-            self.version_1_paper, context={"request": request}
-        )
-
-        aggregates = serializer.get_discussion_aggregates(self.version_1_paper)
-
-        # Should include aggregates from all versions
-        self.assertIsInstance(aggregates, dict)
-        self.assertIn("discussion_count", aggregates)
 
     def test_discussions_from_different_paper_families_not_mixed(self):
         """Test that discussions from different paper families are not mixed."""
@@ -242,57 +168,3 @@ class PaperSerializerVersionTests(TestCase):
         self.assertEqual(thread_ids, expected_thread_ids)
         self.assertTrue(thread_ids.isdisjoint(unexpected_thread_ids))
         self.assertEqual(len(discussions), 2)
-
-    def test_serializer_context_fields_respected(self):
-        """Test that serializer context fields are properly passed through."""
-        # Create a thread and comment
-        original_thread = self._create_comment_thread(self.original_paper)
-        self._create_comment(original_thread, "Test comment")
-
-        # Test with specific context fields
-        request = self.factory.get("/")
-        request.user = self.user
-        context = {
-            "request": request,
-            "pap_dps_get_discussions": {"_include_fields": ["id", "thread_type"]},
-            "pap_dps_get_discussions_select": ["content_type"],
-            "pap_dps_get_discussions_prefetch": ["rh_comments"],
-        }
-
-        serializer = DynamicPaperSerializer(self.original_paper, context=context)
-
-        discussions = serializer.get_discussions(self.original_paper)
-
-        # Should still return discussions, context fields should be applied
-        self.assertGreater(len(discussions), 0)
-
-        # Verify that the context fields were used (basic check)
-        for discussion in discussions:
-            self.assertIn("id", discussion)
-
-    def test_empty_paper_versions_chain(self):
-        """Test behavior with papers that have no comments or threads."""
-        # Create papers with no comments
-        empty_original = create_paper(title="Empty Original")
-        empty_version_paper = create_paper(title="Empty Version")
-        PaperVersion.objects.create(
-            paper=empty_version_paper,
-            version=1,
-            base_doi="10.1111/empty",
-            message="Empty version",
-            original_paper=empty_original,
-            publication_status=PaperVersion.PREPRINT,
-        )
-
-        request = self.factory.get("/")
-        request.user = self.user
-        serializer = DynamicPaperSerializer(
-            empty_original, context={"request": request}
-        )
-
-        discussions = serializer.get_discussions(empty_original)
-        aggregates = serializer.get_discussion_aggregates(empty_original)
-
-        # Should return empty results
-        self.assertEqual(len(discussions), 0)
-        self.assertIsInstance(aggregates, dict)

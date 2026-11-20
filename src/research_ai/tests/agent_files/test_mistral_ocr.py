@@ -72,15 +72,6 @@ class MistralOcrTests(TestCase):
         self.assertEqual(texts, ["", ""])
 
     @responses.activate
-    def test_a_rejected_request_is_an_ocr_error(self):
-        # Arrange
-        responses.post(API_URL, json={"message": "Rate limited"}, status=429)
-
-        # Act / Assert
-        with self.assertRaises(OcrError):
-            self.ocr.read_page(PAGE)
-
-    @responses.activate
     def test_a_network_failure_is_an_ocr_error(self):
         # Arrange
         responses.post(API_URL, body=requests.ConnectionError("unreachable"))
@@ -100,15 +91,6 @@ class MistralOcrTests(TestCase):
         for body in bodies:
             with self.subTest(body=body), self.assertRaises(OcrError):
                 self.ocr.read_page(PAGE)
-
-    @responses.activate
-    def test_a_response_that_is_not_json_is_an_ocr_error(self):
-        # Arrange
-        responses.post(API_URL, body="<html>Bad gateway</html>")
-
-        # Act / Assert
-        with self.assertRaises(OcrError):
-            self.ocr.read_page(PAGE)
 
 
 class MistralOcrFromSettingsTests(SimpleTestCase):

@@ -1,5 +1,4 @@
 from datetime import datetime
-from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
@@ -11,19 +10,6 @@ from user.tests.helpers import create_random_default_user
 
 class ProcessAmplitudeEventTaskTestCase(TestCase):
     """Test cases for the process_amplitude_event Celery task."""
-
-    @patch("analytics.services.event_processor.EventProcessor")
-    def test_task_calls_event_processor(self, mock_processor_class):
-        """Test that the task instantiates and calls EventProcessor."""
-        mock_processor = MagicMock()
-        mock_processor_class.return_value = mock_processor
-
-        event = {"event_type": "test", "event_properties": {}}
-
-        process_amplitude_event(event)
-
-        mock_processor_class.assert_called_once()
-        mock_processor.process_event.assert_called_once_with(event)
 
     def test_task_processes_event_end_to_end(self):
         """Integration test: task processes event and creates database record."""

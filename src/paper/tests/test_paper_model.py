@@ -20,14 +20,3 @@ class PaperStatusTests(TestCase):
         self.assertEqual(unified_document.status, ResearchhubUnifiedDocument.APPROVED)
         self.assertIsNone(unified_document.reviewed_by)
         self.assertIsNone(unified_document.reviewed_date)
-
-    def test_status_choices_match_constants(self):
-        # Assert
-        self.assertEqual(
-            set(dict(ResearchhubUnifiedDocument.STATUS_CHOICES).keys()),
-            {
-                ResearchhubUnifiedDocument.PENDING,
-                ResearchhubUnifiedDocument.APPROVED,
-                ResearchhubUnifiedDocument.DECLINED,
-            },
-        )

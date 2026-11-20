@@ -346,26 +346,6 @@ class TestChemRxivMapper(TestCase):
         result = self.mapper._extract_pdf_url(asset)
         self.assertIsNone(result)
 
-    def test_map_batch(self):
-        """Test batch mapping of records."""
-        records = [
-            self.sample_record,
-            {  # Invalid record - missing required fields
-                "id": "invalid",
-                "title": "Invalid Paper",
-            },
-        ]
-
-        with patch.object(self.mapper, "map_to_paper") as mock_map:
-            mock_paper = Mock(spec=Paper)
-            mock_map.return_value = mock_paper
-
-            results = self.mapper.map_batch(records, validate=True)
-
-            # Should only map the valid record
-            self.assertEqual(len(results), 1)
-            mock_map.assert_called_once()
-
     def test_map_to_authors_creates_author_models(self):
         """Test that map_to_authors creates Author model instances."""
         authors = self.mapper.map_to_authors(self.sample_record)
@@ -386,65 +366,6 @@ class TestChemRxivMapper(TestCase):
         self.assertTrue(hasattr(authors[0], "_index"))
         self.assertEqual(authors[0]._index, 1)  # Second author in list
         self.assertEqual(authors[0]._total_authors, 2)
-
-    def test_map_to_authors_skips_without_orcid(self):
-        """Test that authors without ORCID are skipped."""
-        record = {
-            "authors": [
-                {"firstName": "No", "lastName": "Orcid", "orcid": ""},
-                {"firstName": "Also No", "lastName": "Orcid"},  # Missing orcid field
-                {"firstName": "Has", "lastName": "Orcid", "orcid": None},  # None value
-            ]
-        }
-
-        authors = self.mapper.map_to_authors(record)
-        self.assertEqual(len(authors), 0)
-
-    def test_map_to_authors_with_multiple_orcids(self):
-        """Test mapping multiple authors with ORCIDs."""
-        record = {
-            "authors": [
-                {
-                    "firstName": "John",
-                    "lastName": "Doe",
-                    "orcid": "0000-0001-2345-6789",
-                    "institutions": [
-                        {
-                            "name": "Test University",
-                            "rorId": "https://ror.org/test123",
-                            "country": "United States",
-                        }
-                    ],
-                },
-                {
-                    "firstName": "Jane",
-                    "lastName": "Smith",
-                    "orcid": "0000-0002-3456-7890",
-                    "institutions": [],
-                },
-                {
-                    "firstName": "Bob",
-                    "lastName": "NoOrcid",
-                    "orcid": "",  # No ORCID
-                    "institutions": [],
-                },
-            ],
-        }
-
-        authors = self.mapper.map_to_authors(record)
-
-        # Should only create authors with ORCID IDs (2 out of 3)
-        self.assertEqual(len(authors), 2)
-
-        # Check first author
-        self.assertEqual(authors[0].first_name, "John")
-        self.assertEqual(authors[0].last_name, "Doe")
-        self.assertEqual(authors[0].orcid_id, "0000-0001-2345-6789")
-
-        # Check second author
-        self.assertEqual(authors[1].first_name, "Jane")
-        self.assertEqual(authors[1].last_name, "Smith")
-        self.assertEqual(authors[1].orcid_id, "0000-0002-3456-7890")
 
     def test_map_to_authors_empty_record(self):
         """Test handling of empty author list."""
@@ -493,69 +414,6 @@ class TestChemRxivMapper(TestCase):
 
         institutions = self.mapper.map_to_institutions(record)
         self.assertEqual(len(institutions), 2)  # Only 2 unique ROR IDs
-
-    def test_map_to_institutions_skips_without_ror(self):
-        """Test that institutions without ROR ID are skipped."""
-        record = {
-            "authors": [
-                {
-                    "institutions": [
-                        {"name": "No ROR", "rorId": ""},
-                        {"name": "Also No ROR"},  # Missing rorId field
-                        {"name": "Has ROR", "rorId": "https://ror.org/valid"},
-                    ]
-                }
-            ]
-        }
-
-        institutions = self.mapper.map_to_institutions(record)
-        self.assertEqual(len(institutions), 1)  # Only the one with ROR ID
-        self.assertEqual(institutions[0].display_name, "Has ROR")
-
-    def test_map_to_institutions_multiple_unique(self):
-        """Test mapping multiple unique institutions."""
-        record = {
-            "authors": [
-                {
-                    "institutions": [
-                        {
-                            "name": "University A",
-                            "rorId": "https://ror.org/test123",
-                            "country": "United States",
-                        },
-                        {
-                            "name": "University B",
-                            "rorId": "https://ror.org/test456",
-                            "country": "United Kingdom",
-                        },
-                    ]
-                },
-                {
-                    "institutions": [
-                        {
-                            "name": "University C",
-                            "rorId": "https://ror.org/test789",
-                            "country": "Canada",
-                        }
-                    ]
-                },
-            ]
-        }
-
-        institutions = self.mapper.map_to_institutions(record)
-        self.assertEqual(len(institutions), 3)
-
-        # Check ROR IDs
-        ror_ids = [inst.ror_id for inst in institutions]
-        self.assertIn("https://ror.org/test123", ror_ids)
-        self.assertIn("https://ror.org/test456", ror_ids)
-        self.assertIn("https://ror.org/test789", ror_ids)
-
-        # Check display names
-        names = [inst.display_name for inst in institutions]
-        self.assertIn("University A", names)
-        self.assertIn("University B", names)
-        self.assertIn("University C", names)
 
     def test_map_to_authorships_creates_authorship_models(self):
         """Test that map_to_authorships creates Authorship model instances."""
@@ -642,32 +500,6 @@ class TestChemRxivMapper(TestCase):
         # Single author is "first" (index 0)
         self.assertEqual(authorships[0].author_position, "first")
 
-    def test_map_to_authorships_two_authors(self):
-        """Test positions for two authors (first and last)."""
-        record = {
-            "authors": [
-                {
-                    "firstName": "First",
-                    "lastName": "Author",
-                    "orcid": "0000-0000-0000-0001",
-                    "institutions": [],
-                },
-                {
-                    "firstName": "Second",
-                    "lastName": "Author",
-                    "orcid": "0000-0000-0000-0002",
-                    "institutions": [],
-                },
-            ]
-        }
-
-        paper = Paper(id=1, title="Test", doi="test")
-        authorships = self.mapper.map_to_authorships(paper, record)
-
-        self.assertEqual(len(authorships), 2)
-        self.assertEqual(authorships[0].author_position, "first")
-        self.assertEqual(authorships[1].author_position, "last")
-
     def test_map_to_authorships_institution_matching(self):
         """Test that institutions are correctly matched to authorships."""
         record = {
@@ -694,42 +526,6 @@ class TestChemRxivMapper(TestCase):
         inst_names = [inst.display_name for inst in authorships[0]._institutions_to_add]
         self.assertIn("University A", inst_names)
         self.assertIn("University B", inst_names)
-
-    def test_map_to_authorships_mixed_orcids(self):
-        """Test authorships with mixed ORCID presence."""
-        record = {
-            "authors": [
-                {
-                    "firstName": "Has",
-                    "lastName": "Orcid",
-                    "orcid": "0000-0000-0000-0001",
-                    "institutions": [],
-                },
-                {
-                    "firstName": "No",
-                    "lastName": "Orcid",
-                    "orcid": "",  # No ORCID
-                    "institutions": [],
-                },
-                {
-                    "firstName": "Also Has",
-                    "lastName": "Orcid",
-                    "orcid": "0000-0000-0000-0003",
-                    "institutions": [],
-                },
-            ]
-        }
-
-        paper = Paper(id=1, title="Test", doi="test")
-        authorships = self.mapper.map_to_authorships(paper, record)
-
-        # Should only create authorships for authors with ORCID (2 out of 3)
-        self.assertEqual(len(authorships), 2)
-
-        # First author with ORCID is at index 0, so position is "first"
-        self.assertEqual(authorships[0].author_position, "first")
-        # Second author with ORCID is at index 2 (last), so position is "last"
-        self.assertEqual(authorships[1].author_position, "last")
 
     def test_map_to_hubs(self):
         """

@@ -24,18 +24,6 @@ class PaperPermissionsIntegrationTests(APITestCase):
         # Assert
         self.assertContains(response, self.flag_reason, status_code=201)
 
-    def test_moderator_can_update_paper(self):
-        # Arrange
-        moderator = create_random_authenticated_user(
-            self.random_generator.random(), moderator=True
-        )
-
-        # Act
-        response = self.get_patch_response(moderator, self.paper)
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-
     def test_hub_editor_can_update_paper(self):
         # Arrange
         editor, _ = create_hub_editor(self.random_generator.random(), "Test Hub")

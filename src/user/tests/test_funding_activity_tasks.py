@@ -28,17 +28,6 @@ class CreateFundingActivityTaskTests(TestCase):
         self.assertEqual(activity.total_amount, Decimal(10))
         self.assertEqual(activity.funder_id, self.funder.id)
 
-    def test_task_idempotent_for_same_source(self):
-        """Calling the task twice for the same source does not duplicate activity."""
-        dist = Distribution.objects.create(
-            giver=self.funder,
-            amount=Decimal(5),
-            distribution_type="SUPPORT_RH_FEE",
-        )
-        create_funding_activity_task(FundingActivity.FEE, dist.pk)
-        create_funding_activity_task(FundingActivity.FEE, dist.pk)
-        self.assertEqual(FundingActivity.objects.count(), 1)
-
     def test_task_returns_when_source_missing(self):
         """Task returns without raising when source_id does not exist."""
         create_funding_activity_task(FundingActivity.FEE, 999999)

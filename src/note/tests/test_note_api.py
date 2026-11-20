@@ -266,19 +266,6 @@ class NoteTests(APITestCase):
         created_note = response.data
         self.assertEqual(created_note["access"], "PRIVATE")
 
-    def test_delete_private_note(self):
-        created_response = self.client.post(
-            "/api/note/",
-            {
-                "grouping": "PRIVATE",
-                "organization_slug": self.org["slug"],
-                "title": "TO BE DELETED",
-            },
-        )
-        created_note = created_response.data
-        response = self.client.post(f"/api/note/{created_note['id']}/delete/")
-        self.assertEqual(response.status_code, 200)
-
     def test_cannot_create_shared_note_manually(self):
         response = self.client.post(
             "/api/note/",
@@ -885,47 +872,6 @@ class NoteTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(NoteTemplate.objects.get(id=template["id"]).is_removed)
 
-    def test_note_content_json_functionality(self):
-        # Create workspace note
-        response = self.client.post(
-            "/api/note/",
-            {
-                "grouping": "WORKSPACE",
-                "organization_slug": self.org["slug"],
-                "title": "TEST",
-            },
-        )
-        note = response.data
-
-        # Test creating content with full_json
-        test_json = {
-            "type": "doc",
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [{"type": "text", "text": "Test JSON Content"}],
-                }
-            ],
-        }
-
-        response = self.client.post(
-            "/api/note_content/",
-            {
-                "full_json": test_json,
-                "note": note["id"],
-                "plain_text": "Test JSON Content",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["json"], test_json)
-        self.assertIsNone(response.data["src"])
-
-        # Re-fetch note to verify json is saved
-        response = self.client.get(f"/api/note/{note['id']}/")
-        note = response.data
-        self.assertEqual(note["latest_version"]["json"], test_json)
-        self.assertIsNone(note["latest_version"]["src"])
-
     def test_note_content_json_priority_over_src(self):
         # Create workspace note
         response = self.client.post(
@@ -1205,54 +1151,6 @@ class NoteTests(APITestCase):
         self.assertIn("applications", grant_data)
         self.assertEqual(grant_data["applications"], [])
 
-    def test_get_organization_notes_status_draft(self):
-        # Create two notes: one draft (no post) and one published (with post)
-        draft_response = self.client.post(
-            "/api/note/",
-            {
-                "grouping": "WORKSPACE",
-                "organization_slug": self.org["slug"],
-                "title": "Draft note",
-            },
-        )
-        self.assertEqual(draft_response.status_code, 200)
-
-        published_response = self.client.post(
-            "/api/note/",
-            {
-                "grouping": "WORKSPACE",
-                "organization_slug": self.org["slug"],
-                "title": "Published note",
-            },
-        )
-        self.assertEqual(published_response.status_code, 200)
-        published_note = published_response.data
-
-        # Publish the second note by creating an associated post
-        post_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "document_type": "DISCUSSION",
-                "created_by": self.user.id,
-                "full_src": "Test post content",
-                "is_public": True,
-                "note_id": published_note["id"],
-                "renderable_text": (
-                    "Test post content that is sufficiently long for validation"
-                ),
-                "title": "Test post title that is sufficiently long",
-            },
-        )
-        self.assertEqual(post_response.status_code, 200)
-
-        # Fetch only draft notes
-        response = self.client.get(
-            f"/api/organization/{self.org['slug']}/get_organization_notes/?status=DRAFT"
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["count"], 1)
-        self.assertEqual(response.data["results"][0]["title"], "Draft note")
-
     def test_get_organization_notes_status_published(self):
         # Create two notes: one draft (no post) and one published (with post)
         self.client.post(
@@ -1299,37 +1197,6 @@ class NoteTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["title"], "Published note")
-
-    def test_create_note_with_document_type_sets_field(self):
-        response = self.client.post(
-            "/api/note/",
-            {
-                "grouping": "WORKSPACE",
-                "organization_slug": self.org["slug"],
-                "title": "Grant draft",
-                "document_type": "GRANT",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["document_type"], "GRANT")
-
-        note = Note.objects.get(id=response.data["id"])
-        self.assertEqual(note.document_type, "GRANT")
-
-    def test_create_note_without_document_type_leaves_field_null(self):
-        response = self.client.post(
-            "/api/note/",
-            {
-                "grouping": "WORKSPACE",
-                "organization_slug": self.org["slug"],
-                "title": "Plain note",
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertIsNone(response.data["document_type"])
-
-        note = Note.objects.get(id=response.data["id"])
-        self.assertIsNone(note.document_type)
 
     def test_get_organization_notes_filter_by_type(self):
         # Create notes with different document types

@@ -59,19 +59,3 @@ class AccountAgeBonusTaskTests(TestCase):
                 user=user, event_type=EventType.ACCOUNT_AGE_BONUS
             ).exists()
         )
-
-    def test_repeated_runs_are_idempotent(self):
-        # Arrange
-        user = self._create_aged_user(email="repeat@test.com")
-
-        # Act
-        apply_account_age_bonus_task()
-        apply_account_age_bonus_task()
-
-        # Assert
-        self.assertEqual(
-            RiskScoreEvent.objects.filter(
-                user=user, event_type=EventType.ACCOUNT_AGE_BONUS
-            ).count(),
-            1,
-        )

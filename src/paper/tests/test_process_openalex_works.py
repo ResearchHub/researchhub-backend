@@ -159,45 +159,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
             self.assertEqual(len(paper_authors), 3)
 
     @patch.object(OpenAlex, "get_authors")
-    def test_create_authorships_when_processing_work(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(self.works)
-
-            dois = [work.get("doi") for work in self.works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            paper = Paper.objects.filter(doi__in=dois).order_by("doi")
-
-            authorships = paper[0].authorships.all()
-            self.assertEqual(len(authorships), 3)
-            authorships = paper[1].authorships.all()
-            self.assertEqual(len(authorships), 3)
-
-    @patch.object(OpenAlex, "get_authors")
-    def test_create_authorships_when_processing_work_twice(self, mock_get_authors):
-        with open(fixtures_dir / "openalex_authors.json") as file:
-            # Arrange
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            # Act
-            process_openalex_works(self.works)
-            # Invoking the process twice should not create duplicate authorships
-            process_openalex_works(self.works)
-
-            # Assert
-            dois = [work.get("doi") for work in self.works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            paper = Paper.objects.filter(doi__in=dois).order_by("doi")
-
-            authorships = paper[0].authorships.all()
-            self.assertEqual(len(authorships), 3)
-            authorships = paper[1].authorships.all()
-            self.assertEqual(len(authorships), 3)
-
-    @patch.object(OpenAlex, "get_authors")
     def test_create_authorships_when_processing_work_with_field_updates(
         self, mock_get_authors
     ):

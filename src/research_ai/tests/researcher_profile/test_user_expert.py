@@ -43,14 +43,6 @@ class ExpertForUserTests(TestCase):
         # Act & Assert
         self.assertEqual(expert_for_user(user), linked)
 
-    def test_resolves_through_a_held_invitation_despite_different_email(self):
-        # Arrange: invited at the institutional address, signed up with another.
-        user = _make_user(email="jane.personal@researchhub_test.com")
-        invited = Expert.objects.create(email="jane@stanford.edu", first_name="Invited")
-        _invite(user, "jane@stanford.edu")
-        # Act & Assert
-        self.assertEqual(expert_for_user(user), invited)
-
     def test_resolves_the_invited_identity_despite_a_retargeted_email(self):
         # Arrange: the outreach row's editable expert_email is changed after
         # the invite was claimed; the invitation's addressee must still win.

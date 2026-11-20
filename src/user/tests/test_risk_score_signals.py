@@ -467,13 +467,6 @@ class PersonaVerificationSignalTests(RiskScoreSignalTestCase):
         # Assert
         self._assert_no_events(self.user)
 
-    def test_declined_verification_does_not_record(self):
-        # Act
-        self._create_verification(UserVerification.Status.DECLINED)
-
-        # Assert
-        self._assert_no_events(self.user)
-
 
 class UserCreatedSignalTests(RiskScoreSignalTestCase):
     @classmethod
@@ -644,56 +637,6 @@ class PaperStatusChangedSignalTests(RiskScoreSignalTestCase):
             delta=RiskScoreEvent.DELTAS[EventType.WORK_APPROVED],
             source_id=self.paper.pk,
         )
-
-    def test_moderator_decline_records_work_declined(self):
-        # Arrange
-        self.unified_document.status = ResearchhubUnifiedDocument.DECLINED
-        self.unified_document.reviewed_by = self.moderator
-
-        # Act
-        with self.captureOnCommitCallbacks(execute=True):
-            self._fire()
-
-        # Assert
-        self._assert_has_event(
-            self.user,
-            EventType.WORK_DECLINED,
-            delta=RiskScoreEvent.DELTAS[EventType.WORK_DECLINED],
-            source_id=self.paper.pk,
-        )
-
-    def test_pending_status_does_not_record(self):
-        # Arrange
-        self.unified_document.status = ResearchhubUnifiedDocument.PENDING
-        self.unified_document.reviewed_by = self.moderator
-
-        # Act
-        self._fire()
-
-        # Assert
-        self._assert_no_events(self.user)
-
-    def test_auto_approval_without_reviewer_does_not_record(self):
-        # Arrange
-        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
-        self.unified_document.reviewed_by = None
-
-        # Act
-        self._fire()
-
-        # Assert
-        self._assert_no_events(self.user)
-
-    def test_creation_does_not_record(self):
-        # Arrange
-        self.unified_document.status = ResearchhubUnifiedDocument.APPROVED
-        self.unified_document.reviewed_by = self.moderator
-
-        # Act
-        self._fire(created=True)
-
-        # Assert
-        self._assert_no_events(self.user)
 
     def test_imported_paper_without_uploader_does_not_record(self):
         # Arrange

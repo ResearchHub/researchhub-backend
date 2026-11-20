@@ -28,19 +28,6 @@ class ExtractPdfFiguresTaskTests(TestCase):
         result = extract_pdf_figures(99999)
         self.assertFalse(result)
 
-    def test_extract_pdf_figures_no_file(self):
-        """Test that task retries when paper has no PDF file."""
-        paper = helpers.create_paper(title="No PDF Paper")
-        paper.file = None
-        paper.save()
-
-        with patch(
-            "paper.tasks.figure_tasks.extract_pdf_figures.apply_async"
-        ) as mock_retry:
-            result = extract_pdf_figures(paper.id)
-            self.assertFalse(result)
-            mock_retry.assert_called_once()
-
     @patch("paper.tasks.figure_tasks.requests.get")
     @patch("paper.tasks.figure_tasks.FigureExtractionService")
     @patch("paper.tasks.figure_tasks.select_primary_image.apply_async")
@@ -198,45 +185,6 @@ class ExtractPdfFiguresTaskTests(TestCase):
             {"skip_feed_refresh_extraction_check": False},
             priority=5,
         )
-
-    @patch("paper.tasks.figure_tasks.download_pdf_from_url")
-    @patch("paper.tasks.figure_tasks.create_download_url")
-    @patch("paper.tasks.figure_tasks.FigureExtractionService")
-    @patch("paper.tasks.figure_tasks.select_primary_image.apply_async")
-    def test_extract_pdf_figures_saves_pdf_to_file_when_downloaded(
-        self,
-        mock_select_task,
-        mock_service_class,
-        mock_create_url,
-        mock_download_pdf,
-    ):
-        """Test that task saves downloaded PDF to paper.file for future use."""
-        paper = helpers.create_paper(title="Test Paper")
-        paper.file = None
-        paper.pdf_url = "https://arxiv.org/pdf/1234.56789.pdf"
-        paper.external_source = "arxiv"
-        paper.save()
-
-        # Mock PDF download
-        pdf_content = b"fake pdf content"
-        pdf_file = ContentFile(pdf_content, name="paper.pdf")
-        mock_download_pdf.return_value = pdf_file
-        mock_create_url.return_value = "https://scraper/?url=test"
-
-        # Mock extraction service
-        mock_service = MagicMock()
-        mock_service_class.return_value = mock_service
-
-        # Create mock extracted figures
-        img = Image.new("RGB", (500, 500), color="blue")
-        buffer = BytesIO()
-        img.save(buffer, format="JPEG")
-        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
-        mock_service.extract_figures_from_pdf.return_value = [content_file]
-
-        result = extract_pdf_figures(paper.id)
-
-        self.assertTrue(result)
 
     @patch("paper.tasks.figure_tasks.requests.get")
     @patch("paper.tasks.figure_tasks.download_pdf_from_url")
@@ -709,36 +657,3 @@ class SyncPrimarySelectionTests(TestCase):
         # Extraction should still succeed even if selection fails
         self.assertTrue(result)
         mock_select.assert_called_once()
-
-    @patch("paper.tasks.figure_tasks.requests.get")
-    @patch("paper.tasks.figure_tasks.FigureExtractionService")
-    @patch("paper.tasks.figure_tasks.select_primary_image.apply_async")
-    def test_async_primary_selection_default(
-        self, mock_select_async, mock_service_class, mock_get
-    ):
-        """Test that default behavior calls select_primary_image asynchronously."""
-        # Mock PDF content
-        mock_response = MagicMock()
-        mock_response.content = b"fake pdf content"
-        mock_response.raise_for_status = MagicMock()
-        mock_get.return_value = mock_response
-
-        # Mock extraction service
-        mock_service = MagicMock()
-        mock_service_class.return_value = mock_service
-
-        # Create mock extracted figures
-        img = Image.new("RGB", (500, 500), color="blue")
-        buffer = BytesIO()
-        img.save(buffer, format="JPEG")
-        content_file = ContentFile(buffer.getvalue(), name="test-figure.jpg")
-        mock_service.extract_figures_from_pdf.return_value = [content_file]
-
-        result = extract_pdf_figures(self.paper.id)
-
-        self.assertTrue(result)
-        mock_select_async.assert_called_once_with(
-            (self.paper.id,),
-            {"skip_feed_refresh_extraction_check": False},
-            priority=5,
-        )

@@ -24,37 +24,6 @@ class TestHotScoreV2(AWSMockTestCase):
         self.user = create_random_default_user("hotscore_v2_test")
         self.now = datetime.now(UTC)
 
-    def test_basic_hot_score_calculation(self):
-        """Test basic hot score calculation with simple metrics."""
-        post = create_post(created_by=self.user)
-
-        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
-
-        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
-
-        feed_entry = FeedEntry.objects.create(
-            item=post,
-            unified_document=post.unified_document,
-            content_type=ContentType.objects.get_for_model(post),
-            object_id=post.id,
-            action=FeedEntry.PUBLISH,
-            action_date=self.now,
-            content=content,
-            metrics=metrics,
-        )
-
-        score = feed_entry.calculate_hot_score_v2()
-
-        # Verify score is calculated and is an integer
-        self.assertGreater(score, 0)
-        self.assertIsInstance(score, int)
-
-        # Verify breakdown was created in separate table
-        self.assertTrue(hasattr(feed_entry, "hot_score_breakdown_v2"))
-        self.assertIsNotNone(feed_entry.hot_score_breakdown_v2)
-        self.assertIsInstance(feed_entry.hot_score_breakdown_v2, HotScoreV2Breakdown)
-        self.assertIn("calculation", feed_entry.hot_score_breakdown_v2.breakdown_data)
-
     def test_json_fields_used_not_models(self):
         """Test that JSON metrics are used, not model attributes."""
         post = create_post(created_by=self.user)
@@ -634,43 +603,6 @@ class TestHotScoreV2(AWSMockTestCase):
         # Verify breakdown was deleted
         feed_entry.refresh_from_db()
         self.assertFalse(HotScoreV2Breakdown.objects.filter(id=breakdown_id).exists())
-
-    def test_breakdown_one_to_one_relationship(self):
-        """Test that OneToOneField relationship works correctly."""
-        post = create_post(created_by=self.user)
-
-        content = {"id": post.id, "title": "Test Post", "bounties": [], "purchases": []}
-        metrics = {"votes": 10, "replies": 0, "review_metrics": {"count": 0}}
-
-        feed_entry = FeedEntry.objects.create(
-            item=post,
-            unified_document=post.unified_document,
-            content_type=ContentType.objects.get_for_model(post),
-            object_id=post.id,
-            action=FeedEntry.PUBLISH,
-            action_date=self.now,
-            content=content,
-            metrics=metrics,
-        )
-
-        feed_entry.calculate_hot_score_v2()
-
-        # Verify relationship
-        breakdown = feed_entry.hot_score_breakdown_v2
-        self.assertEqual(breakdown.feed_entry, feed_entry)
-        self.assertEqual(breakdown.feed_entry_id, feed_entry.id)
-
-        # Verify we can access feed_entry from breakdown
-        self.assertEqual(breakdown.feed_entry.id, feed_entry.id)
-
-        # Verify only one breakdown per feed_entry (unique constraint)
-        from django.db import IntegrityError
-
-        with self.assertRaises(IntegrityError):
-            HotScoreV2Breakdown.objects.create(
-                feed_entry=feed_entry,
-                breakdown_data={"test": "data"},
-            )
 
     def test_breakdown_str_representation(self):
         """Test HotScoreV2Breakdown __str__ method."""

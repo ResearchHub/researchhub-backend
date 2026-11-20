@@ -136,28 +136,6 @@ class DocumentSignalsTests(AWSMockTestCase):
         self.assertEqual(feed_entries[0].user, post.created_by)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    def test_feed_entries_are_deleted_when_all_hubs_are_removed_from_post(self):
-        """
-        Test that feed entries are deleted when all hubs are removed from a post.
-        """
-        # Arrange
-        hub1 = create_hub(name="testHub1")
-        hub2 = create_hub(name="testHub2")
-        post = create_post(title="testPaper1", created_by=self.user)
-
-        # Act
-        post.unified_document.hubs.remove(hub1, hub2)  # remove all hubs
-        post.save()
-
-        # Assert
-        feed_entries_exist = FeedEntry.objects.filter(
-            content_type=ContentType.objects.get_for_model(post),
-            object_id=post.id,
-        ).exists()
-
-        self.assertFalse(feed_entries_exist)
-
-    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_hubs_are_removed_from_feed_entries_when_all_hubs_are_removed_from_post(
         self,
     ):

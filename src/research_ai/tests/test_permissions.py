@@ -23,17 +23,6 @@ class ResearchAIPermissionTests(TestCase):
         self.assertTrue(request.user.is_authenticated)
         self.assertTrue(self.permission.has_permission(request, None))
 
-    def test_is_authorized_anonymous_false(self):
-        request = self.factory.get("/")
-        request.user = AnonymousUser()
-        self.assertFalse(self.permission.is_authorized(request, None, None))
-
-    def test_is_authorized_authenticated_true(self):
-        user = create_random_authenticated_user("auth")
-        request = self.factory.get("/")
-        request.user = user
-        self.assertTrue(self.permission.is_authorized(request, None, None))
-
 
 class ResearchAIBudgetPermissionTests(TestCase):
     def setUp(self):

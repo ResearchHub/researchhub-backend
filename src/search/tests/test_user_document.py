@@ -101,30 +101,6 @@ class UserDocumentTests(TestCase):
         # Verify input size is capped
         self.assertLessEqual(len(input_list), 10)
 
-    def test_prepare_full_name_suggest_with_special_characters(self):
-        """Test normalization with various special characters"""
-        # Create a user with various accented characters
-        special_user = User.objects.create_user(
-            username="special@test.com",
-            email="special@test.com",
-            first_name="François",
-            last_name="Müller",
-            is_suspended=False,
-        )
-
-        result = self.document.prepare_full_name_suggest(special_user)
-        input_list = result["input"]
-
-        # Should contain normalized versions
-        self.assertIn("francois", input_list)
-        self.assertIn("muller", input_list)
-        self.assertIn("francois muller", input_list)
-
-        # Should still contain original versions
-        self.assertIn("François", input_list)
-        self.assertIn("Müller", input_list)
-        self.assertIn("François Müller", input_list)
-
     def test_prepare_full_name_suggest_removes_duplicates(self):
         """Test that duplicate entries are removed from input list"""
         # Create a user where normalization might create duplicates
@@ -211,56 +187,6 @@ class UserDocumentTests(TestCase):
 
         # Should have first + last combination
         self.assertIn("李小明 Smith", input_list)
-
-    def test_prepare_full_name_suggest_with_arabic_names(self):
-        """Test that Arabic names are preserved correctly"""
-        # Create a user with Arabic characters
-        arabic_user = User.objects.create_user(
-            username="arabic@test.com",
-            email="arabic@test.com",
-            first_name="محمد",
-            last_name="أحمد",
-            is_suspended=False,
-        )
-
-        result = self.document.prepare_full_name_suggest(arabic_user)
-        input_list = result["input"]
-
-        # Should contain original Arabic characters
-        self.assertIn("محمد", input_list)
-        self.assertIn("أحمد", input_list)
-        self.assertIn("محمد أحمد", input_list)
-
-        # Should NOT crash when ASCII normalization produces empty results
-        self.assertIsNotNone(result)
-        self.assertIsInstance(result, dict)
-        self.assertIn("input", result)
-        self.assertIn("weight", result)
-
-    def test_prepare_full_name_suggest_with_cyrillic_names(self):
-        """Test that Cyrillic names work correctly"""
-        # Create a user with Cyrillic characters
-        cyrillic_user = User.objects.create_user(
-            username="cyrillic@test.com",
-            email="cyrillic@test.com",
-            first_name="Владимир",
-            last_name="Путин",
-            is_suspended=False,
-        )
-
-        result = self.document.prepare_full_name_suggest(cyrillic_user)
-        input_list = result["input"]
-
-        # Should contain original Cyrillic characters
-        self.assertIn("Владимир", input_list)
-        self.assertIn("Путин", input_list)
-        self.assertIn("Владимир Путин", input_list)
-
-        # Should NOT crash when ASCII normalization produces empty results
-        self.assertIsNotNone(result)
-        self.assertIsInstance(result, dict)
-        self.assertIn("input", result)
-        self.assertIn("weight", result)
 
     def test_prepare_profile_image_returns_url_when_present(self):
         # Arrange

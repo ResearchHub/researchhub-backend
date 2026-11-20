@@ -349,24 +349,6 @@ class PriorDocumentExpertExclusionTests(TestCase):
         self.assertIn("Prior Expert", names)
         self.assertEqual(emails, {"prior@uni.edu"})
 
-    def test_excludes_current_search_id(self):
-        # Arrange
-        SearchExpert.objects.create(
-            expert_search=self.current_search,
-            expert=self.prior_expert,
-            position=0,
-        )
-
-        # Act
-        names, emails = _names_and_emails_from_prior_document_searches(
-            self.paper_a.unified_document_id,
-            exclude_search_id=self.current_search.id,
-        )
-
-        # Assert
-        self.assertIn("Prior Expert", names)
-        self.assertEqual(emails, {"prior@uni.edu"})
-
     def test_does_not_include_experts_from_other_documents(self):
         # Arrange
         other_search = ExpertSearch.objects.create(

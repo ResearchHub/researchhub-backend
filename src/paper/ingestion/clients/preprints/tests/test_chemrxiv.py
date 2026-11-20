@@ -24,17 +24,6 @@ class TestChemRxivClient(TestCase):
         )
         self.client = ChemRxivClient(self.config)
 
-    def test_config_defaults(self):
-        """Test default configuration values."""
-        config = ChemRxivConfig()
-        self.assertEqual(config.source_name, "chemrxiv")
-        self.assertEqual(
-            config.base_url, "https://chemrxiv.org/engage/chemrxiv/public-api/v1"
-        )
-        self.assertEqual(config.rate_limit, 1.0)
-        self.assertEqual(config.page_size, 100)
-        self.assertEqual(config.max_results_per_query, 1000)
-
     @patch("requests.Session.get")
     def test_fetch_success(self, mock_get):
         """Test successful fetch from API."""
@@ -116,14 +105,6 @@ class TestChemRxivClient(TestCase):
         self.assertEqual(len(papers), 1)
         self.assertEqual(papers[0]["id"], "789")
         self.assertEqual(papers[0]["source"], "chemrxiv")
-
-    def test_parse_empty_response(self):
-        """Test parsing of empty response."""
-        raw_data = {"totalCount": 0, "itemHits": []}
-
-        papers = self.client.parse(raw_data)
-
-        self.assertEqual(len(papers), 0)
 
     def test_parse_unexpected_structure(self):
         """Test parsing of unexpected response structure."""

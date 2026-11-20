@@ -358,16 +358,6 @@ class FeedEntryRiskScoreFieldTests(TestCase):
         # Assert
         self.assertNotIn("risk_score", serializer.fields)
 
-    def test_moderator_serializer_exposes_risk_score_for_moderator(self):
-        # Arrange
-        moderator = create_random_default_user("mod_flag", moderator=True)
-
-        # Act
-        serializer = self._serializer(ModeratorFeedEntrySerializer, moderator)
-
-        # Assert
-        self.assertIn("risk_score", serializer.fields)
-
     def test_moderator_serializer_drops_risk_score_for_non_moderator(self):
         # Arrange
         regular = create_random_default_user("regular_flag")

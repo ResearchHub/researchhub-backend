@@ -50,7 +50,7 @@ class UserTasksTests(TestCase):
         self.assertFalse(first_action in latest_actions)
 
 
-class HandleSpamUserTaskTests(TestCase):
+class SpamUserTestCase(TestCase):
     def setUp(self):
         # Create a user
         self.user = create_random_default_user("spam_user")
@@ -93,6 +93,8 @@ class HandleSpamUserTaskTests(TestCase):
             object_id=self.paper.id,
         )
 
+
+class HandleSpamUserTaskTests(SpamUserTestCase):
     @patch("feed.activity_feed_cache.queue_activity_feed_cache_warm")
     def test_suspend_warms_activity_feed_cache_once(self, mock_warm):
         """Removing every comment still rebuilds the public activity feed once."""
@@ -374,7 +376,7 @@ class HandleSpamUserTaskTests(TestCase):
         self.assertFalse(comment2.is_removed)
 
 
-class HandleSpamUserContentTests(HandleSpamUserTaskTests):
+class HandleSpamUserContentTests(SpamUserTestCase):
     def setUp(self):
         super().setUp()
         self.other_user = create_random_default_user("content_other_user")

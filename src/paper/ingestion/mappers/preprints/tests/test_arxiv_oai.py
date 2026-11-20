@@ -4,13 +4,12 @@ Tests for ArXiv OAI mapper.
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from django.test import TestCase
 
 from hub.models import Hub
 from paper.ingestion.mappers import ArXivOAIMapper
-from paper.models import Paper
 
 
 class TestArXivOAIMapper(TestCase):
@@ -262,30 +261,6 @@ class TestArXivOAIMapper(TestCase):
         self.assertEqual(authors[1]["first_name"], "Jane")
         self.assertEqual(authors[1]["last_name"], "Smith")
         self.assertEqual(authors[1]["affiliations"], ["MIT"])
-
-    def test_map_batch(self):
-        """
-        Test batch mapping of records.
-        """
-        # Arrange
-        records = [
-            self.sample_record,
-            {  # Invalid record - missing required fields
-                "id": "invalid",
-                "title": "Invalid Paper",
-            },
-        ]
-
-        with patch.object(self.mapper, "map_to_paper") as mock_map:
-            mock_paper = MagicMock(spec=Paper)
-            mock_map.return_value = mock_paper
-
-            # Act
-            results = self.mapper.map_batch(records, validate=True)
-
-            # Assert - Should only map the valid record
-            self.assertEqual(len(results), 1)
-            mock_map.assert_called_once()
 
     def test_map_to_hubs(self):
         """

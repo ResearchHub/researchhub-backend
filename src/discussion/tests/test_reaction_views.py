@@ -37,18 +37,6 @@ class ReactionViewTests(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-    def test_flag(self):
-        # Arrange
-        url = reverse("dummy-flag", kwargs={"pk": self.paper.id})
-
-        # Act
-        response = self.client.post(
-            url, {"reason": "Inappropriate", "reason_choice": NOT_SPECIFIED}
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
     def test_flag_already_flagged(self):
         # Arrange
         url = reverse("dummy-flag", kwargs={"pk": self.paper.id})

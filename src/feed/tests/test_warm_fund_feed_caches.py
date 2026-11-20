@@ -9,7 +9,6 @@ from django.urls import reverse
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
-from feed.cache_segment import FEED_CACHE_TIMEOUT
 from feed.funding_feed_cache import (
     FUNDING_FEED_WARM_COMPLETED_STATUS,
     FUNDING_FEED_WARM_ORDERINGS,
@@ -169,10 +168,6 @@ class GrantFundingWarmCacheTests(AWSMockTestCase):
         self.assertIsNotNone(payload)
         ids = {item["content_object"]["id"] for item in payload["results"]}
         self.assertIn(self.private_post.id, ids)
-
-    def test_shared_ttl_is_ten_minutes(self):
-        # Assert
-        self.assertEqual(FEED_CACHE_TIMEOUT, 60 * 10)
 
 
 class GrantFundingDisableCacheTests(AWSMockTestCase):

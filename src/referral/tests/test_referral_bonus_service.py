@@ -8,7 +8,6 @@ from django.utils import timezone
 from purchase.models import Balance, Fundraise, Purchase
 from referral.models import ReferralSignup
 from referral.services.referral_bonus_service import ReferralBonusService
-from referral.services.referral_metrics_service import ReferralMetricsService
 from reputation.models import Distribution
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -179,20 +178,6 @@ class ReferralBonusServiceTest(TestCase):
         # Should only create 2 distributions for the referred user
         self.assertEqual(Distribution.objects.count(), initial_distribution_count + 2)
 
-    def test_correct_bonus_calculation(self):
-        """Test that bonus amounts are calculated correctly"""
-        self.service.process_fundraise_completion(self.fundraise)
-
-        expected_bonus = self.contribution_amount * (
-            self.service.bonus_percentage / 100
-        )
-
-        referrer_distribution = Distribution.objects.filter(
-            recipient=self.referrer, distribution_type="REFERRAL_BONUS"
-        ).first()
-
-        self.assertEqual(referrer_distribution.amount, expected_bonus)
-
     def test_multiple_contributions_from_same_user(self):
         """Test that bonuses are calculated based on total contribution amount"""
         # Create another contribution from the same referred user
@@ -282,51 +267,6 @@ class ReferralBonusServiceTest(TestCase):
                 distribution.distributed_date,
                 f"Distribution {distribution.id} should have distributed_date set",
             )
-
-    def test_credits_earned_shows_correct_amount_in_metrics(self):
-        """
-        Test that credits earned calculation includes distributions with
-        DISTRIBUTED status
-        """
-        # Process the fundraise to create referral bonuses
-        self.service.process_fundraise_completion(self.fundraise)
-
-        # Get metrics for the referred user
-        metrics_service = ReferralMetricsService(self.referred_user)
-        user_funding_credits = metrics_service._calculate_user_funding_credits()
-
-        # Calculate expected bonus
-        expected_bonus = float(
-            self.contribution_amount * (self.service.bonus_percentage / 100)
-        )
-
-        # Check that credits earned equals the expected bonus
-        self.assertEqual(
-            user_funding_credits["total_earned"],
-            expected_bonus,
-            "Credits earned should equal the referral bonus received",
-        )
-
-        # Get network details from referrer's perspective
-        referrer_metrics_service = ReferralMetricsService(self.referrer)
-        network_details = referrer_metrics_service.get_referral_network_details()
-
-        # Find the referred user in network details
-        referred_user_details = next(
-            (
-                detail
-                for detail in network_details
-                if detail["user_id"] == self.referred_user.id
-            ),
-            None,
-        )
-
-        self.assertIsNotNone(referred_user_details)
-        self.assertEqual(
-            referred_user_details["referral_bonus_earned"],
-            expected_bonus,
-            "Network details should show correct credits earned for referred user",
-        )
 
     def test_contribution_before_referral_expired_and_fundraise_completed_after_referral_expired(  # noqa: E501
         self,

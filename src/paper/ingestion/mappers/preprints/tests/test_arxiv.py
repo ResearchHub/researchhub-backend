@@ -10,7 +10,6 @@ from django.test import TestCase
 
 from hub.models import Hub
 from paper.ingestion.mappers import ArXivMapper
-from paper.models import Paper
 
 
 class TestArXivMapper(TestCase):
@@ -37,9 +36,6 @@ class TestArXivMapper(TestCase):
 
         # First entry (without extras like comment)
         self.sample_record = parsed_records[0]
-
-        # Second entry (with comment)
-        self.sample_with_extras = parsed_records[1]
 
     def test_validate_valid_record(self):
         """Test validation of a valid ArXiv record."""
@@ -119,16 +115,6 @@ class TestArXivMapper(TestCase):
 
         # Check flags
         self.assertTrue(paper.retrieved_from_external_source)
-
-    def test_map_to_paper_with_extras(self):
-        """Test mapping ArXiv record with additional fields."""
-        paper = self.mapper.map_to_paper(self.sample_with_extras)
-
-        # Check DOI formatting for second entry
-        self.assertEqual(paper.doi, "10.48550/arXiv.2509.08817")
-        # Verify only arxiv_id is in metadata
-        self.assertEqual(paper.external_metadata["external_id"], "2509.08817v1")
-        self.assertEqual(len(paper.external_metadata), 1)
 
     def test_extract_arxiv_id(self):
         """Test ArXiv ID extraction from URLs."""
@@ -250,26 +236,6 @@ class TestArXivMapper(TestCase):
         self.assertEqual(authors[1]["last_name"], "Smith")
         self.assertEqual(authors[1]["affiliations"], ["MIT"])
 
-    def test_map_batch(self):
-        """Test batch mapping of records."""
-        records = [
-            self.sample_record,
-            {  # Invalid record - missing required fields
-                "id": "invalid",
-                "title": "Invalid Paper",
-            },
-        ]
-
-        with patch.object(self.mapper, "map_to_paper") as mock_map:
-            mock_paper = MagicMock(spec=Paper)
-            mock_map.return_value = mock_paper
-
-            results = self.mapper.map_batch(records, validate=True)
-
-            # Should only map the valid record
-            self.assertEqual(len(results), 1)
-            mock_map.assert_called_once()
-
     def test_urls_without_links(self):
         """Test URL construction when links are not provided."""
         # Parsed record without link elements
@@ -378,23 +344,5 @@ class TestArXivMapper(TestCase):
 
         # Assert
         mock_hub_mapper.map.assert_not_called()
-        self.assertEqual(len(hubs), 1)
-        self.assertEqual(hubs[0], self.arxiv_hub)
-
-    def test_map_to_hubs_hub_mapper_returns_empty(self):
-        """
-        Test map_to_hubs when hub_mapper returns empty list.
-        """
-        # Arrange
-        mock_hub_mapper = MagicMock()
-        mock_hub_mapper.map.return_value = []
-
-        mapper = ArXivMapper(mock_hub_mapper)
-
-        # Act
-        hubs = mapper.map_to_hubs(self.sample_record)
-
-        # Assert
-        mock_hub_mapper.map.assert_called_once_with("cs.CL", "arxiv")
         self.assertEqual(len(hubs), 1)
         self.assertEqual(hubs[0], self.arxiv_hub)

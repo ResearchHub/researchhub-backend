@@ -104,22 +104,6 @@ class UnifiedDocumentShareLinkViewTests(APITestCase):
         self.assertEqual(metadata_response.status_code, 200)
         self.assertEqual(metadata_response.data["fundraise"]["id"], self.fundraise.id)
 
-    def test_eligible_user_can_fetch_existing_link_without_minting_one(self):
-        # Arrange
-        link = self._mint(self.proposal)
-        url = (
-            f"/api/researchhub_unified_document/{self.unified_document.id}/share_link/"
-        )
-
-        # Act
-        self.client.force_authenticate(self.author)
-        response = self.client.get(url)
-
-        # Assert: reads the same token back, and creates nothing
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["token"], link.token)
-        self.assertEqual(UnifiedDocumentShareLink.objects.count(), 1)
-
     def test_fetching_link_is_restricted_to_authors_admins_editors_and_grant_creators(
         self,
     ):

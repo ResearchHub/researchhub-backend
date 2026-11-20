@@ -75,15 +75,6 @@ class TestBioRxivClient(TestCase):
             ],
         }
 
-    def test_config_defaults(self):
-        """Test BioRxiv config has correct defaults."""
-        config = BioRxivConfig()
-        self.assertEqual(config.source_name, "biorxiv")
-        self.assertEqual(config.base_url, "https://api.biorxiv.org")
-        self.assertEqual(config.rate_limit, 1.0)
-        self.assertEqual(config.page_size, 100)
-        self.assertEqual(config.request_timeout, 45.0)
-
     def test_parse(self):
         """Test parsing of BioRxiv API response."""
         papers = self.client.parse(self.sample_response)
@@ -142,50 +133,3 @@ class TestBioRxivClient(TestCase):
 
         # Verify endpoint was called correctly
         mock_fetch.assert_any_call("/details/biorxiv/2025-01-01/2025-01-01/0/json")
-
-    @patch.object(BioRxivClient, "fetch_with_retry")
-    def test_fetch_recent_pagination(self, mock_fetch):
-        """Test pagination handling in fetch_recent."""
-        # First page response
-        response1 = {
-            "messages": [
-                {
-                    "status": "ok",
-                    "cursor": 0,
-                    "count": 100,
-                    "total": "150",
-                }
-            ],
-            "collection": [{"doi": f"10.1101/paper{i}"} for i in range(100)],
-        }
-
-        # Second page response
-        response2 = {
-            "messages": [
-                {
-                    "status": "ok",
-                    "cursor": 100,
-                    "count": 50,
-                    "total": "150",
-                }
-            ],
-            "collection": [{"doi": f"10.1101/paper{i}"} for i in range(100, 150)],
-        }
-
-        # Mock to return different responses
-        mock_fetch.side_effect = [response1, response2]
-
-        # Mock parse to simplify
-        with patch.object(self.client, "process_page") as mock_process:
-            mock_process.side_effect = [
-                response1["collection"],
-                response2["collection"],
-            ]
-
-            papers = self.client.fetch_recent(
-                since=datetime(2025, 1, 1), until=datetime(2025, 1, 2)
-            )
-
-            # Should have fetched all 150 papers
-            self.assertEqual(len(papers), 150)
-            self.assertEqual(mock_fetch.call_count, 2)

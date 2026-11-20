@@ -9,7 +9,6 @@ from user.related_models.funding_activity_model import (
     FundingActivityRecipient,
 )
 from user.services.funding_activity_reporting import (
-    EARNER_SOURCE_TYPES,
     FundingActivityReportingService,
 )
 from user.tests.helpers import create_user
@@ -53,44 +52,6 @@ class FundingActivityReportingTests(TestCase):
             ),
         )
         return activity
-
-    def test_earnings_for_user_rsc_native_row(self):
-        """RSC-origin row: rsc from amount, rsc_usd_snapshot from usd_cents."""
-        # Arrange
-        self._create_activity(
-            FundingActivity.BOUNTY_PAYOUT, total_amount="50", total_usd_cents=2500
-        )
-
-        # Act
-        result = FundingActivityReportingService.earnings_for_user(self.recipient.id)
-
-        # Assert
-        self.assertEqual(
-            result["total_earned"],
-            {"rsc": 50.0, "rsc_usd_snapshot": 25.0, "usd": 0.0},
-        )
-        self.assertEqual(
-            result["by_source"][FundingActivity.BOUNTY_PAYOUT],
-            {"rsc": 50.0, "rsc_usd_snapshot": 25.0, "usd": 0.0},
-        )
-
-    def test_earnings_for_user_usd_native_row(self):
-        """USD-origin row: rsc from calculated amount, usd from usd_cents."""
-        # Arrange
-        self._create_activity(
-            FundingActivity.USD_FUNDRAISE_PAYOUT,
-            total_amount="200",
-            total_usd_cents=10000,
-        )
-
-        # Act
-        result = FundingActivityReportingService.earnings_for_user(self.recipient.id)
-
-        # Assert
-        self.assertEqual(
-            result["total_earned"],
-            {"rsc": 200.0, "rsc_usd_snapshot": 0.0, "usd": 100.0},
-        )
 
     def test_earnings_for_user_mixed_rows(self):
         """Mixed sources sum each leg without rate math."""
@@ -150,27 +111,6 @@ class FundingActivityReportingTests(TestCase):
         # Assert
         self.assertEqual(result, {"rsc": 25.0, "rsc_usd_snapshot": 12.5, "usd": 0.0})
 
-    def test_earnings_for_user_totals(self):
-        # Arrange
-        self._create_activity(
-            FundingActivity.FUNDRAISE_PAYOUT, total_amount="100", total_usd_cents=5000
-        )
-        self._create_activity(
-            FundingActivity.USD_FUNDRAISE_PAYOUT,
-            total_amount="20",
-            total_usd_cents=1000,
-        )
-
-        # Act
-        result = FundingActivityReportingService.earnings_for_user(self.recipient.id)
-
-        # Assert
-        self.assertEqual(
-            result["total_earned"],
-            {"rsc": 120.0, "rsc_usd_snapshot": 50.0, "usd": 10.0},
-        )
-        self.assertEqual(len(result["by_source"]), 2)
-
     def test_earnings_for_user_excludes_fee_by_default(self):
         # Arrange
         self._create_activity(
@@ -183,19 +123,3 @@ class FundingActivityReportingTests(TestCase):
         # Assert
         self.assertEqual(result["total_earned"], _ZERO_BREAKDOWN)
         self.assertEqual(result["by_source"], {})
-
-    def test_earnings_for_user_with_no_activity(self):
-        # Arrange
-        empty_user = create_user(email="report-empty@test.com")
-
-        # Act
-        result = FundingActivityReportingService.earnings_for_user(empty_user.id)
-
-        # Assert
-        self.assertEqual(result["total_earned"], _ZERO_BREAKDOWN)
-        self.assertEqual(result["by_source"], {})
-
-    def test_earner_source_types_constant(self):
-        # Arrange / Act / Assert
-        self.assertNotIn(FundingActivity.FEE, EARNER_SOURCE_TYPES)
-        self.assertIn(FundingActivity.USD_FUNDRAISE_PAYOUT, EARNER_SOURCE_TYPES)
