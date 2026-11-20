@@ -100,8 +100,14 @@ before writing it.
   symbol that the code under test imports or accesses at runtime.
 
 ## CI Reference
-CI runs from `src/` and performs:
-- `uv run python manage.py migrate`
-- `uv run python manage.py collectstatic --noinput`
-- `uv run python manage.py opensearch index rebuild --force`
-- `uv run coverage run manage.py test --verbosity=2`
+CI runs two jobs from `src/` in parallel:
+- `migrations`: `uv run python manage.py makemigrations --check`, then
+  `uv run python manage.py migrate` on an empty database.
+- `test`: `uv run python manage.py collectstatic --noinput`, then
+  `uv run coverage run manage.py test --keepdb --verbosity=2 --parallel auto`.
+
+The test database is built from models, not migrations, so RunSQL/RunPython
+migrations do not run in tests. Set `TEST_MIGRATE=true` to run the suite on a
+migrated database. With `--keepdb`, a kept database does not pick up model
+changes to existing tables; drop it or run without `--keepdb` after switching
+branches.
