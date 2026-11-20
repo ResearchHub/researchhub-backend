@@ -4,6 +4,7 @@ import math
 import os
 from datetime import datetime
 from decimal import Decimal
+from functools import partial
 
 import requests
 from django.conf import settings
@@ -470,7 +471,7 @@ def check_pending_withdrawal():
     """
     Re-enqueue stuck broadcasts and promote PENDING withdrawals based on receipts.
     """
-    from reputation.tasks import broadcast_withdrawal
+    from reputation.tasks import broadcast_withdrawal, send_withdrawal_email
 
     stuck_withdrawals = Withdrawal.objects.filter(
         Q(paid_status=PaidStatusModelMixin.INITIATED)
@@ -489,12 +490,18 @@ def check_pending_withdrawal():
     for withdrawal in pending_withdrawals:
         with transaction.atomic():
             withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal.id)
+            if withdrawal.paid_status != PaidStatusModelMixin.PENDING:
+                continue
             paid_status, paid_date = evaluate_transaction_hash(
                 withdrawal.transaction_hash, network=withdrawal.network
             )
             withdrawal.paid_status = paid_status
             withdrawal.paid_date = paid_date
             withdrawal.save()
+            if paid_status != PaidStatusModelMixin.PENDING:
+                transaction.on_commit(
+                    partial(send_withdrawal_email.delay, withdrawal.id, paid_status)
+                )
 
 
 def check_hotwallet():

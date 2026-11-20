@@ -18,7 +18,15 @@ from reputation.models import Bounty, Contribution, Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.services.staking_yield_service import StakingYieldService
 from reputation.services.wallet import WalletService
-from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
+from reputation.services.withdrawal_notification_service import (
+    WithdrawalNotificationService,
+)
+from researchhub.celery import (
+    QUEUE_CONTRIBUTIONS,
+    QUEUE_NOTIFICATION,
+    QUEUE_PURCHASES,
+    app,
+)
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
@@ -123,6 +131,7 @@ def broadcast_withdrawal(self, withdrawal_id):
                 )
             ):
                 withdrawal.set_paid_failed()
+                send_withdrawal_email.delay(withdrawal_id, PaidStatusModelMixin.FAILED)
             logger.exception(
                 "Failed to broadcast for withdrawal %s after all retries",
                 withdrawal_id,
@@ -132,6 +141,12 @@ def broadcast_withdrawal(self, withdrawal_id):
     finally:
         lock.release(key)
         logger.info("Released lock %s", key)
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
+def send_withdrawal_email(withdrawal_id, paid_status):
+    """Email the user that their withdrawal reached the given status."""
+    WithdrawalNotificationService().notify(withdrawal_id, paid_status)
 
 
 @app.task

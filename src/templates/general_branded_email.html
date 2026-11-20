@@ -5,7 +5,7 @@
 {% if subject %}
 <h1 class="title">{{ subject }}</h1>
 {% endif %}
-<div class="body"{% if preserve_linebreaks %} style="white-space: pre-line;"{% endif %}>{{ body }}</div>
+<div class="body"{% if preserve_linebreaks %} style="white-space: pre-line; overflow-wrap: anywhere;"{% endif %}>{{ body }}</div>
 {% if cta_url %}
 <div class="cta-wrapper">
   <a class="cta-button" href="{{ cta_url }}">{{ cta_label|default:"View" }}</a>

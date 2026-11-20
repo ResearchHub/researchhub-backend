@@ -1,5 +1,6 @@
 from django.db.models import Q, QuerySet
 from django.template.loader import render_to_string
+from django.utils.safestring import mark_safe
 
 from mailing_list.services import EmailService
 from notification.models import Notification
@@ -15,7 +16,7 @@ from user.models import User
 
 
 class FundraiseNotificationService:
-    """Notify proposal and grant authors about contributions to their funding."""
+    """Notify authors about contributions and email contributors a receipt."""
 
     def __init__(
         self,
@@ -35,13 +36,18 @@ class FundraiseNotificationService:
             fundraise = contribution.fundraise
             usd_amount = contribution.amount_cents / 100
             rsc_amount = str(RscExchangeRate.usd_to_rsc(usd_amount))
+            receipt_target = "a proposal"
         else:
-            contribution = Purchase.objects.select_related("user__author_profile").get(
-                id=contribution_id
-            )
+            contribution = Purchase.objects.select_related(
+                "user__author_profile", "funding_distribution"
+            ).get(id=contribution_id)
             fundraise = contribution.item
             rsc_amount = contribution.amount
             usd_amount = float(rsc_amount) * contribution.rsc_usd_rate
+            # A pool distribution moves pool funds, not the distributor's own.
+            receipt_target = (
+                None if hasattr(contribution, "funding_distribution") else "a proposal"
+            )
 
         proposal = fundraise.unified_document.get_document()
         self._notify_recipients(
@@ -52,6 +58,7 @@ class FundraiseNotificationService:
             proposal,
             action="Funded a proposal",
             label="proposal",
+            receipt_target=receipt_target,
             recipients=User.objects.filter(
                 Q(id=proposal.created_by_id)
                 | Q(
@@ -76,6 +83,7 @@ class FundraiseNotificationService:
             grant.unified_document.get_document(),
             action="Added to an RFP’s funding pool",
             label="RFP",
+            receipt_target="an RFP",
             recipients=User.objects.filter(
                 Q(id=grant.created_by_id) | Q(grant_contacts=grant)
             ).distinct(),
@@ -90,17 +98,20 @@ class FundraiseNotificationService:
         post: ResearchhubPost,
         action: str,
         label: str,
+        receipt_target: str | None,
         recipients: QuerySet[User],
     ) -> None:
-        """Send each recipient an in-app alert and an email."""
+        """Alert and email each recipient, then email the contributor a receipt."""
         contributor = contribution.user
         document = post.unified_document
+        link = document.frontend_view_link()
+        amount = format_compact_usd(usd_amount)
         message = render_to_string(
             "email_activity_card.html",
             {
                 "author": contributor.author_profile,
                 "action": action,
-                "amount": format_compact_usd(usd_amount),
+                "amount": amount,
                 "created_date": contribution.created_date,
                 "cover": build_work_cover(post),
             },
@@ -118,6 +129,14 @@ class FundraiseNotificationService:
                 [recipient.email],
                 f"{contributor.full_name()} contributed to your {label}",
                 message,
-                link=document.frontend_view_link(),
+                link=link,
                 is_html=True,
+            )
+        if receipt_target:
+            subject = f"You contributed {amount} to {receipt_target}"
+            self._emails.send_transactional_email(
+                [contributor.email],
+                subject,
+                {"subject": subject, "body": mark_safe(message), "cta_url": link},
+                template="general_branded_email",
             )
