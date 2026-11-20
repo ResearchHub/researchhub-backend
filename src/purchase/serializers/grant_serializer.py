@@ -4,6 +4,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from ai_peer_review.serializers import ProposalKeyInsightSerializer
+from feed.services.proposal_ranking_service import ProposalRankingService
 from purchase.models import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.serializers.funding_pool_serializer import DynamicFundingPoolSerializer
@@ -152,8 +153,11 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         )
 
         review_by_ud = {r.unified_document_id: r for r in grant.proposal_reviews.all()}
+        applications = ProposalRankingService().sort_grant_applications(
+            grant.applications.all()
+        )
         application_data = []
-        for application in grant.applications.all():
+        for application in applications:
             author_profile = getattr(application.applicant, "author_profile", None)
             if not author_profile:
                 continue

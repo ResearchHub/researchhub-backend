@@ -29,13 +29,13 @@ from feed.grant_feed_cache import (
     GRANT_FEED_WARM_SEGMENTS,
     should_cache_grant_feed,
 )
+from feed.services.proposal_ranking_service import assessed_review_queryset
 from feed.views.feed_view_mixin import FeedViewMixin
 from feed.views.grant_cache_mixin import GrantCacheMixin
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from review.models import Review
 from user.models import User
 
 from .common import FeedPagination
@@ -109,13 +109,13 @@ class GrantFeedViewSet(GrantCacheMixin, FeedViewMixin, ReadOnlyModelViewSet):
             "unified_document__grants__applications__applicant__author_profile",
             Prefetch(
                 "unified_document__grants__applications__preregistration_post__unified_document__reviews",
-                queryset=Review.objects.filter(is_removed=False).select_related(
+                queryset=assessed_review_queryset().select_related(
                     "created_by__author_profile"
                 ),
             ),
             Prefetch(
                 "unified_document__grants__applications__preregistration_post__unified_document__fundraises",
-                queryset=Fundraise.objects.prefetch_related(
+                queryset=Fundraise.objects.select_related("escrow").prefetch_related(
                     "nonprofit_links__nonprofit",
                 ),
             ),
