@@ -59,6 +59,55 @@ class RenderCommentHtmlTests(SimpleTestCase):
             '<a href="https://example.com/v">https://example.com/v</a>',
         )
 
+    def test_renders_math_as_escaped_latex(self) -> None:
+        """Math nodes render their LaTeX source, block math as its own paragraph."""
+        # Arrange
+        comment = RhCommentModel(
+            comment_content_type=TIPTAP,
+            comment_content_json={
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [
+                            {"type": "text", "text": "Where "},
+                            {"type": "inlineMath", "attrs": {"latex": "x < y"}},
+                        ],
+                    },
+                    {"type": "blockMath", "attrs": {"latex": "\\frac{a}{b}"}},
+                ],
+            },
+        )
+
+        # Act
+        html = render_comment_html(comment)
+
+        # Assert
+        self.assertEqual(html, "<p>Where x &lt; y</p><p>\\frac{a}{b}</p>")
+
+    def test_truncates_math_latex(self) -> None:
+        """LaTeX source spends the character budget like text."""
+        # Arrange
+        comment = RhCommentModel(
+            comment_content_type=TIPTAP,
+            comment_content_json={
+                "type": "doc",
+                "content": [
+                    {"type": "blockMath", "attrs": {"latex": "E = mc^2 + k"}},
+                    {
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": "Next"}],
+                    },
+                ],
+            },
+        )
+
+        # Act
+        html = render_comment_html(comment, max_length=8)
+
+        # Assert
+        self.assertEqual(html, "<p>E = mc^2...</p>")
+
     def test_renders_quill_text_as_escaped_paragraphs(self) -> None:
         """Quill comments render their plain text as escaped paragraphs."""
         # Arrange

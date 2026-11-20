@@ -76,6 +76,10 @@ class _TiptapRenderer:
             if url.lower().startswith(_ALLOWED_LINK_SCHEME):
                 return format_html('<a href="{}">{}</a>', url, text)
             return escape(text)
+        if node_type == "inlineMath":
+            return escape(self._spend(attrs.get("latex", "")))
+        if node_type == "blockMath":
+            return format_html("<p>{}</p>", self._spend(attrs.get("latex", "")))
         if node_type == "hardBreak":
             return mark_safe("<br>")
         if node_type == "horizontalRule":
