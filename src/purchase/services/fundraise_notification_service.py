@@ -92,15 +92,16 @@ class FundraiseNotificationService:
         label: str,
         recipients: QuerySet[User],
     ) -> None:
-        """Send each recipient an in-app alert and an email."""
+        """Send each recipient an in-app alert and an email, then email a receipt."""
         contributor = contribution.user
         document = post.unified_document
+        amount = format_compact_usd(usd_amount)
         message = render_to_string(
             "email_activity_card.html",
             {
                 "author": contributor.author_profile,
                 "action": action,
-                "amount": format_compact_usd(usd_amount),
+                "amount": amount,
                 "created_date": contribution.created_date,
                 "cover": build_work_cover(post),
             },
@@ -121,3 +122,10 @@ class FundraiseNotificationService:
                 link=document.frontend_view_link(),
                 is_html=True,
             )
+        self._emails.send_message_email(
+            [contributor.email],
+            f"You contributed {amount} to {'an' if label == 'RFP' else 'a'} {label}",
+            message,
+            link=document.frontend_view_link(),
+            is_html=True,
+        )

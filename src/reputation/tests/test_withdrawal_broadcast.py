@@ -17,6 +17,9 @@ from reputation.lib import (
 )
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
+from reputation.services.withdrawal_notification_service import (
+    WithdrawalNotificationService,
+)
 from reputation.tasks import broadcast_withdrawal
 from reputation.tests.helpers import create_deposit
 from reputation.tests.test_withdrawal_view import VALID_TEST_TO_ADDRESS
@@ -269,6 +272,42 @@ class CheckPendingWithdrawalRecoveryTests(AWSMockTransactionTestCase):
 
         mock_delay.assert_called_once_with(withdrawal.id)
 
+    @mock.patch.object(WithdrawalNotificationService, "notify_completed")
+    @mock.patch("reputation.lib.evaluate_transaction_hash")
+    def test_completion_email_sent_only_when_paid(self, mock_evaluate, mock_notify):
+        # Arrange
+        withdrawal = Withdrawal.objects.create(
+            user=create_random_authenticated_user("pending_user"),
+            token_address="0xtoken",
+            from_address="0xfrom",
+            to_address="0xto",
+            amount="100",
+            fee="10",
+            network="ETHEREUM",
+            paid_status=PaidStatusModelMixin.PENDING,
+            transaction_hash="0xsubmitted",
+        )
+
+        for paid_status in (
+            PaidStatusModelMixin.PENDING,
+            PaidStatusModelMixin.FAILED,
+            PaidStatusModelMixin.PAID,
+        ):
+            with self.subTest(paid_status=paid_status):
+                Withdrawal.objects.filter(id=withdrawal.id).update(
+                    paid_status=PaidStatusModelMixin.PENDING
+                )
+                mock_evaluate.return_value = (paid_status, None)
+
+                # Act
+                check_pending_withdrawal()
+
+                # Assert
+                if paid_status == PaidStatusModelMixin.PAID:
+                    mock_notify.assert_called_once_with(withdrawal.id)
+                else:
+                    mock_notify.assert_not_called()
+
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
 class WithdrawalOnCommitTests(AWSMockTransactionTestCase):
@@ -304,11 +343,14 @@ class WithdrawalOnCommitTests(AWSMockTransactionTestCase):
         self.settings_patcher.stop()
         self.requests_get_patcher.stop()
 
+    @mock.patch.object(WithdrawalNotificationService, "notify_requested")
     @mock.patch("reputation.tasks.broadcast_withdrawal.delay")
     @mock.patch.object(
         WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
     )
-    def test_broadcast_scheduled_after_commit(self, mock_hotwallet, mock_delay):
+    def test_broadcast_scheduled_after_commit(
+        self, mock_hotwallet, mock_delay, mock_notify
+    ):
         from rest_framework.test import APIClient
 
         client = APIClient()
@@ -327,6 +369,7 @@ class WithdrawalOnCommitTests(AWSMockTransactionTestCase):
         withdrawal = Withdrawal.objects.get(id=response.data["id"])
         self.assertEqual(withdrawal.paid_status, PaidStatusModelMixin.INITIATED)
         mock_delay.assert_called_once_with(withdrawal.id)
+        mock_notify.assert_called_once_with(withdrawal.id)
 
         balance = Balance.objects.get(
             content_type=ContentType.objects.get_for_model(Withdrawal),

@@ -4,6 +4,7 @@ import math
 import os
 from datetime import datetime
 from decimal import Decimal
+from functools import partial
 
 import requests
 from django.conf import settings
@@ -24,6 +25,9 @@ from mailing_list.services import EmailService
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
+from reputation.services.withdrawal_notification_service import (
+    WithdrawalNotificationService,
+)
 from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
@@ -495,6 +499,14 @@ def check_pending_withdrawal():
             withdrawal.paid_status = paid_status
             withdrawal.paid_date = paid_date
             withdrawal.save()
+            if paid_status == PaidStatusModelMixin.PAID:
+                transaction.on_commit(
+                    partial(
+                        WithdrawalNotificationService().notify_completed,
+                        withdrawal.id,
+                    ),
+                    robust=True,
+                )
 
 
 def check_hotwallet():

@@ -2,6 +2,7 @@ import decimal
 import logging
 import os
 from datetime import UTC, datetime, timedelta
+from functools import partial
 
 import humanize
 from dj_rest_auth.mfa.totp import TOTP
@@ -32,6 +33,9 @@ from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.serializers import WithdrawalSerializer
+from reputation.services.withdrawal_notification_service import (
+    WithdrawalNotificationService,
+)
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
@@ -165,6 +169,13 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
                     self._prepare_withdrawal(withdrawal, amount, transaction_fee)
                     dispatch_withdrawal_broadcast(withdrawal.id)
+                    transaction.on_commit(
+                        partial(
+                            WithdrawalNotificationService().notify_requested,
+                            withdrawal.id,
+                        ),
+                        robust=True,
+                    )
 
                 # Track in Amplitude
                 track_revenue_event.apply_async(
