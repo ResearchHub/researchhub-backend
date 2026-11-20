@@ -70,6 +70,9 @@ class Deposit(SoftDeletableModel, PaidStatusModelMixin):
     )
 
     # Ordering so we only advance circle_status forward, never backwards.
+    # COMPLETED and FAILED share a rank on purpose: both are terminal, so a
+    # pending upsert must never swap one for the other. Terminal transitions
+    # are owned by process_circle_deposit and the webhook's _fail_deposit.
     CIRCLE_STATUS_ORDER = {
         "INITIATED": 0,
         "CONFIRMED": 1,

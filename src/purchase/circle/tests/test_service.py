@@ -1,9 +1,12 @@
+import threading
+import time
 import uuid
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.db import close_old_connections
+from django.test import TestCase, TransactionTestCase, override_settings
 
 from purchase.circle.client import (
     CircleBalanceError,
@@ -18,8 +21,10 @@ from purchase.circle.service import (
     CircleWalletService,
     CircleZeroBalanceError,
     get_network_to_blockchain,
+    is_sweep_awaiting_transfer_id,
+    process_circle_deposit,
 )
-from purchase.models import Wallet
+from purchase.models import Balance, Wallet
 from reputation.related_models.deposit import Deposit
 
 User = get_user_model()
@@ -496,3 +501,149 @@ class TestExecuteSweep(TestCase):
 
         self.deposit.refresh_from_db()
         self.assertEqual(self.deposit.sweep_status, Deposit.SWEEP_PENDING)
+
+
+class TestIsSweepAwaitingTransferId(TestCase):
+    """Tests for detecting an outbound webhook that raced execute_sweep."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="awaitingsweepuser")
+        Wallet.objects.create(
+            user=self.user,
+            circle_wallet_id="wallet-await",
+            circle_base_wallet_id="wallet-await-base",
+            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
+            address="0xAwaitSweepAddress",
+        )
+        self.deposit = Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_transaction_id="notif-await-1",
+            sweep_status=Deposit.SWEEP_PENDING,
+        )
+
+    def test_true_when_wallet_has_pending_sweep(self):
+        # Act
+        result = is_sweep_awaiting_transfer_id(
+            "sweep-tx-await", "wallet-await-base", "BASE"
+        )
+
+        # Assert
+        self.assertTrue(result)
+
+    def test_false_when_transfer_id_already_saved(self):
+        # Arrange
+        self.deposit.sweep_status = Deposit.SWEEP_INITIATED
+        self.deposit.sweep_transfer_id = "sweep-tx-await"
+        self.deposit.save(update_fields=["sweep_status", "sweep_transfer_id"])
+        Deposit.objects.create(
+            user=self.user,
+            amount="50",
+            network="BASE",
+            from_address="",
+            circle_transaction_id="notif-await-2",
+            sweep_status=Deposit.SWEEP_PENDING,
+        )
+
+        # Act
+        result = is_sweep_awaiting_transfer_id(
+            "sweep-tx-await", "wallet-await-base", "BASE"
+        )
+
+        # Assert
+        self.assertFalse(result)
+
+    def test_false_when_no_sweep_pending(self):
+        # Arrange
+        self.deposit.sweep_status = Deposit.SWEEP_COMPLETED
+        self.deposit.save(update_fields=["sweep_status"])
+
+        # Act
+        result = is_sweep_awaiting_transfer_id(
+            "sweep-tx-await", "wallet-await-base", "BASE"
+        )
+
+        # Assert
+        self.assertFalse(result)
+
+    def test_false_for_unknown_wallet_or_blockchain(self):
+        # Act / Assert
+        self.assertFalse(
+            is_sweep_awaiting_transfer_id("sweep-tx-await", "unknown-wallet", "BASE")
+        )
+        self.assertFalse(
+            is_sweep_awaiting_transfer_id("sweep-tx-await", "wallet-await-base", "SOL")
+        )
+        self.assertFalse(is_sweep_awaiting_transfer_id("sweep-tx-await", "", "BASE"))
+
+
+class TestProcessCircleDepositConcurrency(TransactionTestCase):
+    """Concurrent COMPLETED webhooks for one pending deposit credit once."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="concurrentdepositor")
+        Wallet.objects.create(
+            user=self.user,
+            circle_wallet_id="wallet-concurrent",
+            circle_base_wallet_id="wallet-concurrent-base",
+            wallet_type=Wallet.WALLET_TYPE_CIRCLE,
+            address="0xConcurrentAddress",
+        )
+        Deposit.objects.create(
+            user=self.user,
+            amount="100",
+            network="BASE",
+            from_address="",
+            circle_transaction_id="tx-concurrent",
+            paid_status=Deposit.PENDING,
+            circle_status=Deposit.CIRCLE_CONFIRMED,
+        )
+
+    def test_concurrent_completed_webhooks_credit_once(self):
+        # Arrange
+        original_set_paid = Deposit.set_paid
+
+        def slow_set_paid(deposit):
+            # Widen the window between reading and promoting the row.
+            time.sleep(0.3)
+            original_set_paid(deposit)
+
+        barrier = threading.Barrier(2)
+        results = []
+        errors = []
+
+        def deliver():
+            close_old_connections()
+            try:
+                wallet = Wallet.objects.select_related("user").get(
+                    circle_base_wallet_id="wallet-concurrent-base"
+                )
+                barrier.wait()
+                _, credited = process_circle_deposit(
+                    circle_transaction_id="tx-concurrent",
+                    wallet=wallet,
+                    amount="100",
+                    network="BASE",
+                )
+                results.append(credited)
+            except Exception as exc:  # noqa: BLE001 - surfaced in main test thread
+                errors.append(exc)
+            finally:
+                close_old_connections()
+
+        # Act
+        with patch.object(Deposit, "set_paid", slow_set_paid):
+            threads = [threading.Thread(target=deliver) for _ in range(2)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=10)
+
+        # Assert
+        self.assertFalse(errors)
+        self.assertEqual(sorted(results), [False, True])
+        self.assertEqual(Balance.objects.filter(user=self.user).count(), 1)
+        deposit = Deposit.objects.get(circle_transaction_id="tx-concurrent")
+        self.assertEqual(deposit.paid_status, Deposit.PAID)
