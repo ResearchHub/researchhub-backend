@@ -64,7 +64,7 @@ class RiskScoreEvent(models.Model):
         EventType.EDU_EMAIL: 20,
         EventType.GOOGLE_SIGNUP: 10,
         EventType.ACCOUNT_AGE_BONUS: 5,
-        EventType.PERSONA_VERIFIED_WHITELISTED: 51,
+        EventType.PERSONA_VERIFIED_WHITELISTED: 25,
         EventType.PERSONA_VERIFIED_NON_WHITELISTED: 10,
     }
 
