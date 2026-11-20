@@ -18,6 +18,7 @@ from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.tests.helpers import create_deposit, create_withdrawal
 from reputation.views.withdrawal_view import WithdrawalViewSet
+from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.tests.helpers import create_random_authenticated_user, create_trusted_user
 
@@ -312,6 +313,57 @@ class WithdrawalViewSetTests(APITestCase):
         self.assertIn(
             "Please wait for your previous withdrawal to finish", response.data
         )
+
+    def test_concurrent_withdrawal_committed_while_waiting_for_lock(self):
+        """The pending check must run after the user lock is acquired."""
+        # Arrange
+        user = self._create_withdrawer("rep_user")
+        create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 4))
+        self.client.force_authenticate(user)
+        select_for_update = User.objects.select_for_update
+
+        def commit_competing_withdrawal_then_lock(*args, **kwargs):
+            # Simulates a concurrent request that held the user lock and
+            # committed its withdrawal while this request waited.
+            Withdrawal.objects.create(
+                user=user,
+                token_address="0xtoken",
+                from_address="0xfrom",
+                to_address=VALID_TEST_TO_ADDRESS,
+                amount=str(WITHDRAWAL_MINIMUM),
+                fee="10",
+                paid_status=PaidStatusModelMixin.INITIATED,
+            )
+            return select_for_update(*args, **kwargs)
+
+        # Act
+        with (
+            mock.patch.object(
+                WithdrawalViewSet,
+                "_check_hotwallet_balance",
+                return_value=(True, None),
+            ),
+            mock.patch.object(
+                User.objects,
+                "select_for_update",
+                side_effect=commit_competing_withdrawal_then_lock,
+            ),
+        ):
+            response = self.client.post(
+                self.withdrawal_url,
+                {
+                    "amount": str(WITHDRAWAL_MINIMUM + 10),
+                    "to_address": VALID_TEST_TO_ADDRESS,
+                    "network": "ETHEREUM",
+                },
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Please wait for your previous withdrawal to finish", response.data
+        )
+        self.assertEqual(Withdrawal.objects.filter(user=user).count(), 1)
 
     def test_withdrawal_exceeds_user_balance(self):
         """Test that users can't withdraw more than their balance."""
@@ -666,7 +718,7 @@ class WithdrawalViewSetTests(APITestCase):
             mock.patch.object(
                 WithdrawalViewSet,
                 "_prepare_withdrawal",
-                side_effect=Exception("Test exception"),
+                side_effect=Exception("https://rpc.example/secret-key"),
             ),
         ):
             response = self.client.post(
@@ -678,6 +730,33 @@ class WithdrawalViewSetTests(APITestCase):
             )
 
             self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.data, "Failed to create withdrawal")
+
+    def test_hotwallet_rpc_error_returns_generic_400(self):
+        """An RPC failure in the hot-wallet check doesn't surface as a 500."""
+        # Arrange
+        user = self._create_withdrawer("rep_user")
+        create_deposit(user, amount="1000.0")
+        self.client.force_authenticate(user)
+
+        # Act
+        with mock.patch.object(
+            WithdrawalViewSet,
+            "_check_hotwallet_balance",
+            side_effect=ConnectionError("https://rpc.example/secret-key"),
+        ):
+            response = self.client.post(
+                self.withdrawal_url,
+                {
+                    "amount": "500",
+                    "to_address": VALID_TEST_TO_ADDRESS,
+                },
+            )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, "Failed to create withdrawal")
+        self.assertFalse(Withdrawal.objects.filter(user=user).exists())
 
     def test_unauthenticated_user_cannot_withdraw(self):
         """Test that unauthenticated users cannot withdraw."""

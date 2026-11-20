@@ -3,16 +3,16 @@ from datetime import UTC, datetime, timedelta
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
 from django.db.models import DurationField, F
 from django.db.models.functions import Cast
 
 import utils.locking as lock
 from reputation.constants.bounty import ASSESSMENT_PERIOD_DAYS
 from reputation.lib import (
-    broadcast_withdrawal_transfer,
     check_hotwallet,
     check_pending_withdrawal,
+    mark_withdrawal_for_reconciliation,
+    reserve_nonce_and_broadcast_withdrawal,
 )
 from reputation.models import Bounty, Contribution, Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
@@ -99,9 +99,7 @@ def broadcast_withdrawal(self, withdrawal_id):
         return False
 
     try:
-        with transaction.atomic():
-            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal_id)
-            broadcast_withdrawal_transfer(withdrawal)
+        reserve_nonce_and_broadcast_withdrawal(withdrawal_id)
         return True
     except Exception as exc:
         withdrawal = Withdrawal.objects.filter(id=withdrawal_id).first()
@@ -122,7 +120,13 @@ def broadcast_withdrawal(self, withdrawal_id):
                     PaidStatusModelMixin.FAILED,
                 )
             ):
-                withdrawal.set_paid_failed()
+                if withdrawal.broadcast_nonce is None:
+                    withdrawal.set_paid_failed()
+                else:
+                    # The transfer may have landed, so refunding is unsafe.
+                    mark_withdrawal_for_reconciliation(
+                        withdrawal, "broadcast retries exhausted after nonce reserved"
+                    )
             logger.exception(
                 "Failed to broadcast for withdrawal %s after all retries",
                 withdrawal_id,
