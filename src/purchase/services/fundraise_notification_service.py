@@ -1,5 +1,6 @@
 from django.db.models import Q, QuerySet
 from django.template.loader import render_to_string
+from django.utils.safestring import mark_safe
 
 from mailing_list.services import EmailService
 from notification.models import Notification
@@ -122,10 +123,16 @@ class FundraiseNotificationService:
                 link=document.frontend_view_link(),
                 is_html=True,
             )
-        self._emails.send_message_email(
+        subject = (
+            f"You contributed {amount} to {'an' if label == 'RFP' else 'a'} {label}"
+        )
+        self._emails.send_transactional_email(
             [contributor.email],
-            f"You contributed {amount} to {'an' if label == 'RFP' else 'a'} {label}",
-            message,
-            link=document.frontend_view_link(),
-            is_html=True,
+            subject,
+            {
+                "subject": subject,
+                "body": mark_safe(message),
+                "cta_url": document.frontend_view_link(),
+            },
+            template="general_branded_email",
         )
