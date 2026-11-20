@@ -25,9 +25,6 @@ from mailing_list.services import EmailService
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from reputation.services.withdrawal_notification_service import (
-    WithdrawalNotificationService,
-)
 from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
@@ -474,7 +471,7 @@ def check_pending_withdrawal():
     """
     Re-enqueue stuck broadcasts and promote PENDING withdrawals based on receipts.
     """
-    from reputation.tasks import broadcast_withdrawal
+    from reputation.tasks import broadcast_withdrawal, send_withdrawal_email
 
     stuck_withdrawals = Withdrawal.objects.filter(
         Q(paid_status=PaidStatusModelMixin.INITIATED)
@@ -493,19 +490,17 @@ def check_pending_withdrawal():
     for withdrawal in pending_withdrawals:
         with transaction.atomic():
             withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal.id)
+            if withdrawal.paid_status != PaidStatusModelMixin.PENDING:
+                continue
             paid_status, paid_date = evaluate_transaction_hash(
                 withdrawal.transaction_hash, network=withdrawal.network
             )
             withdrawal.paid_status = paid_status
             withdrawal.paid_date = paid_date
             withdrawal.save()
-            if paid_status == PaidStatusModelMixin.PAID:
+            if paid_status != PaidStatusModelMixin.PENDING:
                 transaction.on_commit(
-                    partial(
-                        WithdrawalNotificationService().notify_completed,
-                        withdrawal.id,
-                    ),
-                    robust=True,
+                    partial(send_withdrawal_email.delay, withdrawal.id, paid_status)
                 )
 
 

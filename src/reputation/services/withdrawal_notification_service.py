@@ -2,6 +2,23 @@ from decimal import Decimal
 
 from mailing_list.services import EmailService
 from reputation.models import Withdrawal
+from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
+
+# Subject ending and closing note for each status a user is told about.
+MESSAGES = {
+    PaidStatusModelMixin.INITIATED: (
+        "is on its way",
+        (
+            "If you did not request this withdrawal, contact ResearchHub support "
+            "right away and quote the withdrawal number above."
+        ),
+    ),
+    PaidStatusModelMixin.PAID: ("is complete", None),
+    PaidStatusModelMixin.FAILED: (
+        "failed",
+        "The transfer did not go through and your RSC has been returned.",
+    ),
+}
 
 
 class WithdrawalNotificationService:
@@ -11,30 +28,20 @@ class WithdrawalNotificationService:
         """Configure email delivery for withdrawals."""
         self._emails = email_service or EmailService()
 
-    def notify_requested(self, withdrawal_id: int) -> None:
-        """Email the user once their withdrawal request commits."""
-        self._send(
-            withdrawal_id,
-            "is on its way",
-            "If you did not request this withdrawal, "
-            "contact ResearchHub support right away.",
-        )
-
-    def notify_completed(self, withdrawal_id: int) -> None:
-        """Email the user once their withdrawal is confirmed on-chain."""
-        self._send(withdrawal_id, "is complete")
-
-    def _send(self, withdrawal_id: int, status: str, note: str | None = None) -> None:
-        """Send a transactional email describing the withdrawal."""
+    def notify(self, withdrawal_id: int, paid_status: str) -> None:
+        """Email the user that their withdrawal reached the given status."""
         withdrawal = Withdrawal.objects.select_related("user").get(id=withdrawal_id)
         if not withdrawal.user:
             return
 
-        amount = f"{Decimal(withdrawal.amount).normalize():,f} RSC"
-        subject = f"Your withdrawal of {amount} {status}"
+        status, note = MESSAGES[paid_status]
+        amount, fee = Decimal(withdrawal.amount), Decimal(withdrawal.fee)
+        subject = f"Your withdrawal of {amount.normalize():,f} RSC {status}"
         lines = [
-            f"Amount: {amount}",
-            f"Fee: {Decimal(withdrawal.fee).normalize():,f} RSC",
+            f"Withdrawal: #{withdrawal.id}",
+            f"Amount sent: {amount.normalize():,f} RSC",
+            f"Fee: {fee.normalize():,f} RSC",
+            f"Total: {(amount + fee).normalize():,f} RSC",
             f"Network: {withdrawal.get_network_display()}",
             f"To: {withdrawal.to_address}",
         ]

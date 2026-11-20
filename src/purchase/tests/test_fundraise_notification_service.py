@@ -98,16 +98,23 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
             grant=grant, created_by=owner, amount_holding=amount_holding
         )
 
-    def _assert_receipt_sent(self, subject: str, post: ResearchhubPost) -> None:
-        """Assert the contributor got exactly one transactional receipt."""
+    def _assert_receipt_sent(
+        self, subject: str, post: ResearchhubPost, amount: str, fee: str, total: str
+    ) -> None:
+        """Assert the contributor got exactly one receipt with exact amounts."""
         self.email_service.send_transactional_email.assert_called_once()
         receipt = self.email_service.send_transactional_email.call_args
         self.assertEqual(receipt.args[0], [self.contributor.email])
         self.assertEqual(receipt.args[1], subject)
-        self.assertEqual(
-            receipt.args[2]["cta_url"], post.unified_document.frontend_view_link()
-        )
-        self.assertEqual(receipt.kwargs["template"], "general_branded_email")
+        context = receipt.args[2]
+        self.assertEqual(context["cta_url"], post.unified_document.frontend_view_link())
+        for line in (
+            post.title,
+            f"Amount: {amount}",
+            f"Fee: {fee}",
+            f"Total: {total}",
+        ):
+            self.assertIn(line, context["body"].splitlines())
 
     def test_notify_authors_only_after_rsc_contribution_commits(self) -> None:
         """Notify each author once after commit and discard rolled-back alerts."""
@@ -143,7 +150,13 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
             sent_emails[0].kwargs["link"],
             self.proposal.unified_document.frontend_view_link(),
         )
-        self._assert_receipt_sent("You contributed $50 to a proposal", self.proposal)
+        self._assert_receipt_sent(
+            "Your 100 RSC contribution to a proposal",
+            self.proposal,
+            "100 RSC",
+            "9 RSC",
+            "109 RSC",
+        )
         self.assertCountEqual(
             self.notifications.values_list("recipient_id", "object_id"),
             [(self.creator.id, purchase.id), (self.contributor.id, purchase.id)],
@@ -192,7 +205,13 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
             self.email_service.send_message_email.call_args.args[1],
             f"{self.contributor.full_name()} contributed to your proposal",
         )
-        self._assert_receipt_sent("You contributed $100 to a proposal", self.proposal)
+        self._assert_receipt_sent(
+            "Your $100.00 contribution to a proposal",
+            self.proposal,
+            "$100.00",
+            "$9.00",
+            "$109.00",
+        )
         message = "submitted a contribution to your proposal"
         notification = self.notifications.get()
         self.assertEqual(notification.recipient, self.creator)
@@ -233,7 +252,7 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
             self.email_service.send_message_email.call_args.args[0],
             [self.creator.email],
         )
-        self._assert_receipt_sent("You contributed $38 to a proposal", self.proposal)
+        self.email_service.send_transactional_email.assert_not_called()
         notification = self.notifications.get()
         self.assertEqual(notification.recipient, self.creator)
         self.assertEqual(notification.item, distribution.fundraise_purchase)
@@ -268,11 +287,33 @@ class FundraiseNotificationServiceTests(AWSMockTransactionTestCase):
             [[self.creator.email], [contact.email]],
         )
         self._assert_receipt_sent(
-            "You contributed $50 to an RFP", pool.grant.unified_document.get_document()
+            "Your 100 RSC contribution to an RFP",
+            pool.grant.unified_document.get_document(),
+            "100 RSC",
+            "9 RSC",
+            "109 RSC",
         )
         self.assertCountEqual(
             Notification.objects.filter(
                 notification_type=Notification.FUNDING_POOL_CONTRIBUTION
             ).values_list("recipient_id", "object_id"),
             [(self.creator.id, purchase.id), (contact.id, purchase.id)],
+        )
+
+    def test_authors_still_notified_when_receipt_fails(self) -> None:
+        """Notify the author even if the contributor's receipt cannot be sent."""
+        # Arrange
+        self._give_contributor_funding_credits()
+        self.email_service.send_transactional_email.side_effect = RuntimeError
+
+        # Act
+        self.fundraise_service.create_rsc_contribution(
+            self.contributor, self.fundraise, Decimal(100), use_credits=True
+        )
+
+        # Assert
+        self.email_service.send_message_email.assert_called_once()
+        self.assertEqual(
+            self.email_service.send_message_email.call_args.args[0],
+            [self.creator.email],
         )

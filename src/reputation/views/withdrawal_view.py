@@ -33,9 +33,7 @@ from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from reputation.serializers import WithdrawalSerializer
-from reputation.services.withdrawal_notification_service import (
-    WithdrawalNotificationService,
-)
+from reputation.tasks import send_withdrawal_email
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
@@ -171,10 +169,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     dispatch_withdrawal_broadcast(withdrawal.id)
                     transaction.on_commit(
                         partial(
-                            WithdrawalNotificationService().notify_requested,
+                            send_withdrawal_email.delay,
                             withdrawal.id,
-                        ),
-                        robust=True,
+                            PaidStatusModelMixin.INITIATED,
+                        )
                     )
 
                 # Track in Amplitude

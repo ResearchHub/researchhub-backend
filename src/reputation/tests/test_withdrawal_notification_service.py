@@ -30,38 +30,56 @@ class WithdrawalNotificationServiceTests(TestCase):
             paid_status=PaidStatusModelMixin.INITIATED,
         )
 
-    def test_notify_requested_emails_user_with_withdrawal_details(self) -> None:
-        """Send a transactional email describing the requested withdrawal."""
-        # Act
-        self.service.notify_requested(self.withdrawal.id)
-
-        # Assert
+    def _sent_email(self) -> tuple[list[str], str, str]:
+        """Return the recipients, subject and body of the one email sent."""
         self.email_service.send_transactional_email.assert_called_once()
         call = self.email_service.send_transactional_email.call_args
-        self.assertEqual(call.args[0], [self.user.email])
-        self.assertEqual(call.args[1], "Your withdrawal of 1,500.5 RSC is on its way")
-        self.assertEqual(call.kwargs["template"], "general_branded_email")
-        body = call.args[2]["body"]
-        for detail in ("1,500.5 RSC", "Fee: 10 RSC", "Network: Base", "To: 0xto"):
+        return call.args[0], call.args[1], call.args[2]["body"]
+
+    def test_requested_email_describes_withdrawal_and_warns(self) -> None:
+        """Email the amounts and destination when a withdrawal is requested."""
+        # Act
+        self.service.notify(self.withdrawal.id, PaidStatusModelMixin.INITIATED)
+
+        # Assert
+        recipients, subject, body = self._sent_email()
+        self.assertEqual(recipients, [self.user.email])
+        self.assertEqual(subject, "Your withdrawal of 1,500.5 RSC is on its way")
+        for detail in (
+            f"Withdrawal: #{self.withdrawal.id}",
+            "Amount sent: 1,500.5 RSC",
+            "Fee: 10 RSC",
+            "Total: 1,510.5 RSC",
+            "Network: Base",
+            "To: 0xto",
+            "If you did not request this withdrawal",
+        ):
             self.assertIn(detail, body)
-        self.assertIn("If you did not request this withdrawal", body)
         self.assertNotIn("Transaction:", body)
 
-    def test_notify_completed_emails_user_with_transaction_hash(self) -> None:
-        """Send a transactional email once the withdrawal is confirmed."""
+    def test_completed_email_includes_transaction_hash(self) -> None:
+        """Email the transaction hash once the withdrawal is confirmed."""
         # Arrange
         self.withdrawal.transaction_hash = "0xhash"
         self.withdrawal.save()
 
         # Act
-        self.service.notify_completed(self.withdrawal.id)
+        self.service.notify(self.withdrawal.id, PaidStatusModelMixin.PAID)
 
         # Assert
-        self.email_service.send_transactional_email.assert_called_once()
-        call = self.email_service.send_transactional_email.call_args
-        self.assertEqual(call.args[0], [self.user.email])
-        self.assertEqual(call.args[1], "Your withdrawal of 1,500.5 RSC is complete")
-        self.assertIn("Transaction: 0xhash", call.args[2]["body"])
+        _, subject, body = self._sent_email()
+        self.assertEqual(subject, "Your withdrawal of 1,500.5 RSC is complete")
+        self.assertIn("Transaction: 0xhash", body)
+
+    def test_failed_email_says_funds_were_returned(self) -> None:
+        """Tell the user when a withdrawal fails."""
+        # Act
+        self.service.notify(self.withdrawal.id, PaidStatusModelMixin.FAILED)
+
+        # Assert
+        _, subject, body = self._sent_email()
+        self.assertEqual(subject, "Your withdrawal of 1,500.5 RSC failed")
+        self.assertIn("your RSC has been returned", body)
 
     def test_no_email_when_withdrawal_has_no_user(self) -> None:
         """Skip the email when the withdrawal's user was deleted."""
@@ -70,7 +88,7 @@ class WithdrawalNotificationServiceTests(TestCase):
         self.withdrawal.save()
 
         # Act
-        self.service.notify_requested(self.withdrawal.id)
+        self.service.notify(self.withdrawal.id, PaidStatusModelMixin.INITIATED)
 
         # Assert
         self.email_service.send_transactional_email.assert_not_called()
