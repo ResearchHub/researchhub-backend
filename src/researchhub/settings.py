@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 import logging
 import os
 import sys
+from datetime import timedelta
 
 import requests
 import sentry_sdk
@@ -314,7 +315,7 @@ if DEBUG:
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework.authentication.TokenAuthentication",
+        "user.authentication.ExpiringTokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -370,8 +371,20 @@ AUTHENTICATION_BACKENDS = (
 REST_AUTH = {
     "REGISTER_SERIALIZER": "user.serializers.RegisterSerializer",
     "PASSWORD_RESET_SERIALIZER": "user.custom_allauth.CustomPasswordResetSerializer",
+    "PASSWORD_RESET_CONFIRM_SERIALIZER": (
+        "user.custom_allauth.CustomPasswordResetConfirmSerializer"
+    ),
+    "OLD_PASSWORD_FIELD_ENABLED": True,
+    "TOKEN_CREATOR": "user.services.auth_token_service.create_auth_token",
     "MFA_TOTP_ISSUER": "ResearchHub",
 }
+
+AUTH_TOKEN_IDLE_LIFETIME = timedelta(
+    days=int(os.environ.get("AUTH_TOKEN_IDLE_LIFETIME_DAYS", 14))
+)
+AUTH_TOKEN_ABSOLUTE_LIFETIME = timedelta(
+    days=int(os.environ.get("AUTH_TOKEN_ABSOLUTE_LIFETIME_DAYS", 30))
+)
 
 
 # Django AllAuth setup

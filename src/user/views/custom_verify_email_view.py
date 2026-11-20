@@ -3,8 +3,9 @@ import logging
 from allauth.account.models import EmailConfirmation, EmailConfirmationHMAC
 from dj_rest_auth.registration.views import VerifyEmailView
 from django.contrib.auth import get_user_model
-from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
+
+from user.services.auth_token_service import AuthTokenService
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class CustomVerifyEmailView(VerifyEmailView):
 
         try:
             user = User.objects.get(id=user_id)
-            token, _ = Token.objects.get_or_create(user=user)
+            token = AuthTokenService().issue(user)
 
             # Return the response with token
             return Response(
