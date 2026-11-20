@@ -308,7 +308,10 @@ class WithdrawalOnCommitTests(AWSMockTransactionTestCase):
     @mock.patch.object(
         WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
     )
-    def test_broadcast_scheduled_after_commit(self, mock_hotwallet, mock_delay):
+    @mock.patch.object(WithdrawalViewSet, "_check_mfa", return_value=None)
+    def test_broadcast_scheduled_after_commit(
+        self, mock_check_mfa, mock_hotwallet, mock_delay
+    ):
         from rest_framework.test import APIClient
 
         client = APIClient()
