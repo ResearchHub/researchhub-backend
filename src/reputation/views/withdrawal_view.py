@@ -16,6 +16,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -189,11 +190,17 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
     def _check_mfa(self, user, request) -> str | None:
         """
-        When MFA is enabled by the user, validate the given MFA code from the request.
-        Returns an error message if invalid, or None if MFA passes (or is disabled).
+        Require MFA to be enabled, then validate the given MFA code from the request.
+        Returns an error message if the code is invalid, or None if MFA passes.
         """
         if not is_mfa_enabled(user):
-            return None
+            raise PermissionDenied(
+                {
+                    "detail": "Two-factor authentication must be enabled to "
+                    "withdraw. Enable it in Settings.",
+                    "code": "mfa_required",
+                }
+            )
 
         code = (request.data.get("mfa_code") or "").strip()
         if not code:

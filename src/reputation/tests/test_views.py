@@ -59,7 +59,14 @@ class ReputationViewsTests(APITestCase):
         )
         self.hotwallet_patcher.start()
 
+        # Skip the MFA check, which test_withdrawal_view covers
+        self.check_mfa_patcher = mock.patch.object(
+            WithdrawalViewSet, "_check_mfa", return_value=None
+        )
+        self.check_mfa_patcher.start()
+
     def tearDown(self):
+        self.check_mfa_patcher.stop()
         self.mocker.stop()
         self.hotwallet_patcher.stop()  # Stop the hotwallet mock
 

@@ -79,10 +79,17 @@ class WithdrawalViewSetTests(APITestCase):
         )
         self.eth_to_rsc_patcher.start()
 
+        # Skip the MFA check, except in the tests that cover it
+        self.check_mfa_patcher = mock.patch.object(
+            WithdrawalViewSet, "_check_mfa", return_value=None
+        )
+        self.check_mfa_patcher.start()
+
         # Create exchange rate for user serializer balances
         RscExchangeRate.objects.create(rate=0.5, real_rate=0.5)
 
     def tearDown(self):
+        self.check_mfa_patcher.stop()
         self.withdraw_patcher.stop()
         self.eth_to_rsc_patcher.stop()
         self.settings_patcher.stop()
@@ -913,11 +920,12 @@ class WithdrawalViewSetTests(APITestCase):
     @mock.patch.object(
         WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
     )
-    def test_withdrawal_succeeds_without_mfa_when_user_has_no_mfa(self, _mock_balance):
+    def test_withdrawal_rejects_user_without_mfa_enabled(self, _mock_balance):
         """
-        Users without MFA enabled withdraw without supplying a code.
+        Users without MFA enabled get a 403 telling them MFA is required.
         """
         # Arrange
+        self.check_mfa_patcher.stop()
         user = self._create_withdrawer("no_mfa_user")
         create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
         self.client.force_authenticate(user)
@@ -933,7 +941,9 @@ class WithdrawalViewSetTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["code"], "mfa_required")
+        self.assertFalse(Withdrawal.objects.filter(user=user).exists())
 
     @mock.patch.object(
         WithdrawalViewSet, "_check_hotwallet_balance", return_value=(True, None)
@@ -943,6 +953,7 @@ class WithdrawalViewSetTests(APITestCase):
         MFA-enabled users get a 400 if they don't include an mfa_code.
         """
         # Arrange
+        self.check_mfa_patcher.stop()
         user = self._create_withdrawer("mfa_required_user")
         create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
         TOTP.activate(user, generate_totp_secret())
@@ -971,6 +982,7 @@ class WithdrawalViewSetTests(APITestCase):
         An incorrect MFA code is rejected with a 400.
         """
         # Arrange
+        self.check_mfa_patcher.stop()
         user = self._create_withdrawer("mfa_invalid_user")
         create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
         TOTP.activate(user, generate_totp_secret())
@@ -1000,6 +1012,7 @@ class WithdrawalViewSetTests(APITestCase):
         A valid TOTP code allows the withdrawal to proceed.
         """
         # Arrange
+        self.check_mfa_patcher.stop()
         user = self._create_withdrawer("mfa_totp_user")
         create_deposit(user, amount=str(WITHDRAWAL_MINIMUM * 2))
         secret = generate_totp_secret()
