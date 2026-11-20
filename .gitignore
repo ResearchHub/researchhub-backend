@@ -43,3 +43,6 @@ uploads/
 # Braintrust local credentials
 .env.braintrust
 .braintrust.json
+
+# Agent eval reports (research_ai run_agent_evals)
+src/agent-eval-reports/

@@ -1,0 +1,9 @@
+id: assistant/question-no-note
+agent: assistant
+turns:
+  - >-
+    What is the difference between a preregistration and a registered report?
+    A short answer is fine.
+expect:
+  tools_not_called: [create_note, edit_note]
+  max_reply_chars: 2000

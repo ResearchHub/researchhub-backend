@@ -1,0 +1,27 @@
+id: notebook/sample-size-no-deferral
+agent: notebook
+note:
+  title: Mindfulness training and exam anxiety
+  document_type: PREREGISTRATION
+  blocks:
+    - "## Introduction"
+    - >-
+      Exam anxiety affects a large share of undergraduates and is associated
+      with lower grades. Brief mindfulness programmes reduce general anxiety,
+      but evidence for exam anxiety specifically is mixed.
+    - "## Hypothesis"
+    - >-
+      Students who complete a four-week mindfulness programme will report
+      lower exam anxiety on the Test Anxiety Inventory than students on a
+      waitlist.
+    - "## Methods"
+    - >-
+      Undergraduates will be randomised to the programme or a waitlist.
+      Test Anxiety Inventory scores are collected one week before final exams.
+turns:
+  - >-
+    Add a sample size to the Methods with a power justification, and fill in
+    whatever else the Methods needs to be runnable.
+expect:
+  tools_called: [read_note, edit_note]
+  unchanged_sections: [Introduction, Hypothesis]
