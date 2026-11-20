@@ -178,7 +178,7 @@ class PartnerRfpImportService:
 
         if not post.discussion_src:
             post.discussion_src.save(
-                f"partner-rfp-{post.pk}.html",
+                f"partner-rfp-{post.pk}.txt",
                 ContentFile(post.renderable_text.encode("utf-8")),
                 save=False,
             )

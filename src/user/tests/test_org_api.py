@@ -1,11 +1,9 @@
 import io
-import tempfile
 import uuid
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
 from PIL import Image
 from rest_framework.test import APITestCase
 
@@ -13,6 +11,7 @@ from researchhub_access_group.models import Permission
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.constants.organization_constants import PERSONAL
 from user.models import Organization
 
 
@@ -177,27 +176,114 @@ class OrganizationTests(APITestCase):
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_update_rejects_html_cover_image(self):
+    def _png_upload(self):
+        buffer = io.BytesIO()
+        Image.new("RGB", (1, 1)).save(buffer, format="PNG")
+        return SimpleUploadedFile(
+            "cover.png", buffer.getvalue(), content_type="image/png"
+        )
+
+    def test_update_ignores_cover_image(self):
         # Arrange
         self.client.force_authenticate(self.org_a_admin)
-        upload = SimpleUploadedFile(
-            "spam.html", b"<html><body>spam</body></html>", content_type="text/html"
-        )
 
         # Act
         response = self.client.patch(
             f"/api/organization/{self.org_a['id']}/",
-            {"cover_image": upload},
+            {"cover_image": self._png_upload(), "name": "Renamed"},
             format="multipart",
         )
 
         # Assert
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("cover_image", response.data)
+        self.assertEqual(response.status_code, 200)
         organization = Organization.objects.get(id=self.org_a["id"])
+        self.assertEqual(organization.name, "Renamed")
         self.assertFalse(organization.cover_image)
 
-    def test_create_rejects_non_image_image(self):
+    def test_admin_can_update_name(self):
+        # Arrange
+        self.client.force_authenticate(self.org_a_admin)
+
+        # Act
+        response = self.client.patch(
+            f"/api/organization/{self.org_a['id']}/", {"name": "New name"}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["name"], "New name")
+        organization = Organization.objects.get(id=self.org_a["id"])
+        self.assertEqual(organization.name, "New name")
+
+    def test_update_ignores_read_only_fields(self):
+        # Arrange
+        self.client.force_authenticate(self.org_a_admin)
+        before = Organization.objects.get(id=self.org_a["id"])
+
+        # Act
+        response = self.client.patch(
+            f"/api/organization/{self.org_a['id']}/",
+            {
+                "description": "Changed",
+                "note_created": True,
+                "org_type": PERSONAL,
+                "slug": "changed-slug",
+                "user": self.org_b_admin.id,
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        organization = Organization.objects.get(id=self.org_a["id"])
+        self.assertEqual(organization.description, before.description)
+        self.assertEqual(organization.note_created, before.note_created)
+        self.assertEqual(organization.org_type, before.org_type)
+        self.assertEqual(organization.slug, before.slug)
+        self.assertEqual(organization.user_id, before.user_id)
+
+    def test_response_keeps_all_organization_fields(self):
+        # Arrange
+        self.client.force_authenticate(self.org_a_admin)
+
+        # Act
+        response = self.client.get(f"/api/organization/{self.org_a['id']}/")
+
+        # Assert
+        self.assertEqual(
+            set(response.data),
+            {
+                "id",
+                "member_count",
+                "user_permission",
+                "created_date",
+                "updated_date",
+                "cover_image",
+                "description",
+                "name",
+                "note_created",
+                "org_type",
+                "slug",
+                "user",
+            },
+        )
+
+    def test_create_ignores_image(self):
+        # Arrange
+        self.client.force_authenticate(self.org_a_admin)
+
+        # Act
+        response = self.client.post(
+            "/api/organization/",
+            {"name": "ORG C", "image": self._png_upload()},
+            format="multipart",
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        organization = Organization.objects.get(name="ORG C")
+        self.assertFalse(organization.cover_image)
+
+    def test_create_ignores_text_image(self):
         # Arrange
         self.client.force_authenticate(self.org_a_admin)
 
@@ -208,31 +294,6 @@ class OrganizationTests(APITestCase):
         )
 
         # Assert
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("image", response.data)
-        self.assertFalse(Organization.objects.filter(name="ORG C").exists())
-
-    def test_create_stores_image_named_by_content(self):
-        # Arrange
-        self.client.force_authenticate(self.org_a_admin)
-        buffer = io.BytesIO()
-        Image.new("RGB", (1, 1)).save(buffer, format="PNG")
-        upload = SimpleUploadedFile(
-            "spam.html", buffer.getvalue(), content_type="text/html"
-        )
-
-        # Act
-        with (
-            tempfile.TemporaryDirectory() as media_root,
-            override_settings(MEDIA_ROOT=media_root),
-        ):
-            response = self.client.post(
-                "/api/organization/",
-                {"name": "ORG C", "image": upload},
-                format="multipart",
-            )
-
-        # Assert
         self.assertEqual(response.status_code, 200)
         organization = Organization.objects.get(name="ORG C")
-        self.assertTrue(organization.cover_image.name.endswith(".png"))
+        self.assertFalse(organization.cover_image)

@@ -1,8 +1,4 @@
-import logging
-
-import requests
 from django.contrib.contenttypes.models import ContentType
-from django.core.files.base import ContentFile
 from django.db import models
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
@@ -18,8 +14,6 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
-
-logger = logging.getLogger(__name__)
 
 
 @receiver(pre_save, sender=Organization, dispatch_uid="add_organization_slug")
@@ -123,22 +117,3 @@ def create_user_organization(sender, instance, created, **kwargs):
             organization=org,
             user=instance,
         )
-
-        profile_image = instance.author_profile.profile_image
-        try:
-            if profile_image:
-                request = requests.get(
-                    profile_image.url, allow_redirects=False, timeout=10
-                )
-                if request.status_code == 200:
-                    profile_image_content = request.content
-                    profile_image_file = ContentFile(profile_image_content)
-                    org.cover_image.save(
-                        f"org_image_{instance.id}_{slug}.png",
-                        profile_image_file,
-                        save=True,
-                    )
-        except Exception:
-            logger.exception(
-                "Failed to attach profile image to user org %s", instance.id
-            )

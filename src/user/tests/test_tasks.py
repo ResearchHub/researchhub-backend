@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -8,10 +9,12 @@ from discussion.constants.flag_reasons import ABUSIVE_OR_RUDE, SPAM
 from discussion.models import Flag
 from discussion.views import censor
 from feed.models import FeedEntry
-from note.models import Note
+from note.models import Note, NoteContent
 from paper.tests.helpers import create_paper
 from purchase.models import Fundraise, Grant, Purchase
 from reputation.models import Bounty, Escrow
+from researchhub_access_group.constants import ADMIN
+from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -20,7 +23,7 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.models.review_model import Review
 from user.events import user_reinstated, user_suspended
-from user.models import Action
+from user.models import Action, Organization
 from user.related_models.verdict_model import Verdict
 from user.tasks import get_latest_actions, handle_spam_user_task, reinstate_user_task
 from user.tests.helpers import create_actions, create_random_default_user
@@ -758,6 +761,255 @@ class HandleSpamUserContentTests(HandleSpamUserTaskTests):
         mock_storage_service.restore_object.assert_called_once_with(
             "uploads/papers/users/1/abc/spam.pdf"
         )
+
+    def _set_profile_image(self, user, name):
+        author = user.author_profile
+        author.profile_image.name = name
+        author.save()
+
+    def _set_cover_image(self, organization, name):
+        organization.cover_image.name = name
+        organization.save()
+
+    def _create_organization(self, slug, *admins):
+        organization = Organization.objects.create(name=slug, slug=slug)
+        for admin in admins:
+            Permission.objects.create(
+                access_type=ADMIN,
+                content_type=ContentType.objects.get_for_model(Organization),
+                object_id=organization.id,
+                organization=organization,
+                user=admin,
+            )
+        return organization
+
+    def _create_note(self, user):
+        return Note.objects.create(
+            created_by=user,
+            title="Note",
+            unified_document=ResearchhubUnifiedDocument.objects.create(
+                document_type="NOTE"
+            ),
+        )
+
+    def _quarantined_keys(self, storage_service_mock):
+        mock_storage_service = storage_service_mock.return_value
+        return {
+            call.args[0] for call in mock_storage_service.quarantine_object.mock_calls
+        }
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_quarantines_profile_image_and_personal_cover_image(
+        self, storage_service_mock
+    ):
+        # Arrange
+        self._set_profile_image(self.user, "uploads/author_profile_images/spam.png")
+        self._set_cover_image(
+            self.user.organization, "organizations/cover_image/spam.png"
+        )
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual(
+            self._quarantined_keys(storage_service_mock),
+            {
+                "uploads/author_profile_images/spam.png",
+                "organizations/cover_image/spam.png",
+            },
+        )
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_ignores_external_profile_image(self, storage_service_mock):
+        # Arrange
+        self._set_profile_image(self.user, "https://example.com/picture.png")
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual(self._quarantined_keys(storage_service_mock), set())
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_quarantines_cover_image_of_solely_administered_org(
+        self, storage_service_mock
+    ):
+        # Arrange
+        organization = self._create_organization("sole-admin-org", self.user)
+        self._set_cover_image(organization, "organizations/cover_image/sole.png")
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual(
+            self._quarantined_keys(storage_service_mock),
+            {"organizations/cover_image/sole.png"},
+        )
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_keeps_cover_image_of_org_with_another_admin(
+        self, storage_service_mock
+    ):
+        # Arrange
+        organization = self._create_organization(
+            "shared-org", self.user, self.other_user
+        )
+        self._set_cover_image(organization, "organizations/cover_image/shared.png")
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual(self._quarantined_keys(storage_service_mock), set())
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_quarantines_referenced_presigned_uploads(
+        self, storage_service_mock
+    ):
+        # Arrange
+        base_url = "https://storage.test.researchhub.com"
+        prefix = f"uploads/%s/users/{self.user.id}/abc"
+        self.post.image = f"{prefix % 'posts'}/cover.png"
+        self.post.preview_img = f"{base_url}/{prefix % 'posts'}/preview.png"
+        self.post.save()
+        note = self._create_note(self.user)
+        note.image = f"{prefix % 'notes'}/cover.png"
+        note.preview_img = f"{base_url}/{prefix % 'notes'}/preview.png"
+        note.save()
+        NoteContent.objects.create(
+            note=note,
+            json={
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "image",
+                        "attrs": {"src": f"{base_url}/{prefix % 'notes'}/body.png"},
+                    }
+                ],
+            },
+        )
+        self.comment.comment_content_json = {
+            "ops": [{"insert": {"image": f"{base_url}/{prefix % 'comments'}/a.png"}}]
+        }
+        self.comment.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual(
+            self._quarantined_keys(storage_service_mock),
+            {
+                f"{prefix % 'posts'}/cover.png",
+                f"{prefix % 'posts'}/preview.png",
+                f"{prefix % 'notes'}/cover.png",
+                f"{prefix % 'notes'}/preview.png",
+                f"{prefix % 'notes'}/body.png",
+                f"{prefix % 'comments'}/a.png",
+            },
+        )
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_quarantines_uploads_in_string_encoded_documents(
+        self, storage_service_mock
+    ):
+        # Arrange
+        base_url = "https://storage.test.researchhub.com"
+        note_key = f"uploads/notes/users/{self.user.id}/abc/body.png"
+        comment_key = f"uploads/comments/users/{self.user.id}/abc/a.png"
+        NoteContent.objects.create(
+            note=self._create_note(self.user),
+            json=json.dumps(
+                {
+                    "type": "doc",
+                    "content": [
+                        {"type": "image", "attrs": {"src": f"{base_url}/{note_key}"}}
+                    ],
+                }
+            ),
+        )
+        self.comment.comment_content_json = json.dumps(
+            {"ops": [{"insert": {"image": f"{base_url}/{comment_key}"}}]}
+        )
+        self.comment.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual(
+            self._quarantined_keys(storage_service_mock), {note_key, comment_key}
+        )
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_completes_with_deeply_nested_document(self, storage_service_mock):
+        # Arrange
+        NoteContent.objects.create(
+            note=self._create_note(self.user),
+            json="[" * 200000 + "]" * 200000,
+        )
+        events = []
+        user_suspended.connect(
+            lambda sender, event, **kwargs: events.append(event),
+            dispatch_uid="test_nested_document_suspended_event",
+            weak=False,
+        )
+        self.addCleanup(
+            user_suspended.disconnect,
+            dispatch_uid="test_nested_document_suspended_event",
+        )
+
+        # Act
+        with self.captureOnCommitCallbacks(execute=True):
+            handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual([event.user_id for event in events], [self.user.id])
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_suspend_keeps_uploads_of_other_users(self, storage_service_mock):
+        # Arrange
+        other_key = f"uploads/posts/users/{self.other_user.id}/abc/cover.png"
+        self.post.image = other_key
+        self.post.preview_img = f"https://storage.test.researchhub.com/{other_key}"
+        self.post.save()
+        self.comment.comment_content_json = {
+            "ops": [{"insert": {"image": f"https://example.com/{other_key}"}}]
+        }
+        self.comment.save()
+
+        # Act
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Assert
+        self.assertEqual(self._quarantined_keys(storage_service_mock), set())
+
+    @patch("user.tasks.tasks.S3StorageService")
+    def test_reinstate_restores_every_quarantined_file(self, storage_service_mock):
+        # Arrange
+        mock_storage_service = storage_service_mock.return_value
+        self._set_profile_image(self.user, "uploads/author_profile_images/spam.png")
+        self._set_cover_image(
+            self.user.organization, "organizations/cover_image/spam.png"
+        )
+        self.post.image = f"uploads/posts/users/{self.user.id}/abc/cover.png"
+        self.post.save()
+        handle_spam_user_task(self.user.id, self.moderator)
+
+        # Act
+        reinstate_user_task(self.user.id)
+
+        # Assert
+        restored = {
+            call.args[0] for call in mock_storage_service.restore_object.mock_calls
+        }
+        self.assertEqual(len(restored), 3)
+        self.assertEqual(restored, self._quarantined_keys(storage_service_mock))
 
 
 class CensorFunctionTests(TestCase):

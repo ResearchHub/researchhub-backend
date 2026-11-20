@@ -70,24 +70,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             data = request.data
             description = data.get("description", "")
             name = data.get("name", None)
-            image = data.get("image", None)
 
             if Organization.objects.filter(name=name).exists():
                 return Response({"data": "Name is already in use."}, status=409)
 
-            # `image` is the legacy name for `cover_image` during creation
-            cover_image = None
-            if image:
-                image_serializer = self.get_serializer(
-                    data={"cover_image": image}, partial=True
-                )
-                if not image_serializer.is_valid():
-                    errors = image_serializer.errors["cover_image"]
-                    return Response({"image": errors}, status=400)
-                cover_image = image_serializer.validated_data["cover_image"]
-
             organization = Organization.objects.create(
-                cover_image=cover_image,
                 description=description,
                 name=name,
             )
