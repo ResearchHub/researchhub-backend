@@ -145,6 +145,47 @@ class CreateRegisteredReportTests(APITestCase):
         self.assertEqual(work_response.status_code, status.HTTP_200_OK)
         self.assertEqual(work_response.data["work"]["full_json"], full_json)
 
+    def test_create_report_cleans_published_note_json(self) -> None:
+        """Verify script-bearing editor JSON is neutralised before it is stored."""
+        # Arrange
+        proposal = self._create_completed_proposal(self.user)
+        note = self._create_registered_report_note(proposal)
+        full_json = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "figure",
+                    "attrs": {"originalContent": "<img src=x onerror=alert(1)>"},
+                },
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "link",
+                            "marks": [
+                                {
+                                    "type": "link",
+                                    "attrs": {"href": "JaVaScRiPt:alert(1)"},
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ],
+        }
+        payload = self._build_payload(proposal, full_json=full_json, note_id=note.id)
+
+        # Act
+        response = self.client.post(self.create_url, payload, format="json")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        report = ResearchhubPost.objects.get(id=response.data["id"])
+        figure, paragraph = report.note.latest_version.json["content"]
+        self.assertEqual(figure["attrs"]["originalContent"], '<img src="x">')
+        self.assertEqual(paragraph["content"][0]["marks"], [])
+
     def test_published_report_content_cannot_be_changed(self) -> None:
         """Verify publishing freezes both the report and its source note."""
         # Arrange

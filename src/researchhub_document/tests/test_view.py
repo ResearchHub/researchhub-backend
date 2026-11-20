@@ -333,7 +333,7 @@ class ViewTests(APITestCase):
                 "document_type": "DISCUSSION",
                 "created_by": self.admin_user.id,
                 "full_src": "body",
-                "image": "/imagePath1",
+                "image": f"uploads/posts/users/{self.admin_user.id}/a/first.png",
                 "is_public": True,
                 "note_id": note[0].id,
                 "renderable_text": (
@@ -354,7 +354,7 @@ class ViewTests(APITestCase):
                 "document_type": "DISCUSSION",
                 "created_by": self.admin_user.id,
                 "full_src": "body",
-                "image": "/updatedImagePath1",
+                "image": f"uploads/posts/users/{self.admin_user.id}/b/second.png",
                 "is_public": True,
                 "title": "updated title. updated title. updated title.",
                 "renderable_text": (
@@ -369,7 +369,10 @@ class ViewTests(APITestCase):
             updated_response.data["title"],
             "updated title. updated title. updated title.",
         )
-        self.assertEqual(updated_response.data["image_url"], "/updatedImagePath1")
+        self.assertIn(
+            f"uploads/posts/users/{self.admin_user.id}/b/second.png",
+            updated_response.data["image_url"],
+        )
 
     def test_author_can_update_post_with_non_members(self):
         """Verify updating a post recredits its authors in the submitted order."""

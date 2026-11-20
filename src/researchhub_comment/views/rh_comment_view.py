@@ -58,6 +58,9 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
 )
+from researchhub_document.services.rich_text_sanitizer_service import (
+    sanitize_editor_document,
+)
 from review.services.review_service import (
     MAX_REVIEWS_PER_WINDOW,
     REVIEW_WINDOW_DAYS,
@@ -348,6 +351,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "parent": parent_id,
                 }
             )
+            if "comment_content_json" in data:
+                data["comment_content_json"] = sanitize_editor_document(
+                    data["comment_content_json"]
+                )
             rh_comment, _ = RhCommentModel.create_from_data(data)
             publish_comment_submitted(sender=RhCommentModel, comment_id=rh_comment.id)
 

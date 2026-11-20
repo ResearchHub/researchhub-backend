@@ -47,6 +47,7 @@ dependencies = [
     "mailchimp-marketing>=3.0.72,<4.0.0",
     "mammoth>=1.13.0,<2",
     "markdownify>=1.2.3,<2",
+    "nh3>=0.3.8",
     "openai>=1.45.0",
     "opensearch-py==3.2.0",
     "pillow>=12.3.0",
@@ -121,7 +122,7 @@ extend-select = [
     "S113",  # flake8-bandit: request-without-timeout
     "SIM",   # flake8-simplify
     "T20",   # flake8-print: forbid print statements
-    "TID",   # flake8-tidy-imports 
+    "TID",   # flake8-tidy-imports
     "TRY401",# verbose-log-message,
     "UP",    # pyupgrade
     "W",     # pycodestyle warnings

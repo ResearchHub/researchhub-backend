@@ -16,6 +16,9 @@ from researchhub_document.registered_report_note_metadata import (
 from researchhub_document.related_models.constants.document_type import (
     REGISTERED_REPORT,
 )
+from researchhub_document.services.rich_text_sanitizer_service import (
+    sanitize_editor_document,
+)
 from utils.prosemirror import normalize_block_document
 
 
@@ -78,7 +81,7 @@ class NoteContentService:
             raise ValueError("Published registered report content cannot be edited.")
 
         content_json = self._restore_registered_report_prefill(note, content_json)
-        content_json = normalize_block_document(content_json)
+        content_json = sanitize_editor_document(normalize_block_document(content_json))
 
         if plain_text is None:
             plain_text = extract_plain_text(content_json)

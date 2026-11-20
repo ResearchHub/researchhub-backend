@@ -1,0 +1,536 @@
+{
+  "document": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 1,
+          "id": "h-1",
+          "data-toc-id": "toc-1",
+          "textAlign": "center"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Effects of X & Y < Z"
+          }
+        ]
+      },
+      {
+        "type": "tableOfContentsNode"
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "id": "p-1",
+          "textAlign": "justify",
+          "class": "lead"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "bold ",
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "ital ",
+            "marks": [
+              {
+                "type": "italic"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "under ",
+            "marks": [
+              {
+                "type": "underline"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "strike ",
+            "marks": [
+              {
+                "type": "strike"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "code ",
+            "marks": [
+              {
+                "type": "code"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "sub",
+            "marks": [
+              {
+                "type": "subscript"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "sup",
+            "marks": [
+              {
+                "type": "superscript"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "hl",
+            "marks": [
+              {
+                "type": "highlight",
+                "attrs": {
+                  "color": "#fde68a"
+                }
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "styled",
+            "marks": [
+              {
+                "type": "textStyle",
+                "attrs": {
+                  "color": "rgb(37, 99, 235)",
+                  "fontFamily": "Georgia, serif",
+                  "fontSize": "18px"
+                }
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "link",
+            "marks": [
+              {
+                "type": "link",
+                "attrs": {
+                  "href": "https://example.org/a?b=1&c=2",
+                  "target": "_blank",
+                  "rel": "noopener noreferrer nofollow",
+                  "class": null
+                }
+              }
+            ]
+          },
+          {
+            "type": "hardBreak"
+          },
+          {
+            "type": "emoji",
+            "attrs": {
+              "name": "smile"
+            }
+          },
+          {
+            "type": "inlineMath",
+            "attrs": {
+              "latex": "E = mc^2"
+            }
+          }
+        ]
+      },
+      {
+        "type": "blockMath",
+        "attrs": {
+          "latex": "\\int_0^1 x\\,dx"
+        }
+      },
+      {
+        "type": "bulletList",
+        "content": [
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "attrs": {
+                  "id": "p-2"
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "one"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "orderedList",
+        "attrs": {
+          "start": 3,
+          "type": "a"
+        },
+        "content": [
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "attrs": {
+                  "id": "p-3"
+                },
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "two"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "taskList",
+        "content": [
+          {
+            "type": "taskItem",
+            "attrs": {
+              "checked": true
+            },
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "done"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "taskItem",
+            "attrs": {
+              "checked": false
+            },
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "todo"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "blockquoteFigure",
+        "content": [
+          {
+            "type": "quote",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "quoted"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "quoteCaption",
+            "content": [
+              {
+                "type": "text",
+                "text": "Author"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "codeBlock",
+        "attrs": {
+          "language": "python",
+          "id": "c-1"
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "if a < b and c > d:\n    print(\"<script>\")"
+          }
+        ]
+      },
+      {
+        "type": "table",
+        "attrs": {
+          "id": "t-1"
+        },
+        "content": [
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableHeader",
+                "attrs": {
+                  "colspan": 1,
+                  "rowspan": 1,
+                  "colwidth": [
+                    120
+                  ],
+                  "style": "background-color: #f3f4f6"
+                },
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "H"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "tableHeader",
+                "attrs": {
+                  "colspan": 1,
+                  "rowspan": 1
+                },
+                "content": [
+                  {
+                    "type": "paragraph"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "tableRow",
+            "content": [
+              {
+                "type": "tableCell",
+                "attrs": {
+                  "colspan": 2,
+                  "rowspan": 1,
+                  "colwidth": [
+                    120,
+                    80
+                  ]
+                },
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "c"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "imageBlock",
+        "attrs": {
+          "src": "https://storage.prod.researchhub.com/uploads/notes/users/5/a/fig.png",
+          "width": "75%",
+          "align": "left",
+          "alt": "Fig 1"
+        }
+      },
+      {
+        "type": "youtube",
+        "attrs": {
+          "src": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          "start": 30,
+          "width": 640,
+          "height": 480
+        }
+      },
+      {
+        "type": "details",
+        "attrs": {
+          "open": true
+        },
+        "content": [
+          {
+            "type": "detailsSummary",
+            "content": [
+              {
+                "type": "text",
+                "text": "More"
+              }
+            ]
+          },
+          {
+            "type": "detailsContent",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "hidden"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "columns",
+        "attrs": {
+          "layout": "two-column"
+        },
+        "content": [
+          {
+            "type": "column",
+            "attrs": {
+              "position": "left"
+            },
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "L"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "column",
+            "attrs": {
+              "position": "right"
+            },
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "R"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "figure",
+        "attrs": {
+          "class": "image image-style-side",
+          "originalContent": "<img src=\"https://example.org/f.png\" alt=\"f\"><figcaption>Caption &amp; more</figcaption>"
+        }
+      },
+      {
+        "type": "horizontalRule"
+      },
+      {
+        "type": "paragraph"
+      }
+    ]
+  },
+  "blocks": [
+    {
+      "node": "heading",
+      "html": "<h1 data-id=\"h-1\" id=\"h-1\" data-toc-id=\"toc-1\" style=\"text-align: center;\">Effects of X &amp; Y &lt; Z</h1>"
+    },
+    {
+      "node": "tableOfContentsNode",
+      "html": "<div data-type=\"table-of-content\"></div>"
+    },
+    {
+      "node": "paragraph",
+      "html": "<p data-id=\"p-1\" class=\"lead\" style=\"text-align: justify;\"><strong>bold </strong><em>ital </em><u>under </u><s>strike </s><code>code </code><sub>sub</sub><sup>sup</sup><mark data-color=\"#fde68a\" style=\"background-color: #fde68a; color: inherit;\">hl</mark><span style=\"font-size: 18px; font-family: Georgia, serif; color: rgb(37, 99, 235);\">styled</span><a class=\"link inline-flex items-center hover:underline transition-colors duration-200\" rel=\"noopener noreferrer nofollow\" target=\"_blank\" href=\"https://example.org/a?b=1&amp;c=2\">link</a><br><span data-name=\"smile\" data-type=\"emoji\"><img src=\"https://cdn.jsdelivr.net/npm/emoji-datasource-apple/img/apple/64/1f604.png\" draggable=\"false\" loading=\"lazy\" align=\"absmiddle\" alt=\"smile emoji\"></span><span data-latex=\"E = mc^2\" data-type=\"inline-math\"></span></p>"
+    },
+    {
+      "node": "blockMath",
+      "html": "<div data-latex=\"\\int_0^1 x\\,dx\" data-type=\"block-math\"></div>"
+    },
+    {
+      "node": "bulletList",
+      "html": "<ul><li><p data-id=\"p-2\">one</p></li></ul>"
+    },
+    {
+      "node": "orderedList",
+      "html": "<ol start=\"3\" type=\"a\"><li><p data-id=\"p-3\">two</p></li></ol>"
+    },
+    {
+      "node": "taskList",
+      "html": "<ul data-type=\"taskList\"><li data-checked=\"true\" data-type=\"taskItem\"><label><input type=\"checkbox\" checked=\"checked\"><span></span></label><div><p>done</p></div></li><li data-checked=\"false\" data-type=\"taskItem\"><label><input type=\"checkbox\"><span></span></label><div><p>todo</p></div></li></ul>"
+    },
+    {
+      "node": "blockquoteFigure",
+      "html": "<figure data-type=\"blockquoteFigure\"><div><blockquote><p>quoted</p></blockquote><figcaption>Author</figcaption></div></figure>"
+    },
+    {
+      "node": "codeBlock",
+      "html": "<pre data-id=\"c-1\"><code class=\"language-python\">if a &lt; b and c &gt; d:\n    print(\"&lt;script&gt;\")</code></pre>"
+    },
+    {
+      "node": "table",
+      "html": "<table data-id=\"t-1\" style=\"min-width: 145px;\"><colgroup><col style=\"width: 120px;\"><col style=\"min-width: 25px;\"></colgroup><tbody><tr><th colspan=\"1\" rowspan=\"1\" colwidth=\"120\" style=\"background-color: #f3f4f6;\"><p>H</p></th><th colspan=\"1\" rowspan=\"1\"><p></p></th></tr><tr><td colspan=\"2\" rowspan=\"1\" colwidth=\"120,80\"><p>c</p></td></tr></tbody></table>"
+    },
+    {
+      "node": "imageBlock",
+      "html": "<img src=\"https://storage.prod.researchhub.com/uploads/notes/users/5/a/fig.png\" data-width=\"75%\" data-align=\"left\" alt=\"Fig 1\">"
+    },
+    {
+      "node": "youtube",
+      "html": "<div data-youtube-video=\"\"><iframe width=\"640\" height=\"480\" allowfullscreen=\"true\" autoplay=\"false\" disablekbcontrols=\"false\" enableiframeapi=\"false\" endtime=\"0\" ivloadpolicy=\"0\" loop=\"false\" modestbranding=\"false\" origin=\"\" playlist=\"\" rel=\"1\" src=\"https://www.youtube.com/embed/dQw4w9WgXcQ?start=30&amp;rel=1\" start=\"30\"></iframe></div>"
+    },
+    {
+      "node": "details",
+      "html": "<details class=\"details\" open=\"\"><summary>More</summary><div data-type=\"detailsContent\"><p>hidden</p></div></details>"
+    },
+    {
+      "node": "columns",
+      "html": "<div data-type=\"columns\" class=\"layout-two-column\"><div data-position=\"left\" data-type=\"column\"><p>L</p></div><div data-position=\"right\" data-type=\"column\"><p>R</p></div></div>"
+    },
+    {
+      "node": "figure",
+      "html": "<figure data-original-content=\"&lt;img src=&quot;https://example.org/f.png&quot; alt=&quot;f&quot;&gt;&lt;figcaption&gt;Caption &amp;amp; more&lt;/figcaption&gt;\" class=\"image image-style-side\"><img src=\"https://example.org/f.png\" alt=\"f\"><figcaption>Caption &amp; more</figcaption></figure>"
+    },
+    {
+      "node": "horizontalRule",
+      "html": "<div data-type=\"horizontalRule\"><hr></div>"
+    },
+    {
+      "node": "paragraph",
+      "html": "<p></p>"
+    }
+  ]
+}

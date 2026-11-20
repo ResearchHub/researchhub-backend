@@ -7,6 +7,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from note.models import NoteTemplate
 from note.serializers import NoteTemplateSerializer
+from researchhub_document.services.rich_text_sanitizer_service import sanitize_html
 from user.models import Organization
 
 
@@ -36,7 +37,7 @@ class NoteTemplateViewSet(ModelViewSet):
         name = data.get("name", "Template")
         organization_id = data.get("organization", None)
         is_default = data.get("is_default", False)
-        src = data.get("full_src", "")
+        src = sanitize_html(data.get("full_src", ""))
 
         if organization_id:
             created_by = None

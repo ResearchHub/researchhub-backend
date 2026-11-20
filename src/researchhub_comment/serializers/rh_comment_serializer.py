@@ -14,12 +14,25 @@ from researchhub_comment.serializers.constants.rh_comment_serializer_contants im
     RH_COMMENT_FIELDS,
     RH_COMMENT_READ_ONLY_FIELDS,
 )
+from researchhub_document.services.rich_text_sanitizer_service import (
+    sanitize_editor_document,
+)
 from review.serializers.review_serializer import DynamicReviewSerializer
 from user.serializers import DynamicUserSerializer
 from utils.http import get_user_from_request
 
 
-class RhCommentSerializer(GenericReactionSerializer):
+class SanitizedCommentContentMixin:
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if "comment_content_json" in data:
+            data["comment_content_json"] = sanitize_editor_document(
+                data["comment_content_json"]
+            )
+        return data
+
+
+class RhCommentSerializer(SanitizedCommentContentMixin, GenericReactionSerializer):
     class Meta:
         model = RhCommentModel
         fields = [
@@ -34,6 +47,9 @@ class RhCommentSerializer(GenericReactionSerializer):
     children_count = SerializerMethodField()
     children = SerializerMethodField()
 
+    def validate_comment_content_json(self, value):
+        return sanitize_editor_document(value)
+
     def get_children_count(self, comment):
         return comment.children_count
 
@@ -45,6 +61,7 @@ class RhCommentSerializer(GenericReactionSerializer):
 
 
 class DynamicRhCommentSerializer(
+    SanitizedCommentContentMixin,
     GenericReactionSerializer,
     GenericReactionSerializerMixin,
     DynamicModelFieldSerializer,
