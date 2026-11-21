@@ -14,6 +14,7 @@ from feed.serializers import (
     SlimAuthorSerializer,
     _grant_amount,
 )
+from feed.services.proposal_ranking_service import ProposalRankingService
 from purchase.models import Fundraise, Grant
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -29,10 +30,6 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
     ResearchhubUnifiedDocument,
 )
 from user.serializers import DynamicUserSerializer
-
-
-def _assessed_reviews(queryset):
-    return queryset.filter(is_assessed=True, is_removed=False)
 
 
 class SlimReviewSerializer(serializers.Serializer):
@@ -168,7 +165,9 @@ def _serialize_slim_application_fundraise(application, grant):
     fundraise = fundraises[0]
 
     reviews = [
-        SlimReviewSerializer(r).data for r in _assessed_reviews(ud.reviews.all())
+        SlimReviewSerializer(r).data
+        for r in ud.reviews.all()
+        if r.is_assessed and not r.is_removed
     ]
     data = {
         "id": fundraise.id,
@@ -223,8 +222,11 @@ def serialize_slim_grant_applications(grant, context):
     if include_key_insights:
         review_by_ud = {r.unified_document_id: r for r in grant.proposal_reviews.all()}
 
+    applications = ProposalRankingService().sort_grant_applications(
+        grant.applications.all()
+    )
     application_data = []
-    for application in grant.applications.all():
+    for application in applications:
         author_profile = getattr(application.applicant, "author_profile", None)
         if not author_profile:
             continue

@@ -23,6 +23,7 @@ from django.utils import timezone
 from rest_framework.filters import OrderingFilter
 from rest_framework.request import Request
 
+from feed.services.proposal_ranking_service import ProposalRankingService
 from purchase.related_models.fundraise_model import Fundraise
 from purchase.related_models.grant_application_model import approved_proposal_filters
 from purchase.related_models.grant_model import Grant
@@ -99,9 +100,9 @@ class FundOrderingFilter(OrderingFilter):
         if ordering == "newest":
             return self._apply_newest_sorting(queryset, model_config)
         elif ordering == "best":
-            # For RFP applications (when grant_id is passed), sort by most funded
+            # For RFP applications (when grant_id is passed), use proposal ranking
             if grant_id:
-                return self._apply_amount_raised_sorting(queryset, Fundraise)
+                return ProposalRankingService().order_posts(queryset)
             return self._apply_best_sorting(queryset, model_config)
         elif ordering == "upvotes":
             return self._apply_upvotes_sorting(queryset)
