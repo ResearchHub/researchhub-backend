@@ -59,14 +59,7 @@ class FundingFeedViewSet(FundingCacheMixin, FeedViewMixin, ReadOnlyModelViewSet)
     permission_classes = []
     pagination_class = FeedPagination
     filter_backends = [DjangoFilterBackend, FundOrderingFilter]
-    ordering_fields = [
-        "newest",
-        "best",
-        "upvotes",
-        "most_applicants",
-        "amount_raised",
-        "recommended",
-    ]
+    ordering_fields = ["newest", "best", "upvotes", "most_applicants", "amount_raised"]
     ordering = "best"  # Default ordering
     DEFAULT_CACHE_TIMEOUT = FEED_CACHE_TIMEOUT
 

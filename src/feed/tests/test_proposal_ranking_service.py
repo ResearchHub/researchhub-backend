@@ -252,19 +252,12 @@ class ProposalRankingEndpointTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         return [r["content_object"]["id"] for r in response.data["results"]]
 
-    def test_funding_feed_recommended_ordering(self):
-        # Act
-        ids = self._funding_feed_ids("recommended")
-
-        # Assert
-        self.assertEqual(ids, self.expected)
-
-    def test_funding_feed_best_with_grant_id_still_sorts_by_amount_raised(self):
+    def test_funding_feed_best_with_grant_id_uses_ranking(self):
         # Act
         ids = self._funding_feed_ids("best")
 
         # Assert
-        self.assertEqual(ids[:2], [self.closed.id, self.rsc_funded.id])
+        self.assertEqual(ids, self.expected)
 
     def test_grant_feed_applications_use_ranking(self):
         # Act

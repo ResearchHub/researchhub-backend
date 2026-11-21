@@ -100,12 +100,10 @@ class FundOrderingFilter(OrderingFilter):
         if ordering == "newest":
             return self._apply_newest_sorting(queryset, model_config)
         elif ordering == "best":
-            # For RFP applications (when grant_id is passed), sort by most funded
+            # For RFP applications (when grant_id is passed), use proposal ranking
             if grant_id:
-                return self._apply_amount_raised_sorting(queryset, Fundraise)
+                return ProposalRankingService().order_posts(queryset)
             return self._apply_best_sorting(queryset, model_config)
-        elif ordering == "recommended":
-            return ProposalRankingService().order_posts(queryset)
         elif ordering == "upvotes":
             return self._apply_upvotes_sorting(queryset)
         elif ordering == "most_applicants":

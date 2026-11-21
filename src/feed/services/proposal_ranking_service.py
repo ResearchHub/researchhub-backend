@@ -1,5 +1,5 @@
 """
-"Recommended" ranking for proposals.
+Ranking for proposals under one RFP.
 
 Proposals are ordered by strict tiers. Each tier only breaks ties left by the
 tiers above it, so a funded proposal always stays above an unfunded one, no
@@ -13,7 +13,7 @@ matter its reviews or upvotes.
 4. Upvotes (the post's vote score), highest first.
 5. Newest first.
 
-The same rule is applied in SQL (``funding_feed?ordering=recommended``) and in
+The same rule is applied in SQL (``funding_feed?grant_id=<id>&ordering=best``) and in
 Python (applications nested in grant payloads).
 """
 
